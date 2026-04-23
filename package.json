@@ -1,0 +1,19 @@
+{
+  "name": "code-graph",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.2",
+  "type": "module",
+  "dependencies": {
+    "arangojs": "^10.3.0",
+    "ts-morph": "^28.0.0",
+    "tsx": "^4.21.0"
+  }
+}
