@@ -36,3 +36,11 @@ export function getDb(): Database {
   }
   return _db;
 }
+
+export function getProjectDb(dbName: string): Database {
+  return new Database({
+    url: ARANGO_URL,
+    databaseName: dbName,
+    auth: makeAuth(),
+  });
+}

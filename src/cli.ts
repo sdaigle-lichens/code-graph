@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { Command } from "commander";
-import { getSystemDb } from "./scribe/db.js";
+import { getSystemDb, getProjectDb } from "./scribe/db.js";
 import { tryLoadConfig } from "./config.js";
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const composeFile = join(pkgRoot, "docker-compose.arangodb.yml");
+const pkg = JSON.parse(
+  readFileSync(join(pkgRoot, "package.json"), "utf-8")
+) as { version: string };
 
 function notImplemented() {
   console.error("not implemented yet");
@@ -24,7 +28,7 @@ function runDockerCompose(...args: string[]) {
 }
 
 const program = new Command();
-program.name("code-graph").version("1.0.0");
+program.name("code-graph").version(pkg.version);
 
 program
   .command("up")
@@ -69,11 +73,7 @@ program
       console.log(`DB exists: ${exists ? "yes" : "no"}`);
 
       if (exists) {
-        const { Database } = await import("arangojs");
-        const db = new Database({
-          url,
-          databaseName: dbName,
-        });
+        const db = getProjectDb(dbName);
         const collections = await db.listCollections();
         const hasConcepts = collections.some((c) => c.name === "concepts");
         if (hasConcepts) {
