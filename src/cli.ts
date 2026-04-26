@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { Command } from "commander";
 import { getSystemDb, getProjectDb } from "./scribe/db.js";
 import { tryLoadConfig } from "./config.js";
+import { bootstrap } from "./scribe/bootstrap.js";
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const composeFile = join(pkgRoot, "docker-compose.arangodb.yml");
@@ -45,6 +46,8 @@ program
   .description("show ArangoDB and project DB status")
   .action(async () => {
     const url = process.env.ARANGO_URL ?? "http://localhost:8529";
+    const ok = (label: string) => console.log(`  [✓] ${label}`);
+    const fail = (label: string) => console.log(`  [✗] ${label}`);
 
     let reachable = false;
     try {
@@ -53,37 +56,41 @@ program
       reachable = true;
     } catch {}
 
-    console.log(`ArangoDB (${url}): ${reachable ? "reachable" : "unreachable"}`);
+    reachable ? ok(`ArangoDB reachable (${url})`) : fail(`ArangoDB unreachable (${url})`);
 
     const config = tryLoadConfig(process.cwd());
     if (!config) {
-      console.log("no scribe.config.json found in CWD ancestry");
+      fail("scribe.config.json not found in CWD ancestry");
       return;
     }
-
-    const dbName = process.env.ARANGO_DB ?? config.project;
-    console.log(`project DB: ${dbName}`);
+    ok(`scribe.config.json found (project: ${config.project})`);
 
     if (!reachable) return;
 
     try {
+      const dbName = process.env.ARANGO_DB ?? config.project;
       const sysDb = getSystemDb();
       const databases = await sysDb.listDatabases();
-      const exists = databases.includes(dbName);
-      console.log(`DB exists: ${exists ? "yes" : "no"}`);
+      const dbExists = databases.includes(dbName);
+      dbExists ? ok(`DB "${dbName}" exists`) : fail(`DB "${dbName}" missing`);
 
-      if (exists) {
-        const db = getProjectDb(dbName);
-        const collections = await db.listCollections();
-        const hasConcepts = collections.some((c) => c.name === "concepts");
-        if (hasConcepts) {
-          const col = db.collection("concepts");
-          const count = await col.count();
-          console.log(`concepts collection: ${count.count} documents`);
-        } else {
-          console.log("concepts collection: not found");
-        }
+      if (!dbExists) return;
+
+      const db = getProjectDb(dbName);
+      const collections = await db.listCollections();
+      const colNames = collections.map((c) => c.name);
+
+      for (const name of ["vertices", "edges", "docs", "concepts"]) {
+        colNames.includes(name) ? ok(`collection ${name}`) : fail(`collection ${name} missing`);
       }
+
+      const graph = db.graph("code_graph");
+      const graphExists = await graph.exists();
+      graphExists ? ok("graph code_graph") : fail("graph code_graph missing");
+
+      const views = await db.listViews();
+      const viewExists = views.some((v) => v.name === "code_search_view");
+      viewExists ? ok("view code_search_view") : fail("view code_search_view missing");
     } catch (err) {
       console.error("error querying DB:", (err as Error).message);
     }
@@ -92,7 +99,15 @@ program
 program
   .command("bootstrap")
   .description("bootstrap graph collections for current project")
-  .action(notImplemented);
+  .action(async () => {
+    try {
+      await bootstrap((msg) => console.log(msg));
+      console.log("\nbootstrap complete");
+    } catch (err) {
+      console.error("bootstrap failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
 
 program
   .command("extract <concept>")

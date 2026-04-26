@@ -37,10 +37,16 @@ export function getDb(): Database {
   return _db;
 }
 
+const _projectDbs = new Map<string, Database>();
 export function getProjectDb(dbName: string): Database {
-  return new Database({
-    url: ARANGO_URL,
-    databaseName: dbName,
-    auth: makeAuth(),
-  });
+  let db = _projectDbs.get(dbName);
+  if (!db) {
+    db = new Database({
+      url: ARANGO_URL,
+      databaseName: dbName,
+      auth: makeAuth(),
+    });
+    _projectDbs.set(dbName, db);
+  }
+  return db;
 }
