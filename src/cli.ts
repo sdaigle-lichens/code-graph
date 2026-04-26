@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { getSystemDb, getProjectDb } from "./scribe/db.js";
 import { tryLoadConfig } from "./config.js";
 import { bootstrap } from "./scribe/bootstrap.js";
+import { extract } from "./scribe/extract.js";
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const composeFile = join(pkgRoot, "docker-compose.arangodb.yml");
@@ -112,7 +113,14 @@ program
 program
   .command("extract <concept>")
   .description("extract AST for a concept")
-  .action(notImplemented);
+  .action(async (concept: string) => {
+    try {
+      await extract(concept);
+    } catch (err) {
+      console.error("extract failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
 
 program
   .command("apply <concept>")

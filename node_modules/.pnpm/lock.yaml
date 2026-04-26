@@ -14,6 +14,9 @@ importers:
       commander:
         specifier: ^14.0.3
         version: 14.0.3
+      minimatch:
+        specifier: ^10.2.5
+        version: 10.2.5
       ts-morph:
         specifier: ^28.0.0
         version: 28.0.0
