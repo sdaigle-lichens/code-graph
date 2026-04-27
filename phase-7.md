@@ -74,6 +74,38 @@ For each unique vertex/doc in the unioned set:
 
 Sort descending. Cluster by `concept`. Within each cluster, sort by `final`. Order clusters by the max `final` they contain.
 
+**Normalize BM25 scores within result set before mixing with degree.** Raw BM25 has arbitrary scale; map to `[0, 1]` (divide by max) so the 0.7/0.3 weighting is meaningful regardless of corpus size.
+
+### Typed result shape (decouple from format)
+
+Build a structured intermediate before any markdown emission. Keeps formatter pure and makes `--json` mode trivial.
+
+```ts
+type SearchHit = {
+  vertex: Vertex | null;            // null if hit is a doc seed
+  doc: SkillDoc | null;             // SKILL.md vertex this hit belongs to
+  edges_in: Array<{ edge: Edge; from: Vertex }>;   // 2-hop inbound impact
+  edges_out: Array<{ edge: Edge; to: Vertex }>;    // 1-hop outbound structural
+  cross_edges: Array<{ edge: Edge; other: Vertex }>; // crosses_concept=true
+  bm25: number;                     // raw BM25 from seed query (0 if expanded-only)
+  degree: number;                   // incident-edge count in result set
+  score: number;                    // final = normalize(bm25)*0.7 + normalize(degree)*0.3
+};
+
+type SearchResult = {
+  query: string;
+  hits: SearchHit[];                // unioned + deduped + re-ranked
+  clusters: Array<{                 // grouped by concept, sorted by max score
+    concept: string;
+    skill: SkillDoc | null;
+    hits: SearchHit[];
+  }>;
+  totals: { concepts: number; vertices: number; docs: number; tokens: number };
+};
+```
+
+Search pipeline returns `SearchResult`. Formatter takes `SearchResult` → markdown. `--json` returns `SearchResult` directly.
+
 ### Output format (single markdown dump)
 
 ```markdown
@@ -114,8 +146,8 @@ Same `--max-tokens=3000` default as query modes. Same truncation order:
 
 ## Tasks
 
-1. Create `src/query/search.ts`. Entrypoint: `search(query: string, opts: { maxTokens, json })`.
-2. Pre-flight: server reachable (exit 2), DB exists (exit 3), config loaded (exit 5).
+1. Create `src/query/search.ts`. Entrypoint: `search(query: string, opts: { maxTokens, json })` → `SearchResult`.
+2. Pre-flight: call `preflight()` from `src/query/preflight.ts` (phase 6 task 1) — handles exits 2/3/5 in one call.
 3. Implement BM25 seed query (AQL above). Bind `@q` from input. K = 10.
 4. Implement seed-expansion. Use arangojs cursor + AQL traversal — one query per seed is acceptable in v1; can batch later. Traversal AQL example:
    ```aql
@@ -125,11 +157,11 @@ Same `--max-tokens=3000` default as query modes. Same truncation order:
    ```
 5. Resolve skill doc for each unique concept in the seed set: `DOCUMENT("docs", CONCAT(@concept, "::skill"))`.
 6. Union + dedupe vertices and edges by `_key`. Build a `degree` map by counting incident edges per vertex.
-7. Re-rank: `final = bm25 * 0.7 + degree * 0.3`. Vertices appearing only via expansion get `bm25 = 0`.
-8. Cluster by `concept`. Sort within cluster + sort clusters.
-9. Build markdown per the output format. Header line with totals. Per-concept block: skill body inline → relevant-code list → cross-concept side effects list.
+7. Normalize BM25 scores within result set (`bm25 / maxBm25`) and degree (`degree / maxDegree`). Re-rank: `final = bm25norm * 0.7 + degreeNorm * 0.3`. Vertices appearing only via expansion get `bm25 = 0`.
+8. Build the typed `SearchResult` (see Context section): per-vertex `SearchHit` with structured `edges_in / edges_out / cross_edges`, then cluster by `concept`. Sort within cluster + sort clusters.
+9. Build markdown from `SearchResult`. Header line with totals. Per-concept block: skill body inline → relevant-code list → cross-concept side effects list. Formatter is pure (`SearchResult` → string).
 10. Apply token budget truncation in priority order.
-11. Wire `code-graph search "<q>"` in `src/cli.ts`. Support `--max-tokens` and `--json`.
+11. Wire `code-graph search "<q>"` in `src/cli.ts`. Support `--max-tokens` and `--json` (when set, emit `SearchResult` JSON directly).
 12. Update `plugin/commands/graph.md` (from Phase 4) — confirm routing wired and exit-code fallbacks land in the slash command output.
 
 ## Done when

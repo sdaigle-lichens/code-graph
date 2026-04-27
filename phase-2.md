@@ -52,7 +52,7 @@ Every step uses `existsAsync` / try-catch on "already exists" so `bootstrap` can
 
 ## Tasks
 
-1. Create `src/scribe/bootstrap.ts`. Export `bootstrap()` (full run) and `bootstrapIfMissing()` (used by `apply`).
+1. Create `src/scribe/bootstrap.ts`. Export `bootstrap(onStep?: (msg: string) => void)` (full run with optional progress callback) and `bootstrapIfMissing()` (no-args; used by `apply` — checks DB list, calls `bootstrap()` silently if missing).
 2. `bootstrapIfMissing()` — checks if DB named `loadConfig().project` exists in `_system`. If not, calls `bootstrap()`.
 3. `createDb()` — from `_system`, `db.createDatabase(name)` if not exists.
 4. `createCollections()` — `vertices` (document), `edges` (edge), `docs` (document), `concepts` (document). Each gated on `collection.exists()`.
@@ -62,7 +62,7 @@ Every step uses `existsAsync` / try-catch on "already exists" so `bootstrap` can
    - `vertices` collection: fields `purpose`, `name`, `tags` with `text_en` analyzer, `includeAllFields: false`
    - `docs` collection: field `body_md` with `text_en` analyzer
    Use `db.createView(name, { type: "arangosearch", links: {...} })`. Skip if exists.
-8. Wire `code-graph bootstrap` in `src/cli.ts` to call `bootstrap()`. Print progress per step.
+8. Wire `code-graph bootstrap` in `src/cli.ts` to call `bootstrap()`. The `bootstrap` function takes an optional `onStep?: (msg: string) => void` callback so the CLI can stream progress (the CLI passes `console.log`); calling without a callback runs silently — used by `bootstrapIfMissing()` from `apply`.
 9. Update `code-graph status` to use the same existence checks (DB exists? collections present? view present?) and print a checklist.
 
 ## Done when

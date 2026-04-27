@@ -156,7 +156,15 @@ Signature: `<signature>`
 
 ## Tasks
 
-1. Create `src/query/queries.ts` — export typed AQL query functions:
+1. Create `src/query/preflight.ts` — centralized exit-code-conscious checks reused by every query mode AND by phase 7's `search`:
+   - `loadConfigOrExit(): ScribeConfig` — wraps `tryLoadConfig`; exits 5 with stderr "no scribe.config.json found above <cwd>".
+   - `checkServerReachable(): Promise<void>` — probes `getSystemDb().version()`; exits 2 with stderr "ArangoDB not reachable at <url>; try `code-graph up`".
+   - `checkDbExists(dbName: string): Promise<void>` — checks `_system` DB list; exits 3 with stderr "DB <name> not found; try `code-graph bootstrap`".
+   - `preflight(): Promise<{ config, db }>` — runs all three in order, returns the config + a `Database` handle for the project DB.
+
+   Every query mode and `search` calls `preflight()` before running its AQL.
+
+2. Create `src/query/queries.ts` — export typed AQL query functions:
    - `queryConcept(db, concept) → { vertices, edges, doc }`
    - `queryImpact(db, symbol, direction, max) → { startVertex, results } | { ambiguous: candidates[] }`
    - `queryCross(db, a, b) → { edges }`
@@ -169,13 +177,11 @@ Signature: `<signature>`
    - `truncate(markdown, maxTokens)` → applies the truncation order. Token estimator: `chars / 4`.
 3. Create `src/query/run.ts`:
    - `run(mode, args, opts)` dispatcher.
+   - Calls `preflight()` first.
    - Handles `--json` (skip formatting, emit raw result).
    - Handles ambiguous-symbol exit 4 with candidate list to stderr.
    - Handles "no result" cases — exit 6 for vertex mode, exit 0 with note for cross.
 4. Wire `code-graph query concept|impact|cross|vertex` subcommands in `src/cli.ts`.
-5. Implement DB existence check at entry — exit 3 if DB doesn't exist (refer to `scribe.config.json` project name).
-6. Implement server reachability check at entry — exit 2 if server offline.
-7. Implement config lookup — exit 5 if no `scribe.config.json` found in CWD ancestry.
 
 ## Done when
 

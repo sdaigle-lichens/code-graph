@@ -11,6 +11,7 @@
     "start": "node dist/cli.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": ["dist", "plugin", "package.json", "README.md"],
   "keywords": [],
   "author": "",
   "license": "ISC",

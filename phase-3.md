@@ -82,15 +82,16 @@ Each vertex emitted in extract has only AST-owned fields populated; agent fields
    - Detect Zustand `create(...)` calls → emit `store` vertex; recurse into the object literal to emit `store-state` and `store-action` children.
    - Top-level fn/arrow-fn declarations → classify as hook (`use[A-Z]...`), component (PascalCase + returns JSX), or function.
    - Top-level `type` / `interface` → emit `type-def` vertex.
-   - `useEffect(...)` calls → emit `effect` vertex (`name` = `"effect-${line}"` or first arg of a comment if available).
+   - `useEffect(...)` calls → emit `effect` vertex (`name` = `"effect-${line}"`).
 5. Compute `contentHash = sha256(node.getText())` per vertex.
 6. Compute `_key` and `displayKey` per vertex.
 7. Build edges:
-   - `calls` — for each fn vertex, find `CallExpression`s in body; resolve called symbol; if resolves to another vertex in scope, emit edge with `line` = call site.
-   - `reads` / `writes` — within store actions, scan for `get().X`, `useStore(s => s.X)`, `set({...})`, `set(s => ({...}))`. Emit edge from action vertex to corresponding `store-state` vertex.
-   - `mounts` — within component bodies, find JSX elements whose tag resolves to another component vertex.
-   - `uses-hook` — within component/hook bodies, find calls to hooks (resolves to a hook vertex).
-   - `has-type` — for fn signatures, find type references that resolve to `type-def` vertices.
+   - `calls` / `uses-hook` — for each fn/hook/component/store-action vertex, find `CallExpression`s in body. Resolve callee symbol via `getSymbol()`; follow `getAliasedSymbol()` to bridge import aliases (so cross-file calls resolve to the original declaration). If the resolved symbol's declaration node is a registered vertex, emit `uses-hook` when target is a `hook`, else `calls`.
+   - `reads` / `writes` — within store actions, scan for `set({...})` / `set(s => ({...}))` (writes), `get().X` (reads), and `useStore(s => s.X)` selectors against the *parent* store (reads). Match property names against `store-state` vertices belonging to the **same parent store** (tracked via a `vertexToStore` map) — avoids name collisions when a concept extracts multiple stores.
+   - `mounts` — within component bodies, find JSX elements (`JsxOpeningElement` + `JsxSelfClosingElement`) whose tag resolves to another component vertex.
+   - `has-type` — for fn/hook/component/store-action bodies, find `TypeReference` nodes whose type name resolves to a `type-def` vertex.
+
+   Store imports: when emitting a `store` vertex, alias the enclosing `VariableDeclaration` in `nodeToKey` so that downstream resolution of `import { useFooStore }` finds the store vertex (the symbol's declaration is the variable, not the `create(...)` call).
 8. For all edges, set `concept` = current concept and `crosses_concept = false` (apply will recompute when joining across concepts; in v1 a single concept extract has all endpoints in same concept).
 9. Read `<configRoot>/<config.concepts[concept].skill>` → embed body + sha256 contentHash into output `skill` field.
 10. Set `meta.extractor_version` from `package.json` version. Set `extracted_at` ISO timestamp.

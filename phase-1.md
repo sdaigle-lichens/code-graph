@@ -112,11 +112,24 @@ Config loader walks CWD upward to find the nearest `scribe.config.json`. Validat
 4. Create `docker-compose.arangodb.yml` — single `arangodb/arangodb:latest` container, env `ARANGO_NO_AUTH=1`, port mapping `8529:8529`, named volume for `/var/lib/arangodb3`.
 5. Create `src/schema.ts` — export TS interfaces above.
 6. Create `src/config.ts` — `loadConfig(cwd)` walks up, parses, zod-validates, returns `{ project, tsconfig, skillsDir, concepts, configRoot }`. Throw with exit code 5 if not found.
-7. Create `src/scribe/db.ts` — arangojs client singleton. `getDb(): Database` resolves DB name from `ARANGO_DB` env or `loadConfig().project`. `getSystemDb(): Database` returns `_system`. URL from `ARANGO_URL`.
+7. Create `src/scribe/db.ts` — arangojs client wrappers. Three exports:
+   - `getSystemDb(): Database` — singleton against `_system` (used by bootstrap to create the project DB).
+   - `getDb(): Database` — singleton against the project DB; resolves name from `ARANGO_DB` env or `loadConfig().project`.
+   - `getProjectDb(dbName: string): Database` — Map-cached factory by name. Used by status/bootstrap which already know the DB name and want to skip a redundant `loadConfig()` call.
+
+   All three read `ARANGO_URL` and build optional auth from `ARANGO_USER` / `ARANGO_PASSWORD` (no auth if `ARANGO_USER` unset).
 8. Create `src/cli.ts` — commander dispatcher with all subcommands listed above. `up`/`down`/`status` implemented; rest call a stub `console.error("not implemented yet"); process.exit(1);`.
 9. Implement `code-graph up` → spawn `docker compose -f <pkgRoot>/docker-compose.arangodb.yml up -d` (resolve pkgRoot via `import.meta.url`).
 10. Implement `code-graph down` → same with `down`.
-11. Implement `code-graph status` — pings `ARANGO_URL`; reports server reachable Y/N; if config found in CWD ancestry, prints DB name + checks if DB exists + counts `concepts` collection if exists; else prints "no scribe.config.json found in CWD ancestry".
+11. Implement `code-graph status` — prints a `[✓]/[✗]` checklist:
+    - server reachable at `ARANGO_URL` (probe: `getSystemDb().version()`)
+    - `scribe.config.json` found in CWD ancestry (and the project name it resolves)
+    - if both above pass: project DB exists in `_system`'s database list
+    - if DB exists: each of `vertices` / `edges` / `docs` / `concepts` collections present
+    - graph `code_graph` exists
+    - view `code_search_view` exists
+
+    Bootstrap-related checks (collections/graph/view) added in Phase 2 — minimal v1 here can stop after DB existence; Phase 2 task 9 extends it.
 12. `pnpm build && pnpm link --global`. Verify `which code-graph` returns a path and `code-graph --version` works.
 13. Create `README.md` skeleton — sections: Overview (1 sentence), Install (`pnpm i -g code-graph` + `/plugin install code-graph`), Dev setup (link --global flow). Minimal — full README written in phase 8.
 

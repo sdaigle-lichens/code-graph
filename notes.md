@@ -1,6 +1,8 @@
 Ask Claude code to implement a phase with:
 
-Implement phase 3. Read phase-3.md at repo root for full context — this is part of a multi-day, phase-split implementation of the code-graph project (see plan.md only if phase file is missing detail). Seed TaskCreate from the Tasks section of phase-N.md, work through them in order, and mark each task completed as soon as it's done (no batched closes). Verify against the Done-when criteria before declaring the phase complete. Ask for confirmation before destructive or shared-state actions (pnpm link --global, docker volume changes, npm publish, package.json publishes, git pushes). Also be careful for: (ts-morph symbol resolution edge cases) — verify vertex counts + edge resolution after each run.
+Implement phase 4. Read phase-4.md at repo root for full context — this is part of a multi-day, phase-split implementation of the code-graph project (see plan.md only if phase file is missing detail). Seed TaskCreate from the Tasks section of phase-4.md, work through them in order, and mark each task completed as soon as it's done (no batched closes). Verify against the Done-when criteria before declaring the phase complete. Ask for confirmation before destructive or shared-state actions (pnpm link --global, docker volume changes, npm publish, package.json publishes, git pushes).
+
+Also be careful for:
 
 Watch points:
 

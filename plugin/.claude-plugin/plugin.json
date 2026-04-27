@@ -1,0 +1,10 @@
+{
+  "name": "code-graph",
+  "version": "0.1.0",
+  "description": "Code-concept graph — scribe + query for Claude Code",
+  "author": {
+    "name": "Samuel Daigle",
+    "email": "daigles@lichens.ai"
+  },
+  "keywords": ["code-graph", "scribe", "ast", "arangodb"]
+}

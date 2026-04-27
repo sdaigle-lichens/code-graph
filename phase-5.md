@@ -15,6 +15,19 @@ Auto-bootstraps the DB if missing.
 - `<configRoot>/scribe-output/<concept>.ast.json` — required.
 - `<configRoot>/scribe-output/<concept>.enriched.json` — optional. If missing, AST fields applied with empty agent fields.
 
+### Validation (trust boundary)
+
+Both files are validated at load time against the zod schemas exported by `src/schema.ts` (introduced in phase 4.5):
+
+- `AstDocSchema.parse(astJson)` — ours, but cheap insurance that `extract.ts` and `apply.ts` agree.
+- `EnrichedDocSchema.parse(enrichedJson)` — written by the Claude Code subagent. **Untrusted boundary** — the subagent could emit malformed JSON, missing keys, or invented `_key`s. Validate before any DB write.
+
+On validation failure: print zod's flattened error to stderr, exit 1, recommend re-running `/scribe-enrich <concept>`. Do NOT partially apply.
+
+After parse: also enforce `astDoc.concept === argConcept` and (if enriched present) `enrichedDoc.concept === argConcept`. Mismatch → exit 1 with clear error. Catches "ran apply for concept A while output dir holds concept B's enriched.json".
+
+Cross-reference: every `_key` in `enrichedDoc.vertices` must exist in `astDoc.vertices`. Unknown `_key`s → log warning + skip (don't fail; agent may have stale knowledge of vertex names).
+
 ### Field ownership
 
 **AST-owned (overwritten every extract):**
@@ -110,6 +123,9 @@ If `--dry-run`, exit 0 here.
 1. Create `src/scribe/apply.ts`. Entrypoint `apply(concept: string, opts: { dryRun, approveDrift })`.
 2. Auto-bootstrap: call `bootstrapIfMissing()` (from Phase 2).
 3. Load `scribe-output/<concept>.ast.json` (required) and `<concept>.enriched.json` (optional).
+   - Parse each through the zod schema (`AstDocSchema`, `EnrichedDocSchema`) from `src/schema.ts`. On parse failure → stderr + exit 1, recommend re-running `code-graph extract` or `/scribe-enrich`.
+   - Assert `astDoc.concept === concept` (and same for enriched if present). Mismatch → exit 1.
+   - Build a Set of valid AST `_key`s; drop any enriched vertex whose `_key` is not in the set (log warning per drop).
 4. Build intent set: merge per-vertex AST fields (from ast.json) + agent fields (from enriched.json by `_key`). Default `status: live`.
 5. Fetch DB vertices: `FOR v IN vertices FILTER v.concept == @concept AND v.status == "live" RETURN v`.
 6. Compute diff sets (`new`, `changed`, `unchanged`, `missing`) by `_key`.
