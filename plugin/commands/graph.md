@@ -29,6 +29,7 @@ After the CLI run, check the exit code:
 |------|---------|-----------|
 | `2`  | Server offline | Run `code-graph up` to start the ArangoDB server |
 | `3`  | Database missing | Run `code-graph bootstrap` to initialize the database |
+| `4`  | Ambiguous symbol | Disambiguate by concept (`/graph impact <concept>::<name>`) or filepath qualifier |
 | `5`  | No config found | Create a `scribe.config.json` in your project root |
 | `6`  | Zero results | Try rephrasing your query, or use the Explore agent for a broader search |
 
