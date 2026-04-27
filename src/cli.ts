@@ -8,6 +8,7 @@ import { getSystemDb, getProjectDb } from "./scribe/db.js";
 import { tryLoadConfig } from "./config.js";
 import { bootstrap } from "./scribe/bootstrap.js";
 import { extract } from "./scribe/extract.js";
+import { apply } from "./scribe/apply.js";
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const composeFile = join(pkgRoot, "docker-compose.arangodb.yml");
@@ -127,12 +128,29 @@ program
   .description("apply enriched doc to graph")
   .option("--dry-run")
   .option("--approve-drift")
-  .action(notImplemented);
+  .action(async (concept: string, opts: { dryRun?: boolean; approveDrift?: boolean }) => {
+    try {
+      await apply(concept, {
+        dryRun: opts.dryRun ?? false,
+        approveDrift: opts.approveDrift ?? false,
+      });
+    } catch (err) {
+      console.error("apply failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
 
 program
   .command("drift <concept>")
-  .description("show drift for a concept")
-  .action(notImplemented);
+  .description("show drift for a concept (alias for apply --dry-run)")
+  .action(async (concept: string) => {
+    try {
+      await apply(concept, { dryRun: true, approveDrift: false });
+    } catch (err) {
+      console.error("drift failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
 
 program
   .command("search <query>")
