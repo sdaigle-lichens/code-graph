@@ -1,0 +1,14 @@
+id = "code-graph"
+name = "Code Graph"
+version = "0.0.1"
+schema_version = 1
+description = "Surface code-graph metadata as hovers, code-lenses, and links."
+repository = "https://github.com/samdaigle/code-graph"
+authors = ["Samuel Daigle <daigles@lichens.ai>"]
+
+[lib]
+kind = "Rust"
+version = "0.1.0"
+
+[language_servers.code-graph-lsp]
+languages = ["TypeScript", "TSX", "JavaScript", "JSX"]
