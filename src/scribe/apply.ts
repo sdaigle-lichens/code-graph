@@ -480,14 +480,16 @@ export async function apply(
     updatedCount++;
   }
 
-  // Update unchanged vertices that have fresh enriched data
+  // Update unchanged vertices that have fresh enriched data or a stale signature
   for (const k of unchangedKeys) {
+    const astV = astVertexMap.get(k)!;
     const ev = enrichedVertexMap.get(k);
-    if (!ev) continue;
     const dbV = dbMap.get(k)!;
-    const agentUpdate = buildAgentUpdate(dbV, ev, null, now);
-    if (Object.keys(agentUpdate).length > 0) {
-      await verticesCol.update(k, agentUpdate);
+    const agentUpdate = ev ? buildAgentUpdate(dbV, ev, null, now) : {};
+    const updates: Record<string, unknown> = { ...agentUpdate };
+    if (dbV.signature !== astV.signature) updates.signature = astV.signature;
+    if (Object.keys(updates).length > 0) {
+      await verticesCol.update(k, updates);
       updatedCount++;
     }
   }

@@ -34,6 +34,46 @@ function sha256hex(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
+// ─── Signature extraction ────────────────────────────────────────────────────
+
+function signatureFromNode(name: string, node: Node): string {
+  try {
+    if (Node.isPropertyAssignment(node)) {
+      const init = node.getInitializer();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+        const params = init.getParameters().map((p) => p.getText()).join(", ");
+        const ret = init.getReturnType().getText(node);
+        return `${name}: (${params}) => ${ret}`;
+      }
+      if (init) {
+        return `${name}: ${init.getType().getText(node)}`;
+      }
+    }
+    if (Node.isMethodDeclaration(node)) {
+      const params = node.getParameters().map((p) => p.getText()).join(", ");
+      const ret = node.getReturnType().getText(node);
+      return `${name}(${params}): ${ret}`;
+    }
+    if (Node.isFunctionDeclaration(node)) {
+      const params = node.getParameters().map((p) => p.getText()).join(", ");
+      const ret = node.getReturnType().getText(node);
+      return `function ${name}(${params}): ${ret}`;
+    }
+    if (Node.isVariableDeclaration(node)) {
+      const init = node.getInitializer();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+        const params = init.getParameters().map((p) => p.getText()).join(", ");
+        const ret = init.getReturnType().getText(node);
+        return `${name}(${params}): ${ret}`;
+      }
+    }
+  } catch {
+    // fall through
+  }
+  // Fallback: first line of text
+  return node.getText().split("\n")[0].slice(0, 300);
+}
+
 // ─── Zustand helpers ─────────────────────────────────────────────────────────
 
 function isZustandCreate(node: CallExpression): boolean {
@@ -253,12 +293,20 @@ function buildEdges(
     });
   }
 
+  // storeKey + propName → store-action/store-state key
+  const storeChildByName = new Map<string, string>();
+  for (const [childKey, storeKey] of vertexToStore.entries()) {
+    const child = keyToVertex.get(childKey);
+    if (child) storeChildByName.set(`${storeKey}::${child.name}`, childKey);
+  }
+
   // Resolve a node's symbol declarations → vertex key (if any).
   // Follows import aliases so that cross-file calls resolve correctly.
+  // Also resolves destructured store members:
+  //   const { setX } = useFooStore();  →  store-action `setX` of useFooStore.
   function resolveToVertexKey(node: Node): string | undefined {
     let sym = node.getSymbol();
     if (!sym) return undefined;
-    // Follow import aliases (e.g. `import { foo } from "./foo"` → FunctionDeclaration)
     try {
       const aliased = sym.getAliasedSymbol();
       if (aliased) sym = aliased;
@@ -268,6 +316,41 @@ function buildEdges(
     for (const decl of sym.getDeclarations()) {
       const k = nodeToKey.get(decl);
       if (k) return k;
+
+      // Destructured binding: `const { foo } = useStore()`
+      if (Node.isBindingElement(decl)) {
+        const propNameNode = decl.getPropertyNameNode();
+        const propName = propNameNode ? propNameNode.getText() : decl.getName();
+        // Walk up to VariableDeclaration to find the initializer
+        let p: Node | undefined = decl.getParent();
+        while (p && !Node.isVariableDeclaration(p)) p = p.getParent();
+        if (!p) continue;
+        const init = (p as import("ts-morph").VariableDeclaration).getInitializer();
+        if (!init) continue;
+        // initializer may be a call expression: useStore() or useStore(selector)
+        let callExpr: CallExpression | undefined;
+        if (Node.isCallExpression(init)) callExpr = init;
+        if (!callExpr) continue;
+        const calleeKey = (() => {
+          const callee = callExpr.getExpression();
+          let s = callee.getSymbol();
+          if (!s) return undefined;
+          try {
+            const a = s.getAliasedSymbol();
+            if (a) s = a;
+          } catch {}
+          for (const d of s.getDeclarations()) {
+            const k = nodeToKey.get(d);
+            if (k) return k;
+          }
+          return undefined;
+        })();
+        if (!calleeKey) continue;
+        const calleeVertex = keyToVertex.get(calleeKey);
+        if (calleeVertex?.type !== "store") continue;
+        const childKey = storeChildByName.get(`${calleeKey}::${propName}`);
+        if (childKey) return childKey;
+      }
     }
     return undefined;
   }
@@ -457,7 +540,7 @@ export async function extract(conceptName: string): Promise<void> {
       filepath,
       start_line: node.getStartLineNumber(),
       end_line: node.getEndLineNumber(),
-      signature: text.split("\n")[0].slice(0, 200),
+      signature: signatureFromNode(name, node),
       contentHash: sha256hex(text),
       status: "live",
       ast: { extracted_at: extractedAt, extractor_version: extractorVersion },

@@ -1,3 +1,8 @@
+---
+description: Enrich a concept's AST JSON with agent-authored semantic fields (purpose/inputs/outputs/cross_concept_refs)
+argument-hint: <concept>
+---
+
 # /scribe-enrich
 
 Enrich a concept's AST JSON with semantic fields using the `scribe-code-graph` skill.

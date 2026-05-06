@@ -1,3 +1,8 @@
+---
+description: Query or search the code-graph database (concept/impact/cross/vertex or natural-language search)
+argument-hint: [concept|impact|cross|vertex] <args> | <natural language query>
+---
+
 # /graph
 
 Query or search the code-graph database.
@@ -21,6 +26,8 @@ Parse `$ARGUMENTS`. Check the first token:
   code-graph search "<args joined as single string>"
   ```
 
+`code-graph search` accepts `--max-tokens <n>` (default 3000), `--json`, and `--full-skill` (include full skill body; by default only skill names/paths are returned so Claude can decide whether to load them).
+
 ## Exit code handling
 
 After the CLI run, check the exit code:
@@ -35,14 +42,15 @@ After the CLI run, check the exit code:
 
 On any other non-zero exit code, surface the raw error output to the user.
 
-On exit code `0`, echo the CLI's markdown output directly into the conversation.
+On exit code `0`, echo the CLI's markdown output directly into the conversation. File paths in the output (formatted as `@filepath:lines`) can be passed to `Read` for deeper inspection.
 
 ## Examples
 
 ```
 /graph concept workorder-store
 /graph impact useWorkorderActions
-/graph cross scheduler-store
-/graph vertex resolveWorkorder
-/graph "how does drag and drop reorder work?"
+/graph cross scheduler-store workorder-store
+/graph vertex src/stores/workorder.ts:42
+/graph sync sends stale ops
+/graph how does drag and drop reorder work
 ```

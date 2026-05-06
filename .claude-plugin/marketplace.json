@@ -1,0 +1,16 @@
+{
+  "name": "code-graph",
+  "owner": {
+    "name": "Samuel Daigle",
+    "email": "daigles@lichens.ai"
+  },
+  "plugins": [
+    {
+      "name": "code-graph",
+      "source": "./plugin",
+      "description": "Graph-based code intelligence — scribe + hybrid BM25/multi-hop retrieval over TS/React via ArangoDB",
+      "version": "0.1.0",
+      "keywords": ["code-graph", "scribe", "ast", "arangodb", "retrieval"]
+    }
+  ]
+}

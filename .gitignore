@@ -1,2 +1,4 @@
 node_modules
 dist
+editor/zed-code-graph/target/
+.DS_Store

@@ -1,8 +1,14 @@
 {
   "name": "code-graph",
   "version": "0.1.0",
-  "description": "",
+  "description": "Graph-based code intelligence for Claude Code — BM25 + multi-hop retrieval over TypeScript/React codebases",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lichens-ai/code-graph.git"
+  },
+  "homepage": "https://github.com/lichens-ai/code-graph#readme",
+  "keywords": ["code-graph", "claude-code", "arangodb", "typescript", "rag", "code-intelligence"],
   "bin": {
     "code-graph": "dist/cli.js"
   },
@@ -11,8 +17,7 @@
     "start": "node dist/cli.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "files": ["dist", "plugin", "package.json", "README.md"],
-  "keywords": [],
+  "files": ["dist", "plugin", "eval/tasks.json", "package.json", "README.md"],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.33.2",

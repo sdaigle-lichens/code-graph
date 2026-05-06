@@ -1,0 +1,70 @@
+[
+  {
+    "id": "task-1-add-delete-variant",
+    "prompt": "add delete variant to workorder operation",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": ["workorder-store"],
+      "vertices_in_top_k": [
+        { "name": "WorkorderOperation",        "k": 10 },
+        { "name": "updateWorkorder",            "k": 15 },
+        { "name": "mergeWorkordersByEquipment", "k": 20 }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-2-reindex-whole-array",
+    "prompt": "why does setWorkorderIndex re-index the whole array",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": ["workorder-store"],
+      "vertices_in_top_k": [
+        { "name": "setWorkorderIndex",            "k": 5 },
+        { "name": "reorderWorkorderOperations",   "k": 15 }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-3-week-window-sunday",
+    "prompt": "change week window to include Sunday",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": ["workorder-store"],
+      "vertices_in_top_k": [
+        { "name": "isWorkorderInSchedulePeriod",  "k": 10 },
+        { "name": "mergeWorkordersByEquipment",   "k": 15 }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-4-gantt-rerender",
+    "prompt": "gantt does not re-render on workorder drag",
+    "mode": "cross",
+    "conceptA": "workorder-store",
+    "conceptB": "gantt-render",
+    "skip_until_concept": "gantt-render",
+    "expected": {
+      "min_cross_concept_edges": 1
+    }
+  },
+  {
+    "id": "task-5-stale-ops-week-nav",
+    "prompt": "sync sends stale ops after week navigation",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": ["workorder-store"],
+      "vertices_in_top_k": [
+        { "name": "clearWorkorderOperations",     "k": 10 },
+        { "name": "mergeWorkordersByEquipment",   "k": 15 }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  }
+]
