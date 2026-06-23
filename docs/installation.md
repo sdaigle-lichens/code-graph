@@ -25,15 +25,15 @@ Inside that session, `/graph`, `/scribe-enrich`, and the `scribe-code-graph` ski
 - Setup rust to use `wasm32-wasip1` for building the LSP with: `rustup target add wasm32-wasip1`
 - Zed editor
 
-### Build + link
+### Install in Zed
+
+From code-graph root, start by building the LSP and Zed extension:
 
 ```sh
 just lsp-build    # TypeScript → lsp/dist/server.js
 just lsp-link     # `code-graph-lsp` symlink on PATH via pnpm
 just zed-build    # Rust → editor/zed-code-graph/target/wasm32-wasip1/release/zed_code_graph.wasm
 ```
-
-### Install in Zed
 
 Zed → `Cmd-Shift-X` (Extensions) → **Install Dev Extension** → pick `editor/zed-code-graph/`.
 
