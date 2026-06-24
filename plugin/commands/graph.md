@@ -40,6 +40,13 @@ After the CLI run, check the exit code:
 | `5`  | No config found | Create a `scribe.config.json` in your project root |
 | `6`  | Zero results | Try rephrasing your query, or use the Explore agent for a broader search |
 
+On exit code `6`, the CLI may first print a `## Graph completeness` diagnostic to stdout
+(declared-but-unbuilt concepts, concepts missing a SKILL.md, source files no concept covers).
+When present, follow the `code-graph-retrieval` skill's answer-first handling: answer via the
+fallback, then offer to build the missing concept for future queries. A successful search may
+also append a thin-result completeness note (`> ⚠ graph N/M concepts enriched …`) — that is
+FYI for the user, not a reason to re-search.
+
 On any other non-zero exit code, surface the raw error output to the user.
 
 On exit code `0`, echo the CLI's markdown output directly into the conversation. File paths in the output (formatted as `@filepath:lines`) can be passed to `Read` for deeper inspection.

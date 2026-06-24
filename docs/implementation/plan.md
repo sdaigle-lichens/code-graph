@@ -545,3 +545,12 @@ Run eval gate only after all 16 verification steps pass.
 - Cross-project queries — per-project DB makes these impossible by design. Not a goal.
 - Migrations system for DB schema — bootstrap is `existsAsync`-gated; evolve via `scribe_meta.schemaVersion` doc (per DB) when first migration is needed.
 - `code-graph gc` for true deletion of archived vertices — opt-in later.
+
+## Phase docs
+
+Per-slice implementation plans live alongside this spec in `docs/implementation/`:
+
+- `phase-1.md` … `phase-8.md` — the v1 build (extract → enrich → apply → hybrid search →
+  pilot/eval/distribution). See `phase-8-troubleshooting.md` for pilot onboarding fixes.
+- `phase-9.md` — **gap detection & throwback for retrieval**: surface incomplete/missing
+  concepts at query time and offer to build them, without blocking answers. Post-pilot.

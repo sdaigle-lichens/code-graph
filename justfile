@@ -18,6 +18,10 @@ build:
 typecheck:
     pnpm exec tsc --noEmit
 
+# Run unit tests (node:test via tsx, no DB required)
+test:
+    pnpm test
+
 # Wipe build output
 clean:
     rm -rf dist

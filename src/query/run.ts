@@ -15,18 +15,67 @@ import {
   formatFile,
   type FormatOpts,
 } from "./format.js";
+import type { Database } from "arangojs";
+import type { ScribeConfig } from "../config.js";
+import {
+  analyzeConceptGaps,
+  conceptEnrichable,
+  fetchConceptCounts,
+  formatGapDiagnostic,
+} from "./gaps.js";
 
 type SharedOpts = {
   maxTokens: number;
   json: boolean;
 };
 
+/**
+ * When a concept query comes back empty, surface whether the named concept(s) are
+ * declared-but-not-built / un-enriched / un-declared. Emits a gap diagnostic and
+ * exits 6 when there is something actionable; returns false to let the caller fall
+ * through (e.g. both concepts are fully built and simply share no edge).
+ */
+async function maybeEmitConceptGap(
+  db: Database,
+  config: ScribeConfig,
+  names: string[],
+  json: boolean,
+): Promise<boolean> {
+  const undeclared = names.filter((n) => !(n in config.concepts));
+  const declared = names
+    .filter((n) => n in config.concepts)
+    .map((n) => ({ name: n, enrichable: conceptEnrichable(config, n) }));
+
+  const counts = await fetchConceptCounts(db);
+  const report = analyzeConceptGaps(declared, counts);
+
+  if (report.fixable.length === 0 && report.unenrichable.length === 0 && undeclared.length === 0) {
+    return false;
+  }
+
+  if (json) {
+    console.log(JSON.stringify({ gaps: report, undeclared }, null, 2));
+  } else {
+    const diag = formatGapDiagnostic(report, []);
+    if (diag.trim()) console.log(diag);
+    for (const u of undeclared) {
+      console.error(`note: "${u}" is not declared in scribe.config.json`);
+    }
+  }
+  process.exit(6);
+}
+
 export async function runConcept(
   name: string,
   opts: SharedOpts & { skill: boolean }
 ): Promise<void> {
-  const { db } = await preflight();
+  const { db, config } = await preflight();
   const result = await queryConcept(db, name);
+
+  if (result.vertices.length === 0) {
+    await maybeEmitConceptGap(db, config, [name], opts.json);
+    // fell through: concept is built but empty for another reason — show as-is
+  }
 
   if (opts.json) {
     console.log(JSON.stringify(result, null, 2));
@@ -85,8 +134,13 @@ export async function runCross(
   conceptB: string,
   opts: SharedOpts
 ): Promise<void> {
-  const { db } = await preflight();
+  const { db, config } = await preflight();
   const { entries } = await queryCross(db, conceptA, conceptB);
+
+  if (entries.length === 0) {
+    await maybeEmitConceptGap(db, config, [conceptA, conceptB], opts.json);
+    // fell through: both concepts built — genuinely no cross-concept edges
+  }
 
   if (opts.json) {
     console.log(JSON.stringify(entries, null, 2));

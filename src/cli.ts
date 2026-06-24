@@ -11,6 +11,14 @@ import { extract } from "./scribe/extract.js";
 import { apply } from "./scribe/apply.js";
 import { runConcept, runImpact, runCross, runVertex, runFile } from "./query/run.js";
 import { search, applyTokenBudget, SearchNoResultsError } from "./query/search.js";
+import { preflight } from "./query/preflight.js";
+import {
+  classifyStrength,
+  computeGapReport,
+  buildSuccessNote,
+  formatGapDiagnostic,
+  uncoveredSourceFiles,
+} from "./query/gaps.js";
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const composeFile = join(pkgRoot, "docker-compose.arangodb.yml");
@@ -170,13 +178,38 @@ program
       const json = opts.json ?? false;
       const skillMode = opts.fullSkill ? "full" : "names";
       const result = await search(query, { maxTokens, json, skillMode });
+      const strength = classifyStrength(result);
+
       if (json) {
-        console.log(JSON.stringify(result, null, 2));
-      } else {
-        console.log(applyTokenBudget(result, maxTokens, { skillMode }));
+        // JSON mode is the contract for the eval harness — always include gaps.
+        const { db, config } = await preflight();
+        const gaps = await computeGapReport(db, config);
+        console.log(JSON.stringify({ ...result, strength, gaps }, null, 2));
+        return;
       }
+
+      let md = applyTokenBudget(result, maxTokens, { skillMode });
+      // Lazy: only pay for the gap computation when results are thin.
+      if (strength === "thin") {
+        const { db, config } = await preflight();
+        const report = await computeGapReport(db, config);
+        const note = buildSuccessNote(report);
+        if (note) md += `\n\n${note}`;
+      }
+      console.log(md);
     } catch (err) {
       if (err instanceof SearchNoResultsError) {
+        // Whiff: surface what's missing before falling back. Best-effort.
+        try {
+          const { db, config } = await preflight();
+          const report = await computeGapReport(db, config);
+          const uncovered = uncoveredSourceFiles(config);
+          if (report.fixable.length || report.unenrichable.length || uncovered.length) {
+            console.log(formatGapDiagnostic(report, uncovered));
+          }
+        } catch {
+          // diagnostic is additive; never let it mask the underlying whiff
+        }
         console.error(err.message);
         process.exit(6);
       }

@@ -57,6 +57,52 @@ graph tells you *where* and *why*; you still read the source for exact detail.
    acting. The graph reflects the last `code-graph apply`, so treat it as a fast index, not
    ground truth — if a pointer looks stale, verify against the file.
 
+## Graph completeness & gaps
+
+The graph is built one concept at a time, so a project's graph is routinely incomplete.
+The CLI surfaces this; your job is to interpret it without over-reacting.
+
+**The completeness note (on a successful search).** A line like
+`> ⚠ graph 4/6 concepts enriched — results may be partial` only appears when results were
+*thin*. It is **status for the user, not a cue for you to act**. Treat the returned results
+as authoritative for what is in the graph. **Do not** fall back to grep, re-run, or
+second-guess a good answer because of this line. Only act on it if the user asks to improve
+coverage.
+
+**The gap diagnostic (on a whiff, exit 6).** When a search finds nothing, the CLI prints a
+`## Graph completeness` block listing: declared concepts not fully built, concepts with no
+SKILL.md, and source files covered by no concept. Handle it **answer-first, non-blocking**:
+
+1. **Answer the user's question now** via your normal exit-6 fallback (Explore/Grep). Never
+   make the user wait on a build to get their answer.
+2. If the block lists **source files covered by no concept**, grep *those files* for the
+   query. Hits there are strong evidence the relevant code simply isn't in the graph —
+   point the user at it and suggest declaring a concept for it.
+3. *Then* add a one-line, non-blocking **offer** for any fixable concept, e.g.:
+   "Answered via grep. Concept `X` is declared but not built — want me to build it so future
+   queries hit the graph?" Framed as an investment for next time, never a prerequisite.
+
+**On "yes" — build the concept** (uniform pipeline, safe to re-run; agent fields are
+preserved across re-extract):
+
+```sh
+code-graph extract <concept>
+```
+then invoke `/scribe-enrich <concept>` (it spins up the enrichment subagent), then:
+```sh
+code-graph apply <concept>
+```
+
+**Guards:**
+- If the diagnostic says a concept **has no SKILL.md**, do **not** offer the pipeline (it
+  will fail) — tell the user to add `concepts.<name>.skill` or set `skillsDir`.
+- For **uncovered files**, never edit `scribe.config.json` yourself — only suggest it.
+- **Nag control:** if the user already declined building/enriching a given concept this
+  session, do not re-offer it — proceed silently.
+
+`/graph concept <name>` and `/graph cross <a> <b>` emit the same diagnostic on exit 6 when a
+named concept is declared-but-not-built — same answer-first handling applies.
+
 ## Examples
 
 ```sh
