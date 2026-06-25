@@ -21,7 +21,9 @@ graph tells you *where* and *why*; you still read the source for exact detail.
 
 ## When NOT to use
 
-- The project has no `scribe.config.json` → fall back to Grep/Glob/Read.
+- The project has no `scribe.config.json` → fall back to Grep/Glob/Read and surface:
+  *"This project isn't initialized — run `/code-graph-init` to set up the graph."*
+  (Do NOT run init yourself — it is user-triggered.)
 - You need a literal text/regex match (a string, an import path, a TODO) → use Grep.
 - The graph returns exit code `6` (no results) → fall back to a raw search.
 - You are editing/enriching the graph itself → that is `/scribe-enrich`, not this skill.

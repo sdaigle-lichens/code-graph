@@ -554,3 +554,10 @@ Per-slice implementation plans live alongside this spec in `docs/implementation/
   pilot/eval/distribution). See `phase-8-troubleshooting.md` for pilot onboarding fixes.
 - `phase-9.md` — **gap detection & throwback for retrieval**: surface incomplete/missing
   concepts at query time and offer to build them, without blocking answers. Post-pilot.
+- `phase-10.md` — **`code-graph-init`: concept cataloging, add-concept & delete-concept**:
+  one-time initialization that scans a project, proposes curated concept slices, and writes
+  `scribe.config.json` under per-concept approval (`code-graph catalog --json` digest + the
+  `code-graph-init` skill); `add-concept` (catalog-of-one: seed-driven import-graph expansion →
+  declare + zero-token structural build, enrichment deferred/incremental); and
+  `code-graph delete-concept` (archive + report dangling refs) as the safety valve. Init-only —
+  updates compose from add + delete, no merge/re-pass.
