@@ -349,4 +349,44 @@ query
     }
   });
 
+program
+  .command("catalog")
+  .description("repo-wide ts-morph digest: units, exports, import adjacency, fan-in/out")
+  .option("--json", "output JSON (required for machine consumption)")
+  .option("--tsconfig <path>", "path to tsconfig (auto-detected if omitted)")
+  .option("--hub-min-fan-in <n>", "fan-in threshold for hub detection", "5")
+  .action(async (opts: { json?: boolean; tsconfig?: string; hubMinFanIn?: string }) => {
+    if (!opts.json) {
+      console.error("error: --json is required (catalog output is always JSON)");
+      process.exit(1);
+    }
+    const { runCatalog, resolveTsconfig } = await import("./catalog/catalog.js");
+    const cwd = process.cwd();
+    const tsconfig = resolveTsconfig(cwd, opts.tsconfig);
+    if (!tsconfig) {
+      console.error("error: no tsconfig found in CWD — pass --tsconfig <path>");
+      process.exit(1);
+    }
+    try {
+      const result = await runCatalog({
+        root: cwd,
+        tsconfig,
+        hubMinFanIn: parseInt(opts.hubMinFanIn ?? "5", 10),
+      });
+      console.log(JSON.stringify(result, null, 2));
+    } catch (err) {
+      console.error("catalog failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("delete-concept <name>")
+  .description("archive a concept: marks vertices/edges archived, removes from config + artifacts")
+  .option("--yes", "skip interactive confirmation")
+  .action(async (name: string, opts: { yes?: boolean }) => {
+    const { deleteConcept } = await import("./scribe/delete-concept.js");
+    await deleteConcept(name, { yes: opts.yes ?? false });
+  });
+
 program.parse();
