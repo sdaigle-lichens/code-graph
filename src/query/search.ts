@@ -1,8 +1,9 @@
-import type { Database } from "arangojs";
-import { aql } from "arangojs/aql";
+import type { DatabaseSync } from "node:sqlite";
 import { preflight } from "./preflight.js";
 import type { Vertex, Edge } from "../schema.js";
-import type { DocVertex } from "./queries.js";
+import { oneHop, twoHops, skillDoc, type DocVertex } from "./queries.js";
+import { toDocs, toMatchExpr, vertexId } from "../scribe/rows.js";
+import { FTS_WEIGHTS } from "../scribe/bootstrap.js";
 
 export class SearchNoResultsError extends Error {
   constructor(query: string) {
@@ -43,7 +44,7 @@ function appendToMap<T>(map: Map<string, T[]>, key: string, item: T): void {
 }
 
 async function expandVertex(
-  db: Database,
+  db: DatabaseSync,
   vertex: Vertex,
   bm25: number,
   vertexMap: Map<string, { vertex: Vertex; bm25: number }>,
@@ -61,12 +62,7 @@ async function expandVertex(
   }
 
   if (!skillDocs.has(vertex.concept)) {
-    skillDocs.set(vertex.concept, null);
-    const cur = await db.query<DocVertex | null>(aql`
-      RETURN DOCUMENT("docs", CONCAT(${vertex.concept}, "::skill"))
-    `);
-    const rows = await cur.all();
-    skillDocs.set(vertex.concept, rows[0] ?? null);
+    skillDocs.set(vertex.concept, skillDoc(db, vertex.concept));
   }
 
   const trackEdge = (edgeKey: string, ...vkeys: string[]) => {
@@ -78,46 +74,36 @@ async function expandVertex(
   };
 
   const structuralTypes = ["calls", "reads", "writes", "uses-hook", "mounts", "has-type"];
-  const outCur = await db.query<{ v: Vertex; e: Edge }>(aql`
-    FOR v, e IN 1..1 OUTBOUND ${vertex} edges
-      FILTER e.type IN ${structuralTypes}
-      RETURN { v: v, e: e }
-  `);
-  for await (const row of outCur) {
-    if (!row.v) continue;
-    if (!vertexMap.has(row.v._key)) vertexMap.set(row.v._key, { vertex: row.v, bm25: 0 });
-    appendToMap(edgesOutMap, key, { edge: row.e, to: row.v });
-    trackEdge(row.e._key, key, row.v._key);
+  const startId = vertexId(key);
+  for (const row of oneHop(db, "out", startId, structuralTypes)) {
+    if (!vertexMap.has(row.vertex._key)) vertexMap.set(row.vertex._key, { vertex: row.vertex, bm25: 0 });
+    appendToMap(edgesOutMap, key, { edge: row.edge, to: row.vertex });
+    trackEdge(row.edge._key, key, row.vertex._key);
   }
 
   const impactTypes = ["calls", "triggers", "delegates-to"];
-  const inCur = await db.query<{ v: Vertex; e: Edge }>(aql`
-    FOR v, e, p IN 1..2 INBOUND ${vertex} edges
-      FILTER e.type IN ${impactTypes}
-      RETURN { v: v, e: e }
-  `);
-  for await (const row of inCur) {
-    if (!row.v) continue;
-    if (!vertexMap.has(row.v._key)) vertexMap.set(row.v._key, { vertex: row.v, bm25: 0 });
-    appendToMap(edgesInMap, key, { edge: row.e, from: row.v });
-    trackEdge(row.e._key, key, row.v._key);
+  // Depth-2 rows are attributed to the seed as well, which inflates its degree
+  // — an oddity of the original traversal that the scores and the rendered
+  // "triggered by" list both depend on, so it is reproduced rather than fixed.
+  for (const row of twoHops(db, "in", startId, impactTypes, -1)) {
+    if (!vertexMap.has(row.vertex._key)) vertexMap.set(row.vertex._key, { vertex: row.vertex, bm25: 0 });
+    appendToMap(edgesInMap, key, { edge: row.edge, from: row.vertex });
+    trackEdge(row.edge._key, key, row.vertex._key);
   }
 
-  const crossCur = await db.query<{ v: Vertex; e: Edge }>(aql`
-    FOR v, e IN 1..1 ANY ${vertex} edges
-      FILTER e.crosses_concept == true
-      RETURN { v: v, e: e }
-  `);
-  for await (const row of crossCur) {
-    if (!row.v) continue;
-    if (!vertexMap.has(row.v._key)) vertexMap.set(row.v._key, { vertex: row.v, bm25: 0 });
-    appendToMap(crossEdgesMap, key, { edge: row.e, other: row.v });
-    trackEdge(row.e._key, key, row.v._key);
+  const crossRows = [
+    ...oneHop(db, "in", startId, null, true),
+    ...oneHop(db, "out", startId, null, true),
+  ];
+  for (const row of crossRows) {
+    if (!vertexMap.has(row.vertex._key)) vertexMap.set(row.vertex._key, { vertex: row.vertex, bm25: 0 });
+    appendToMap(crossEdgesMap, key, { edge: row.edge, other: row.vertex });
+    trackEdge(row.edge._key, key, row.vertex._key);
   }
 }
 
 async function expandDoc(
-  db: Database,
+  db: DatabaseSync,
   doc: DocVertex,
   vertexMap: Map<string, { vertex: Vertex; bm25: number }>,
   skillDocs: Map<string, DocVertex | null>,
@@ -129,12 +115,12 @@ async function expandDoc(
 
   if (!loadVertices) return;
 
-  const cur = await db.query<Vertex>(aql`
-    FOR v IN vertices
-      FILTER v.concept == ${doc.concept} AND v.status == "live"
-      RETURN v
-  `);
-  for await (const v of cur) {
+  const rows = toDocs<Vertex>(
+    db
+      .prepare("SELECT doc FROM vertices WHERE concept = ? AND status = 'live' ORDER BY type, key")
+      .all(doc.concept) as { doc: string }[]
+  );
+  for (const v of rows) {
     if (!vertexMap.has(v._key)) vertexMap.set(v._key, { vertex: v, bm25: 0 });
   }
 }
@@ -145,23 +131,43 @@ export async function search(
   query: string,
   opts: { maxTokens: number; json: boolean; skillMode?: SkillMode }
 ): Promise<SearchResult> {
-  const { db } = await preflight();
+  const { db: store } = await preflight();
 
-  const seedCur = await db.query<{ doc: Record<string, unknown>; score: number }>(aql`
-    FOR d IN code_search_view
-      SEARCH ANALYZER(
-        BOOST(d.name == ${query}, 5) OR
-        BOOST(d.name IN TOKENS(${query}, "text_en"), 3) OR
-        BOOST(d.purpose IN TOKENS(${query}, "text_en"), 2) OR
-        BOOST(d.tags IN TOKENS(${query}, "text_en"), 1.5) OR
-        d.body_md IN TOKENS(${query}, "text_en"),
-        "text_en"
+  const match = toMatchExpr(query);
+  if (match === null) throw new SearchNoResultsError(query);
+
+  // The ArangoSearch view scored five boosted clauses at once. FTS5 has no
+  // per-clause boost, so the four token boosts become bm25() column weights and
+  // the exact-name boost becomes a sort tier: a direct symbol hit outranks every
+  // token match outright, rather than relying on a multiplier being big enough.
+  const w = `${FTS_WEIGHTS.name}, ${FTS_WEIGHTS.purpose}, ${FTS_WEIGHTS.tags}, ${FTS_WEIGHTS.body_md}`;
+  const seeds = (
+    store
+      .prepare(
+        `WITH seed AS (
+           SELECT ref_kind, ref_key, -bm25(search_fts, 0.0, 0.0, ${w}) AS base
+             FROM search_fts
+            WHERE search_fts MATCH ?
+         )
+         SELECT s.ref_kind AS kind,
+                coalesce(v.doc, d.doc) AS doc,
+                CASE WHEN v.key IS NOT NULL AND lower(v.name) = lower(?) THEN 1 ELSE 0 END AS exact,
+                s.base AS base
+           FROM seed s
+           LEFT JOIN vertices v ON s.ref_kind = 'vertex' AND v.key = s.ref_key
+           LEFT JOIN docs     d ON s.ref_kind = 'doc'    AND d.key = s.ref_key
+          WHERE coalesce(v.doc, d.doc) IS NOT NULL
+          ORDER BY exact DESC, base DESC
+          LIMIT 10`
       )
-      SORT BM25(d) DESC
-      LIMIT 10
-      RETURN { doc: d, score: BM25(d) }
-  `);
-  const seeds = await seedCur.all();
+      .all(match, query) as Array<{ kind: string; doc: string; exact: number; base: number }>
+  ).map((r) => ({
+    kind: r.kind,
+    doc: JSON.parse(r.doc) as Record<string, unknown>,
+    // Keep the old 5-vs-3 ratio between an exact name hit and a token name hit,
+    // so the 0.7-weighted score term keeps roughly its previous shape.
+    score: r.exact ? r.base * (5 / 3) : r.base,
+  }));
 
   if (seeds.length === 0) {
     throw new SearchNoResultsError(query);
@@ -174,15 +180,15 @@ export async function search(
   const incidentEdges = new Map<string, Set<string>>();
   const skillDocs = new Map<string, DocVertex | null>();
 
-  const vertexSeeds = seeds.filter((s) => (s.doc._id as string)?.startsWith("vertices/"));
-  const docSeeds = seeds.filter((s) => !(s.doc._id as string)?.startsWith("vertices/"));
+  const vertexSeeds = seeds.filter((s) => s.kind === "vertex");
+  const docSeeds = seeds.filter((s) => s.kind !== "vertex");
   const docLoadsVertices = vertexSeeds.length === 0;
 
   for (let i = 0; i < vertexSeeds.length; i += 5) {
     await Promise.all(
       vertexSeeds.slice(i, i + 5).map((seed) =>
         expandVertex(
-          db,
+          store,
           seed.doc as unknown as Vertex,
           seed.score,
           vertexMap, edgesInMap, edgesOutMap, crossEdgesMap, incidentEdges, skillDocs
@@ -195,7 +201,7 @@ export async function search(
     await Promise.all(
       docSeeds.slice(i, i + 5).map((seed) =>
         expandDoc(
-          db,
+          store,
           seed.doc as unknown as DocVertex,
           vertexMap, skillDocs, docLoadsVertices
         )
@@ -208,16 +214,9 @@ export async function search(
     new Set(Array.from(vertexMap.values()).map((v) => v.vertex.concept))
   ).filter((c) => !skillDocs.has(c));
 
-  await Promise.all(
-    conceptsToFetch.map(async (concept) => {
-      skillDocs.set(concept, null);
-      const cur = await db.query<DocVertex | null>(aql`
-        RETURN DOCUMENT("docs", CONCAT(${concept}, "::skill"))
-      `);
-      const rows = await cur.all();
-      skillDocs.set(concept, rows[0] ?? null);
-    })
-  );
+  for (const concept of conceptsToFetch) {
+    skillDocs.set(concept, skillDoc(store, concept));
+  }
 
   const maxBm25 = Math.max(...Array.from(vertexMap.values()).map((v) => v.bm25), 1);
   const maxDegree = Math.max(...Array.from(incidentEdges.values()).map((s) => s.size), 1);

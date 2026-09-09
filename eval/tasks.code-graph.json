@@ -1,0 +1,125 @@
+[
+  {
+    "id": "task-1-token-budget",
+    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate.",
+    "prompt": "token budget truncation",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "code-graph-search"
+      ],
+      "vertices_in_top_k": [
+        {
+          "name": "truncate",
+          "k": 3
+        },
+        {
+          "name": "applyTokenBudget",
+          "k": 3
+        },
+        {
+          "name": "estimateTokens",
+          "k": 8
+        }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-2-traversal-expansion",
+    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate.",
+    "prompt": "graph traversal expansion",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "code-graph-search"
+      ],
+      "vertices_in_top_k": [
+        {
+          "name": "expandVertex",
+          "k": 3
+        },
+        {
+          "name": "expandDoc",
+          "k": 6
+        },
+        {
+          "name": "queryImpact",
+          "k": 6
+        }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-3-preflight-exit-codes",
+    "provenance": "Written after the SQLite migration. The original expectation named checkServerReachable, which the migration deleted along with exit code 2, so this task's expectations are NOT validated against pre-migration output.",
+    "prompt": "preflight config and schema version checks",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "code-graph-search"
+      ],
+      "vertices_in_top_k": [
+        {
+          "name": "preflight",
+          "k": 5
+        },
+        {
+          "name": "checkSchemaVersion",
+          "k": 5
+        },
+        {
+          "name": "loadConfigOrExit",
+          "k": 5
+        }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-4-apply-drift",
+    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate.",
+    "prompt": "scribe apply drift detection",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "scribe-pipeline"
+      ],
+      "vertices_in_top_k": [
+        {
+          "name": "apply",
+          "k": 3
+        }
+      ],
+      "skill_present": false,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-5-exact-symbol",
+    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate.",
+    "prompt": "formatConcept",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "code-graph-search"
+      ],
+      "vertices_in_top_k": [
+        {
+          "name": "formatConcept",
+          "k": 1
+        },
+        {
+          "name": "truncate",
+          "k": 3
+        }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  }
+]

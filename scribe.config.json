@@ -1,0 +1,13 @@
+{
+  "project": "code-graph",
+  "tsconfig": "tsconfig.json",
+  "concepts": {
+    "code-graph-search": {
+      "globs": ["src/query/**/*.ts"],
+      "skill": ".claude/skills/code-graph-search/SKILL.md"
+    },
+    "scribe-pipeline": {
+      "globs": ["src/scribe/**/*.ts"]
+    }
+  }
+}

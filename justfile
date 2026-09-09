@@ -39,23 +39,15 @@ link:
 unlink:
     pnpm unlink --global
 
-# ─── ArangoDB ────────────────────────────────────────────────────────────────
+# ─── Graph store ────────────────────────────────────────────────────────────
 
-# Start ArangoDB container
-up:
-    code-graph up
-
-# Stop ArangoDB container
-down:
-    code-graph down
-
-# Show DB / collection / view status
+# Show store / schema / row-count status
 status:
     code-graph status
 
-# Open ArangoDB web UI in browser
-view-db:
-    code-graph view-db
+# Rebuild the full-text search index
+reindex:
+    code-graph reindex
 
 # ─── Pilot (lichens-ordonnancement-ui) ───────────────────────────────────────
 

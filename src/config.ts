@@ -11,6 +11,8 @@ const ConfigSchema = z.object({
   project: z.string(),
   tsconfig: z.string(),
   skillsDir: z.string().optional(),
+  /** Graph store location, relative to configRoot. Defaults to scribe-output/graph.db. */
+  dbPath: z.string().optional(),
   concepts: z.record(z.string(), ConceptSchema).optional().default({}),
 });
 

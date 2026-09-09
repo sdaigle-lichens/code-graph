@@ -1,12 +1,19 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+// node:sqlite prints an ExperimentalWarning on first use. The LSP surfaces this
+// process's stderr and the plugin skills read it, so the warning is dropped
+// before anything can touch the store. Must run before those imports.
+process.removeAllListeners("warning");
+process.on("warning", (w) => {
+  if (w.name !== "ExperimentalWarning") console.warn(w);
+});
+
+import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { Command } from "commander";
-import { getSystemDb, getProjectDb } from "./scribe/db.js";
+import { resolveDbPath } from "./scribe/db.js";
 import { tryLoadConfig } from "./config.js";
-import { bootstrap } from "./scribe/bootstrap.js";
+import { bootstrapStore, rebuildSearchIndex, SCHEMA_VERSION } from "./scribe/bootstrap.js";
 import { extract } from "./scribe/extract.js";
 import { apply } from "./scribe/apply.js";
 import { runConcept, runImpact, runCross, runVertex, runFile } from "./query/run.js";
@@ -21,49 +28,19 @@ import {
 } from "./query/gaps.js";
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const composeFile = join(pkgRoot, "docker-compose.arangodb.yml");
 const pkg = JSON.parse(
   readFileSync(join(pkgRoot, "package.json"), "utf-8")
 ) as { version: string };
-
-function runDockerCompose(...args: string[]) {
-  const result = spawnSync(
-    "docker",
-    ["compose", "-f", composeFile, ...args],
-    { stdio: "inherit" }
-  );
-  if (result.status !== 0) process.exit(result.status ?? 1);
-}
 
 const program = new Command();
 program.name("code-graph").version(pkg.version);
 
 program
-  .command("up")
-  .description("start ArangoDB via Docker Compose")
-  .action(() => runDockerCompose("up", "-d"));
-
-program
-  .command("down")
-  .description("stop ArangoDB via Docker Compose")
-  .action(() => runDockerCompose("down"));
-
-program
   .command("status")
-  .description("show ArangoDB and project DB status")
+  .description("show graph store status for the current project")
   .action(async () => {
-    const url = process.env.ARANGO_URL ?? "http://localhost:8529";
-    const ok = (label: string) => console.log(`  [✓] ${label}`);
-    const fail = (label: string) => console.log(`  [✗] ${label}`);
-
-    let reachable = false;
-    try {
-      const sysDb = getSystemDb();
-      await sysDb.version();
-      reachable = true;
-    } catch {}
-
-    reachable ? ok(`ArangoDB reachable (${url})`) : fail(`ArangoDB unreachable (${url})`);
+    const ok = (label: string) => console.log(`  [\u2713] ${label}`);
+    const fail = (label: string) => console.log(`  [\u2717] ${label}`);
 
     const config = tryLoadConfig(process.cwd());
     if (!config) {
@@ -72,55 +49,85 @@ program
     }
     ok(`scribe.config.json found (project: ${config.project})`);
 
-    if (!reachable) return;
+    const dbPath = resolveDbPath(config);
+    let bytes: number | null = null;
+    try {
+      bytes = statSync(dbPath).size;
+    } catch {}
+    if (bytes === null) {
+      fail(`store ${dbPath} missing \u2014 run \`code-graph bootstrap\``);
+      return;
+    }
+    ok(`store ${dbPath} (${(bytes / 1024).toFixed(0)} KiB)`);
 
     try {
-      const dbName = process.env.ARANGO_DB ?? config.project;
-      const sysDb = getSystemDb();
-      const databases = await sysDb.listDatabases();
-      const dbExists = databases.includes(dbName);
-      dbExists ? ok(`DB "${dbName}" exists`) : fail(`DB "${dbName}" missing`);
+      const store = bootstrapStore(dbPath);
 
-      if (!dbExists) return;
+      const version = (store.prepare("PRAGMA user_version").get() as { user_version: number })
+        .user_version;
+      version <= SCHEMA_VERSION
+        ? ok(`schema v${version}`)
+        : fail(`schema v${version} is newer than this CLI (v${SCHEMA_VERSION}) \u2014 upgrade code-graph`);
 
-      const db = getProjectDb(dbName);
-      const collections = await db.listCollections();
-      const colNames = collections.map((c) => c.name);
+      const integrity = (store.prepare("PRAGMA integrity_check").get() as Record<string, string>)
+        .integrity_check;
+      integrity === "ok" ? ok("integrity_check ok") : fail(`integrity_check: ${integrity}`);
 
-      for (const name of ["vertices", "edges", "docs", "concepts"]) {
-        colNames.includes(name) ? ok(`collection ${name}`) : fail(`collection ${name} missing`);
+      const count = (table: string) =>
+        (store.prepare(`SELECT count(*) AS c FROM ${table}`).get() as { c: number }).c;
+      for (const table of ["vertices", "edges", "docs", "concepts"]) {
+        const n = count(table);
+        n > 0 ? ok(`${table}: ${n}`) : fail(`${table}: empty`);
       }
 
-      const graph = db.graph("code_graph");
-      const graphExists = await graph.exists();
-      graphExists ? ok("graph code_graph") : fail("graph code_graph missing");
-
-      const views = await db.listViews();
-      const viewExists = views.some((v) => v.name === "code_search_view");
-      viewExists ? ok("view code_search_view") : fail("view code_search_view missing");
+      // A stale index is the one failure mode the wholesale rebuild can leave
+      // behind, and it is invisible from query results alone.
+      const indexed = count("search_fts");
+      const expected = count("vertices") + count("docs");
+      indexed === expected
+        ? ok(`search index: ${indexed} rows`)
+        : fail(`search index has ${indexed} rows, expected ${expected} \u2014 run \`code-graph reindex\``);
     } catch (err) {
-      console.error("error querying DB:", (err as Error).message);
+      console.error("error reading store:", (err as Error).message);
+      process.exit(1);
     }
   });
 
 program
-  .command("view-db")
-  .description("open ArangoDB web UI in browser")
-  .action(() => {
-    const url = process.env.ARANGO_URL ?? "http://localhost:8529";
-    const open = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-    spawnSync(open, [url], { stdio: "inherit" });
+  .command("bootstrap")
+  .description("create the graph store for the current project")
+  .action(async () => {
+    const config = tryLoadConfig(process.cwd());
+    if (!config) {
+      console.error(`no scribe.config.json found above ${process.cwd()}`);
+      process.exit(5);
+    }
+    const dbPath = resolveDbPath(config);
+    try {
+      bootstrapStore(dbPath);
+      console.log(`store ready: ${dbPath}`);
+    } catch (err) {
+      console.error("bootstrap failed:", (err as Error).message);
+      process.exit(1);
+    }
   });
 
 program
-  .command("bootstrap")
-  .description("bootstrap graph collections for current project")
+  .command("reindex")
+  .description("rebuild the full-text search index from the stored graph")
   .action(async () => {
+    const config = tryLoadConfig(process.cwd());
+    if (!config) {
+      console.error(`no scribe.config.json found above ${process.cwd()}`);
+      process.exit(5);
+    }
     try {
-      await bootstrap((msg) => console.log(msg));
-      console.log("\nbootstrap complete");
+      const store = bootstrapStore(resolveDbPath(config));
+      rebuildSearchIndex(store);
+      const n = (store.prepare("SELECT count(*) AS c FROM search_fts").get() as { c: number }).c;
+      console.log(`search index rebuilt: ${n} rows`);
     } catch (err) {
-      console.error("bootstrap failed:", (err as Error).message);
+      console.error("reindex failed:", (err as Error).message);
       process.exit(1);
     }
   });

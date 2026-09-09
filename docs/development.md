@@ -32,7 +32,7 @@ code-graph/
       bootstrap.ts      DB + collection + view setup
       extract.ts        AST extraction via ts-morph
       apply.ts          upsert + drift detection
-      db.ts             arangojs connection
+      db.ts             node:sqlite store handle
     query/
       preflight.ts      exit-2/3/5 checks
       queries.ts        AQL query functions

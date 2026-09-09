@@ -15,7 +15,7 @@ import {
   formatFile,
   type FormatOpts,
 } from "./format.js";
-import type { Database } from "arangojs";
+import type { DatabaseSync } from "node:sqlite";
 import type { ScribeConfig } from "../config.js";
 import {
   analyzeConceptGaps,
@@ -36,7 +36,7 @@ type SharedOpts = {
  * through (e.g. both concepts are fully built and simply share no edge).
  */
 async function maybeEmitConceptGap(
-  db: Database,
+  db: DatabaseSync,
   config: ScribeConfig,
   names: string[],
   json: boolean,

@@ -6,5 +6,5 @@
     "name": "Samuel Daigle",
     "email": "daigles@lichens.ai"
   },
-  "keywords": ["code-graph", "scribe", "ast", "arangodb"]
+  "keywords": ["code-graph", "scribe", "ast", "sqlite"]
 }

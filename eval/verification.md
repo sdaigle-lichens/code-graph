@@ -18,7 +18,7 @@ Run from `~/Documents/gits/lichens-ordonnancement-ui` against `lichens-ordonnanc
 | 12 | Search hybrid retrieval — `"sync sends stale ops"` returns skill prose + clearWorkorderOperations + mergeWorkordersByEquipment | ✓ | Verified — both vertices in top results, skill body inline |
 | 13 | Search multi-hop chaining — Cross-concept callouts in output | ✗ | No `crosses_concept=true` edges yet; targets (scheduler-store, shift-logic) not onboarded. Will pass once concept #2 lands. Tracked by phase plan. |
 | 14 | Slash command integration — `/graph sync stale ops` routes to search | ⊘ interactive | Requires Claude Code session |
-| 15 | Fallback — `code-graph down` → `/graph` exits 2 | ✓ | `code-graph search` returns exit 2 with "ArangoDB not reachable" |
+| 15 | ~~Fallback — `code-graph down` → `/graph` exits 2~~ | n/a | Retired: the store is a local file, so exit 2 can no longer be produced. Exit 6 (no results) still exercises the Explore fallback. |
 | 16 | Per-project isolation — second project bootstraps separate DB | ✓ | Created `isolation-test-proj` DB; both visible in `_api/database`; queries scoped per CWD |
 
 ## Summary

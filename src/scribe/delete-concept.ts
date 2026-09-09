@@ -1,9 +1,11 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { aql } from "arangojs/aql";
 import { loadConfig } from "../config.js";
-import { getDb } from "./db.js";
+import { resolveDbPath } from "./db.js";
+import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
+import type { DatabaseSync } from "node:sqlite";
+import { docKey, inTransaction, toDocs } from "./rows.js";
 
 // ─── Pure functions (unit-testable, no DB/FS deps) ────────────────────────────
 
@@ -126,6 +128,53 @@ async function confirmDelete(conceptName: string): Promise<boolean> {
 
 // ─── Main delete-concept implementation ───────────────────────────────────────
 
+/**
+ * Archives every vertex, edge and skill doc belonging to a concept.
+ *
+ * Nothing is hard-deleted — `status: "archived"` is the tombstone, so a concept
+ * can be re-applied later and drift detection still sees its history.
+ */
+export function archiveConcept(
+  store: DatabaseSync,
+  conceptName: string,
+  now: string
+): { archivedVertices: number; archivedEdges: number } {
+  return inTransaction(store, () => {
+    const stamp = (table: string, where: string, ...params: unknown[]) =>
+      store
+        .prepare(
+          `UPDATE ${table}
+              SET doc = json_set(doc, '$.status', 'archived', '$.archivedAt', ?)
+            WHERE ${where}`
+        )
+        .run(now, ...(params as never[])).changes;
+
+    // Only live vertices are counted, so a repeated delete reports zero.
+    const archivedVertices = Number(
+      stamp("vertices", "concept = ? AND status = 'live'", conceptName)
+    );
+
+    // Edges are re-stamped regardless of current status, matching the previous
+    // behaviour, so the count below is every edge of the concept.
+    stamp("edges", "concept = ?", conceptName);
+    const archivedEdges = Number(
+      (
+        store
+          .prepare(
+            `SELECT count(*) AS c FROM edges
+              WHERE concept = ? AND json_extract(doc, '$.status') = 'archived'`
+          )
+          .get(conceptName) as { c: number }
+      ).c
+    );
+
+    stamp("docs", "key = ?", docKey(conceptName));
+
+    rebuildSearchIndex(store);
+    return { archivedVertices, archivedEdges };
+  });
+}
+
 export async function deleteConcept(
   conceptName: string,
   opts: { yes?: boolean },
@@ -149,40 +198,50 @@ export async function deleteConcept(
 
   const now = new Date().toISOString();
 
-  let db: ReturnType<typeof getDb>;
-  try {
-    db = getDb();
-    // Quick connectivity check
-    await db.version();
-  } catch {
-    console.error("error: ArangoDB is not reachable — run: code-graph up");
-    process.exit(2);
-  }
+  // Creates the store if this is a fresh project, in which case there is simply
+  // nothing to archive.
+  const store = bootstrapStore(resolveDbPath(config));
 
   // ── 1. Collect deleted concept's vertex keys (for dangling ref detection) ──
-  const vertexCursor = await db.query<VertexSummary>(aql`
-    FOR v IN vertices
-      FILTER v.concept == ${conceptName}
-      RETURN { _key: v._key, concept: v.concept, name: v.name, cross_concept_refs: v.cross_concept_refs }
-  `);
-  const deletedVertices = await vertexCursor.all();
+  const deletedVertices = toDocs<VertexSummary>(
+    store.prepare("SELECT doc FROM vertices WHERE concept = ?").all(conceptName) as {
+      doc: string;
+    }[]
+  ).map((v) => ({
+    _key: v._key,
+    concept: v.concept,
+    name: v.name,
+    cross_concept_refs: v.cross_concept_refs,
+  }));
   const deletedVertexKeys = new Set(deletedVertices.map((v) => v._key));
 
   // ── 2. Compute dangling refs BEFORE archiving ──────────────────────────────
-  const otherVertexCursor = await db.query<VertexSummary>(aql`
-    FOR v IN vertices
-      FILTER v.concept != ${conceptName} AND v.status == "live"
-        AND v.cross_concept_refs != null AND LENGTH(v.cross_concept_refs) > 0
-      RETURN { _key: v._key, concept: v.concept, name: v.name, cross_concept_refs: v.cross_concept_refs }
-  `);
-  const otherVertices = await otherVertexCursor.all();
+  const otherVertices = toDocs<VertexSummary>(
+    store
+      .prepare(
+        `SELECT doc FROM vertices
+          WHERE concept != ? AND status = 'live'
+            AND json_array_length(coalesce(json_extract(doc, '$.cross_concept_refs'), '[]')) > 0`
+      )
+      .all(conceptName) as { doc: string }[]
+  ).map((v) => ({
+    _key: v._key,
+    concept: v.concept,
+    name: v.name,
+    cross_concept_refs: v.cross_concept_refs,
+  }));
 
-  const otherEdgeCursor = await db.query<EdgeSummary>(aql`
-    FOR e IN edges
-      FILTER e.concept != ${conceptName} AND e.agent != null AND e.agent.authored_by != null
-      RETURN { _from: e._from, _to: e._to, concept: e.concept, type: e.type, agent: e.agent }
-  `);
-  const otherEdges = await otherEdgeCursor.all();
+  const otherEdges = toDocs<EdgeSummary>(
+    store
+      .prepare("SELECT doc FROM edges WHERE concept != ? AND authored_by IS NOT NULL")
+      .all(conceptName) as { doc: string }[]
+  ).map((e) => ({
+    _from: e._from,
+    _to: e._to,
+    concept: e.concept,
+    type: e.type,
+    agent: e.agent,
+  }));
 
   const danglingRefs = computeDanglingRefs(
     conceptName,
@@ -191,38 +250,7 @@ export async function deleteConcept(
     otherEdges,
   );
 
-  // ── 3. Archive all vertices for the concept ────────────────────────────────
-  // Count via the modification's RETURN (only newly-archived vertices) — a trailing
-  // RETURN is the one operation AQL permits after UPDATE; COLLECT after UPDATE is not.
-  const archiveVertexCursor = await db.query<number>(aql`
-    FOR v IN vertices
-      FILTER v.concept == ${conceptName} AND v.status == "live"
-      UPDATE v WITH { status: "archived", archivedAt: ${now} } IN vertices
-      RETURN 1
-  `);
-  const archivedVertices = (await archiveVertexCursor.all()).length;
-
-  // ── 4. Archive all edges for the concept ──────────────────────────────────
-  await db.query(aql`
-    FOR e IN edges
-      FILTER e.concept == ${conceptName}
-      UPDATE e WITH { status: "archived", archivedAt: ${now} } IN edges
-  `);
-  const edgeCountCursor = await db.query<number>(aql`
-    FOR e IN edges
-      FILTER e.concept == ${conceptName} AND e.status == "archived"
-      COLLECT WITH COUNT INTO c
-      RETURN c
-  `);
-  const archivedEdges = (await edgeCountCursor.all())[0] ?? 0;
-
-  // ── 5. Archive the docs/<concept>::skill vertex ────────────────────────────
-  const docKey = `${conceptName}::skill`;
-  await db.query(aql`
-    FOR d IN docs
-      FILTER d._key == ${docKey}
-      UPDATE d WITH { status: "archived", archivedAt: ${now} } IN docs
-  `);
+  const { archivedVertices, archivedEdges } = archiveConcept(store, conceptName, now);
 
   // ── 6. Remove concept from scribe.config.json ─────────────────────────────
   const configPath = join(configRoot, "scribe.config.json");

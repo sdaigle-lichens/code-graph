@@ -18,13 +18,7 @@
 }
 ```
 
-### 2. Start ArangoDB
-
-```sh
-code-graph up        # starts Docker container
-```
-
-### 3. Bootstrap the project DB
+### 2. Create the project store
 
 ```sh
 code-graph bootstrap
@@ -53,7 +47,7 @@ This starts a subagent that reads the AST, adds semantic enrichment (purpose, cr
 code-graph apply workorder-store
 ```
 
-Upserts vertices, edges, and skill doc into ArangoDB. Shows drift summary.
+Upserts vertices, edges, and skill doc into the store, in one transaction. Shows drift summary.
 
 ### 7. Search
 
@@ -71,11 +65,9 @@ Or from inside Claude Code:
 
 | Command                               | Example                                                              | Description                                               |
 | ------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
-| `code-graph up`                       | `code-graph up`                                                      | Start ArangoDB via Docker Compose                         |
-| `code-graph down`                     | `code-graph down`                                                    | Stop ArangoDB                                             |
-| `code-graph status`                   | `code-graph status`                                                  | Show DB and collection status                             |
-| `code-graph view-db`                  | `code-graph view-db`                                                 | Open ArangoDB web UI in browser                           |
-| `code-graph bootstrap`                | `code-graph bootstrap`                                               | Create DB + collections + view for current project        |
+| `code-graph status`                   | `code-graph status`                                                  | Show store path, schema version, integrity and row counts |
+| `code-graph bootstrap`                | `code-graph bootstrap`                                               | Create the graph store for the current project            |
+| `code-graph reindex`                  | `code-graph reindex`                                                 | Rebuild the full-text index from the stored graph         |
 | `code-graph extract <concept>`        | `code-graph extract workorder-store`                                 | Extract AST → `scribe-output/<concept>.ast.json`          |
 | `code-graph apply <concept>`          | `code-graph apply workorder-store`                                   | Apply enriched doc to graph (upsert + drift check)        |
 | `code-graph drift <concept>`          | `code-graph drift workorder-store`                                   | Show drift without applying (alias for `apply --dry-run`) |
@@ -115,7 +107,8 @@ Routing logic (inside `plugin/commands/graph.md`):
 
 ```json
 {
-  "project": "string", // ArangoDB database name
+  "project": "string", // project name, used in messages and skills
+  "dbPath": "string", // optional: store location, default scribe-output/graph.db
   "tsconfig": "string", // path to tsconfig (relative to config root)
   "skillsDir": "string", // optional: base dir for SKILL.md files
   "concepts": {
@@ -131,8 +124,8 @@ Routing logic (inside `plugin/commands/graph.md`):
 
 | Exit code | Meaning                 | Fix                                          |
 | --------- | ----------------------- | -------------------------------------------- |
-| 2         | ArangoDB unreachable    | `code-graph up`                              |
-| 3         | DB not found            | `code-graph bootstrap`                       |
+| 2         | *retired*               | Was "ArangoDB unreachable"; no longer emitted |
+| 3         | Store is from a newer code-graph | Upgrade the CLI                     |
 | 4         | Ambiguous symbol        | Qualify with concept: `impact concept::name` |
 | 5         | No `scribe.config.json` | Create one at project root                   |
 | 6         | Zero search results     | Rephrase query or use Explore agent          |

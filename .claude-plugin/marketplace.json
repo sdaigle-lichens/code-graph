@@ -8,9 +8,9 @@
     {
       "name": "code-graph",
       "source": "./plugin",
-      "description": "Graph-based code intelligence — scribe + hybrid BM25/multi-hop retrieval over TS/React via ArangoDB",
+      "description": "Graph-based code intelligence — scribe + hybrid BM25/multi-hop retrieval over TS/React, in an embedded SQLite store",
       "version": "0.1.0",
-      "keywords": ["code-graph", "scribe", "ast", "arangodb", "retrieval"]
+      "keywords": ["code-graph", "scribe", "ast", "sqlite", "retrieval"]
     }
   ]
 }

@@ -2,10 +2,19 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { aql } from "arangojs/aql";
 import { loadConfig } from "../config.js";
-import { getDb } from "./db.js";
-import { bootstrapIfMissing } from "./bootstrap.js";
+import { resolveDbPath } from "./db.js";
+import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
+import {
+  docId,
+  docKey,
+  getRecord,
+  inTransaction,
+  mergeRecord,
+  putRecord,
+  toDocs,
+  vertexId,
+} from "./rows.js";
 import {
   AstDocSchema,
   EnrichedDocSchema,
@@ -181,9 +190,8 @@ export async function apply(
   const { configRoot } = config;
   const now = nowISO();
 
-  // Auto-bootstrap DB if missing
-  await bootstrapIfMissing();
-  const db = getDb();
+  // Creates the store file + schema on first run; cheap and idempotent after.
+  const store = bootstrapStore(resolveDbPath(config));
 
   // Load ast.json (required)
   const astPath = join(configRoot, "scribe-output", `${concept}.ast.json`);
@@ -274,12 +282,11 @@ export async function apply(
   }
 
   // Fetch live DB vertices for this concept
-  const cursor = await db.query<Vertex>(aql`
-    FOR v IN vertices
-      FILTER v.concept == ${concept} AND v.status == "live"
-      RETURN v
-  `);
-  const dbVertices = await cursor.all();
+  const dbVertices = toDocs<Vertex>(
+    store
+      .prepare("SELECT doc FROM vertices WHERE concept = ? AND status = 'live'")
+      .all(concept) as { doc: string }[]
+  );
   const dbMap = new Map(dbVertices.map((v) => [v._key, v]));
 
   // Compute diff sets
@@ -336,10 +343,11 @@ export async function apply(
   // Check doc hash in DB for drift report
   let docHashDisplay = "n/a";
   if (astDoc.skill) {
-    const docKeyCursor = await db.query<{ body_hash?: string } | null>(aql`
-      RETURN DOCUMENT("docs", ${`${concept}::skill`})
-    `);
-    const existingDoc = (await docKeyCursor.all())[0];
+    const existingDoc = getRecord<{ body_hash?: string }>(
+      store,
+      "docs",
+      docKey(concept)
+    );
     if (!existingDoc?.body_hash) {
       docHashDisplay = "changed";
     } else {
@@ -416,174 +424,160 @@ export async function apply(
   const finalNewKeys = newKeys.filter((k) => !approvedNewKeys.has(k));
   const finalArchiveKeys = [...toArchiveKeys, ...rejectedOldKeys];
 
-  const verticesCol = db.collection("vertices");
-  const edgesCol = db.collection("edges");
-
+  const docUpdated = docHashDisplay === "changed";
   let insertedCount = 0;
   let updatedCount = 0;
   let archivedCount = 0;
 
-  // Apply approved renames: copy agent fields to new key, archive old
-  for (const r of approvedRenames) {
-    const oldV = dbMap.get(r.oldKey)!;
-    const newV = astVertexMap.get(r.newKey)!;
-    const ev = enrichedVertexMap.get(r.newKey);
-    const merged = mergeVertexForInsert(
-      newV,
-      ev,
-      { ...oldV.agent, stale: false },
-      {
-        purpose: oldV.purpose,
-        inputs: oldV.inputs,
-        outputs: oldV.outputs,
-        cross_concept_refs: oldV.cross_concept_refs,
-        document_ref: oldV.document_ref,
-        tags: oldV.tags,
-      },
-      now
-    );
-    await verticesCol.save(merged, { overwriteMode: "replace" });
-    await verticesCol.update(r.oldKey, { status: "archived", archivedAt: now });
-    insertedCount++;
-    archivedCount++;
-  }
+  // One transaction for the whole write phase. The AST edges for a concept
+  // are deleted and re-inserted, so a crash between those two steps would
+  // otherwise leave the concept with no edges at all.
+  inTransaction(store, () => {
+    // Apply approved renames: copy agent fields to new key, archive old
+    for (const r of approvedRenames) {
+      const oldV = dbMap.get(r.oldKey)!;
+      const newV = astVertexMap.get(r.newKey)!;
+      const ev = enrichedVertexMap.get(r.newKey);
+      const merged = mergeVertexForInsert(
+        newV,
+        ev,
+        { ...oldV.agent, stale: false },
+        {
+          purpose: oldV.purpose,
+          inputs: oldV.inputs,
+          outputs: oldV.outputs,
+          cross_concept_refs: oldV.cross_concept_refs,
+          document_ref: oldV.document_ref,
+          tags: oldV.tags,
+        },
+        now
+      );
+      putRecord(store, "vertices", r.newKey, merged);
+      mergeRecord(store, "vertices", r.oldKey, { status: "archived", archivedAt: now });
+      insertedCount++;
+      archivedCount++;
+    }
 
-  // Insert new vertices
-  for (const k of finalNewKeys) {
-    const astV = astVertexMap.get(k)!;
-    const ev = enrichedVertexMap.get(k);
-    await verticesCol.save(
-      mergeVertexForInsert(astV, ev, null, null, now),
-      { overwriteMode: "replace" }
-    );
-    insertedCount++;
-  }
+    // Insert new vertices
+    for (const k of finalNewKeys) {
+      const astV = astVertexMap.get(k)!;
+      const ev = enrichedVertexMap.get(k);
+      putRecord(store, "vertices", k, mergeVertexForInsert(astV, ev, null, null, now));
+      insertedCount++;
+    }
 
-  // Update changed vertices
-  for (const k of changedKeys) {
-    const astV = astVertexMap.get(k)!;
-    const dbV = dbMap.get(k)!;
-    const ev = enrichedVertexMap.get(k);
-    const agentUpdate = buildAgentUpdate(dbV, ev, astV.signature, now);
-    await verticesCol.update(k, {
-      filepath: astV.filepath,
-      start_line: astV.start_line,
-      end_line: astV.end_line,
-      signature: astV.signature,
-      contentHash: astV.contentHash,
-      type: astV.type,
-      name: astV.name,
-      displayKey: astV.displayKey,
-      ast: astV.ast,
-      ...agentUpdate,
-    });
-    updatedCount++;
-  }
-
-  // Update unchanged vertices that have fresh enriched data or a stale signature
-  for (const k of unchangedKeys) {
-    const astV = astVertexMap.get(k)!;
-    const ev = enrichedVertexMap.get(k);
-    const dbV = dbMap.get(k)!;
-    const agentUpdate = ev ? buildAgentUpdate(dbV, ev, null, now) : {};
-    const updates: Record<string, unknown> = { ...agentUpdate };
-    if (dbV.signature !== astV.signature) updates.signature = astV.signature;
-    if (Object.keys(updates).length > 0) {
-      await verticesCol.update(k, updates);
+    // Update changed vertices
+    for (const k of changedKeys) {
+      const astV = astVertexMap.get(k)!;
+      const dbV = dbMap.get(k)!;
+      const ev = enrichedVertexMap.get(k);
+      const agentUpdate = buildAgentUpdate(dbV, ev, astV.signature, now);
+      mergeRecord(store, "vertices", k, {
+        filepath: astV.filepath,
+        start_line: astV.start_line,
+        end_line: astV.end_line,
+        signature: astV.signature,
+        contentHash: astV.contentHash,
+        type: astV.type,
+        name: astV.name,
+        displayKey: astV.displayKey,
+        ast: astV.ast,
+        ...agentUpdate,
+      });
       updatedCount++;
     }
-  }
 
-  // Archive missing vertices (not renamed)
-  for (const k of finalArchiveKeys) {
-    await verticesCol.update(k, { status: "archived", archivedAt: now });
-    archivedCount++;
-  }
+    // Update unchanged vertices that have fresh enriched data or a stale signature
+    for (const k of unchangedKeys) {
+      const astV = astVertexMap.get(k)!;
+      const ev = enrichedVertexMap.get(k);
+      const dbV = dbMap.get(k)!;
+      const agentUpdate = ev ? buildAgentUpdate(dbV, ev, null, now) : {};
+      const updates: Record<string, unknown> = { ...agentUpdate };
+      if (dbV.signature !== astV.signature) updates.signature = astV.signature;
+      if (Object.keys(updates).length > 0) {
+        mergeRecord(store, "vertices", k, updates);
+        updatedCount++;
+      }
+    }
 
-  // Build keyToConcept map for crosses_concept computation
-  const keyToConcept = new Map<string, string>();
-  for (const v of astDoc.vertices) keyToConcept.set(v._key, v.concept);
-  for (const v of dbVertices) keyToConcept.set(v._key, v.concept);
+    // Archive missing vertices (not renamed)
+    for (const k of finalArchiveKeys) {
+      mergeRecord(store, "vertices", k, { status: "archived", archivedAt: now });
+      archivedCount++;
+    }
 
-  function crossesConceptForEdge(from: string, to: string): boolean {
-    const fromKey = from.split("/")[1];
-    const toKey = to.split("/")[1];
-    if (!fromKey || !toKey) return false;
-    const fc = keyToConcept.get(fromKey);
-    const tc = keyToConcept.get(toKey);
-    if (!fc || !tc) return false;
-    return fc !== tc;
-  }
+    // Build keyToConcept map for crosses_concept computation
+    const keyToConcept = new Map<string, string>();
+    for (const v of astDoc.vertices) keyToConcept.set(v._key, v.concept);
+    for (const v of dbVertices) keyToConcept.set(v._key, v.concept);
 
-  // Replace-all AST-owned edges for concept, then re-insert from ast.json
-  await db.query(aql`
-    FOR e IN edges
-      FILTER e.concept == ${concept} AND e.type IN ${[...AST_EDGE_TYPES]}
-      REMOVE e IN edges
-  `);
+    function crossesConceptForEdge(from: string, to: string): boolean {
+      const fromKey = from.split("/")[1];
+      const toKey = to.split("/")[1];
+      if (!fromKey || !toKey) return false;
+      const fc = keyToConcept.get(fromKey);
+      const tc = keyToConcept.get(toKey);
+      if (!fc || !tc) return false;
+      return fc !== tc;
+    }
 
-  for (const edge of astDoc.edges) {
-    const reason = enrichedEdgeReasons.get(edge._key);
-    await edgesCol.save({
-      ...edge,
-      crosses_concept: crossesConceptForEdge(edge._from, edge._to),
-      ...(reason !== undefined ? { reason } : {}),
-    });
-  }
+    // Replace-all AST-owned edges for concept, then re-insert from ast.json
+    store
+      .prepare(
+        `DELETE FROM edges WHERE concept = ? AND type IN (${AST_EDGE_TYPES.map(() => "?").join(", ")})`
+      )
+      .run(concept, ...AST_EDGE_TYPES);
 
-  // Upsert agent-owned edges from enriched.json
-  for (const ae of agentEdges) {
-    const line = ae.line ?? 0;
-    const key = sha1key(`${ae._from}|${ae._to}|${ae.type}|${line}`);
-    await edgesCol.save(
-      {
-        _key: key,
-        _from: ae._from,
-        _to: ae._to,
-        type: ae.type,
-        concept: ae.concept,
-        crosses_concept: crossesConceptForEdge(ae._from, ae._to),
-        ...(ae.reason !== undefined ? { reason: ae.reason } : {}),
-        ...(ae.line !== undefined ? { line: ae.line } : {}),
-        agent: ae.agent,
-        ast: { extracted_at: now },
-      },
-      { overwriteMode: "replace" }
-    );
-  }
+    for (const edge of astDoc.edges) {
+      const reason = enrichedEdgeReasons.get(edge._key);
+      putRecord(store, "edges", edge._key, {
+        ...edge,
+        crosses_concept: crossesConceptForEdge(edge._from, edge._to),
+        ...(reason !== undefined ? { reason } : {}),
+      });
+    }
 
-  // Upsert docs/<concept>::skill vertex
-  const docUpdated = docHashDisplay === "changed";
-  if (astDoc.skill) {
-    const docsCol = db.collection("docs");
-    await docsCol.save(
-      {
-        _key: `${concept}::skill`,
+    // Upsert agent-owned edges from enriched.json
+    for (const ae of agentEdges) {
+      const line = ae.line ?? 0;
+      const key = sha1key(`${ae._from}|${ae._to}|${ae.type}|${line}`);
+      putRecord(store, "edges", key, {
+          _key: key,
+          _from: ae._from,
+          _to: ae._to,
+          type: ae.type,
+          concept: ae.concept,
+          crosses_concept: crossesConceptForEdge(ae._from, ae._to),
+          ...(ae.reason !== undefined ? { reason: ae.reason } : {}),
+          ...(ae.line !== undefined ? { line: ae.line } : {}),
+          agent: ae.agent,
+          ast: { extracted_at: now },
+      });
+    }
+
+    if (astDoc.skill) {
+      putRecord(store, "docs", docKey(concept), {
+        _key: docKey(concept),
         concept,
         kind: "skill",
         path: astDoc.skill.path,
         body_md: astDoc.skill.body,
         body_hash: astDoc.skill.contentHash,
-      },
-      { overwriteMode: "replace" }
-    );
+      });
 
-    // Upsert concepts/<concept> vertex
-    const conceptsCol = db.collection("concepts");
-    await conceptsCol.save(
-      {
+      // Merge rather than replace: the concept record accumulates fields across
+      // runs, matching the "update" upsert this used before.
+      mergeRecord(store, "concepts", concept, {
         _key: concept,
         owner_skill_path: config.concepts?.[concept]?.skill,
         last_scribed_at: now,
-      },
-      { overwriteMode: "update" }
-    );
+      });
 
-    // Upsert describes edge (idempotent)
-    const descFrom = `docs/${concept}::skill`;
-    const descTo = `concepts/${concept}`;
-    await edgesCol.save(
-      {
+      // Upsert describes edge (idempotent)
+      const descFrom = docId(concept);
+      const descTo = `concepts/${concept}`;
+      putRecord(store, "edges", sha1key(`${descFrom}|${descTo}|describes|0`), {
         _key: sha1key(`${descFrom}|${descTo}|describes|0`),
         _from: descFrom,
         _to: descTo,
@@ -592,32 +586,35 @@ export async function apply(
         crosses_concept: false,
         ast: { extracted_at: now },
         agent: { authored_by: null },
-      },
-      { overwriteMode: "replace" }
-    );
-
-    // Replace-all documented-by edges for concept, then re-insert one per live vertex
-    await db.query(aql`
-      FOR e IN edges
-        FILTER e.concept == ${concept} AND e.type == "documented-by"
-        REMOVE e IN edges
-    `);
-
-    const skillTo = `docs/${concept}::skill`;
-    for (const v of astDoc.vertices) {
-      const from = `vertices/${v._key}`;
-      await edgesCol.save({
-        _key: sha1key(`${from}|${skillTo}|documented-by|0`),
-        _from: from,
-        _to: skillTo,
-        type: "documented-by",
-        concept,
-        crosses_concept: false,
-        ast: { extracted_at: now },
-        agent: { authored_by: null },
       });
+
+      // Replace-all documented-by edges for concept, then re-insert one per live vertex
+      store
+        .prepare("DELETE FROM edges WHERE concept = ? AND type = 'documented-by'")
+        .run(concept);
+
+      const skillTo = docId(concept);
+      for (const v of astDoc.vertices) {
+        const from = vertexId(v._key);
+        const key = sha1key(`${from}|${skillTo}|documented-by|0`);
+        putRecord(store, "edges", key, {
+          _key: key,
+          _from: from,
+          _to: skillTo,
+          type: "documented-by",
+          concept,
+          crosses_concept: false,
+          ast: { extracted_at: now },
+          agent: { authored_by: null },
+        });
+      }
     }
-  }
+
+    // The full-text index is derived from vertices + docs, so it is rebuilt once
+    // after every write rather than maintained row by row.
+    rebuildSearchIndex(store);
+  });
+
 
   // Print summary
   console.log(

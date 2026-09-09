@@ -133,3 +133,26 @@ export type AstDoc = z.infer<typeof AstDocSchema>;
 export type EnrichedVertex = z.infer<typeof EnrichedVertexSchema>;
 export type EnrichedEdge = z.infer<typeof EnrichedEdgeSchema>;
 export type EnrichedDoc = z.infer<typeof EnrichedDocSchema>;
+
+// Shapes previously declared inline in scribe/apply.ts. The `docs` and
+// `concepts` collections carry `status`/`archivedAt` only after
+// delete-concept archives them, so both are optional here.
+export const DocRecordSchema = z.object({
+  _key: z.string(),
+  concept: z.string(),
+  kind: z.literal("skill"),
+  path: z.string(),
+  body_md: z.string(),
+  body_hash: z.string(),
+  status: z.enum(["live", "archived"]).optional(),
+  archivedAt: z.string().optional(),
+});
+
+export const ConceptRecordSchema = z.object({
+  _key: z.string(),
+  owner_skill_path: z.string().optional(),
+  last_scribed_at: z.string(),
+});
+
+export type DocRecord = z.infer<typeof DocRecordSchema>;
+export type ConceptRecord = z.infer<typeof ConceptRecordSchema>;

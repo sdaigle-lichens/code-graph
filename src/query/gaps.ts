@@ -1,7 +1,6 @@
 import { existsSync, readdirSync, type Dirent } from "node:fs";
 import { join, relative } from "node:path";
-import type { Database } from "arangojs";
-import { aql } from "arangojs/aql";
+import type { DatabaseSync } from "node:sqlite";
 import { minimatch } from "minimatch";
 import type { ScribeConfig } from "../config.js";
 import type { SearchResult } from "./search.js";
@@ -174,16 +173,17 @@ export function formatGapDiagnostic(
 
 /** One aggregation: live vertex count + count of vertices with a non-empty purpose,
  *  grouped by concept. */
-export async function fetchConceptCounts(db: Database): Promise<ConceptCounts> {
-  const cursor = await db.query<{ concept: string; live: number; enriched: number }>(aql`
-    FOR v IN vertices
-      FILTER v.status == "live"
-      COLLECT concept = v.concept AGGREGATE
-        live = SUM(1),
-        enriched = SUM((v.purpose != null AND v.purpose != "") ? 1 : 0)
-      RETURN { concept, live, enriched }
-  `);
-  const rows = await cursor.all();
+export async function fetchConceptCounts(store: DatabaseSync): Promise<ConceptCounts> {
+  const rows = store
+    .prepare(
+      `SELECT concept,
+              count(*) AS live,
+              sum(CASE WHEN purpose IS NOT NULL AND purpose != '' THEN 1 ELSE 0 END) AS enriched
+         FROM vertices
+        WHERE status = 'live'
+        GROUP BY concept`
+    )
+    .all() as Array<{ concept: string; live: number; enriched: number }>;
   const map: ConceptCounts = new Map();
   for (const r of rows) map.set(r.concept, { live: r.live, enriched: r.enriched });
   return map;
@@ -208,7 +208,7 @@ export function declaredConcepts(config: ScribeConfig): DeclaredConcept[] {
 
 /** Orchestrator: declared concepts + DB counts → GapReport. */
 export async function computeGapReport(
-  db: Database,
+  db: DatabaseSync,
   config: ScribeConfig,
   thresholds: GapThresholds = DEFAULT_THRESHOLDS,
 ): Promise<GapReport> {

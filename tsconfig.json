@@ -3,6 +3,9 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
+    // Declared explicitly: the project imports node: built-ins directly, and
+    // nothing else in the dependency tree pulls these types in any more.
+    "types": ["node"],
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,

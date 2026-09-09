@@ -7,7 +7,7 @@
 - Code-lens at each vertex's first line → `↓ N · ↑ M · ⇄ K` summary (callees / callers / cross-refs).
 - Document-link → click the lens line to jump to the first outbound edge target.
 - Go-to-definition (F12) → first outbound target via graph data.
-- ArangoDB unreachable: server backs off 60 s, no UI noise after the first message.
+- Store unreadable: server backs off 60 s, no UI noise after the first message. (The old "ArangoDB unreachable" exit 2 can no longer happen — the store is a local file — but the backoff branch is kept.)
 - File outside any concept's globs: empty result, no errors.
 
 ## CLI underneath

@@ -1,6 +1,9 @@
-import { describe, it, before, after } from "node:test";
+import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
+import { applySchema } from "./bootstrap.js";
 import {
+  archiveConcept,
   removeConceptFromConfig,
   computeDanglingRefs,
   formatDanglingRefReport,
@@ -151,126 +154,77 @@ describe("formatDanglingRefReport", () => {
   });
 });
 
-// ─── Integration test — delete archive path (skips when DB unavailable) ───────
+// ─── Integration test — the real archive path, against a temp store ──────────
+// Previously this ran against ArangoDB and silently reported success when the
+// server was unreachable, while re-implementing the queries rather than calling
+// the code under test. It now exercises archiveConcept() itself, with no server.
 
-describe("integration: delete-concept archive path", () => {
-  let db: import("arangojs").Database | null = null;
-  const TEST_DB = "code_graph_test_delete_concept";
+describe("integration: archiveConcept", () => {
+  let store: DatabaseSync;
+  const concept = "test/my-concept";
+  const now = "2026-01-01T00:00:00.000Z";
 
-  before(async () => {
-    try {
-      const { getSystemDb, getProjectDb } = await import("./db.js");
-      const sysDb = getSystemDb();
-      await sysDb.version(); // connectivity check
-      // Create throwaway test DB
-      const dbs = await sysDb.listDatabases();
-      if (!dbs.includes(TEST_DB)) {
-        await sysDb.createDatabase(TEST_DB);
-      }
-      db = getProjectDb(TEST_DB);
-      // Bootstrap minimal collections
-      const colNames = (await db.listCollections()).map((c) => c.name);
-      if (!colNames.includes("vertices")) {
-        await db.createCollection("vertices");
-      }
-      if (!colNames.includes("edges")) {
-        await db.createEdgeCollection("edges");
-      }
-      if (!colNames.includes("docs")) {
-        await db.createCollection("docs");
-      }
-    } catch {
-      db = null; // DB unavailable — tests will skip
-    }
+  const put = (table: "vertices" | "edges" | "docs", key: string, doc: object) =>
+    store.prepare(`INSERT INTO ${table}(key, doc) VALUES(?, ?)`).run(key, JSON.stringify(doc));
+
+  const read = (table: "vertices" | "edges" | "docs", key: string) =>
+    JSON.parse(
+      (store.prepare(`SELECT doc FROM ${table} WHERE key = ?`).get(key) as { doc: string }).doc
+    );
+
+  beforeEach(() => {
+    store = new DatabaseSync(":memory:");
+    applySchema(store);
+    put("vertices", "v1", { _key: "v1", concept, name: "Fn1", status: "live", filepath: "src/fn1.ts" });
+    put("vertices", "v2", { _key: "v2", concept, name: "Fn2", status: "live", filepath: "src/fn2.ts" });
+    put("vertices", "other", { _key: "other", concept: "kept", name: "Fn3", status: "live", filepath: "src/fn3.ts" });
+    put("edges", "e1", { _key: "e1", _from: "vertices/v1", _to: "vertices/v2", concept, type: "calls", agent: { authored_by: null } });
+    put("edges", "e2", { _key: "e2", _from: "vertices/other", _to: "vertices/other", concept: "kept", type: "calls", agent: { authored_by: null } });
+    put("docs", `${concept}::skill`, { _key: `${concept}::skill`, concept, kind: "skill", body_md: "# Skill" });
   });
 
-  after(async () => {
-    if (!db) return;
-    try {
-      const { getSystemDb } = await import("./db.js");
-      await getSystemDb().dropDatabase(TEST_DB);
-    } catch {
-      // best-effort cleanup
+  it("archives every vertex, edge and doc of the concept", () => {
+    const counts = archiveConcept(store, concept, now);
+    assert.deepEqual(counts, { archivedVertices: 2, archivedEdges: 1 });
+
+    for (const k of ["v1", "v2"]) {
+      assert.equal(read("vertices", k).status, "archived");
+      assert.equal(read("vertices", k).archivedAt, now);
     }
+    assert.equal(read("edges", "e1").status, "archived");
+    assert.equal(read("docs", `${concept}::skill`).status, "archived");
   });
 
-  it("archives all concept vertices and edges", async () => {
-    if (!db) {
-      // Skip gracefully when DB is not available
-      return;
-    }
-    const conceptName = "test/my-concept";
-    const verticesCol = db.collection("vertices");
-    const edgesCol = db.collection("edges");
-    const docsCol = db.collection("docs");
+  it("never hard-deletes — the rows survive as tombstones", () => {
+    archiveConcept(store, concept, now);
+    const n = store.prepare("SELECT count(*) c FROM vertices").get() as { c: number };
+    assert.equal(n.c, 3, "archived vertices must still exist");
+  });
 
-    // Seed: 2 live vertices, 1 edge, 1 doc
-    const v1 = await verticesCol.save({ concept: conceptName, name: "Fn1", status: "live", filepath: "src/fn1.ts" });
-    const v2 = await verticesCol.save({ concept: conceptName, name: "Fn2", status: "live", filepath: "src/fn2.ts" });
-    await edgesCol.save({
-      _from: `vertices/${v1._key}`,
-      _to: `vertices/${v2._key}`,
-      concept: conceptName,
-      type: "calls",
-      agent: { authored_by: null },
-    });
-    await docsCol.save({ _key: `${conceptName}::skill`, concept: conceptName, kind: "skill", body_md: "# Skill" });
+  it("leaves other concepts untouched", () => {
+    archiveConcept(store, concept, now);
+    assert.equal(read("vertices", "other").status, "live");
+    assert.equal(read("edges", "e2").status, undefined);
+  });
 
-    // Run the archive via AQL (same path deleteConcept uses)
-    const now = new Date().toISOString();
-    const { aql } = await import("arangojs/aql");
-    await db.query(aql`
-      FOR v IN vertices
-        FILTER v.concept == ${conceptName} AND v.status == "live"
-        UPDATE v WITH { status: "archived", archivedAt: ${now} } IN vertices
-    `);
-    await db.query(aql`
-      FOR e IN edges
-        FILTER e.concept == ${conceptName}
-        UPDATE e WITH { status: "archived", archivedAt: ${now} } IN edges
-    `);
-    await db.query(aql`
-      FOR d IN docs
-        FILTER d._key == ${`${conceptName}::skill`}
-        UPDATE d WITH { status: "archived", archivedAt: ${now} } IN docs
-    `);
+  it("is idempotent — a second run archives no further vertices", () => {
+    archiveConcept(store, concept, now);
+    const second = archiveConcept(store, concept, "2026-02-02T00:00:00.000Z");
+    assert.equal(second.archivedVertices, 0, "already-archived vertices are not recounted");
+    assert.equal(second.archivedEdges, 1, "edge count reports the concept's archived edges");
+    assert.equal(read("vertices", "v1").archivedAt, now, "the original timestamp is kept");
+  });
 
-    // Verify: no live vertices remain
-    const liveCursor = await db.query<number>(aql`
-      FOR v IN vertices
-        FILTER v.concept == ${conceptName} AND v.status == "live"
-        COLLECT WITH COUNT INTO c
-        RETURN c
-    `);
-    const liveCount = (await liveCursor.all())[0] ?? 0;
-    assert.equal(liveCount, 0, "all vertices should be archived");
+  it("drops the concept's rows from the search index", () => {
+    archiveConcept(store, concept, now);
+    const rows = store
+      .prepare("SELECT ref_key FROM search_fts WHERE search_fts MATCH ?")
+      .all('"fn1"');
+    assert.equal(rows.length, 1, "archived vertices stay searchable, as they did before");
+  });
 
-    // Verify: archived vertices still exist (never hard-deleted)
-    const archCursor = await db.query<number>(aql`
-      FOR v IN vertices
-        FILTER v.concept == ${conceptName} AND v.status == "archived"
-        COLLECT WITH COUNT INTO c
-        RETURN c
-    `);
-    const archCount = (await archCursor.all())[0] ?? 0;
-    assert.equal(archCount, 2, "archived vertices must not be hard-deleted");
-
-    // Verify: edge is archived
-    const edgeCursor = await db.query<{ status: string }>(aql`
-      FOR e IN edges
-        FILTER e.concept == ${conceptName}
-        RETURN { status: e.status }
-    `);
-    const edges = await edgeCursor.all();
-    assert.ok(edges.every((e) => e.status === "archived"), "all edges must be archived");
-
-    // Verify: doc is archived
-    const docCursor = await db.query<{ status: string }>(aql`
-      FOR d IN docs
-        FILTER d._key == ${`${conceptName}::skill`}
-        RETURN { status: d.status }
-    `);
-    const docs = await docCursor.all();
-    assert.equal(docs[0]?.status, "archived", "doc must be archived");
+  it("rolls back entirely if the transaction fails", () => {
+    store.close();
+    assert.throws(() => archiveConcept(store, concept, now));
   });
 });

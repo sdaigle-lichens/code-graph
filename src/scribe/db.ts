@@ -1,52 +1,42 @@
-import { Database } from "arangojs";
-import { loadConfig } from "../config.js";
+import { DatabaseSync } from "node:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { loadConfig, type ScribeConfig } from "../config.js";
 
-const ARANGO_URL = process.env.ARANGO_URL ?? "http://localhost:8529";
-const ARANGO_USER = process.env.ARANGO_USER;
-const ARANGO_PASSWORD = process.env.ARANGO_PASSWORD;
-
-function makeAuth() {
-  if (ARANGO_USER) {
-    return { username: ARANGO_USER, password: ARANGO_PASSWORD ?? "" };
-  }
-  return undefined;
+/**
+ * The graph lives beside the other per-project artifacts that `extract` and
+ * `apply` already write, so a project's graph travels with its checkout and
+ * needs no server-side database naming.
+ */
+export function resolveDbPath(config?: ScribeConfig): string {
+  const cfg = config ?? loadConfig();
+  if (cfg.dbPath) return resolve(cfg.configRoot, cfg.dbPath);
+  return join(cfg.configRoot, "scribe-output", "graph.db");
 }
 
-let _systemDb: Database | undefined;
-export function getSystemDb(): Database {
-  if (!_systemDb) {
-    _systemDb = new Database({
-      url: ARANGO_URL,
-      databaseName: "_system",
-      auth: makeAuth(),
-    });
+const _stores = new Map<string, DatabaseSync>();
+
+/**
+ * Opens (and caches) the store at `dbPath`. Creating the file is the caller's
+ * business — `bootstrap()` owns the schema — but the pragmas belong with the
+ * connection, since they are per-connection state rather than stored schema.
+ */
+export function getStore(dbPath: string): DatabaseSync {
+  let store = _stores.get(dbPath);
+  if (!store) {
+    mkdirSync(dirname(dbPath), { recursive: true });
+    store = new DatabaseSync(dbPath);
+    // WAL lets the LSP read while `apply` writes; without busy_timeout that
+    // concurrency surfaces as SQLITE_BUSY rather than a short wait.
+    store.exec("PRAGMA journal_mode = WAL");
+    store.exec("PRAGMA busy_timeout = 5000");
+    store.exec("PRAGMA foreign_keys = ON");
+    _stores.set(dbPath, store);
   }
-  return _systemDb;
+  return store;
 }
 
-let _db: Database | undefined;
-export function getDb(): Database {
-  if (!_db) {
-    const dbName = process.env.ARANGO_DB ?? loadConfig().project;
-    _db = new Database({
-      url: ARANGO_URL,
-      databaseName: dbName,
-      auth: makeAuth(),
-    });
-  }
-  return _db;
-}
-
-const _projectDbs = new Map<string, Database>();
-export function getProjectDb(dbName: string): Database {
-  let db = _projectDbs.get(dbName);
-  if (!db) {
-    db = new Database({
-      url: ARANGO_URL,
-      databaseName: dbName,
-      auth: makeAuth(),
-    });
-    _projectDbs.set(dbName, db);
-  }
-  return db;
+export function closeStores(): void {
+  for (const store of _stores.values()) store.close();
+  _stores.clear();
 }

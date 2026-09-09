@@ -4,7 +4,7 @@ Project-level guide for Claude Code working inside this repo.
 
 ## What this project is
 
-`code-graph` — CLI + Claude Code plugin for graph-based code intelligence over TypeScript/React projects. Extracts vertices (functions, hooks, components, stores, types, effects) and edges (calls, mounts, reads, writes, has-type, uses-hook, documented-by, agent-authored cross-concept refs) into ArangoDB, then exposes hybrid retrieval through `/graph`.
+`code-graph` — CLI + Claude Code plugin for graph-based code intelligence over TypeScript/React projects. Extracts vertices (functions, hooks, components, stores, types, effects) and edges (calls, mounts, reads, writes, has-type, uses-hook, documented-by, agent-authored cross-concept refs) into an embedded SQLite store, then exposes hybrid retrieval through `/graph`.
 
 ## Repo layout
 
@@ -14,13 +14,14 @@ src/
   config.ts             # scribe.config.json loader
   schema.ts             # Vertex/Edge/Doc Zod schemas
   scribe/
-    bootstrap.ts        # DB + collections + indexes + ArangoSearch view
-    db.ts               # arangojs client wiring
+    bootstrap.ts        # SQL schema + indexes + FTS5 index rebuild
+    db.ts               # node:sqlite store handle + per-project db path
+    rows.ts             # doc-column unwrapping, handle helpers, FTS match builder
     extract.ts          # ts-morph AST walk → vertices + edges (.ast.json)
     apply.ts            # diff DB vs ast.json/enriched.json, drift, upsert
   query/
-    preflight.ts        # connectivity + project DB sanity
-    queries.ts          # concept / impact / cross / vertex AQL
+    preflight.ts        # config + store creation + schema-version check
+    queries.ts          # concept / impact / cross / vertex / file SQL
     search.ts           # BM25 seed + multi-hop expand + token budget
     format.ts           # markdown rendering (formatConcept/Impact/Search)
     run.ts              # CLI-side wrappers around query funcs
@@ -69,13 +70,14 @@ scribe.config.json
 
 ## Important conventions
 
-- **One DB per project** — `dbName = config.project`. Never cross databases.
+- **One store per project** — `<configRoot>/scribe-output/graph.db` (override with `dbPath` in the config). Gitignored; share a graph by committing the `.ast.json` / `.enriched.json` beside it and re-running `apply`.
 - **Vertex `_key`** — `sha1(concept::filepath::name::type).slice(0,32)` — deterministic, survives rename via drift detection.
 - **`status: "live" | "archived"`** — never hard-delete; apply marks missing vertices archived.
 - **Agent fields** — `purpose`, `inputs`, `outputs`, `cross_concept_refs`, `document_ref`, `tags` are written ONLY by enrichment, preserved verbatim across re-extracts. `agent.stale = true` flags purpose drift on body change.
 - **Edge dedup** — `eKey = sha1(from|to|type|line)`. Re-apply replaces all AST edges; agent-authored edges (`agent.authored_by != null`) are upserted separately.
 - **Skill ingestion** — `concept.skill` markdown ingested as a `docs/<concept>::skill` vertex with `documented-by` edges to every live vertex in the concept.
-- **ArangoSearch view** — `code_search_view` indexes `vertices(name, purpose, tags)` + `docs(body_md)` with `text_en`. Seed query uses TOKENS-based matching (NOT PHRASE) so multi-word natural-language queries hit.
+- **Full-text index** — one standalone FTS5 table `search_fts` over `vertices(name, purpose, tags)` + `docs(body_md)`, tokenized `porter unicode61`. One table, because `bm25()` scores are only comparable within a single index. Rebuilt wholesale at the end of every `apply`, never incrementally.
+- **Stopwords are stripped in JS** before the FTS5 `MATCH` (`toMatchExpr` in `scribe/rows.ts`). FTS5 does not strip them and they otherwise match long `body_md` far more often than short `name`.
 
 ## CLI exit codes
 
@@ -83,17 +85,21 @@ scribe.config.json
 |------|---------|
 | 0 | OK |
 | 1 | Usage / config error |
-| 2 | ArangoDB unreachable |
+| 2 | *(retired — was ArangoDB unreachable; never emitted now)* |
 | 4 | Ambiguous symbol — disambiguate with `concept::name` or `filepath:name` |
 | 6 | No results / vertex not found |
 
-`/graph` slash command falls back to Explore agent on exit 2 or 6.
+`/graph` slash command falls back to Explore agent on exit 2 or 6. Exit 2 is kept reserved rather than reused, so the plugin and LSP branches that still handle it stay harmless.
+
+Exit 3 now means the store was written by a newer code-graph than the CLI reading it.
 
 ## Working in this repo
 
 - Always run `pnpm build` (or `just build`) after changing `src/`. The global `code-graph` binary is a symlink to `dist/cli.js`.
 - Run `code-graph eval` from the pilot dir before shipping retrieval changes — Layer-A regressions surface fastest there.
-- Don't rebootstrap the pilot DB casually; `bootstrap` is idempotent but the view is only created if missing — schema changes to the view need manual drop or a fresh DB.
+- `bootstrap` is idempotent (`CREATE TABLE IF NOT EXISTS`), but it will not migrate an existing store. A schema change means bumping `SCHEMA_VERSION` and deleting `scribe-output/graph.db`, then re-running `extract` + `apply`.
+- The traversal ordering in `queries.ts` (`EDGE_SCAN_ORDER`) reproduces ArangoDB's reverse edge-index scan. It looks arbitrary because it is, but it decides which edge represents a vertex after de-duplication — changing it changes `impact` and `vertex` output.
+- `node:sqlite` binds anonymous `?` placeholders only; numbered `?1`/`?2` raise "column index out of range".
 - Edits to `extract.ts` change `contentHash` for affected vertices → drift report will show "changed" until apply runs.
 - The destructured store-action resolution in `extract.ts` (`resolveToVertexKey` → `BindingElement` path) is load-bearing for impact queries through hooks. Keep it when refactoring.
 

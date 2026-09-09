@@ -65,7 +65,7 @@ Zed → `Cmd-Shift-X` (Extensions) → **Install Dev Extension** → pick `edito
 
 ### Verify
 
-1. Make sure ArangoDB is running (`just up`).
+1. Make sure the project has a graph store (`code-graph bootstrap`; `apply` also creates it).
 2. Open any TS/TSX file in a project that has been bootstrapped and extracted. Expect:
    - Code-lens above each vertex: `↓ N · ↑ M · ⇄ K`
    - Hover at function body → markdown card (purpose, tags, cross-concept refs, callers/callees)

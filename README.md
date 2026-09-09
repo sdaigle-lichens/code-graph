@@ -1,6 +1,8 @@
 # code-graph
 
-Graph-based code intelligence for Claude Code. Extracts a typed graph of your TypeScript/React codebase — functions, hooks, stores, edges — stores it in ArangoDB, and exposes hybrid BM25 + multi-hop retrieval through a `/graph` slash command.
+Graph-based code intelligence for Claude Code. Extracts a typed graph of your TypeScript/React codebase — functions, hooks, stores, edges — stores it in an embedded SQLite database, and exposes hybrid BM25 + multi-hop retrieval through a `/graph` slash command.
+
+No server and no Docker: the graph is a single file in your project's `scribe-output/`, read and written through Node's built-in `node:sqlite`.
 
 One query returns: the SKILL.md invariants, precisely scoped code vertices with file/line, and cross-concept side effects — as a single dense markdown dump that Claude Code can act on immediately.
 
@@ -45,7 +47,6 @@ Add `"skip_until_concept": "concept-name"` to defer tasks needing a second conce
 
 ```sh
 just            # list recipes
-just up         # start ArangoDB
 just bootstrap  # init DB for pilot project
 just refresh    # extract + apply for default concept
 just search QUERY="sync sends stale ops"
