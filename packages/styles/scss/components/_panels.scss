@@ -1,0 +1,42 @@
+.panel {
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.panel-elev {
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-elev), var(--bg-2));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.stat-card {
+  position: relative;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--bg-elev), var(--bg-2));
+  border-radius: var(--radius-lg);
+  padding: 1.125rem 1.125rem 1rem;
+  overflow: hidden;
+  transition:
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 80% at 0% 0%, var(--primary-dim), transparent 55%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.stat-card:hover {
+  border-color: var(--line-2);
+}
+
+.stat-card > * {
+  position: relative;
+}

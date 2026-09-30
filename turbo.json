@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**", "out/**", ".output/**"]
+    },
+    "lint": {},
+    "check": {
+      "outputs": []
+    },
+    "format": {
+      "cache": false,
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      // Own `build` as well as dependencies': apps/desktop asserts properties of its BUILT main
+      // bundle, and that assertion skips itself when out/ is missing. Without this, a fresh clone
+      // would silently not run it.
+      "dependsOn": ["^build", "build"],
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

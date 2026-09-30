@@ -1,12 +1,12 @@
 ---
 name: code-graph-search
-description: Reference for how `code-graph search` works — BM25 seed → graph expansion → score → cluster. Read before refactoring src/query/search.ts.
+description: Reference for how `code-graph search` works — BM25 seed → graph expansion → score → cluster. Read before refactoring packages/code-graph/src/query/search.ts.
 allowed-tools: Read
 ---
 
 ## When to use
 
-Read this before touching `src/query/search.ts`, the ArangoSearch view in `src/scribe/bootstrap.ts`, or any retrieval code path. Explains *why* the pipeline is shaped the way it is so refactors don't regress relevance.
+Read this before touching `packages/code-graph/src/query/search.ts`, the `search_fts` index in `packages/code-graph/src/scribe/bootstrap.ts`, `toMatchExpr` in `packages/code-graph/src/scribe/rows.ts`, or any retrieval code path. Explains *why* the pipeline is shaped the way it is so refactors don't regress relevance.
 
 ## Pipeline overview
 
@@ -14,7 +14,7 @@ Read this before touching `src/query/search.ts`, the ArangoSearch view in `src/s
 query string
    │
    ▼
-[1] BM25 seed     ← ArangoSearch view `code_search_view` over vertices+docs
+[1] BM25 seed     ← FTS5 table `search_fts` over vertices+docs
    │
    ▼
 [2] Partition     ← split seeds into vertex seeds vs doc seeds
@@ -34,23 +34,44 @@ query string
 
 ## Phase 1 — BM25 seed
 
-`search.ts` ~L147. Single AQL query against `code_search_view` with weighted boosts:
+`search.ts` ~L136. One SQL statement against `search_fts`, ranked by `bm25()` with
+per-column weights (`FTS_WEIGHTS` in `bootstrap.ts`):
 
-| Field | Boost | Why |
-|-------|-------|-----|
-| `d.name == query` (exact) | 5× | direct symbol hit dominates |
-| `d.name IN TOKENS(query)` | 3× | partial name match |
-| `d.purpose IN TOKENS(query)` | 2× | enriched semantic match |
-| `d.tags IN TOKENS(query)` | 1.5× | tag match |
-| `d.body_md IN TOKENS(query)` | 1× | skill doc body match |
+| Column | Weight | Why |
+|--------|--------|-----|
+| `name` | 3.0 | partial name match |
+| `purpose` | 2.0 | enriched semantic match |
+| `tags` | 1.5 | tag match |
+| `body_md` | 1.0 | skill doc body match |
 
-`LIMIT 10` — top 10 seeds only. Empty seeds → `SearchNoResultsError` (CLI exit 6).
+**The exact-name hit is a sort tier, not a weight.** FTS5 has no per-clause boost, so
+the old 5× `name == query` boost became `ORDER BY exact DESC, base DESC`: a direct symbol
+hit outranks every token match outright, rather than depending on a multiplier being large
+enough. Its `bm25` is scaled by 5/3 downstream so the 0.7-weighted score term keeps its
+previous shape.
 
-The view indexes both `vertices` and `docs` collections — seeds may be either.
+`bm25()` returns **negative-is-better**; it is negated so larger is better, which is what
+the score blend in Phase 5 assumes.
+
+**Stopwords are stripped in JS** (`toMatchExpr`, `scribe/rows.ts`) before the `MATCH`.
+FTS5's `porter unicode61` tokenizer strips nothing, and filler words like *why / does / the*
+match long `body_md` far more often than short `name` — without the filter, skill docs float
+above the vertices a natural-language query is actually about. Every token is also quoted,
+because a bare `AND` / `OR` / `NEAR` / `*` / `-` / `:` in user input is an FTS5 syntax error.
+
+`unicode61` does **not** split camelCase: `setWorkorderIndex` is one token, so a bare
+`workorder` reaches it only through purpose/tags/body. The `text_en` analyzer behaved the
+same way.
+
+`LIMIT 10` — top 10 seeds only. No surviving tokens, or no matches → `SearchNoResultsError`
+(CLI exit 6).
+
+One FTS table covers both `vertices` and `docs`, because `bm25()` scores are only comparable
+within a single index — seeds may be either kind.
 
 ## Phase 2 — Partition seeds
 
-`vertexSeeds` = seeds where `_id` starts with `vertices/`. `docSeeds` = the rest (skill docs).
+`vertexSeeds` = seeds where the `ref_kind` column is `vertex`. `docSeeds` = the rest (skill docs).
 
 `docLoadsVertices = vertexSeeds.length === 0` — controls fallback behavior in Phase 4.
 
@@ -62,7 +83,21 @@ For each vertex seed, three traversals:
 |-----------|-----------|-------|-------------|
 | Structural outbound | OUTBOUND | 1 | `calls`, `reads`, `writes`, `uses-hook`, `mounts`, `has-type` |
 | Impact inbound | INBOUND | 1..2 | `calls`, `triggers`, `delegates-to` |
-| Cross-concept | ANY | 1 | `e.crosses_concept == true` |
+| Cross-concept | ANY | 1 | `crosses_concept = 1` |
+
+All three go through `oneHop` / `twoHops` in `queries.ts`. Depth 2 is written as an explicit
+second leg joined to the first, not a recursive CTE: the depth is a fixed 2, so recursion
+would only add a cycle guard and a path accumulator. `e2.key <> d1.ekey` stops a traversal
+walking back down the edge it arrived on.
+
+Edges are scanned in **reverse insertion order** (`EDGE_SCAN_ORDER`). That reproduces
+ArangoDB's edge-index order — arbitrary in itself, but it decides which edge represents a
+vertex reachable more than one way once results are de-duplicated, so changing it changes
+`impact` and `vertex` output.
+
+The inbound traversal attributes **depth-2 rows to the seed as well**, inflating its degree.
+That is a quirk of the original pipeline that the scores and the rendered "triggered by" list
+both depend on — reproduced deliberately, not a bug to fix in passing.
 
 Neighbors discovered here are added to `vertexMap` with `bm25 = 0` (they didn't BM25-match; they got pulled in by structure). They are **not themselves expanded** — depth caps at the values above.
 
@@ -126,15 +161,18 @@ Skill sentinels are stripped from final output regardless.
 | Symptom | Likely cause |
 |---------|--------------|
 | Result floods with unrelated vertices | `expandDoc` running unconditionally |
-| Multi-word queries return nothing | View switched to PHRASE matching |
+| Multi-word queries return nothing | `toMatchExpr` joining tokens with AND instead of OR, or an unquoted operator word raising an FTS5 syntax error |
+| Skill docs outrank the obvious vertex | Stopword list shrank — filler words now score against long `body_md` |
 | Slow searches | Removed seed `LIMIT` or added recursive expansion |
-| Missing high-relevance vertices | BM25 boosts changed; check exact-name boost still 5× |
-| Cross-concept section empty | `e.crosses_concept` not set in `apply.ts` (computed at edge insert) |
+| Missing high-relevance vertices | Column weights changed, or the `exact DESC` sort tier dropped |
+| Search results stale after `apply` | `rebuildSearchIndex` not called; `code-graph status` compares index rows against `vertices + docs` |
+| Cross-concept section empty | `crosses_concept` not set in `apply.ts` (computed at edge insert) |
 
 ## Files
 
-- `src/query/search.ts` — pipeline implementation
-- `src/scribe/bootstrap.ts` — `code_search_view` definition (analyzers, fields)
-- `src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)
-- `src/query/format.ts` — markdown rendering for non-search query types
-- `src/query/run.ts` — CLI wrapper
+- `packages/code-graph/src/query/search.ts` — pipeline implementation
+- `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
+- `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
+- `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)
+- `packages/code-graph/src/query/format.ts` — markdown rendering for non-search query types
+- `packages/code-graph/src/query/run.ts` — CLI wrapper

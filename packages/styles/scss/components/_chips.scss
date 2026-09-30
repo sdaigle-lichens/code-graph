@@ -1,0 +1,43 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--primary-dim-2);
+  background: var(--primary-dim);
+  color: var(--primary);
+}
+
+.chip-local {
+  border-color: var(--line-2);
+  background: var(--bg-3);
+  color: var(--ink-2);
+}
+
+.scope-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  border-radius: 4px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.scope-badge.user {
+  color: var(--primary);
+  background: var(--primary-dim);
+  border: 1px solid var(--primary-dim-2);
+}
+
+.scope-badge.local {
+  color: var(--ink-2);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+}

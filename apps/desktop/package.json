@@ -1,0 +1,41 @@
+{
+  "name": "code-graph-desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "check": "prettier --check . --ignore-path ../../.prettierignore",
+    "format": "prettier --write . --ignore-path ../../.prettierignore",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "code-graph": "workspace:*"
+  },
+  "devDependencies": {
+    "@dagrejs/dagre": "^3.1.1",
+    "@repo/styles": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/ui": "workspace:*",
+    "@tailwindcss/vite": "4.1.18",
+    "@tanstack/react-router": "~1.170.16",
+    "@tanstack/router-plugin": "~1.168.18",
+    "@types/node": "22.10.2",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "@vitejs/plugin-react": "6.0.1",
+    "electron": "^40.0.0",
+    "electron-vite": "^4.0.0",
+    "esbuild": "^0.25.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "tailwindcss": "4.1.18",
+    "typescript": "6.0.2",
+    "vite": "8.0.0",
+    "vitest": "4.1.5"
+  }
+}

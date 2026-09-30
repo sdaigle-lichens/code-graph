@@ -1,0 +1,53 @@
+.cmd-row {
+  display: grid;
+  grid-template-columns: 240px 1fr auto;
+  align-items: center;
+  gap: 1.125rem;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--line);
+  transition: background 120ms ease;
+}
+
+.cmd-row:last-child {
+  border-bottom: 0;
+}
+
+.cmd-row:hover {
+  background: var(--bg-3);
+}
+
+.cmd-row .name {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cmd-row .name::before {
+  content: "/";
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.cmd-row .desc {
+  color: var(--ink-2);
+  font-size: 0.875rem;
+}
+
+.cmd-row .meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--ink-3);
+  font: 500 0.7rem/1 var(--font-mono);
+}
+
+.cmd-row .src {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink-2);
+}

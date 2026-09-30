@@ -9,9 +9,11 @@
 
 1. git clone `<repo>`
 2. `cd code-graph`
-3. install with `pnpm install`
-4. build with `pnpm build`
-5. Link the CLI globally `pnpm link --global`
+3. install with `pnpm install` (a Turborepo/pnpm workspace — install from the root)
+4. build with `pnpm build` (turbo builds every package in dependency order)
+5. Put the CLI on PATH with `just link` (`pnpm add -g "$(pwd)/packages/code-graph"`). The workspace
+   root is private and has no `bin`, so linking the root installs nothing. Requires `PNPM_HOME` /
+   `pnpm bin -g` to be on PATH. Note `pnpm link --global` was removed in pnpm 10.
 6. Verify `code-graph --version`
 7. Start a Claude Code session with the plugin loaded: `claude --plugin-dir /path/to/code-graph/plugin`
 
@@ -56,7 +58,7 @@ layers unless you measure the graph being skipped too often.
 From code-graph root, start by building the LSP and Zed extension:
 
 ```sh
-just lsp-build    # TypeScript → lsp/dist/server.js
+just lsp-build    # TypeScript → packages/lsp/dist/server.js
 just lsp-link     # `code-graph-lsp` symlink on PATH via pnpm
 just zed-build    # Rust → editor/zed-code-graph/target/wasm32-wasip1/release/zed_code_graph.wasm
 ```
@@ -65,7 +67,7 @@ Zed → `Cmd-Shift-X` (Extensions) → **Install Dev Extension** → pick `edito
 
 ### Verify
 
-1. Make sure ArangoDB is running (`just up`).
+1. Make sure the project has a graph store (`code-graph bootstrap`; `apply` also creates it).
 2. Open any TS/TSX file in a project that has been bootstrapped and extracted. Expect:
    - Code-lens above each vertex: `↓ N · ↑ M · ⇄ K`
    - Hover at function body → markdown card (purpose, tags, cross-concept refs, callers/callees)

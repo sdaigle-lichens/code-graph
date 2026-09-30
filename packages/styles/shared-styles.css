@@ -1,0 +1,73 @@
+/*
+ * Fonts are vendored under ./fonts and served same-origin. This was a Google CDN `@import`,
+ * which the Maestro renderer's `default-src 'self'` CSP blocked on every load — the app rendered
+ * in fallbacks. Do not put the remote URL back: see README.md, and regenerate with
+ * `node scripts/vendor-fonts.mjs` rather than editing ./fonts.css by hand.
+ */
+@import "./fonts.css";
+@import "tailwindcss";
+@source '../ui/src/**/*.{tsx,ts}';
+@plugin '@tailwindcss/typography';
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ───────────────────────────────────────────────────────────────
+   TAILWIND THEME WIRING
+   ─────────────────────────────────────────────────────────────── */
+@theme inline {
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+  /*
+   * 'Bodoni Moda', not 'Domine': the CDN import only ever fetched Bodoni Moda italic 600/700 —
+   * exactly what .display-title and .display-num ask for — while Domine was never loaded by
+   * anything, so display text has been falling back to Georgia since the var was written.
+   */
+  --font-serif: "Bodoni Moda", Georgia, serif;
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--bg-2);
+  --color-card-foreground: var(--ink);
+  --color-border: var(--line);
+  --color-border-strong: var(--line-2);
+  --color-muted: var(--bg-3);
+  --color-muted-foreground: var(--ink-2);
+  --color-subtle: var(--ink-3);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--bg);
+  --color-secondary: var(--bg-3);
+  --color-secondary-foreground: var(--ink-2);
+  --color-destructive: var(--red);
+  --color-destructive-foreground: var(--ink);
+  --color-success: var(--green);
+  --color-ring: var(--primary-dim-2);
+  --color-input: var(--line);
+  --color-popover: var(--bg-2);
+  --color-popover-foreground: var(--ink);
+  --color-accent: var(--bg-3);
+  --color-accent-foreground: var(--ink);
+
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+}
+
+/* ───────────────────────────────────────────────────────────────
+   DESIGN SYSTEM — Sass partials
+   ─────────────────────────────────────────────────────────────── */
+@import "./scss/abstracts/_tokens.scss";
+@import "./scss/abstracts/_graph.scss";
+@import "./scss/base/_reset.scss";
+@import "./scss/base/_typography.scss";
+@import "./scss/components/_panels.scss";
+@import "./scss/components/_buttons.scss";
+@import "./scss/components/_chips.scss";
+@import "./scss/components/_inputs.scss";
+@import "./scss/components/_tables.scss";
+@import "./scss/layout/_labels.scss";
+@import "./scss/layout/_tabs.scss";
+@import "./scss/layout/_cmd-row.scss";
+@import "./scss/utilities/_animations.scss";
+@import "./scss/utilities/_misc.scss";

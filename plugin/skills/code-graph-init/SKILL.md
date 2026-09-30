@@ -34,7 +34,7 @@ This runs a ts-morph pass and returns JSON with:
 - `fanIn`, `fanOut` — per-file import counts
 - `hubs` — files with fan-in ≥ 5 (shared infrastructure, **exclude from concept proposals**)
 
-If `code-graph catalog` fails, check that ArangoDB is NOT needed (it isn't — catalog is
+If `code-graph catalog` fails, note that no database is needed (catalog is
 DB-free). The most common error is a missing tsconfig; pass `--tsconfig` explicitly.
 
 ## Step 2 — infer domains (no file reads yet)
@@ -123,7 +123,8 @@ Ask the user to confirm before writing.
 Collect from the user (or auto-detect + confirm):
 
 - `project` — immutable DB name. Detect from `package.json "name"` (strip `@scope/`), confirm
-  with the user since it is the ArangoDB database name and cannot be changed later.
+  with the user. It names the project in messages and skills; the graph store is a file
+  under `scribe-output/`, so the name can be changed later without losing the graph.
 - `tsconfig` — auto-detected from the catalog run; show the detected value.
 - `skillsDir` — optional (`".claude/skills"` if the dir exists, otherwise omit).
 
@@ -149,7 +150,7 @@ Report to the user:
 Wrote scribe.config.json with N concepts.
 
 Next steps:
-  code-graph bootstrap        # create the ArangoDB database
+  code-graph bootstrap        # create the graph store (scribe-output/graph.db)
   code-graph extract <c>      # per concept: structural build (zero tokens)
   code-graph apply <c>        # upsert into DB
 

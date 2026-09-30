@@ -1,0 +1,55 @@
+/*
+ * Graph canvas palette: one token per vertex type (--vt-*) and per edge type (--et-*).
+ * Node fills are derived from the vertex token with color-mix, so a type needs one value per theme.
+ * Keep in step with the type enums in packages/code-graph/src/schema.ts; apps/desktop's palette
+ * test fails when a type has no token in either theme.
+ */
+:root {
+  --vt-store: #6d28d9;
+  --vt-store-state: #be185d;
+  --vt-store-action: #c2410c;
+  --vt-function: #0369a1;
+  --vt-hook: #0f766e;
+  --vt-component: #15803d;
+  --vt-type-def: #a16207;
+  --vt-callsite: #64748b;
+  --vt-effect: #b91c1c;
+  --vt-skill-doc: #1c1917;
+
+  --et-calls: #64748b;
+  --et-reads: #0284c7;
+  --et-writes: #c2410c;
+  --et-mounts: #15803d;
+  --et-subscribes: #0f766e;
+  --et-uses-hook: #6d28d9;
+  --et-delegates-to: #4338ca;
+  --et-has-type: #a16207;
+  --et-triggers: #b91c1c;
+  --et-describes: #be185d;
+  --et-documented-by: #78716c;
+}
+
+.dark {
+  --vt-store: #c4b5fd;
+  --vt-store-state: #f9a8d4;
+  --vt-store-action: #fdba74;
+  --vt-function: #7dd3fc;
+  --vt-hook: #5eead4;
+  --vt-component: #86efac;
+  --vt-type-def: #fde68a;
+  --vt-callsite: #cbd5e1;
+  --vt-effect: #fca5a5;
+  --vt-skill-doc: #fafaf7;
+
+  --et-calls: #94a3b8;
+  --et-reads: #7dd3fc;
+  --et-writes: #fdba74;
+  --et-mounts: #86efac;
+  --et-subscribes: #5eead4;
+  --et-uses-hook: #c4b5fd;
+  --et-delegates-to: #a5b4fc;
+  --et-has-type: #fde68a;
+  --et-triggers: #fca5a5;
+  --et-describes: #f9a8d4;
+  --et-documented-by: #a8a29e;
+}
