@@ -14,6 +14,10 @@ Turborepo workspace (pnpm). Every task runs from the root: `pnpm build` / `typec
 ```
 apps/
   desktop/                # code-graph-desktop — Electron + React graph viewer
+    src/main/             # main process; graph.ts is the ONLY importer of `code-graph`
+    src/preload/          # contextBridge surface
+    src/shared/ipc.ts     # the IPC contract (channels + Result<T> + mirror types)
+    src/renderer/         # React UI — never sees the library or node
 packages/
   code-graph/             # the published CLI + library; `bin: code-graph` → dist/cli.js
     src/
@@ -41,6 +45,8 @@ packages/
       tasks.json          # default Layer-A fixture, shipped in the npm `files` set
   lsp/                    # code-graph-lsp — spawns the CLI, deliberately decoupled
   typescript-config/      # @repo/typescript-config — base.json + react.json
+  styles/                 # shared styles, fonts, SCSS (from the maestro reference)
+  ui/                     # shared React UI components (see its own CLAUDE.md)
 
 plugin/                   # stays at the ROOT, not in a package
   .claude-plugin/         # plugin.json
@@ -81,6 +87,22 @@ at. `src/index.ts` re-exports the pure read path and deliberately omits `loadCon
 `deleteConcept`, `preflight.ts`, `run.ts` and `search()` — all of which `process.exit` and write to
 stdout, so they belong to the CLI and would crash a host process. It also omits `extract.ts` and
 `catalog.ts`, the only `ts-morph` importers. When adding an export, keep that line.
+
+### The desktop app
+
+`apps/desktop` consumes the library in-process, under these rules:
+
+- Only `apps/desktop/src/main/graph.ts` may import `code-graph`. Every read goes through `openStore`
+  (`existsSync` before `getStore`); `closeAllStores` runs on project switch and `will-quit`.
+- All IPC goes through the single `handle()` wrapper in `main/ipc.ts`, which returns `Result<T>`
+  (`{ ok: true, data } | { ok: false, error }`). Channels live in `src/shared/ipc.ts`.
+- A renderer-supplied `projectRoot` is honored only via `resolveProjectRoot`.
+- Edge endpoints are resolved with `keyOf` in the main process only (`withEndpointKeys` in
+  `main/graph.ts` adds `fromKey`/`toKey` to `graph:concept` edges); the renderer never splits a
+  handle. The canvas skips edges whose endpoint is outside the concept and counts them. Layout uses
+  `@dagrejs/dagre`; `documented-by` edges start toggled off.
+- `graph:init` writes `scribe.config.json` only. It never creates the store or extracts; the store
+  appears on `apply`.
 
 ## Concepts
 

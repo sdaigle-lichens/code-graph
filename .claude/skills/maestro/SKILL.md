@@ -42,7 +42,7 @@ node "${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/maestro-task-status.cjs" claim "<
 | Workflow | Success path |
 | --- | --- |
 | default | @backend → @frontend → human review → @test → @reviewer → @scribe |
-| tdd | @test → human review → @backend → @reviewer → @scribe |
+| tdd | @test → human review → @backend → @frontend → @reviewer → @scribe |
 | Refactor | /use-code-architecture-design-check → human review → @refactor |
 | Documentation | @scribe |
 | Review | @reviewer |

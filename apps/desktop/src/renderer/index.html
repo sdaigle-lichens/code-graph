@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      A strict CSP for the renderer. Electron's default allows inline script and remote loads;
+      this app needs neither at runtime. 'unsafe-inline' is kept for style only, because
+      Tailwind and React Flow both set element styles directly.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'"
+    />
+    <title>code-graph</title>
+    <!--
+      Theme bootstrap. Must stay an external file (public/theme-bootstrap.js) and stay
+      parser-blocking: `script-src 'self'` above blocks inline script, so an inline version runs
+      nowhere and the theme flashes until ThemeToggle mounts.
+    -->
+    <script src="/theme-bootstrap.js"></script>
+  </head>
+  <body class="font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

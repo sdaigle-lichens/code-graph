@@ -317,6 +317,15 @@
           }
         },
         {
+          "id": "frontend",
+          "type": "agent",
+          "instance": "frontend",
+          "position": {
+            "x": 0,
+            "y": 590
+          }
+        },
+        {
           "id": "reviewer",
           "type": "agent",
           "instance": "reviewer",
@@ -368,6 +377,13 @@
         },
         {
           "from": "backend",
+          "to": "frontend",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "frontend",
           "to": "reviewer",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -414,6 +430,18 @@
           "label_offset": {
             "x": -110,
             "y": 0
+          }
+        },
+        {
+          "from": "reviewer",
+          "to": "test",
+          "kind": "condition",
+          "label": "FAIL: component structure, accessibility, or client state",
+          "sourceHandle": "left",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": -110,
+            "y": 40
           }
         },
         {

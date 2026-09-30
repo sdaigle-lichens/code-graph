@@ -1,0 +1,12 @@
+{
+  "extends": "@repo/typescript-config/react.json",
+  "include": ["src/renderer/src/**/*", "src/preload/index.d.ts", "src/shared/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  }
+}

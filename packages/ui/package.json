@@ -1,0 +1,41 @@
+{
+  "name": "@repo/ui",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "check": "prettier --check . --ignore-path ../../.prettierignore",
+    "format": "prettier --write . --ignore-path ../../.prettierignore"
+  },
+  "type": "module",
+  "exports": {
+    "./theme-toggle": "./src/theme-toggle.tsx",
+    "./copyable-text": "./src/copyable-text.tsx",
+    "./resizable-panel": "./src/resizable-panel.tsx",
+    "./slide-panel": "./src/slide-panel.tsx",
+    "./button": "./src/button.tsx",
+    "./field": "./src/field.tsx",
+    "./chip-input": "./src/chip-input.tsx",
+    "./select": "./src/select.tsx",
+    "./dialog": "./src/dialog.tsx",
+    "./mode-pill": "./src/mode-pill.tsx",
+    "./toast": "./src/toast.tsx",
+    "./shortcuts-dialog": "./src/shortcuts-dialog.tsx",
+    "./file-preview": "./src/file-preview.tsx",
+    "./syntax-line": "./src/syntax-line.tsx"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.0.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "typescript": "6.0.2"
+  },
+  "peerDependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  }
+}

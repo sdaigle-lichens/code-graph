@@ -1,0 +1,57 @@
+.input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: 400 0.8125rem/1 var(--font-sans);
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+}
+
+.input:focus {
+  border-color: var(--primary);
+  background: var(--bg-3);
+}
+
+.search-shell {
+  position: relative;
+}
+
+.search-shell .input {
+  padding-left: 36px;
+}
+
+.search-shell .input.with-kbd {
+  padding-right: 44px;
+}
+
+.search-shell .icon-l {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.search-shell .kbd-r {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 500 10px/1 var(--font-mono);
+  color: var(--ink-3);
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}

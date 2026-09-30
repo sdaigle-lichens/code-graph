@@ -16,6 +16,8 @@ Clicking a node opens a side panel on that vertex: its signature, its agent-writ
 Two things to get right rather than reinvent:
 
 - **Edge endpoints are document handles, not bare keys.** The stored edge endpoints carry a collection prefix inherited from the graph's ArangoDB era. The library already exports the helper that strips it. Use that helper, not a local string split, so that when the handle format changes there is one place to change it.
+  **Process boundary (from task 001):** the renderer may not import the library — the isolation test allows exactly one main-process importer, `apps/desktop/src/main/graph.ts`. So the helper (`keyOf` in `scribe/rows.ts`) must be applied in the main process: extend the `graph:concept` payload additively with resolved endpoint keys on each edge (e.g. `fromKey` / `toKey`), keeping `_from` / `_to`, the channel names and the existing shape intact. The renderer reads those fields and never splits a handle itself. Export `keyOf` from the library's `index.ts` if it is not already, and update the mirror type and isolation test accordingly.
+- **Cross-concept edges.** `vertices` holds only the requested concept's vertices, so an edge can point at a vertex outside it (when `crosses_concept` is set). The canvas must tolerate edge endpoints with no matching node — skip them in the layout (or render them as a distinct stub) rather than crash — and a unit test must cover it.
 - **Node identity is the vertex key.** It is a content-addressed hash of concept, file path, name and type, stable across re-extraction, which is what makes selection survive a refetch.
 
 One reality check on scope, discovered by inspecting the actual store rather than the schema: the schema declares nine vertex types and eleven edge types, but this repo's own graph — a TypeScript command-line tool with no React in it — only ever produces two vertex types (plain functions and type definitions) and four edge types (calls, has-type, documented-by and describes). Build the full palette, because the React and state-store types are exactly what a consumer project will be full of, but do not expect to verify every color against this repo. Verifying the full palette needs a React project's graph, and the honest acceptance criterion here is that the types this store actually contains render correctly and the rest are defined and unit-testable.
@@ -35,3 +37,12 @@ One reality check on scope, discovered by inspecting the actual store rather tha
 ## Blocked by
 
 - `001-desktop-app-shell-with-project-and-concept-management.md`
+
+## Post-Mortem
+
+- **Problem:** Reviewer failed the first pass. The panel showed no stale flag for a stale vertex that has no purpose, so AC6 was only partly met.
+  **Fix:** none
+- **Problem:** The neighbor list showed duplicate rows for repeated has-type and calls edges to the same target, which inflated the count.
+  **Fix:** none
+- **Problem:** Toggling documented-by on moved the skill-doc node off-screen, so the hub-and-spoke was not visible (AC2).
+  **Fix:** none

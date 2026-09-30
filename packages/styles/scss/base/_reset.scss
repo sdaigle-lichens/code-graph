@@ -1,0 +1,76 @@
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  background-image: var(--atmos);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  line-height: 1.55;
+  font-feature-settings:
+    "cv11" on,
+    "ss01" on;
+}
+
+footer.TanStackRouterDevtools {
+  display: none;
+}
+
+::selection {
+  background: var(--primary-dim-2);
+  color: var(--ink);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: var(--primary-dim-2);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 150ms ease;
+}
+
+a:hover {
+  text-decoration-color: var(--primary);
+}
+
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--ink-2);
+}
+
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  border-radius: 0;
+  color: inherit;
+}
+
+button,
+a {
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+}
