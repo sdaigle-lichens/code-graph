@@ -4,6 +4,7 @@ dist
 out/
 .turbo/
 .tanstack/
+*.tsbuildinfo
 editor/zed-code-graph/target/
 .DS_Store
 # Derived: rebuild with `code-graph extract` + `code-graph apply`

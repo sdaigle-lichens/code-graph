@@ -19,7 +19,10 @@
       "outputs": []
     },
     "test": {
-      "dependsOn": ["^build"],
+      // Own `build` as well as dependencies': apps/desktop asserts properties of its BUILT main
+      // bundle, and that assertion skips itself when out/ is missing. Without this, a fresh clone
+      // would silently not run it.
+      "dependsOn": ["^build", "build"],
       "outputs": []
     },
     "dev": {
