@@ -64,7 +64,7 @@ docs/
   installation.md
   usage.md
   development.md
-  implementation/         # phase plans (plan.md, phase-1..8.md, phase-8-troubleshooting.md)
+  implementation/         # phase plans (plan.md, phase-1..11.md, phase-8-troubleshooting.md)
 
 justfile                  # task runner
 turbo.json                # build/lint/check/typecheck/test/dev tasks
@@ -174,7 +174,7 @@ Exit 3 now means the store was written by a newer code-graph than the CLI readin
 
 ## Phase status
 
-- Phases 1–8: complete. See `docs/implementation/`.
+- Phases 1–11: complete (phase 11 = ArangoDB → embedded SQLite). See `docs/implementation/`.
 - Layer-A eval: 5/5 green against this repo's own graph (`just eval`).
 - Layer-B (Claude-session A/B) gate: pending user execution.
 - Concept #2 (`shift-logic` / `gantt-render`): blocked on Layer-B gate decision.
