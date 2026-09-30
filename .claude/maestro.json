@@ -69,11 +69,20 @@
           }
         },
         {
-          "id": "human_review-1",
-          "type": "human_review",
+          "id": "frontend",
+          "type": "agent",
+          "instance": "frontend",
           "position": {
             "x": 0,
             "y": 310
+          }
+        },
+        {
+          "id": "human_review-1",
+          "type": "human_review",
+          "position": {
+            "x": 27.72518079965893,
+            "y": 391.8708369855765
           }
         },
         {
@@ -81,8 +90,8 @@
           "type": "agent",
           "instance": "test",
           "position": {
-            "x": 0,
-            "y": 450
+            "x": 1.0767991081754502,
+            "y": 488.7647678943163
           }
         },
         {
@@ -108,8 +117,8 @@
           "type": "agent",
           "instance": "refactor",
           "position": {
-            "x": 360,
-            "y": 590
+            "x": 563.0467477878447,
+            "y": 588.4559182677731
           }
         }
       ],
@@ -123,6 +132,13 @@
         },
         {
           "from": "backend",
+          "to": "frontend",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "frontend",
           "to": "human_review-1",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -154,84 +170,120 @@
           "to": "refactor",
           "kind": "condition",
           "label": "FAIL: code pattern violation or code redundancy",
-          "sourceHandle": "right",
-          "targetHandle": "top",
           "label_offset": {
-            "x": -90,
-            "y": 0
-          }
+            "x": -126.23465236856812,
+            "y": 55.66535276063507
+          },
+          "sourceHandle": "right",
+          "targetHandle": "top"
         },
         {
           "from": "reviewer",
           "to": "test",
           "kind": "condition",
           "label": "FAIL: a test",
-          "sourceHandle": "right",
-          "targetHandle": "top",
           "label_offset": {
             "x": 110,
             "y": 0
-          }
+          },
+          "sourceHandle": "right",
+          "targetHandle": "top"
         },
         {
           "from": "reviewer",
           "to": "backend",
           "kind": "condition",
           "label": "FAIL: style, data layer, error handling, security, or persistence",
-          "sourceHandle": "left",
-          "targetHandle": "top",
           "label_offset": {
-            "x": -110,
-            "y": 0
-          }
+            "x": -230.14301924537307,
+            "y": -46.30656789806085
+          },
+          "sourceHandle": "left",
+          "targetHandle": "top"
+        },
+        {
+          "from": "reviewer",
+          "to": "frontend",
+          "kind": "condition",
+          "label": "FAIL: component structure, accessibility, or client state",
+          "label_offset": {
+            "x": -108.91899464530823,
+            "y": -14.734481546635221
+          },
+          "sourceHandle": "left",
+          "targetHandle": "top"
         },
         {
           "from": "refactor",
           "to": "scribe",
           "kind": "condition",
           "label": "finding is a recurring pattern an agent should know going forward",
-          "sourceHandle": "left",
-          "targetHandle": "top",
           "label_offset": {
-            "x": 100,
-            "y": 0
-          }
+            "x": 128.23025092936803,
+            "y": 100.84746747211899
+          },
+          "sourceHandle": "left",
+          "targetHandle": "top"
         },
         {
           "from": "refactor",
           "to": "backend",
           "kind": "condition",
           "label": "finding requires code changes",
+          "label_offset": {
+            "x": 211.31277677168748,
+            "y": -65.29342814562033
+          },
           "sourceHandle": "left",
-          "targetHandle": "top",
+          "targetHandle": "top"
+        },
+        {
+          "from": "refactor",
+          "to": "frontend",
+          "kind": "condition",
+          "label": "finding requires code changes",
           "label_offset": {
             "x": 100,
             "y": 0
-          }
+          },
+          "sourceHandle": "left",
+          "targetHandle": "top"
         },
         {
           "from": "refactor",
           "to": "reviewer",
           "kind": "condition",
           "label": "triggered by reviewer on a systemic FAIL; notify when delegation is complete so it can re-review",
-          "sourceHandle": "left",
-          "targetHandle": "top",
           "label_offset": {
-            "x": 100,
-            "y": -40
-          }
+            "x": 139.8777202055411,
+            "y": -23.925867904746724
+          },
+          "sourceHandle": "left",
+          "targetHandle": "top"
         },
         {
           "from": "human_review-1",
           "to": "backend",
           "kind": "condition",
           "label": "human requested code corrections",
-          "sourceHandle": "left",
-          "targetHandle": "top",
           "label_offset": {
             "x": -110,
             "y": 0
-          }
+          },
+          "sourceHandle": "left",
+          "targetHandle": "top"
+        },
+        {
+          "from": "human_review-1",
+          "to": "frontend",
+          "kind": "condition",
+          "label": "human requested code corrections",
+          "label_offset": {
+            "x": 111.89395257873909,
+            "y": -61.7181122833728
+          },
+          "sourceHandle": "right",
+          "targetHandle": "top"
         }
       ]
     },
@@ -795,6 +847,181 @@
         {
           "from": "human_review-1",
           "to": "frontend",
+          "kind": "condition",
+          "label": "human requested code corrections",
+          "sourceHandle": "left",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": -110,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "backend",
+      "nodes": [
+        {
+          "id": "backend",
+          "type": "agent",
+          "instance": "backend",
+          "position": {
+            "x": 0,
+            "y": 140
+          }
+        },
+        {
+          "id": "human_review-1",
+          "type": "human_review",
+          "position": {
+            "x": 0,
+            "y": 310
+          }
+        },
+        {
+          "id": "test",
+          "type": "agent",
+          "instance": "test",
+          "position": {
+            "x": 0,
+            "y": 450
+          }
+        },
+        {
+          "id": "reviewer",
+          "type": "agent",
+          "instance": "reviewer",
+          "position": {
+            "x": 0,
+            "y": 590
+          }
+        },
+        {
+          "id": "scribe",
+          "type": "agent",
+          "instance": "scribe",
+          "position": {
+            "x": 0,
+            "y": 730
+          }
+        },
+        {
+          "id": "refactor",
+          "type": "agent",
+          "instance": "refactor",
+          "position": {
+            "x": 360,
+            "y": 140
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "main-session",
+          "to": "backend",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "backend",
+          "to": "human_review-1",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "human_review-1",
+          "to": "test",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "test",
+          "to": "reviewer",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "reviewer",
+          "to": "scribe",
+          "kind": "success",
+          "sourceHandle": "bottom",
+          "targetHandle": "top"
+        },
+        {
+          "from": "reviewer",
+          "to": "refactor",
+          "kind": "condition",
+          "label": "FAIL: code pattern violation or code redundancy",
+          "sourceHandle": "right",
+          "targetHandle": "top"
+        },
+        {
+          "from": "reviewer",
+          "to": "test",
+          "kind": "condition",
+          "label": "FAIL: a test",
+          "sourceHandle": "left",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": -110,
+            "y": 0
+          }
+        },
+        {
+          "from": "reviewer",
+          "to": "backend",
+          "kind": "condition",
+          "label": "FAIL: style, data layer, error handling, security, or persistence",
+          "sourceHandle": "right",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": 110,
+            "y": 40
+          }
+        },
+        {
+          "from": "refactor",
+          "to": "scribe",
+          "kind": "condition",
+          "label": "finding is a recurring pattern an agent should know going forward",
+          "sourceHandle": "left",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": 100,
+            "y": 80
+          }
+        },
+        {
+          "from": "refactor",
+          "to": "backend",
+          "kind": "condition",
+          "label": "finding requires code changes",
+          "sourceHandle": "left",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": 100,
+            "y": 0
+          }
+        },
+        {
+          "from": "refactor",
+          "to": "reviewer",
+          "kind": "condition",
+          "label": "triggered by reviewer on a systemic FAIL; notify when delegation is complete so it can re-review",
+          "sourceHandle": "left",
+          "targetHandle": "top",
+          "label_offset": {
+            "x": 100,
+            "y": -40
+          }
+        },
+        {
+          "from": "human_review-1",
+          "to": "backend",
           "kind": "condition",
           "label": "human requested code corrections",
           "sourceHandle": "left",

@@ -41,13 +41,14 @@ node "${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/maestro-task-status.cjs" claim "<
 <!-- Maestro:HANDOFFS:START -->
 | Workflow | Success path |
 | --- | --- |
-| default | @backend → human review → @test → @reviewer → @scribe |
+| default | @backend → @frontend → human review → @test → @reviewer → @scribe |
 | tdd | @test → human review → @backend → @reviewer → @scribe |
 | Refactor | /use-code-architecture-design-check → human review → @refactor |
 | Documentation | @scribe |
 | Review | @reviewer |
 | Tests | @test → @reviewer → @scribe |
 | frontend | @frontend → human review → @test → @reviewer → @scribe |
+| backend | @backend → human review → @test → @reviewer → @scribe |
 <!-- Maestro:HANDOFFS:END -->
 
 ### Step 3 — Execute the workflow
