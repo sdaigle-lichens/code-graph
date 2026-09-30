@@ -1,0 +1,12 @@
+{
+  "001-desktop-app-shell-with-project-and-concept-management.md": {
+    "status": "ready",
+    "blockedBy": []
+  },
+  "002-concept-graph-canvas.md": {
+    "status": "blocked",
+    "blockedBy": [
+      "001-desktop-app-shell-with-project-and-concept-management.md"
+    ]
+  }
+}
