@@ -15,7 +15,7 @@
 //     them when a request names a different project than the previous one, so a viewing-only read of
 //     a recent project cannot leave a handle behind either.
 
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -122,8 +122,22 @@ function readRaw(config: ScribeConfig): RawConfig {
   return JSON.parse(readFileSync(configPathOf(config), "utf8")) as RawConfig;
 }
 
+/**
+ * Write beside the target, then rename over it. scribe.config.json is hand-authored and nothing
+ * regenerates it — unlike everything under scribe-output/ — so a truncating write that is
+ * interrupted would cost the user a file they have to reconstruct. The rename is atomic because the
+ * temporary file is in the same directory, hence the same filesystem.
+ */
 function writeRaw(config: ScribeConfig, raw: RawConfig): void {
-  writeFileSync(configPathOf(config), serializeConfig(raw), "utf8");
+  const file = configPathOf(config);
+  const tmp = `${file}.tmp`;
+  try {
+    writeFileSync(tmp, serializeConfig(raw), "utf8");
+    renameSync(tmp, file);
+  } catch (err) {
+    rmSync(tmp, { force: true });
+    throw err;
+  }
 }
 
 type OpenedStore =
