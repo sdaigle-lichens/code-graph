@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10 spelling. maestro's equivalent block is `allowBuilds:` — that is pnpm 11, and this
+# repo is pinned to pnpm 10.33.2, where the field is `onlyBuiltDependencies`.
+onlyBuiltDependencies:
+  # The desktop app; electron's postinstall downloads the platform binary.
+  - electron
+  - esbuild
+overrides:
+  code-graph: link:packages/code-graph

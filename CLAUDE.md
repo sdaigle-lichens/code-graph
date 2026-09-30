@@ -8,46 +8,79 @@ Project-level guide for Claude Code working inside this repo.
 
 ## Repo layout
 
-```
-src/
-  cli.ts                # commander entrypoint, all subcommands
-  config.ts             # scribe.config.json loader
-  schema.ts             # Vertex/Edge/Doc Zod schemas
-  scribe/
-    bootstrap.ts        # SQL schema + indexes + FTS5 index rebuild
-    db.ts               # node:sqlite store handle + per-project db path
-    rows.ts             # doc-column unwrapping, handle helpers, FTS match builder
-    extract.ts          # ts-morph AST walk → vertices + edges (.ast.json)
-    apply.ts            # diff DB vs ast.json/enriched.json, drift, upsert
-  query/
-    preflight.ts        # config + store creation + schema-version check
-    queries.ts          # concept / impact / cross / vertex / file SQL
-    search.ts           # BM25 seed + multi-hop expand + token budget
-    format.ts           # markdown rendering (formatConcept/Impact/Search)
-    run.ts              # CLI-side wrappers around query funcs
-  eval/
-    harness.ts          # Layer-A eval runner (reads tasks.json, checks SearchResult)
+Turborepo workspace (pnpm). Every task runs from the root: `pnpm build` / `typecheck` / `test` /
+`check` / `verify`, or the `just` equivalents.
 
-plugin/
-  .claude-plugin/       # plugin.json
-  commands/             # /graph, /scribe-enrich slash commands
+```
+apps/
+  desktop/                # code-graph-desktop — Electron + React graph viewer
+packages/
+  code-graph/             # the published CLI + library; `bin: code-graph` → dist/cli.js
+    src/
+      cli.ts              # commander entrypoint, all subcommands
+      index.ts            # programmatic surface — the pure read path only (see below)
+      config.ts           # scribe.config.json loader
+      schema.ts           # Vertex/Edge/Doc Zod schemas
+      catalog/catalog.ts  # repo-wide symbol catalog (ts-morph)
+      scribe/
+        bootstrap.ts      # SQL schema + indexes + FTS5 index rebuild
+        db.ts             # node:sqlite store handle + per-project db path
+        rows.ts           # doc-column unwrapping, handle helpers, FTS match builder
+        extract.ts        # ts-morph AST walk → vertices + edges (.ast.json)
+        apply.ts          # diff DB vs ast.json/enriched.json, drift, upsert
+        delete-concept.ts # archive + dangling-ref reporting
+      query/
+        preflight.ts      # config + store creation + schema-version check
+        queries.ts        # concept / impact / cross / vertex / file SQL
+        search.ts         # BM25 seed + multi-hop expand + token budget
+        format.ts         # markdown rendering (formatConcept/Impact/Search)
+        run.ts            # CLI-side wrappers around query funcs
+      eval/
+        harness.ts        # Layer-A eval runner (reads tasks.json, checks SearchResult)
+    eval/
+      tasks.json          # default Layer-A fixture, shipped in the npm `files` set
+  lsp/                    # code-graph-lsp — spawns the CLI, deliberately decoupled
+  typescript-config/      # @repo/typescript-config — base.json + react.json
+
+plugin/                   # stays at the ROOT, not in a package
+  .claude-plugin/         # plugin.json
+  commands/               # /graph, /scribe-enrich slash commands
   skills/scribe-code-graph/  # SKILL.md (the agent-facing skill)
 
-eval/
-  tasks.json            # default Layer-A fixture
-  verification.md       # 16-step phase-8 verification log
-  eval-results.md       # Layer-B template
+editor/zed-code-graph/    # Zed extension (Rust → wasm; cargo, not pnpm)
+
+eval/                     # this repo's OWN graph, not the shipped fixture
+  tasks.code-graph.json   # the Layer-A regression gate — `just eval`
+  verification.md         # 16-step phase-8 verification log
+  eval-results.md         # Layer-B template
 
 docs/
   installation.md
   usage.md
   development.md
-  implementation/       # phase plans (plan.md, phase-1..8.md, phase-8-troubleshooting.md)
+  implementation/         # phase plans (plan.md, phase-1..8.md, phase-8-troubleshooting.md)
 
-justfile                # task runner
+justfile                  # task runner
+turbo.json                # build/lint/check/typecheck/test/dev tasks
+pnpm-workspace.yaml       # apps/* + packages/*; onlyBuiltDependencies (pnpm 10 spelling)
 ```
 
-`dist/` is the compiled output that `bin: code-graph` points at. Rebuild with `pnpm build` (or `just build`).
+`packages/code-graph/dist/` is the compiled output that `bin: code-graph` points at. Rebuild with
+`pnpm build` (or `just build`).
+
+`plugin/` and `.claude-plugin/` stay at the repo root on purpose: `marketplace.json` points at
+`./plugin`, and `claude --plugin-dir /path/to/code-graph/plugin` is the documented install path.
+They are not in the npm `files` set any more, because npm cannot reach outside a package directory —
+the plugin ships via git, not via the tarball.
+
+### The library surface
+
+`packages/code-graph`'s `exports` map points at `dist`, not source: its relative imports carry
+explicit `.js` extensions against `.ts` files, which a bundler's resolver should not have to guess
+at. `src/index.ts` re-exports the pure read path and deliberately omits `loadConfig`,
+`deleteConcept`, `preflight.ts`, `run.ts` and `search()` — all of which `process.exit` and write to
+stdout, so they belong to the CLI and would crash a host process. It also omits `extract.ts` and
+`catalog.ts`, the only `ts-morph` importers. When adding an export, keep that line.
 
 ## Concepts
 
@@ -95,8 +128,18 @@ Exit 3 now means the store was written by a newer code-graph than the CLI readin
 
 ## Working in this repo
 
-- Always run `pnpm build` (or `just build`) after changing `src/`. The global `code-graph` binary is a symlink to `dist/cli.js`.
-- Run `code-graph eval` from the pilot dir before shipping retrieval changes — Layer-A regressions surface fastest there.
+- Always run `pnpm build` (or `just build`) after changing `packages/code-graph/src/`. Turbo orders
+  the packages, so build from the ROOT, not from inside a package. The global `code-graph` binary is
+  a symlink to `packages/code-graph/dist/cli.js`.
+- Run `just eval` before shipping retrieval changes — it runs the Layer-A harness against this
+  repo's own graph (`eval/tasks.code-graph.json`, expects **5/5**). `just eval-pilot` is the old
+  pilot-dir variant, and the pilot project is not on this machine.
+- **`pnpm format` is a graph-invalidating operation.** Prettier rewrites function bodies, which
+  rewrites `contentHash`, which marks every reformatted vertex `changed` and its enrichment
+  `agent.stale`. Run `just regraph` after any format pass.
+- **Vertex `_key` includes the filepath**, so moving a file — or moving the whole tree, as the
+  monorepo refactor did — rewrites every key in that concept. `scribe-output/<concept>.enriched.json`
+  is keyed by `_key` too, so it is orphaned by the same move and has to be remapped or re-enriched.
 - `bootstrap` is idempotent (`CREATE TABLE IF NOT EXISTS`), but it will not migrate an existing store. A schema change means bumping `SCHEMA_VERSION` and deleting `scribe-output/graph.db`, then re-running `extract` + `apply`.
 - The traversal ordering in `queries.ts` (`EDGE_SCAN_ORDER`) reproduces ArangoDB's reverse edge-index scan. It looks arbitrary because it is, but it decides which edge represents a vertex after de-duplication — changing it changes `impact` and `vertex` output.
 - `node:sqlite` binds anonymous `?` placeholders only; numbered `?1`/`?2` raise "column index out of range".
@@ -110,7 +153,7 @@ Exit 3 now means the store was written by a newer code-graph than the CLI readin
 ## Phase status
 
 - Phases 1–8: complete. See `docs/implementation/`.
-- Layer-A eval: 4/4 green.
+- Layer-A eval: 5/5 green against this repo's own graph (`just eval`).
 - Layer-B (Claude-session A/B) gate: pending user execution.
 - Concept #2 (`shift-logic` / `gantt-render`): blocked on Layer-B gate decision.
 
@@ -126,4 +169,4 @@ Exit 3 now means the store was written by a newer code-graph than the CLI readin
 
 - Check `docs/implementation/plan.md` for the master spec.
 - Check the relevant `phase-N.md` for the slice you're touching.
-- Eval harness (`eval/tasks.json`) is the regression-safety net — keep it green.
+- Eval harness (`eval/tasks.code-graph.json`, run by `just eval`) is the regression-safety net — keep it green.

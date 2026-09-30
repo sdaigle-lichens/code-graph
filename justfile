@@ -10,34 +10,46 @@ default:
 install:
     pnpm install
 
-# Build TypeScript → dist/
+# Build every workspace package (turbo orders them by dependsOn)
 build:
     pnpm build
 
-# Type-check without emit
+# Type-check without emit, across the workspace
 typecheck:
-    pnpm exec tsc --noEmit
+    pnpm typecheck
 
-# Run unit tests (node:test via tsx, no DB required)
+# Run unit tests (node:test via tsx for the CLI, vitest for the app)
 test:
     pnpm test
 
+# check + typecheck + test, the pre-push gate
+verify:
+    pnpm verify
+
+# Prettier over the enforced set (scope lives in .prettierignore)
+check:
+    pnpm check
+
 # Wipe build output
 clean:
-    rm -rf dist
+    rm -rf packages/*/dist apps/*/out .turbo
 
 # Full cycle: clean, install, build, link
 fresh: clean install build link
 
 # ---- Global Setup -----------------------------------------------------------
 
-# Link binary globally for local dev
+# pnpm 10 removed `link --global`; `add -g` is the replacement, and it resolves a relative path
+# against the GLOBAL dir, not the cwd — hence the absolute path. Needs pnpm's global bin dir
+# (`pnpm bin -g`) on PATH, i.e. PNPM_HOME set up.
+
+# Put the code-graph binary on PATH for local dev
 link:
-    pnpm link --global
+    pnpm add -g "$(pwd)/packages/code-graph"
 
 # Unlink global binary
 unlink:
-    pnpm unlink --global
+    pnpm remove -g code-graph
 
 # ─── Graph store ────────────────────────────────────────────────────────────
 
@@ -90,19 +102,44 @@ impact:
 
 # ─── Eval ────────────────────────────────────────────────────────────────────
 
-# Run Layer-A eval harness from pilot dir
+# Run Layer-A eval harness against this repo's own graph (the refactor gate)
 eval:
+    node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json
+
+# Re-extract + re-apply both of this repo's own concepts, then re-run the gate
+regraph:
+    node packages/code-graph/dist/cli.js extract code-graph-search
+    node packages/code-graph/dist/cli.js apply code-graph-search
+    node packages/code-graph/dist/cli.js extract scribe-pipeline
+    node packages/code-graph/dist/cli.js apply scribe-pipeline
+    just eval
+
+# Run Layer-A eval harness from the pilot dir instead
+eval-pilot:
     cd {{pilot_dir}} && code-graph eval
+
+# ─── Desktop app ─────────────────────────────────────────────────────────────
+
+# Run the Electron app in dev (electron-vite, HMR on the renderer)
+app:
+    pnpm --filter code-graph-desktop dev
+
+# Build the app to apps/desktop/out, then run that build over file://
+app-build:
+    pnpm --filter code-graph-desktop build
+
+app-start: app-build
+    pnpm --filter code-graph-desktop start
 
 # ─── Editor integration ──────────────────────────────────────────────────────
 
-# Build the LSP server (TypeScript → lsp/dist)
+# Build the LSP server (TypeScript → packages/lsp/dist)
 lsp-build:
-    cd lsp && pnpm install && pnpm build
+    pnpm --filter code-graph-lsp build
 
 # Install the LSP binary on PATH (symlinks via pnpm)
 lsp-link: lsp-build
-    cd lsp && pnpm link --global
+    cd packages/lsp && pnpm link --global
 
 # Build the Zed extension (Rust → wasm)
 zed-build:

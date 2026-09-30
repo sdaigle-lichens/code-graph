@@ -1,0 +1,44 @@
+# Prettier's ignore scope for the whole workspace. Each package's `check` script points here with
+# --ignore-path, so build output and generated code are excluded once, at the root, instead of once
+# per package. Patterns are gitignore syntax; the ones without a slash match at any depth, so they
+# hold whichever directory prettier runs from.
+
+# Dependencies and package-manager state
+node_modules/
+pnpm-lock.yaml
+
+# Build output — `build` rewrites it, so any formatting applied here is undone by the next run
+out/
+dist/
+.vite/
+.tanstack/
+.turbo/
+coverage/
+
+# Generated code — owned by its generator, which rewrites it wholesale
+routeTree.gen.ts
+
+# Derived graph data — written by `code-graph extract` / `apply`, not by hand
+scribe-output/
+eval/results-*.json
+
+# The published Claude Code plugin tree. ROOT-ANCHORED on purpose: only the one at the repo root
+# is the published plugin, and a bare `plugin/` would match at any depth.
+/plugin/
+/.claude-plugin/
+
+# Prose that prettier does not own. It pads markdown tables to aligned columns and measures those
+# columns with a width count that disagrees with itself on the em dashes this prose style uses
+# everywhere, so it emits tables whose separator row is a different width from its content rows and
+# then reports them as correctly formatted. These files are read in GitHub blobs and Claude context
+# windows far more than in an editor, where the chosen line breaks ARE the formatting.
+#
+# Markdown only — scripts that ship alongside a skill are code and stay checked.
+**/.claude/skills/**/*.md
+CLAUDE.md
+docs/
+notes.md
+README.md
+
+# Rust/wasm editor extension — cargo fmt owns it
+editor/

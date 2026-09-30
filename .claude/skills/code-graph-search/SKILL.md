@@ -1,12 +1,12 @@
 ---
 name: code-graph-search
-description: Reference for how `code-graph search` works — BM25 seed → graph expansion → score → cluster. Read before refactoring src/query/search.ts.
+description: Reference for how `code-graph search` works — BM25 seed → graph expansion → score → cluster. Read before refactoring packages/code-graph/src/query/search.ts.
 allowed-tools: Read
 ---
 
 ## When to use
 
-Read this before touching `src/query/search.ts`, the `search_fts` index in `src/scribe/bootstrap.ts`, `toMatchExpr` in `src/scribe/rows.ts`, or any retrieval code path. Explains *why* the pipeline is shaped the way it is so refactors don't regress relevance.
+Read this before touching `packages/code-graph/src/query/search.ts`, the `search_fts` index in `packages/code-graph/src/scribe/bootstrap.ts`, `toMatchExpr` in `packages/code-graph/src/scribe/rows.ts`, or any retrieval code path. Explains *why* the pipeline is shaped the way it is so refactors don't regress relevance.
 
 ## Pipeline overview
 
@@ -170,9 +170,9 @@ Skill sentinels are stripped from final output regardless.
 
 ## Files
 
-- `src/query/search.ts` — pipeline implementation
-- `src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
-- `src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
-- `src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)
-- `src/query/format.ts` — markdown rendering for non-search query types
-- `src/query/run.ts` — CLI wrapper
+- `packages/code-graph/src/query/search.ts` — pipeline implementation
+- `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
+- `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
+- `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)
+- `packages/code-graph/src/query/format.ts` — markdown rendering for non-search query types
+- `packages/code-graph/src/query/run.ts` — CLI wrapper
