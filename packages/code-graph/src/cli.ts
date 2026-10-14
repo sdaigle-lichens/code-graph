@@ -7,31 +7,28 @@ process.on("warning", (w) => {
   if (w.name !== "ExperimentalWarning") console.warn(w);
 });
 
-import { readFileSync, statSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { Command } from "commander";
-import { resolveDbPath } from "./scribe/db.js";
 import { tryLoadConfig } from "./config.js";
-import { bootstrapStore, rebuildSearchIndex, SCHEMA_VERSION } from "./scribe/bootstrap.js";
-import { extract } from "./scribe/extract.js";
-import { apply } from "./scribe/apply.js";
-import { runConcept, runImpact, runCross, runVertex, runFile } from "./query/run.js";
-import { search, applyTokenBudget, SearchNoResultsError } from "./query/search.js";
-import { preflight } from "./query/preflight.js";
-import {
-  classifyStrength,
-  computeGapReport,
-  buildSuccessNote,
-  formatGapDiagnostic,
-  uncoveredSourceFiles,
-} from "./query/gaps.js";
+import { registerSkillsCommands } from "./skills/commands.js";
+import { packageRoot, packageVersion } from "./version.js";
 
-const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as { version: string };
+// Everything that touches the store (node:sqlite) or the TypeScript compiler (ts-morph) is imported
+// lazily, inside the command that needs it. The `skills` group is layer 1 — it runs in repos with
+// no graph and no TypeScript, on any supported Node — so loading this file must pull in neither,
+// and the bundled plugin script resolves ts-morph from the project only when a graph command asks.
+const lazy = {
+  db: () => import("./scribe/db.js"),
+  bootstrap: () => import("./scribe/bootstrap.js"),
+  run: () => import("./query/run.js"),
+  search: () => import("./query/search.js"),
+  preflight: () => import("./query/preflight.js"),
+  gaps: () => import("./query/gaps.js"),
+};
 
 const program = new Command();
-program.name("code-graph").version(pkg.version);
+program.name("code-graph").version(packageVersion());
 
 program
   .command("status")
@@ -47,6 +44,8 @@ program
     }
     ok(`scribe.config.json found (project: ${config.project})`);
 
+    const { resolveDbPath } = await lazy.db();
+    const { bootstrapStore, SCHEMA_VERSION } = await lazy.bootstrap();
     const dbPath = resolveDbPath(config);
     let bytes: number | null = null;
     try {
@@ -97,6 +96,8 @@ program
       console.error(`no scribe.config.json found above ${process.cwd()}`);
       process.exit(5);
     }
+    const { resolveDbPath } = await lazy.db();
+    const { bootstrapStore } = await lazy.bootstrap();
     const dbPath = resolveDbPath(config);
     try {
       bootstrapStore(dbPath);
@@ -116,6 +117,8 @@ program
       console.error(`no scribe.config.json found above ${process.cwd()}`);
       process.exit(5);
     }
+    const { resolveDbPath } = await lazy.db();
+    const { bootstrapStore, rebuildSearchIndex } = await lazy.bootstrap();
     try {
       const store = bootstrapStore(resolveDbPath(config));
       rebuildSearchIndex(store);
@@ -132,6 +135,7 @@ program
   .description("extract AST for a concept")
   .action(async (concept: string) => {
     try {
+      const { extract } = await import("./scribe/extract.js");
       await extract(concept);
     } catch (err) {
       console.error("extract failed:", (err as Error).message);
@@ -146,6 +150,7 @@ program
   .option("--approve-drift")
   .action(async (concept: string, opts: { dryRun?: boolean; approveDrift?: boolean }) => {
     try {
+      const { apply } = await import("./scribe/apply.js");
       await apply(concept, {
         dryRun: opts.dryRun ?? false,
         approveDrift: opts.approveDrift ?? false,
@@ -161,6 +166,7 @@ program
   .description("show drift for a concept (alias for apply --dry-run)")
   .action(async (concept: string) => {
     try {
+      const { apply } = await import("./scribe/apply.js");
       await apply(concept, { dryRun: true, approveDrift: false });
     } catch (err) {
       console.error("drift failed:", (err as Error).message);
@@ -175,6 +181,10 @@ program
   .option("--json", "output JSON")
   .option("--full-skill", "include full skill body in output (default: skill name only)")
   .action(async (query: string, opts: { maxTokens?: string; json?: boolean; fullSkill?: boolean }) => {
+    const { search, applyTokenBudget, SearchNoResultsError } = await lazy.search();
+    const { preflight } = await lazy.preflight();
+    const { classifyStrength, computeGapReport, buildSuccessNote, formatGapDiagnostic, uncoveredSourceFiles } =
+      await lazy.gaps();
     try {
       const maxTokens = parseInt(opts.maxTokens ?? "3000", 10);
       const json = opts.json ?? false;
@@ -230,12 +240,13 @@ program
     const config = tryLoadConfig(process.cwd());
 
     let tasksPath = opts.tasks;
+    const pkgRoot = packageRoot();
     if (!tasksPath) {
       const configRootTasks = config ? join(config.configRoot, "eval", "tasks.json") : null;
-      const pkgTasks = join(pkgRoot, "eval", "tasks.json");
+      const pkgTasks = pkgRoot ? join(pkgRoot, "eval", "tasks.json") : null;
       if (configRootTasks && existsSync(configRootTasks)) {
         tasksPath = configRootTasks;
-      } else if (existsSync(pkgTasks)) {
+      } else if (pkgTasks && existsSync(pkgTasks)) {
         tasksPath = pkgTasks;
       } else {
         console.error("no eval/tasks.json found; pass --tasks <path>");
@@ -243,7 +254,7 @@ program
       }
     }
 
-    const outputDir = config ? join(config.configRoot, "eval") : join(pkgRoot, "eval");
+    const outputDir = join(config?.configRoot ?? pkgRoot ?? process.cwd(), "eval");
     const { mkdirSync } = await import("node:fs");
     mkdirSync(outputDir, { recursive: true });
 
@@ -267,6 +278,7 @@ query
   .option("--no-skill", "omit skill context")
   .action(async (name: string, opts: { maxTokens?: string; json?: boolean; skill?: boolean }) => {
     try {
+      const { runConcept } = await lazy.run();
       await runConcept(name, {
         maxTokens: parseInt(opts.maxTokens ?? "3000", 10),
         json: opts.json ?? false,
@@ -288,6 +300,7 @@ query
   .action(async (symbol: string, opts: { direction?: string; max?: string; maxTokens?: string; json?: boolean }) => {
     const dir = (opts.direction ?? "both") as "in" | "out" | "both";
     try {
+      const { runImpact } = await lazy.run();
       await runImpact(symbol, {
         direction: dir,
         max: parseInt(opts.max ?? "20", 10),
@@ -307,6 +320,7 @@ query
   .option("--json", "output JSON")
   .action(async (conceptA: string, conceptB: string, opts: { maxTokens?: string; json?: boolean }) => {
     try {
+      const { runCross } = await lazy.run();
       await runCross(conceptA, conceptB, {
         maxTokens: parseInt(opts.maxTokens ?? "3000", 10),
         json: opts.json ?? false,
@@ -324,6 +338,7 @@ query
   .option("--json", "output JSON")
   .action(async (location: string, opts: { maxTokens?: string; json?: boolean }) => {
     try {
+      const { runVertex } = await lazy.run();
       await runVertex(location, {
         maxTokens: parseInt(opts.maxTokens ?? "3000", 10),
         json: opts.json ?? false,
@@ -341,6 +356,7 @@ query
   .option("--json", "output JSON")
   .action(async (filepath: string, opts: { maxTokens?: string; json?: boolean }) => {
     try {
+      const { runFile } = await lazy.run();
       await runFile(filepath, {
         maxTokens: parseInt(opts.maxTokens ?? "5000", 10),
         json: opts.json ?? false,
@@ -391,4 +407,11 @@ program
     await deleteConcept(name, { yes: opts.yes ?? false });
   });
 
-program.parse();
+registerSkillsCommands(program);
+
+program.parseAsync().catch((err: Error) => {
+  // The bundled plugin script resolves ts-morph from the project; a project that has not installed
+  // its dependencies lands here, and that message is the whole diagnosis.
+  console.error(`code-graph: ${err?.message ?? err}`);
+  process.exit(1);
+});

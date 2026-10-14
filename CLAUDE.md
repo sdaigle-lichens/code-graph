@@ -24,6 +24,8 @@ packages/
       cli.ts              # commander entrypoint, all subcommands
       index.ts            # programmatic surface — the pure read path only (see below)
       config.ts           # scribe.config.json loader
+      version.ts          # packageVersion()/packageRoot() — works from dist/ and the bundle
+      project-deps.ts     # requireFromProject: bundle loads typescript/ts-morph from the project
       schema.ts           # Vertex/Edge/Doc Zod schemas
       catalog/catalog.ts  # repo-wide symbol catalog (ts-morph)
       scribe/
@@ -39,8 +41,17 @@ packages/
         search.ts         # BM25 seed + multi-hop expand + token budget
         format.ts         # markdown rendering (formatConcept/Impact/Search)
         run.ts            # CLI-side wrappers around query funcs
+      skills/             # layer 1: `code-graph skills *` — concept-skill markers + repo state
+        concept-skills.ts # marker, version arithmetic, discovery, stamping
+        frontmatter.ts    # SKILL.md frontmatter/metadata reader
+        fs-scan.ts        # nested .claude/skills walk
+        state.ts          # `skills` block of scribe.config.json (+ legacy fallback), agents list
+        report.ts         # check / status (git freshness) reports
+        commands.ts       # registers the `skills` command group
       eval/
         harness.ts        # Layer-A eval runner (reads tasks.json, checks SearchResult)
+    scripts/
+      build-plugin.mjs    # esbuild → plugin/scripts/code-graph.cjs (`pnpm bundle`)
     eval/
       tasks.json          # default Layer-A fixture, shipped in the npm `files` set
   lsp/                    # code-graph-lsp — spawns the CLI, deliberately decoupled
@@ -52,6 +63,7 @@ plugin/                   # stays at the ROOT, not in a package
   .claude-plugin/         # plugin.json
   commands/               # /graph, /scribe-enrich slash commands
   skills/scribe-code-graph/  # SKILL.md (the agent-facing skill)
+  scripts/code-graph.cjs  # GENERATED, committed esbuild bundle of src/cli.ts — never edit
 
 editor/zed-code-graph/    # Zed extension (Rust → wasm; cargo, not pnpm)
 
@@ -72,7 +84,15 @@ pnpm-workspace.yaml       # apps/* + packages/*; onlyBuiltDependencies (pnpm 10 
 ```
 
 `packages/code-graph/dist/` is the compiled output that `bin: code-graph` points at. Rebuild with
-`pnpm build` (or `just build`).
+`pnpm build` (or `just build`), which runs `turbo run build bundle` — the `bundle` task also
+regenerates `plugin/scripts/code-graph.cjs` (alone: `pnpm bundle` / `just bundle`).
+
+The bundle is what plugin skills run (`node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`) with no
+`node_modules` beside it. It does not bundle `typescript`/`ts-morph`: every import of either goes
+through `requireFromProject` (`createRequire(<project>/package.json)`), and a project without them
+installed fails with `MissingProjectDependencyError` ("install dependencies first"). The version is
+baked in as `__CODE_GRAPH_VERSION__`, so `packageRoot()` is null there — read the version and package
+dir through `version.ts`, never `package.json` directly.
 
 `plugin/` and `.claude-plugin/` stay at the repo root on purpose: `marketplace.json` points at
 `./plugin`, and `claude --plugin-dir /path/to/code-graph/plugin` is the documented install path.
@@ -132,6 +152,10 @@ scribe.config.json
 - **Edge dedup** — `eKey = sha1(from|to|type|line)`. Re-apply replaces all AST edges; agent-authored edges (`agent.authored_by != null`) are upserted separately.
 - **Skill ingestion** — `concept.skill` markdown ingested as a `docs/<concept>::skill` vertex with `documented-by` edges to every live vertex in the concept.
 - **Full-text index** — one standalone FTS5 table `search_fts` over `vertices(name, purpose, tags)` + `docs(body_md)`, tokenized `porter unicode61`. One table, because `bm25()` scores are only comparable within a single index. Rebuilt wholesale at the end of every `apply`, never incrementally.
+- **`skills` block** — optional `{ version, last_update, agents[] }` in `scribe.config.json`, the
+  repo-level concept-skill state. Loose `z.record` in `config.ts`, validated in `skills/state.ts`
+  (raw JSON, so it works with no `concepts`/`tsconfig`). A legacy `.claude/concept-skills.json` is
+  read as a per-field fallback and never written; the first block write seeds from it. Committed.
 - **Stopwords are stripped in JS** before the FTS5 `MATCH` (`toMatchExpr` in `scribe/rows.ts`). FTS5 does not strip them and they otherwise match long `body_md` far more often than short `name`.
 
 ## CLI exit codes
@@ -165,6 +189,14 @@ Exit 3 now means the store was written by a newer code-graph than the CLI readin
 - `bootstrap` is idempotent (`CREATE TABLE IF NOT EXISTS`), but it will not migrate an existing store. A schema change means bumping `SCHEMA_VERSION` and deleting `scribe-output/graph.db`, then re-running `extract` + `apply`.
 - The traversal ordering in `queries.ts` (`EDGE_SCAN_ORDER`) reproduces ArangoDB's reverse edge-index scan. It looks arbitrary because it is, but it decides which edge represents a vertex after de-duplication — changing it changes `impact` and `vertex` output.
 - `node:sqlite` binds anonymous `?` placeholders only; numbered `?1`/`?2` raise "column index out of range".
+- **Layer 1 never loads the graph stack.** `code-graph skills *` must never load `node:sqlite`,
+  `typescript` or `ts-morph`; `cli.ts` imports every store/extract/query module lazily inside its
+  command. Keep new graph imports lazy, and keep `skills/` free of them.
+- **`plugin/scripts/code-graph.cjs` is generated.** Never edit it; regenerate with `pnpm bundle` and
+  read `git diff plugin/scripts/`. If `build-plugin.mjs` breaks, the old committed bundle keeps
+  working while `src/` changes silently stop reaching the plugin.
+- A repo-level `skills stamp` (no skill) without `--bump` defaults to `initial` and resets the
+  version to **1.0**. Pass `--bump minor|major` when migrating an existing list.
 - Edits to `extract.ts` change `contentHash` for affected vertices → drift report will show "changed" until apply runs.
 - The destructured store-action resolution in `extract.ts` (`resolveToVertexKey` → `BindingElement` path) is load-bearing for impact queries through hooks. Keep it when refactoring.
 

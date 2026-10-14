@@ -1,0 +1,203 @@
+// The `code-graph skills` command group — layer 1, the concept-skill index.
+//
+// The deterministic half of the concept-skill flows: finding the skills, the version arithmetic,
+// rewriting the frontmatter markers, and the repo-level `skills` block of scribe.config.json. It
+// runs in any repo — no graph, no TypeScript, no node_modules — so this module and everything it
+// imports must never load `node:sqlite`, `typescript` or `ts-morph`. That keeps `skills *` working
+// on any supported Node and keeps the experimental-sqlite warning out of `!` skill injections.
+//
+// Every command takes `--root <dir>`; see `resolveProjectRoot` for the fallback order.
+
+import { join, relative } from "node:path";
+import type { Command } from "commander";
+import {
+  discoverConceptSkills,
+  findConceptSkill,
+  nextVersion,
+  resolveSkillPath,
+  stampConceptSkill,
+} from "./concept-skills.js";
+import { checkConceptSkills, conceptSkillsStatus, headSha } from "./report.js";
+import {
+  configPath,
+  discoverProjectAgents,
+  readAgentsList,
+  readConceptSkillsState,
+  resolveProjectRoot,
+  writeAgentsList,
+  writeConceptSkillsState,
+} from "./state.js";
+
+interface RootOpts {
+  root?: string;
+}
+
+function out(line: string): void {
+  process.stdout.write(line + "\n");
+}
+
+function json(value: unknown): void {
+  out(JSON.stringify(value));
+}
+
+function die(msg: string): never {
+  process.stderr.write(`code-graph skills: ${msg}\n`);
+  process.exit(1);
+}
+
+export function registerSkillsCommands(program: Command): void {
+  const skills = program
+    .command("skills")
+    .description("concept skills: versioned SKILL.md markers and repo-level state (no graph needed)");
+
+  const rootOption = "--root <dir>";
+  const rootHelp = "project to act on (default: $CLAUDE_PROJECT_DIR, then the nearest scribe.config.json, then cwd)";
+
+  skills
+    .command("list")
+    .description("every concept skill in the tree, from every nested .claude/skills")
+    .option("--json", "one line of machine-readable output")
+    .option(rootOption, rootHelp)
+    .action(async (opts: RootOpts & { json?: boolean }) => {
+      const projectRoot = resolveProjectRoot(opts.root);
+      const rows = (await discoverConceptSkills(projectRoot)).map((s) => ({
+        id: s.id,
+        path: s.skillPath,
+        version: s.version,
+        lastUpdate: s.lastUpdate,
+        subConcepts: s.subConcepts.length,
+        agentNotes: s.agentNotes.length,
+      }));
+      if (opts.json) return json({ count: rows.length, skills: rows });
+      if (rows.length === 0) return out("No concept skills found.");
+      out(`${rows.length} concept skill(s):`);
+      for (const r of rows) {
+        const sha = r.lastUpdate ? r.lastUpdate.slice(0, 8) : "unstamped";
+        out(`  ${r.id}  v${r.version}  @${sha}  ${r.subConcepts} sub-concept(s), ${r.agentNotes} agent note(s)`);
+        out(`    ${r.path}`);
+      }
+    });
+
+  skills
+    .command("state")
+    .description('the repo-level list record ({"present": false} when no list exists yet)')
+    .option(rootOption, rootHelp)
+    .action((opts: RootOpts) => {
+      const state = readConceptSkillsState(resolveProjectRoot(opts.root));
+      json(state ? { present: true, ...state } : { present: false });
+    });
+
+  skills
+    .command("stamp [skill]")
+    .description(
+      "stamp one skill's marker (id, directory or SKILL.md path); with no skill, stamp the repo-level " +
+        "`skills` block of scribe.config.json"
+    )
+    .option("--bump <kind>", "minor | major | initial")
+    .option("--sha <sha>", "commit to record (default: HEAD)")
+    .option(rootOption, rootHelp)
+    .action(async (target: string | undefined, opts: RootOpts & { bump?: string; sha?: string }) => {
+      const projectRoot = resolveProjectRoot(opts.root);
+      const lastUpdate = opts.sha || headSha(projectRoot);
+
+      if (!target) {
+        const current = readConceptSkillsState(projectRoot);
+        const version = nextVersion(current?.version, opts.bump ?? "initial");
+        if (!version) die("stamp needs --bump minor|major|initial");
+        let written: boolean;
+        try {
+          written = writeConceptSkillsState(projectRoot, { version, last_update: lastUpdate });
+        } catch (err) {
+          die((err as Error).message);
+        }
+        return json({ written, version, last_update: lastUpdate, path: configPath(projectRoot) });
+      }
+
+      const skill = await findConceptSkill(projectRoot, target);
+      // An unmarked skill has no version to bump — marking it IS the initial stamp.
+      const version = nextVersion(skill?.version, opts.bump ?? (skill ? null : "initial"));
+      if (!version) die("stamp needs --bump minor|major|initial");
+      // A skill not marked YET is the create flow's normal case: fall back to a whole-tree lookup.
+      const skillPath = skill ? skill.skillPath : await resolveSkillPath(projectRoot, target);
+      if (!skillPath) die(`no skill "${target}" found under ${projectRoot}`);
+      let written: boolean;
+      try {
+        written = stampConceptSkill(skillPath, { version, lastUpdate });
+      } catch (err) {
+        die((err as Error).message);
+      }
+      json({ stamped: skillPath, version, lastUpdate, written });
+    });
+
+  skills
+    .command("check")
+    .description("concepts without a SKILL.md, path mismatches, unmarked skills, and docs-only skills")
+    .option("--json", "machine-readable output")
+    .option("--strict", "exit 1 when a concept is missing its skill or has a path mismatch")
+    .option(rootOption, rootHelp)
+    .action(async (opts: RootOpts & { json?: boolean; strict?: boolean }) => {
+      const report = await checkConceptSkills(resolveProjectRoot(opts.root));
+      if (opts.json) json(report);
+      else {
+        out(report.ok ? "concept skills: ok" : "concept skills: problems found");
+        for (const m of report.missing) {
+          out(`  missing   ${m.concept}${m.declared ? ` (declared ${m.declared} does not exist)` : ""}`);
+        }
+        for (const m of report.mismatches) {
+          out(`  mismatch  ${m.concept}: declared ${m.declared}, marked skill found at ${m.found}`);
+        }
+        for (const u of report.unmarked) out(`  unmarked  ${u.concept}: ${u.path} has no concept-skill marker`);
+        for (const d of report.docsOnly) out(`  docs-only ${d.id}: ${d.path}`);
+      }
+      if (opts.strict && !report.ok) process.exit(1);
+    });
+
+  skills
+    .command("status")
+    .description("git freshness per concept: version, last-update, commits since last-update over its globs")
+    .option("--json", "machine-readable output")
+    .option(rootOption, rootHelp)
+    .action(async (opts: RootOpts & { json?: boolean }) => {
+      const projectRoot = resolveProjectRoot(opts.root);
+      const report = await conceptSkillsStatus(projectRoot);
+      if (opts.json) return json(report);
+      if (report.list) {
+        const n = report.list.commitsSince ?? report.list.reason;
+        out(`list v${report.list.version} @${report.list.lastUpdate.slice(0, 8)}  ${n} commit(s) since`);
+      } else out("list: not created yet");
+      for (const c of report.concepts) {
+        const name = c.concept ?? `${c.skill} (docs-only)`;
+        const v = c.version ? `v${c.version}` : "no skill";
+        const since =
+          c.commitsSince === null ? c.reason : `${c.commitsSince} commit(s), ${c.filesChanged.length} file(s)`;
+        out(`  ${name}  ${v}  ${since}${c.path ? `  ${relative(process.cwd(), join(projectRoot, c.path))}` : ""}`);
+      }
+    });
+
+  skills
+    .command("agents")
+    .description("the agents list (JSON array) agent notes may be written for")
+    .option(rootOption, rootHelp)
+    .action((opts: RootOpts) => json(readAgentsList(resolveProjectRoot(opts.root))));
+
+  skills
+    .command("agents-discover")
+    .description("the agents the project has: .claude/agents plus maestro.json agents_available (read-only)")
+    .option(rootOption, rootHelp)
+    .action((opts: RootOpts) => json(discoverProjectAgents(resolveProjectRoot(opts.root))));
+
+  skills
+    .command("agents-set [names...]")
+    .description("replace the agents list in the skills block (no names empties it)")
+    .option(rootOption, rootHelp)
+    .action((names: string[] | undefined, opts: RootOpts) => {
+      const projectRoot = resolveProjectRoot(opts.root);
+      let written: boolean;
+      try {
+        written = writeAgentsList(projectRoot, names ?? []);
+      } catch (err) {
+        die((err as Error).message);
+      }
+      json({ written, agents: readAgentsList(projectRoot) });
+    });
+}

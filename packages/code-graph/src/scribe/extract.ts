@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative } from "node:path";
 import {
   Node,
   Project,
@@ -12,6 +11,7 @@ import {
 } from "ts-morph";
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
+import { packageVersion } from "../version.js";
 import type { Edge, Vertex } from "../schema.js";
 
 // ─── Key helpers ─────────────────────────────────────────────────────────────
@@ -502,12 +502,8 @@ export async function extract(conceptName: string): Promise<void> {
     process.exit(1);
   }
 
-  const pkgRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-  const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as {
-    version: string;
-  };
   const extractedAt = new Date().toISOString();
-  const extractorVersion = `code-graph@${pkg.version}`;
+  const extractorVersion = `code-graph@${packageVersion()}`;
 
   const vertices: Vertex[] = [];
   const nodeToKey = new Map<Node, string>();

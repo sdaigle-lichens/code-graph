@@ -14,6 +14,10 @@ install:
 build:
     pnpm build
 
+# Regenerate the committed plugin bundle (plugin/scripts/code-graph.cjs); `build` runs it too
+bundle:
+    pnpm bundle
+
 # Type-check without emit, across the workspace
 typecheck:
     pnpm typecheck

@@ -79,6 +79,29 @@ Or from inside Claude Code:
 | `code-graph query file <filepath>`    | `code-graph query file src/store/workorder.store.ts`                 | Query all live vertices in a file with their edges        |
 | `code-graph eval [--tasks <path>]`    | `code-graph eval --tasks eval/tasks.json`                            | Run layer-A eval harness                                  |
 
+### `skills` commands (concept skills, no graph needed)
+
+Layer 1: these read SKILL.md markers (`metadata.type: concept-skill`, `version`, `last-update`) and
+the `skills` block of `scribe.config.json`. They work in any repo — no store, no TypeScript, no
+`node_modules`. Every one takes `--root <dir>` (default: `$CLAUDE_PROJECT_DIR`, then the nearest
+`scribe.config.json`, then cwd).
+
+| Command                                    | Description                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `code-graph skills list [--json]`          | Every concept skill under every nested `.claude/skills`                     |
+| `code-graph skills state`                  | Repo-level list record (`{"present": false}` when none yet)                 |
+| `code-graph skills stamp [skill] [--bump minor\|major\|initial] [--sha <sha>]` | Stamp one skill's marker; with no skill, the repo-level `skills` block |
+| `code-graph skills check [--json] [--strict]` | Concepts missing a SKILL.md, path mismatches, unmarked and docs-only skills (`--strict` exits 1) |
+| `code-graph skills status [--json]`        | Per-concept version, last-update and commits since, over its globs          |
+| `code-graph skills agents`                 | The agents list agent notes may be written for (JSON array)                 |
+| `code-graph skills agents-discover`        | Agents the project has (`.claude/agents` + maestro.json), read-only         |
+| `code-graph skills agents-set [names...]`  | Replace the agents list (no names empties it)                               |
+
+Versions are `major.minor`: `initial` writes 1.0, a list-wide update bumps the minor, a single-concept
+deep pass bumps the major. **A repo-level `skills stamp` without `--bump` defaults to `initial` and
+resets the version to 1.0** — pass `--bump minor|major` when migrating an existing list (e.g. from
+`.claude/concept-skills.json`).
+
 ### `query vertex` calling forms
 
 The `<location>` argument supports four forms. Detection: if the segment after the last `:` is numeric, it's filepath:line. Otherwise it's a name lookup.
@@ -116,9 +139,19 @@ Routing logic (inside `plugin/commands/graph.md`):
       "globs": ["src/**/*.ts"], // files to include in this concept
       "skill": "path/SKILL.md" // optional: SKILL.md path for this concept
     }
+  },
+  "skills": {
+    // optional: concept-skill list state, written by `code-graph skills stamp` / `agents-set`
+    "version": "1.2", // major.minor
+    "last_update": "<sha>", // commit the list was last reconciled against
+    "agents": [] // agents that may get agent notes
   }
 }
 ```
+
+A legacy `.claude/concept-skills.json` is still read as a per-field fallback for `skills`; it is never
+written, and the first write of the block seeds from it. Commit the block — `last_update` describes
+the repo's history.
 
 ## Troubleshooting
 

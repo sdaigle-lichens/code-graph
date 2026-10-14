@@ -6,6 +6,13 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", "out/**", ".output/**"]
     },
+    // packages/code-graph → the COMMITTED plugin/scripts/code-graph.cjs (an esbuild bundle of src/cli.ts).
+    // Run by the root `pnpm build` too, so a source change cannot quietly stop reaching the plugin.
+    // Self-contained: it bundles source, not dist/, so it needs no `build` first.
+    "bundle": {
+      "inputs": ["src/**", "!src/**/*.test.ts", "scripts/build-plugin.mjs", "package.json", "tsconfig.json"],
+      "outputs": ["$TURBO_ROOT$/plugin/scripts/code-graph.cjs"]
+    },
     "lint": {},
     "check": {
       "outputs": []

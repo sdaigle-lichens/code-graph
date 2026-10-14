@@ -14,6 +14,12 @@ const ConfigSchema = z.object({
   /** Graph store location, relative to configRoot. Defaults to scribe-output/graph.db. */
   dbPath: z.string().optional(),
   concepts: z.record(z.string(), ConceptSchema).optional().default({}),
+  /**
+   * The concept-skill list's repo-level state (`version`, `last_update`, `agents`). Owned and
+   * validated by `skills/state.ts`, which reads it as raw JSON; kept loose here so a hand-edited
+   * block can never stop a graph command from loading the config.
+   */
+  skills: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ScribeConfig = z.infer<typeof ConfigSchema> & {

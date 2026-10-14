@@ -7,7 +7,8 @@ the repo root and turbo orders the packages by `dependsOn`.
 
 ```sh
 pnpm install
-pnpm build      # turbo run build — tsc → packages/*/dist
+pnpm build      # turbo run build bundle — tsc → packages/*/dist, + plugin/scripts/code-graph.cjs
+pnpm bundle     # just the plugin bundle (also `just bundle`)
 pnpm typecheck  # tsc --noEmit across the workspace
 pnpm test       # node:test (CLI) + vitest (desktop app)
 pnpm check      # prettier --check; scope lives in the root .prettierignore
@@ -60,6 +61,8 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
         cli.ts              entry point
         index.ts            programmatic surface — the pure read path, no process.exit
         config.ts           scribe.config.json loader
+        version.ts          package version/root, from dist/ or the bundle
+        project-deps.ts     requireFromProject — bundle loads typescript/ts-morph from the project
         schema.ts           Zod types (Vertex, Edge, …)
         catalog/
           catalog.ts        repo-wide symbol catalog (ts-morph)
@@ -76,8 +79,11 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
           run.ts            CLI runners for query subcommands
           format.ts         markdown formatters (concept/impact/cross/vertex)
           search.ts         BM25 + expansion + ranking + search formatter
+        skills/             layer 1 — `code-graph skills *` (markers, state, check/status, agents)
         eval/
           harness.ts        layer-A eval runner
+      scripts/
+        build-plugin.mjs    esbuild → plugin/scripts/code-graph.cjs
       eval/
         tasks.json          default eval fixture, shipped in the npm `files` set
     lsp/                    code-graph-lsp — LSP server, spawns the CLI (deliberately decoupled)
@@ -90,6 +96,8 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
       scribe-enrich.md      /scribe-enrich slash command
     skills/
       scribe-code-graph/SKILL.md
+    scripts/
+      code-graph.cjs        GENERATED bundle of src/cli.ts, committed — do not edit
   editor/zed-code-graph/    Zed extension (Rust → wasm; cargo, not pnpm)
   eval/
     tasks.code-graph.json   this repo's own dogfood fixture — the regression gate
@@ -114,6 +122,22 @@ Those belong to the CLI. A host process that exits because a config was missing 
 in-process consumers take `tryLoadConfig` and compose the pure pieces. `scribe/extract.ts` and
 `catalog/catalog.ts` are omitted too — they are the only modules that pull in `ts-morph`, and
 keeping them off the surface keeps a bundler from following the TypeScript compiler into a build.
+
+## The plugin bundle
+
+Plugin skills run `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`, a self-contained esbuild
+bundle of `src/cli.ts` that is **committed** because the plugin ships by file copy with no
+`node_modules`. `pnpm build` regenerates it; after touching `src/` or `scripts/build-plugin.mjs`,
+read `git diff plugin/scripts/` — a broken build script leaves the old bundle working while source
+changes silently stop reaching the plugin.
+
+- `typescript` and `ts-morph` are not bundled: `requireFromProject` loads the consumer project's own
+  copy, and a project without them fails with "install dependencies first".
+- The `skills` command group (layer 1) must never load `node:sqlite`, `typescript` or `ts-morph`, so
+  it runs in any repo on any supported Node. `cli.ts` imports every graph module lazily, inside its
+  command — keep new ones that way.
+- Read the version through `version.ts` (`packageVersion()` / `packageRoot()`); in the bundle the
+  version is baked in and `packageRoot()` is null.
 
 ## Desktop app
 
