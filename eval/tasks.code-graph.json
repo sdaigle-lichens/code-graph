@@ -134,5 +134,18 @@
       "skill_present": true,
       "min_cross_concept_edges": 0
     }
+  },
+  {
+    "id": "task-7-marker-stamped-skill",
+    "provenance": "Written for marker-stamped concept skills (scribe-pipeline's SKILL.md carries metadata.type: concept-skill). The prompt is phrased from that skill's own Traps text, so the doc vertex must surface. Expectations are NOT validated against pre-migration output.",
+    "prompt": "half-failed apply leaves stale FTS index",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "scribe-pipeline"
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
   }
 ]

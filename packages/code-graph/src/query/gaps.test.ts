@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  declaredConcepts,
   analyzeConceptGaps,
   classifyStrength,
   buildSuccessNote,
@@ -124,5 +125,23 @@ describe("formatGapDiagnostic", () => {
     const md = formatGapDiagnostic(r, files, { uncoveredCap: 25 });
     assert.match(md, /covered by no concept/);
     assert.match(md, /and 5 more/);
+  });
+});
+
+describe("declaredConcepts — docs-only concepts", () => {
+  const base = { project: "p", configRoot: "/x" };
+  it("omits concepts with no tsconfig, and non-code-glob concepts even with a tsconfig", () => {
+    const noTs = { ...base, concepts: { a: { globs: ["src/**/*.ts"] } } } as any;
+    assert.deepEqual(declaredConcepts(noTs), []);
+
+    const withTs = {
+      ...base,
+      tsconfig: "t.json",
+      concepts: { code: { globs: ["src/**/*.ts"] }, docs: { globs: ["docs/**/*.md"] } },
+    } as any;
+    assert.deepEqual(
+      declaredConcepts(withTs).map((c) => c.name),
+      ["code"]
+    );
   });
 });

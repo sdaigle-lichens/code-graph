@@ -2,6 +2,10 @@
 name: code-graph-search
 description: Reference for how `code-graph search` works — BM25 seed → graph expansion → score → cluster. Read before refactoring packages/code-graph/src/query/search.ts.
 allowed-tools: Read
+metadata:
+  type: concept-skill
+  version: "1.0"
+  last-update: eb68ef2464aff4efaffe916e2416411df40eba0a
 ---
 
 ## When to use

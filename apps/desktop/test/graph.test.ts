@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 import {
   addConceptToProject,
   closeAllStores,
@@ -48,6 +49,31 @@ function heldOpen(file: string): boolean {
   });
 }
 
+/** Ground truth read straight from the source store, so the tests track this repo's graph as it is regraphed. */
+const truth = (() => {
+  const db = new DatabaseSync(srcDb, { readOnly: true });
+  const one = (sql: string, ...a: string[]) => (db.prepare(sql).get(...a) as { c: number }).c;
+  const t = {
+    // The store reports live vertices only; archived rows stay in the table.
+    vertices: one("SELECT count(*) AS c FROM vertices WHERE status='live'"),
+    edges: one("SELECT count(*) AS c FROM edges"),
+    docs: one("SELECT count(*) AS c FROM docs"),
+    liveBy: {} as Record<string, number>,
+    archivedBy: {} as Record<string, number>,
+    docBy: {} as Record<string, boolean>,
+    live(concept: string) {
+      return this.liveBy[concept] ?? 0;
+    },
+  };
+  for (const c of ["code-graph-search", "scribe-pipeline", "concept-skills-layer"]) {
+    t.liveBy[c] = one("SELECT count(*) AS c FROM vertices WHERE concept=? AND status='live'", c);
+    t.archivedBy[c] = one("SELECT count(*) AS c FROM vertices WHERE concept=? AND status<>'live'", c);
+    t.docBy[c] = one("SELECT count(*) AS c FROM docs WHERE concept=?", c) > 0;
+  }
+  db.close();
+  return t;
+})();
+
 const listing = (d: string) => fs.readdirSync(d).sort();
 
 afterEach(() => closeAllStores());
@@ -56,14 +82,14 @@ afterAll(() => {
 });
 
 describe("status against a copy of this repo's own graph", () => {
-  it("reports config, store, matching schema and 128/314/2 (incl. the docs-only concept)", () => {
+  it("reports config, store, matching schema and the source store's counts (incl. the docs-only concept)", () => {
     const d = projectCopy();
     const s = graphStatus(d);
     expect(s.config?.path).toBe(path.join(fs.realpathSync(d), "scribe.config.json").replace(fs.realpathSync(d), d));
     expect(s.store.present).toBe(true);
     expect(s.store.schemaMatches).toBe(true);
     expect(s.store.schemaVersion).toBe(s.store.expectedSchemaVersion);
-    expect(s.store.counts).toEqual({ vertices: 128, edges: 314, docs: 2 });
+    expect(s.store.counts).toEqual({ vertices: truth.vertices, edges: truth.edges, docs: truth.docs });
   });
 
   it("lists all concepts with real counts, including the one with no concepts row and the docs-only one", () => {
@@ -73,11 +99,11 @@ describe("status against a copy of this repo's own graph", () => {
     expect(Object.keys(by).sort()).toEqual(["code-graph-search", "concept-skills-layer", "scribe-pipeline"]);
     expect(by["concept-skills-layer"]!.liveVertices).toBe(0);
     expect(by["concept-skills-layer"]!.hasSkillDoc).toBe(true);
-    expect(by["code-graph-search"]!.liveVertices).toBe(74);
-    expect(by["scribe-pipeline"]!.liveVertices).toBe(54);
+    expect(by["code-graph-search"]!.liveVertices).toBe(truth.live("code-graph-search"));
+    expect(by["scribe-pipeline"]!.liveVertices).toBe(truth.live("scribe-pipeline"));
     expect(by["scribe-pipeline"]!.inConfig).toBe(true);
-    expect(by["scribe-pipeline"]!.hasSkillDoc).toBe(false);
-    expect(by["scribe-pipeline"]!.badges.noSkillDoc).toBe(true);
+    expect(by["scribe-pipeline"]!.hasSkillDoc).toBe(truth.docBy["scribe-pipeline"]);
+    expect(by["scribe-pipeline"]!.badges.noSkillDoc).toBe(!truth.docBy["scribe-pipeline"]);
     expect(by["code-graph-search"]!.hasSkillDoc).toBe(true);
     expect(by["code-graph-search"]!.badges.neverExtracted).toBe(false);
     expect(by["code-graph-search"]!.liveEdges).toBeGreaterThan(0);
@@ -90,7 +116,7 @@ describe("status against a copy of this repo's own graph", () => {
     delete cfg.concepts["scribe-pipeline"];
     fs.writeFileSync(cfgPath, JSON.stringify(cfg));
     const c = listConcepts(d).concepts.find((x) => x.name === "scribe-pipeline");
-    expect(c).toMatchObject({ inConfig: false, liveVertices: 54, globs: [] });
+    expect(c).toMatchObject({ inConfig: false, liveVertices: truth.live("scribe-pipeline"), globs: [] });
   });
 });
 
@@ -164,7 +190,7 @@ describe("add concept", () => {
     expect(c.extractCommand).toContain("code-graph extract new-one && code-graph apply new-one");
     expect(c.extractCommand).toContain(fs.realpathSync(d) === d ? d : path.basename(d));
     // Existing concepts are not flagged with the command semantic change.
-    expect(res.concepts.find((x) => x.name === "scribe-pipeline")!.liveVertices).toBe(54);
+    expect(res.concepts.find((x) => x.name === "scribe-pipeline")!.liveVertices).toBe(truth.live("scribe-pipeline"));
   });
 
   it("rejects duplicates and bad input without touching the file", () => {
@@ -193,24 +219,24 @@ describe("delete concept", () => {
     const r = deleteConceptFromProject(d, { name: "scribe-pipeline", confirm: false });
     expect(r.stage).toBe("preview");
     if (r.stage === "preview") {
-      expect(r.liveVertices).toBe(54);
+      expect(r.liveVertices).toBe(truth.live("scribe-pipeline"));
       expect(Array.isArray(r.danglingRefs)).toBe(true);
       expect(typeof r.reportMd).toBe("string");
     }
     expect(fs.readFileSync(file, "utf8")).toBe(orig);
-    expect(graphStatus(d).store.counts?.vertices).toBe(128);
+    expect(graphStatus(d).store.counts?.vertices).toBe(truth.vertices);
   });
 
   it("confirm archives rows, drops config entry, keeps the FTS index consistent", async () => {
     const d = projectCopy();
     const r = deleteConceptFromProject(d, { name: "scribe-pipeline", confirm: true });
     expect(r.stage).toBe("deleted");
-    if (r.stage === "deleted") expect(r.archivedVertices).toBe(54);
+    if (r.stage === "deleted") expect(r.archivedVertices).toBe(truth.live("scribe-pipeline"));
     const cfg = JSON.parse(fs.readFileSync(path.join(d, "scribe.config.json"), "utf8"));
     expect(Object.keys(cfg.concepts)).toEqual(["code-graph-search", "concept-skills-layer"]);
     const list = listConcepts(d).concepts;
     expect(list.map((c) => c.name)).toEqual(["code-graph-search", "concept-skills-layer"]);
-    expect(graphStatus(d).store.counts?.vertices).toBe(74);
+    expect(graphStatus(d).store.counts?.vertices).toBe(truth.vertices - truth.live("scribe-pipeline"));
     // Rows are archived, not hard-deleted.
     closeAllStores();
     const { DatabaseSync } = await import("node:sqlite");
@@ -220,7 +246,8 @@ describe("delete concept", () => {
         c: number;
       }
     ).c;
-    expect(n).toBe(54);
+    // Previously archived rows stay archived; live ones are archived by the delete.
+    expect(n).toBe(truth.live("scribe-pipeline") + truth.archivedBy["scribe-pipeline"]);
     // FTS index no longer returns archived vertices' names.
     const stale = (db.prepare("SELECT count(*) AS c FROM search_fts").get() as { c: number }).c;
     expect(stale).toBeGreaterThan(0);
@@ -268,7 +295,7 @@ describe("store handle lifecycle", () => {
     closeAllStores();
     graphStatus(d);
     closeAllStores();
-    expect(graphStatus(d).store.counts?.vertices).toBe(128);
+    expect(graphStatus(d).store.counts?.vertices).toBe(truth.vertices);
   });
 });
 
@@ -292,7 +319,7 @@ describe("schema mismatch", () => {
 describe("concept graph", () => {
   it("returns live vertices, edges and skill doc for the search concept", async () => {
     const g = await conceptGraph(projectCopy(), { concept: "code-graph-search" });
-    expect(g.vertices.length).toBe(74);
+    expect(g.vertices.length).toBe(truth.live("code-graph-search"));
     expect(g.edges.length).toBeGreaterThan(0);
     expect(g.doc).not.toBeNull();
   });

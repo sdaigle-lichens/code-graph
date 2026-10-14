@@ -4,6 +4,9 @@
     "name": "Samuel Daigle",
     "email": "daigles@lichens.ai"
   },
+  "metadata": {
+    "description": "code-graph: graph-based code intelligence and concept skills for Claude Code"
+  },
   "plugins": [
     {
       "name": "code-graph",

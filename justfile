@@ -116,6 +116,8 @@ regraph:
     node packages/code-graph/dist/cli.js apply code-graph-search
     node packages/code-graph/dist/cli.js extract scribe-pipeline
     node packages/code-graph/dist/cli.js apply scribe-pipeline
+    node packages/code-graph/dist/cli.js extract concept-skills-layer
+    node packages/code-graph/dist/cli.js apply concept-skills-layer
     just eval
 
 # Run Layer-A eval harness from the pilot dir instead

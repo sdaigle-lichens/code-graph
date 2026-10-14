@@ -173,11 +173,12 @@ in-process through the library surface above.
 
 ## This repo's own graph
 
-code-graph dogfoods itself: `scribe.config.json` at the root declares two concepts over its own
-source, and `eval/tasks.code-graph.json` is the Layer-A gate.
+code-graph dogfoods itself: `scribe.config.json` at the root declares three concepts over its own
+source (`code-graph-search`, `scribe-pipeline`, `concept-skills-layer`), and
+`eval/tasks.code-graph.json` is the Layer-A gate.
 
 ```sh
-just regraph   # extract + apply both concepts, then run the eval gate (expects 6/6)
+just regraph   # extract + apply all three concepts, then run the eval gate (expects 7/7)
 ```
 
 Run that after anything that changes the body text of a graphed function — including a

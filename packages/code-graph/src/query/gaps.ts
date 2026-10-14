@@ -3,6 +3,7 @@ import { join, relative } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { minimatch } from "minimatch";
 import type { ScribeConfig } from "../config.js";
+import { isDocsOnly } from "../scribe/ast-output.js";
 import type { SearchResult } from "./search.js";
 
 // ─── Tunable thresholds (deferred per phase-9; defaults are conservative) ──────
@@ -188,11 +189,15 @@ export function conceptEnrichable(config: ScribeConfig, name: string): boolean {
   return false;
 }
 
+/** Declared concepts that have code to build and enrich. Docs-only concepts (no tsconfig, or only
+ *  non-code globs) hold a skill doc and zero vertices by design, so they are never a "gap". */
 export function declaredConcepts(config: ScribeConfig): DeclaredConcept[] {
-  return Object.keys(config.concepts).map((name) => ({
-    name,
-    enrichable: conceptEnrichable(config, name),
-  }));
+  return Object.keys(config.concepts)
+    .filter((name) => !isDocsOnly(config, name))
+    .map((name) => ({
+      name,
+      enrichable: conceptEnrichable(config, name),
+    }));
 }
 
 /** Orchestrator: declared concepts + DB counts → GapReport. */

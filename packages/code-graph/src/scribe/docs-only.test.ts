@@ -123,6 +123,30 @@ describe("docs-only extract / apply / search", () => {
     if (guide) assert.deepEqual(guide.hits ?? guide.vertices ?? [], [], "an empty-hit cluster");
   });
 
+  it("never reports a docs-only concept as a graph gap (search note, query concept exit code)", () => {
+    config();
+    write("docs/SKILL.md", SKILL);
+    write("docs/a.md", "x");
+    run(["extract", "guide"]);
+    run(["bootstrap"]);
+    assert.equal(run(["apply", "guide"]).code, 0);
+
+    const s = run(["search", "zebrafish"]);
+    assert.equal(s.code, 0, s.stderr + s.stdout);
+    assert.match(s.stdout, /zebrafish/i);
+    assert.doesNotMatch(s.stdout + s.stderr, /concepts enriched|un-applied|un-enriched/);
+
+    // a docs-only concept with zero vertices must not exit 6 with a build diagnostic
+    const q = run(["query", "concept", "guide"]);
+    assert.notEqual(q.code, 6, q.stdout + q.stderr);
+    assert.doesNotMatch(q.stdout + q.stderr, /un-applied|un-enriched|extract/);
+
+    // an undeclared concept still exits 6 with the note
+    const u = run(["query", "concept", "ghost"]);
+    assert.equal(u.code, 6);
+    assert.match(u.stderr, /not declared in scribe\.config\.json/);
+  });
+
   it("resolves the SKILL.md from a marked skill named after the concept", () => {
     write("scribe.config.json", JSON.stringify({ project: "p", concepts: { guide: { globs: ["docs/**/*.md"] } } }));
     write(

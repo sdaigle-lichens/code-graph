@@ -3,6 +3,7 @@ import { queryConcept, queryImpact, queryCross, queryVertex, queryVertexByName, 
 import { formatConcept, formatImpact, formatCross, formatVertex, formatFile, type FormatOpts } from "./format.js";
 import type { DatabaseSync } from "node:sqlite";
 import type { ScribeConfig } from "../config.js";
+import { isDocsOnly } from "../scribe/ast-output.js";
 import { analyzeConceptGaps, conceptEnrichable, fetchConceptCounts, formatGapDiagnostic } from "./gaps.js";
 
 type SharedOpts = {
@@ -24,7 +25,7 @@ async function maybeEmitConceptGap(
 ): Promise<boolean> {
   const undeclared = names.filter((n) => !(n in config.concepts));
   const declared = names
-    .filter((n) => n in config.concepts)
+    .filter((n) => n in config.concepts && !isDocsOnly(config, n))
     .map((n) => ({ name: n, enrichable: conceptEnrichable(config, n) }));
 
   const counts = await fetchConceptCounts(db);
