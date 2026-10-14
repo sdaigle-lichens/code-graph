@@ -5,7 +5,7 @@ argument-hint: <concept>
 
 # /scribe-enrich
 
-Enrich a concept's AST JSON with semantic fields using the `scribe-code-graph` skill.
+Enrich a concept's AST JSON with semantic fields using the `scribe` skill (its "Enrichment" section).
 
 ## Usage
 
@@ -26,7 +26,7 @@ Enrich a concept's AST JSON with semantic fields using the `scribe-code-graph` s
      2. Else `<config.skillsDir>/<concept>/SKILL.md` if `skillsDir` is set.
      3. Else fail with: "set `skillsDir` in `scribe.config.json` or `concepts.<concept>.skill`".
    - `outPath` = `scribe-output/<concept>.enriched.json`
-3. Invokes the `scribe-code-graph` skill with these four inputs: `concept`, `astPath`, `skillPath`, `outPath`.
+3. Invokes the `scribe` skill (its "Enrichment" section) with these four inputs: `concept`, `astPath`, `skillPath`, `outPath`.
 
 ## Procedure
 
@@ -36,7 +36,7 @@ Once config is found, resolve the three paths above using the order specified fo
 
 Verify `astPath` exists — if not, tell the user to run `code-graph extract <concept>` first.
 
-Then invoke the `scribe-code-graph` skill, passing:
+Then invoke the `scribe` skill (its "Enrichment" section), passing:
 - `concept`: the argument provided
 - `astPath`: resolved path to the ast.json file
 - `skillPath`: resolved path to the concept's SKILL.md

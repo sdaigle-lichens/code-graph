@@ -34,11 +34,26 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
 - Pilot consumer `~/Documents/gits/lichens-ordonnancement-ui` is not on this machine; never commit
   there from here.
 
+## Skills layer
+
+`plugin/skills/` ships the concept-skill flows (`create-`/`update-concept-skills`,
+`update-single-concept-skill`, `scribe`, `cleanup-skill`, the design pair, `code-graph-install|update|uninstall`),
+all calling only `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`. Rules when editing them:
+
+- Every flow must work with no tsconfig: graph steps (`catalog`, `extract`, `apply`, `drift`) are
+  skipped and staleness comes from `skills status`' git-diff window.
+- Repo-level `skills stamp` without `--bump` resets to **1.0**. Create = `--bump initial`,
+  update = `--bump minor`, single-skill deepening = `--bump major`; install's migration of
+  `.claude/concept-skills.json` uses `skills agents-set` (seeds the block, version untouched).
+- `scribe` is the only scribe skill (enrichment lives in it). Keep its gap-channel contract
+  (`.claude/channels/scribe/<agent>.1.md` with `{ "skill_gaps": [{ "skill", "missing" }] }`) verbatim:
+  maestro depends on it.
+
 ## CLI exit codes
 
 0 OK · 1 usage/config error · 2 retired (was ArangoDB unreachable; kept reserved, never emitted) ·
 3 store written by a newer code-graph · 4 ambiguous symbol (use `concept::name` or
-`filepath:name`) · 6 no results / not found. `/graph` falls back to the Explore agent on 2 or 6.
+`filepath:name`) · 5 no `scribe.config.json` · 6 no results / not found. `/graph` falls back to the Explore agent on 2 or 6.
 
 ## Out of scope unless asked
 

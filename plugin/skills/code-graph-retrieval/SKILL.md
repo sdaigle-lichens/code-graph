@@ -49,8 +49,8 @@ graph tells you *where* and *why*; you still read the source for exact detail.
    | Code | Meaning | Next step |
    |------|---------|-----------|
    | `0`  | OK | Use the `@filepath:line` pointers as `Read` targets |
-   | `2`  | Server offline | Tell the user to run `code-graph up` |
-   | `3`  | DB missing | Tell the user to run `code-graph bootstrap` |
+   | `2`  | Retired — never emitted (the store is a local file, not a server) | Nothing to do; fall back to Grep/Glob if you somehow see it |
+   | `3`  | Store written by a newer code-graph | Tell the user to upgrade the CLI |
    | `4`  | Ambiguous symbol | Re-run with `concept::name` or `filepath:name` |
    | `5`  | No config | No graph here — fall back to Grep/Glob |
    | `6`  | Zero results | Rephrase once, else fall back to Grep/Glob |
@@ -88,11 +88,11 @@ SKILL.md, and source files covered by no concept. Handle it **answer-first, non-
 preserved across re-extract):
 
 ```sh
-code-graph extract <concept>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" extract <concept>
 ```
 then invoke `/scribe-enrich <concept>` (it spins up the enrichment subagent), then:
 ```sh
-code-graph apply <concept>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```
 
 **Guards:**
@@ -108,8 +108,8 @@ named concept is declared-but-not-built — same answer-first handling applies.
 ## Examples
 
 ```sh
-code-graph search "how does drag and drop reorder work"
-code-graph query impact useWorkorderActions --direction in
-code-graph query cross scheduler-store workorder-store
-code-graph query vertex src/store/workorder.store.ts:42
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" search "how does drag and drop reorder work"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query impact useWorkorderActions --direction in
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query cross scheduler-store workorder-store
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query vertex src/store/workorder.store.ts:42
 ```

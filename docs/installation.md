@@ -17,7 +17,18 @@
 6. Verify `code-graph --version`
 7. Start a Claude Code session with the plugin loaded: `claude --plugin-dir /path/to/code-graph/plugin`
 
-Inside that session, `/graph`, `/scribe-enrich`, and the `scribe-code-graph` skill are available. The plugin carries its own CLI bundle (`plugin/scripts/code-graph.cjs`), so its `code-graph skills *` commands work without the global binary; its graph commands load `typescript` and `ts-morph` from the consumer project, so install the project's dependencies first. The `code-graph-retrieval` skill also ships with the plugin and triggers automatically when Claude needs to understand code in a project that has a `scribe.config.json`.
+Inside that session, `/graph`, `/scribe-enrich`, `/add-concept`, and the concept-skill skills (`create-concept-skills`, `update-concept-skills`, `update-single-concept-skill`, `scribe`, the design skills and the `code-graph-install|update|uninstall` trio) are available.
+
+### Enable it per project
+
+To switch the plugin on for one project rather than passing `--plugin-dir` each time, run the
+`code-graph-install` skill in that project. It adds `"code-graph@code-graph": true` to
+`.claude/settings.json` `enabledPlugins` (every other key untouched) and, when a legacy
+`.claude/concept-skills.json` from maestro's concept-skills plugin exists, migrates it into the `skills` block of
+`scribe.config.json` with its **version unchanged** (`last_update` and `agents` too). Re-runnable.
+`code-graph-update` re-checks that setup after a plugin update; `code-graph-uninstall` removes the
+`enabledPlugins` entry and leaves every SKILL.md, `scribe.config.json` and the graph store in place.
+Then run `create-concept-skills` (new project) or `update-concept-skills` (existing list). The plugin carries its own CLI bundle (`plugin/scripts/code-graph.cjs`), so its `code-graph skills *` commands work without the global binary; its graph commands load `typescript` and `ts-morph` from the consumer project, so install the project's dependencies first. The `code-graph-retrieval` skill also ships with the plugin and triggers automatically when Claude needs to understand code in a project that has a `scribe.config.json`.
 
 ## Make Claude prefer the graph (recommended)
 

@@ -4,6 +4,11 @@
 
 ### 1. Write `scribe.config.json` in your project root
 
+In a Claude Code session with the plugin loaded, the `create-concept-skills` skill (or its alias
+`/code-graph-init`) does this for you: it runs `code-graph catalog --json`, proposes concepts for
+per-concept approval, writes the config and a SKILL.md skeleton per concept, and stamps them at 1.0.
+By hand:
+
 ```json
 {
   "project": "my-app",
@@ -24,14 +29,14 @@
 code-graph bootstrap
 ```
 
-### 4. Extract AST
+### 3. Extract AST
 
 ```sh
 code-graph extract workorder-store
 # writes scribe-output/workorder-store.ast.json
 ```
 
-### 5. Enrich (agent step)
+### 4. Enrich (agent step)
 
 In a Claude Code session with the plugin loaded:
 
@@ -41,7 +46,7 @@ In a Claude Code session with the plugin loaded:
 
 This starts a subagent that reads the AST, adds semantic enrichment (purpose, cross-concept refs, tags), and writes `scribe-output/workorder-store.enriched.json`.
 
-### 6. Apply to graph
+### 5. Apply to graph
 
 ```sh
 code-graph apply workorder-store
@@ -49,7 +54,7 @@ code-graph apply workorder-store
 
 Upserts vertices, edges, and skill doc into the store, in one transaction. Shows drift summary.
 
-### 7. Search
+### 6. Search
 
 ```sh
 code-graph search "sync sends stale ops"
@@ -77,6 +82,8 @@ Or from inside Claude Code:
 | `code-graph query cross <a> <b>`      | `code-graph query cross workorder-store scheduler-store`             | Query cross-concept relationships                         |
 | `code-graph query vertex <location>`  | `code-graph query vertex setWorkorderIndex`                          | Query vertex by location, name, or qualified name         |
 | `code-graph query file <filepath>`    | `code-graph query file src/store/workorder.store.ts`                 | Query all live vertices in a file with their edges        |
+| `code-graph catalog --json`           | `code-graph catalog --json --tsconfig tsconfig.app.json`             | Store-free ts-morph digest: units, exports, imports, fan-in/out, hubs (drives concept proposals) |
+| `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
 | `code-graph eval [--tasks <path>]`    | `code-graph eval --tasks eval/tasks.json`                            | Run layer-A eval harness                                  |
 
 ### `skills` commands (concept skills, no graph needed)
@@ -101,6 +108,24 @@ Versions are `major.minor`: `initial` writes 1.0, a list-wide update bumps the m
 deep pass bumps the major. **A repo-level `skills stamp` without `--bump` defaults to `initial` and
 resets the version to 1.0** — pass `--bump minor|major` when migrating an existing list (e.g. from
 `.claude/concept-skills.json`).
+
+### Concept-skill skills (plugin)
+
+The plugin wraps the `skills` commands in skills that call only its bundled CLI
+(`plugin/scripts/code-graph.cjs`). All work with no tsconfig; staleness then comes from the git-diff
+window of `skills status` and the graph steps are skipped.
+
+| Skill | Use | Version effect |
+| --- | --- | --- |
+| `create-concept-skills` (alias `/code-graph-init`) | No list yet: catalog → proposal → `scribe.config.json` + SKILL.md skeletons → `bootstrap`/`extract`/`apply` | repo and skills stamped `1.0` (`--bump initial`) |
+| `update-concept-skills` | List exists, code moved: `skills status --json` / `drift --json`, revise, `extract` + `apply`, re-enrich revised | `--bump minor` |
+| `update-single-concept-skill` | One thin skill or a reported gap: deepen from `query concept` / `impact` | `--bump major` |
+| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md; gap channel; `/scribe-enrich` procedure | none |
+| `cleanup-skill`, `load-concept-skills`, `explore-concept-skills` | Building blocks the flows call | none |
+| `code-architecture-design`, `use-code-architecture-design-check` | Design gate and brief; explore uses `query cross` / `impact` | none |
+| `code-graph-install` / `-update` / `-uninstall` | Enable/check/disable the plugin per project; install migrates `.claude/concept-skills.json` into `scribe.config.json` keeping its version | none |
+
+`add-concept` hands off to `update-single-concept-skill` for the new concept's SKILL.md.
 
 ### `query vertex` calling forms
 
@@ -158,7 +183,7 @@ the repo's history.
 | Exit code | Meaning                 | Fix                                          |
 | --------- | ----------------------- | -------------------------------------------- |
 | 2         | *retired*               | Was "ArangoDB unreachable"; no longer emitted |
-| 3         | Store is from a newer code-graph | Upgrade the CLI                     |
+| 3         | Store written by a newer code-graph | Upgrade the CLI                  |
 | 4         | Ambiguous symbol        | Qualify with concept: `impact concept::name` |
 | 5         | No `scribe.config.json` | Create one at project root                   |
 | 6         | Zero search results     | Rephrase query or use Explore agent          |
