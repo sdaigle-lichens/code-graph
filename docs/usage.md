@@ -54,6 +54,16 @@ code-graph apply workorder-store
 
 Upserts vertices, edges, and skill doc into the store, in one transaction. Shows drift summary.
 
+`apply --dry-run --json` (and `drift --json`) prints the drift as one JSON object instead:
+`{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged } }`.
+Vertices are `{ name, type, file }`; a rename candidate is `{ from, to, score }`. `--json` without
+`--dry-run` exits 1. `changed` compares `<concept>.ast.json` (the last extract) with the store, so
+run `extract <concept>` first, then `drift`, to see pending source edits.
+
+A **docs-only** concept (no `tsconfig`, or globs that name no TypeScript files) needs no compiler:
+`extract` writes zero vertices plus its skill block, `apply` stores the doc so the SKILL.md body is
+searchable, and `search` finds it.
+
 ### 6. Search
 
 ```sh
@@ -127,6 +137,12 @@ window of `skills status` and the graph steps are skipped.
 
 `add-concept` hands off to `update-single-concept-skill` for the new concept's SKILL.md.
 
+`skills status --json` also carries, per concept, a `graph` block when a store exists:
+`{ extracted, extractedAt, enriched, vertices, enrichedVertices, changed, stale }` (`changed` is the
+same ast.json-vs-store count as `drift`, so extract first). A recorded `last-update` sha that is
+malformed or unknown to git yields `unknownFreshness: true` (`reason: "malformed-sha"` or
+`"unknown-commit"`, `commitsSince: null`) instead of an error. Docs-only concepts have no `graph` block.
+
 ### `query vertex` calling forms
 
 The `<location>` argument supports four forms. Detection: if the segment after the last `:` is numeric, it's filepath:line. Otherwise it's a name lookup.
@@ -157,12 +173,12 @@ Routing logic (inside `plugin/commands/graph.md`):
 {
   "project": "string", // project name, used in messages and skills
   "dbPath": "string", // optional: store location, default scribe-output/graph.db
-  "tsconfig": "string", // path to tsconfig (relative to config root)
+  "tsconfig": "string", // optional: path to tsconfig (relative to config root); omit for docs-only repos
   "skillsDir": "string", // optional: base dir for SKILL.md files
   "concepts": {
     "<concept-name>": {
       "globs": ["src/**/*.ts"], // files to include in this concept
-      "skill": "path/SKILL.md" // optional: SKILL.md path for this concept
+      "skill": "path/SKILL.md" // optional: else the marked skill named <concept>, else <skillsDir>/<concept>/SKILL.md
     }
   },
   "skills": {

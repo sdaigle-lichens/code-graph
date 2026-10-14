@@ -99,8 +99,13 @@ export interface GitWindow {
   /** Files changed in `<lastUpdate>..HEAD` within the scope; `[]` when it cannot be computed. */
   filesChanged: string[];
   /** Why `commitsSince` is null: never stamped, a sha git does not know, or not a git repo. */
-  reason?: "unstamped" | "unknown-commit" | "not-a-git-repo";
+  reason?: "unstamped" | "unknown-commit" | "malformed-sha" | "not-a-git-repo";
+  /** True when the window could not be computed because the recorded sha is unusable (unknown or malformed). */
+  unknownFreshness?: true;
 }
+
+/** A stored `last-update` is hand-editable: only a plain hex object name may reach a git revision range. */
+const SHA_RE = /^[0-9a-f]{4,64}$/i;
 
 export interface ConceptStatus extends GitWindow {
   /** The config's concept key; null for a docs-only concept skill. */
@@ -115,6 +120,8 @@ export interface ConceptStatus extends GitWindow {
   globs: string[];
   /** `globs` when counted over the concept's globs; `repo` for a docs-only skill (whole repository). */
   scope: "globs" | "repo";
+  /** Graph freshness (see `scribe/freshness.ts`); present only when a store holds this concept. */
+  graph?: import("../scribe/freshness.js").GraphFreshness;
 }
 
 export interface StatusReport {
@@ -146,16 +153,21 @@ export function headSha(projectRoot: string): string {
 /** The git window `<sha>..HEAD` over `globs` (whole repo when empty). Globs use git's `:(glob)` magic. */
 export function gitWindow(projectRoot: string, sha: string | null | undefined, globs: string[]): GitWindow {
   if (!sha) return { commitsSince: null, filesChanged: [], reason: "unstamped" };
+  if (!SHA_RE.test(sha)) {
+    return { commitsSince: null, filesChanged: [], reason: "malformed-sha", unknownFreshness: true };
+  }
   if (git(projectRoot, ["rev-parse", "--git-dir"]) === null) {
     return { commitsSince: null, filesChanged: [], reason: "not-a-git-repo" };
   }
   if (git(projectRoot, ["cat-file", "-e", `${sha}^{commit}`]) === null) {
-    return { commitsSince: null, filesChanged: [], reason: "unknown-commit" };
+    return { commitsSince: null, filesChanged: [], reason: "unknown-commit", unknownFreshness: true };
   }
   const pathspecs = globs.length ? ["--", ...globs.map((g) => `:(glob)${g}`)] : [];
   const count = git(projectRoot, ["rev-list", "--count", `${sha}..HEAD`, ...pathspecs]);
   const files = git(projectRoot, ["diff", "--name-only", `${sha}..HEAD`, ...pathspecs]);
-  if (count === null || files === null) return { commitsSince: null, filesChanged: [], reason: "unknown-commit" };
+  if (count === null || files === null) {
+    return { commitsSince: null, filesChanged: [], reason: "unknown-commit", unknownFreshness: true };
+  }
   return {
     commitsSince: Number(count.trim()),
     filesChanged: files.split("\n").filter(Boolean),

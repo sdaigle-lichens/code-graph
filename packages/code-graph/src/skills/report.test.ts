@@ -149,7 +149,29 @@ describe("gitWindow", () => {
       commitsSince: null,
       filesChanged: [],
       reason: "unknown-commit",
+      unknownFreshness: true,
     });
+  });
+
+  it("is 'malformed-sha' with unknownFreshness for non-hex or option-like shas, even outside a repo", () => {
+    for (const sha of ["not-a-sha", "--output=/tmp/x", "-1", "abc 123", "abc", "zzzz1234"]) {
+      assert.deepEqual(gitWindow(tmp, sha, []), {
+        commitsSince: null,
+        filesChanged: [],
+        reason: "malformed-sha",
+        unknownFreshness: true,
+      });
+    }
+  });
+
+  it("an unknown commit also carries unknownFreshness", () => {
+    git("init", "-q");
+    write("a.txt", "a");
+    commitAll("one");
+    const w = gitWindow(tmp, "deadbeefdeadbeef", []);
+    assert.equal(w.reason, "unknown-commit");
+    assert.equal(w.unknownFreshness, true);
+    assert.equal(w.commitsSince, null);
   });
 
   it("counts commits and files since the sha, scoped by :(glob) pathspecs", () => {

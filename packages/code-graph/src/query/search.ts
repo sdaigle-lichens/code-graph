@@ -260,6 +260,16 @@ export async function search(
       return maxB - maxA;
     });
 
+  // A docs-only concept has a skill doc and no vertices, so no hit would ever put it in a cluster.
+  // Surface it (after the code clusters) when its doc was itself a search seed.
+  for (const seed of docSeeds) {
+    const concept = (seed.doc as unknown as DocVertex).concept;
+    if (conceptToHits.has(concept) || clusters.some((c) => c.concept === concept)) continue;
+    const live = store.prepare("SELECT 1 FROM vertices WHERE concept = ? AND status = 'live' LIMIT 1").get(concept);
+    if (live) continue;
+    clusters.push({ concept, skill: skillDocs.get(concept) ?? null, hits: [] });
+  }
+
   const totalVertices = hits.filter((h) => h.vertex !== null).length;
   const totalDocs = Array.from(skillDocs.values()).filter((d) => d !== null).length;
 

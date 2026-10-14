@@ -61,6 +61,15 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   `impact`/`vertex` output.
 - The destructured store-action resolution in `extract.ts` (`resolveToVertexKey` →
   `BindingElement`) is load-bearing for impact queries through hooks.
+- Docs-only detection (`isDocsOnly`, `extractDocsOnly`) lives in `scribe/ast-output.ts`, not
+  `extract.ts`: `cli.ts` checks it before importing `extract.ts`, so a docs-only `extract` never
+  loads ts-morph. Keep it that way.
+- A concept's SKILL.md resolves via `resolveConceptSkillPath` (`skills/concept-skills.ts`): explicit
+  `skill` (returned as declared even if missing), else the marked skill whose id/dir equals the
+  concept key, else `skillsDir/<concept>/SKILL.md`.
+- `drift --json` / `apply --dry-run --json` `changed` is ast.json vs store: run `extract` first.
+  `skills status --json` graph freshness (`scribe/freshness.ts`) is lazy and optional; a bad
+  `last-update` sha reports `unknownFreshness`, never throws.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
   `--bump minor|major` when migrating an existing list.

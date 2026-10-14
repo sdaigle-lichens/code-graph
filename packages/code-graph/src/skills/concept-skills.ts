@@ -29,7 +29,7 @@
 // `typescript` or `ts-morph`. `skills *` runs on any supported Node, in repos with no TypeScript.
 
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { parseFrontmatterMetadata } from "./frontmatter.js";
 import { readSkillEntriesFromDir, skillSearchDirs } from "./fs-scan.js";
 
@@ -168,6 +168,30 @@ export async function resolveSkillPath(root: string, idOrPath: string): Promise<
     if (existsSync(byDir)) return byDir;
     const match = (await readSkillEntriesFromDir(skillsDir)).find((e) => e.id === idOrPath);
     if (match) return match.skillPath;
+  }
+  return null;
+}
+
+/**
+ * The SKILL.md a config concept resolves to, as a posix path relative to `root`; null when none.
+ *
+ * Order: the concept's explicit `skill` (returned as declared, existing or not — a typo should
+ * surface as a read error, not silently fall through), then the marked concept skill whose id or
+ * directory name equals the concept key, then `<skillsDir>/<concept>/SKILL.md`.
+ */
+export async function resolveConceptSkillPath(
+  root: string,
+  concept: string,
+  declared: string | undefined,
+  skillsDir: string | undefined
+): Promise<string | null> {
+  if (declared) return declared;
+  const toRel = (p: string) => relative(root, p).replace(/\\/g, "/");
+  const marked = (await discoverConceptSkills(root)).find((s) => s.id === concept || basename(s.dir) === concept);
+  if (marked) return toRel(marked.skillPath);
+  if (skillsDir) {
+    const candidate = join(root, skillsDir, concept, "SKILL.md");
+    if (existsSync(candidate)) return toRel(candidate);
   }
   return null;
 }

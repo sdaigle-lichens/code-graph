@@ -8,6 +8,11 @@
       ],
       "skill": ".claude/skills/code-graph-search/SKILL.md"
     },
+    "concept-skills-layer": {
+      "globs": [
+        "packages/code-graph/src/skills/**/*.md"
+      ]
+    },
     "scribe-pipeline": {
       "globs": [
         "packages/code-graph/src/scribe/**/*.ts"

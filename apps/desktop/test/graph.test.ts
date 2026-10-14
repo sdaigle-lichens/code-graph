@@ -56,21 +56,23 @@ afterAll(() => {
 });
 
 describe("status against a copy of this repo's own graph", () => {
-  it("reports config, store, matching schema and 128/313/1", () => {
+  it("reports config, store, matching schema and 128/314/2 (incl. the docs-only concept)", () => {
     const d = projectCopy();
     const s = graphStatus(d);
     expect(s.config?.path).toBe(path.join(fs.realpathSync(d), "scribe.config.json").replace(fs.realpathSync(d), d));
     expect(s.store.present).toBe(true);
     expect(s.store.schemaMatches).toBe(true);
     expect(s.store.schemaVersion).toBe(s.store.expectedSchemaVersion);
-    expect(s.store.counts).toEqual({ vertices: 128, edges: 313, docs: 1 });
+    expect(s.store.counts).toEqual({ vertices: 128, edges: 314, docs: 2 });
   });
 
-  it("lists both concepts with real counts, including the one with no concepts row", () => {
+  it("lists all concepts with real counts, including the one with no concepts row and the docs-only one", () => {
     const list = listConcepts(projectCopy());
     expect(list.storeAvailable).toBe(true);
     const by = Object.fromEntries(list.concepts.map((c) => [c.name, c]));
-    expect(Object.keys(by).sort()).toEqual(["code-graph-search", "scribe-pipeline"]);
+    expect(Object.keys(by).sort()).toEqual(["code-graph-search", "concept-skills-layer", "scribe-pipeline"]);
+    expect(by["concept-skills-layer"]!.liveVertices).toBe(0);
+    expect(by["concept-skills-layer"]!.hasSkillDoc).toBe(true);
     expect(by["code-graph-search"]!.liveVertices).toBe(74);
     expect(by["scribe-pipeline"]!.liveVertices).toBe(54);
     expect(by["scribe-pipeline"]!.inConfig).toBe(true);
@@ -205,9 +207,9 @@ describe("delete concept", () => {
     expect(r.stage).toBe("deleted");
     if (r.stage === "deleted") expect(r.archivedVertices).toBe(54);
     const cfg = JSON.parse(fs.readFileSync(path.join(d, "scribe.config.json"), "utf8"));
-    expect(Object.keys(cfg.concepts)).toEqual(["code-graph-search"]);
+    expect(Object.keys(cfg.concepts)).toEqual(["code-graph-search", "concept-skills-layer"]);
     const list = listConcepts(d).concepts;
-    expect(list.map((c) => c.name)).toEqual(["code-graph-search"]);
+    expect(list.map((c) => c.name)).toEqual(["code-graph-search", "concept-skills-layer"]);
     expect(graphStatus(d).store.counts?.vertices).toBe(74);
     // Rows are archived, not hard-deleted.
     closeAllStores();

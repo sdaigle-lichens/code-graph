@@ -9,7 +9,8 @@ const ConceptSchema = z.object({
 
 const ConfigSchema = z.object({
   project: z.string(),
-  tsconfig: z.string(),
+  /** Optional: a config with only docs-only concepts (no TypeScript) has none. */
+  tsconfig: z.string().optional(),
   skillsDir: z.string().optional(),
   /** Graph store location, relative to configRoot. Defaults to scribe-output/graph.db. */
   dbPath: z.string().optional(),

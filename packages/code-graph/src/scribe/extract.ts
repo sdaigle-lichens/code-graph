@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   Node,
@@ -12,6 +11,7 @@ import {
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
 import { packageVersion } from "../version.js";
+import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
 import type { Edge, Vertex } from "../schema.js";
 
 // ─── Key helpers ─────────────────────────────────────────────────────────────
@@ -22,10 +22,6 @@ function vKey(concept: string, filepath: string, name: string, type: string): st
 
 function eKey(from: string, to: string, type: string, line: number): string {
   return createHash("sha1").update(`${from}|${to}|${type}|${line}`).digest("hex").slice(0, 32);
-}
-
-function sha256hex(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
 }
 
 // ─── Signature extraction ────────────────────────────────────────────────────
@@ -481,7 +477,9 @@ export async function extract(conceptName: string): Promise<void> {
     process.exit(1);
   }
 
-  const tsconfigPath = join(configRoot, config.tsconfig);
+  if (isDocsOnly(config, conceptName)) return extractDocsOnly(config, conceptName);
+
+  const tsconfigPath = join(configRoot, config.tsconfig!);
   const project = new Project({
     tsConfigFilePath: tsconfigPath,
     skipAddingFilesFromTsConfig: false,
@@ -545,31 +543,13 @@ export async function extract(conceptName: string): Promise<void> {
   const edges = buildEdges(vertices, keyToNode, nodeToKey, vertexToStore, conceptName, extractedAt);
 
   // Skill
-  let skillField: { path: string; body: string; contentHash: string } | undefined;
-  if (concept.skill) {
-    const skillPath = join(configRoot, concept.skill);
-    const body = readFileSync(skillPath, "utf-8");
-    skillField = { path: concept.skill, body, contentHash: "sha256:" + sha256hex(body) };
-  }
+  const skillField = await readConceptSkill(config, conceptName);
 
   // Sort for determinism
   vertices.sort((a, b) => a._key.localeCompare(b._key));
   edges.sort((a, b) => a._key.localeCompare(b._key));
 
-  // Write output
-  const outputDir = join(configRoot, "scribe-output");
-  mkdirSync(outputDir, { recursive: true });
-  const outputPath = join(outputDir, `${conceptName}.ast.json`);
-
-  const output = {
-    concept: conceptName,
-    vertices,
-    edges,
-    ...(skillField && { skill: skillField }),
-    meta: { extractor_version: extractorVersion, extracted_at: extractedAt },
-  };
-
-  writeFileSync(outputPath, JSON.stringify(output, null, 2), "utf-8");
+  writeAstOutput(config, conceptName, vertices, edges, skillField, extractedAt);
 
   const skillChars = skillField?.body.length ?? 0;
   process.stderr.write(`${vertices.length} vertices, ${edges.length} edges, skill body ${skillChars} chars\n`);

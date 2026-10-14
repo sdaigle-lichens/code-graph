@@ -8,7 +8,7 @@
 //
 // Every command takes `--root <dir>`; see `resolveProjectRoot` for the fallback order.
 
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import type { Command } from "commander";
 import {
   discoverConceptSkills,
@@ -160,17 +160,43 @@ export function registerSkillsCommands(program: Command): void {
     .action(async (opts: RootOpts & { json?: boolean }) => {
       const projectRoot = resolveProjectRoot(opts.root);
       const report = await conceptSkillsStatus(projectRoot);
+      // Layer 1 stays graph-free: the store is only touched (lazily) when its file exists, and any
+      // failure to read it leaves the git-only report untouched.
+      try {
+        const { existsSync } = await import("node:fs");
+        const { tryLoadConfig } = await import("../config.js");
+        const config = tryLoadConfig(projectRoot);
+        const dbFile = config
+          ? config.dbPath
+            ? resolve(config.configRoot, config.dbPath)
+            : join(config.configRoot, "scribe-output", "graph.db")
+          : null;
+        if (config && dbFile && existsSync(dbFile)) {
+          const { graphFreshness } = await import("../scribe/freshness.js");
+          const fresh = graphFreshness(
+            projectRoot,
+            report.concepts.flatMap((c) => (c.concept ? [c.concept] : []))
+          );
+          for (const c of report.concepts) if (c.concept && fresh?.[c.concept]) c.graph = fresh[c.concept];
+        }
+      } catch {
+        // git-only output
+      }
       if (opts.json) return json(report);
       if (report.list) {
-        const n = report.list.commitsSince ?? report.list.reason;
+        const n = report.list.unknownFreshness ? "unknown freshness" : (report.list.commitsSince ?? report.list.reason);
         out(`list v${report.list.version} @${report.list.lastUpdate.slice(0, 8)}  ${n} commit(s) since`);
       } else out("list: not created yet");
       for (const c of report.concepts) {
         const name = c.concept ?? `${c.skill} (docs-only)`;
         const v = c.version ? `v${c.version}` : "no skill";
-        const since =
-          c.commitsSince === null ? c.reason : `${c.commitsSince} commit(s), ${c.filesChanged.length} file(s)`;
-        out(`  ${name}  ${v}  ${since}${c.path ? `  ${relative(process.cwd(), join(projectRoot, c.path))}` : ""}`);
+        const since = c.unknownFreshness
+          ? "unknown freshness"
+          : c.commitsSince === null
+            ? c.reason
+            : `${c.commitsSince} commit(s), ${c.filesChanged.length} file(s)`;
+        const g = c.graph ? `  graph: ${c.graph.changed} changed, ${c.graph.stale} stale` : "";
+        out(`  ${name}  ${v}  ${since}${g}${c.path ? `  ${relative(process.cwd(), join(projectRoot, c.path))}` : ""}`);
       }
     });
 

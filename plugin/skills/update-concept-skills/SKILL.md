@@ -69,7 +69,7 @@ For each concept with `commitsSince > 0`:
 2. **The graph's drift report**, when the concept is built (a store exists and `tsconfig` is set):
 
    ```bash
-   cg drift <concept> --json
+   cg extract <concept> && cg drift <concept> --json
    ```
 
    Shape: `{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged } }`.

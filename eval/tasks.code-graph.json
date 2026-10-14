@@ -121,5 +121,18 @@
       "skill_present": true,
       "min_cross_concept_edges": 0
     }
+  },
+  {
+    "id": "task-6-docs-only-concept",
+    "provenance": "Written for docs-only concepts (zero vertices, skill doc only). Expectations are NOT validated against pre-migration output.",
+    "prompt": "docs-only concept skill resolution skillsDir",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "concept-skills-layer"
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
   }
 ]

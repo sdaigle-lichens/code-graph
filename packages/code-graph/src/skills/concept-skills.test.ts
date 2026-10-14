@@ -370,6 +370,44 @@ describe("stampConceptSkill", () => {
     assert.equal(fs.readFileSync(p, "utf8"), after);
   });
 
+  it("mixed LF/CRLF frontmatter: eol follows the opening delimiter, frontmatter normalized, body bytes kept", () => {
+    const body = "\r\n# Body\nmixed\r\nlines\n";
+    const mk = (name: string, raw: string) => {
+      const dir = path.join(tmp, `.claude/skills/${name}`);
+      fs.mkdirSync(dir, { recursive: true });
+      const p = path.join(dir, "SKILL.md");
+      fs.writeFileSync(p, raw);
+      return p;
+    };
+
+    // Opening delimiter CRLF, inner lines a mix: everything inside becomes CRLF.
+    const crlf = mk(
+      "mixed-crlf",
+      `---\r\nname: m\ndescription: "x"\r\nmetadata:\n  type: concept-skill\r\n  version: "1.0"\n  last-update: a\r\n---\r\n${body}`
+    );
+    assert.equal(stampConceptSkill(crlf, { version: "1.1", lastUpdate: "b" }), true);
+    const afterCrlf = fs.readFileSync(crlf, "utf8");
+    assert.equal(
+      afterCrlf,
+      `---\r\nname: m\r\ndescription: "x"\r\nmetadata:\r\n  type: concept-skill\r\n  version: "1.1"\r\n  last-update: b\r\n---\r\n${body}`
+    );
+    assert.equal(stampConceptSkill(crlf, { version: "1.1", lastUpdate: "b" }), false, "re-stamp is a fixed point");
+    assert.equal(fs.readFileSync(crlf, "utf8"), afterCrlf);
+
+    // Opening delimiter LF, inner lines a mix: everything inside becomes LF.
+    const lf = mk(
+      "mixed-lf",
+      `---\nname: m\r\ndescription: "x"\nmetadata:\r\n  type: concept-skill\n  version: "1.0"\r\n  last-update: a\n---\n${body}`
+    );
+    assert.equal(stampConceptSkill(lf, { version: "1.1", lastUpdate: "b" }), true);
+    const afterLf = fs.readFileSync(lf, "utf8");
+    assert.equal(
+      afterLf,
+      `---\nname: m\ndescription: "x"\nmetadata:\n  type: concept-skill\n  version: "1.1"\n  last-update: b\n---\n${body}`
+    );
+    assert.equal(stampConceptSkill(lf, { version: "1.1", lastUpdate: "b" }), false);
+  });
+
   it("appends a missing metadata block with CRLF endings on a CRLF file", async () => {
     const dir = path.join(tmp, ".claude/skills/crlf-plain");
     fs.mkdirSync(dir, { recursive: true });

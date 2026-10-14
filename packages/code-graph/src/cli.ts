@@ -135,6 +135,14 @@ program
   .description("extract AST for a concept")
   .action(async (concept: string) => {
     try {
+      // A docs-only concept needs no TypeScript compiler, so it must not load ts-morph.
+      const { loadConfig } = await import("./config.js");
+      const { isDocsOnly, extractDocsOnly } = await import("./scribe/ast-output.js");
+      const config = loadConfig(process.cwd());
+      if (config.concepts[concept] && isDocsOnly(config, concept)) {
+        await extractDocsOnly(config, concept);
+        return;
+      }
       const { extract } = await import("./scribe/extract.js");
       await extract(concept);
     } catch (err) {
@@ -148,12 +156,18 @@ program
   .description("apply enriched doc to graph")
   .option("--dry-run")
   .option("--approve-drift")
-  .action(async (concept: string, opts: { dryRun?: boolean; approveDrift?: boolean }) => {
+  .option("--json", "with --dry-run: emit the drift as JSON (names and files)")
+  .action(async (concept: string, opts: { dryRun?: boolean; approveDrift?: boolean; json?: boolean }) => {
     try {
+      if (opts.json && !opts.dryRun) {
+        console.error("apply failed: --json needs --dry-run");
+        process.exit(1);
+      }
       const { apply } = await import("./scribe/apply.js");
       await apply(concept, {
         dryRun: opts.dryRun ?? false,
         approveDrift: opts.approveDrift ?? false,
+        json: opts.json ?? false,
       });
     } catch (err) {
       console.error("apply failed:", (err as Error).message);
@@ -164,10 +178,11 @@ program
 program
   .command("drift <concept>")
   .description("show drift for a concept (alias for apply --dry-run)")
-  .action(async (concept: string) => {
+  .option("--json", "emit the drift as JSON (names and files)")
+  .action(async (concept: string, opts: { json?: boolean }) => {
     try {
       const { apply } = await import("./scribe/apply.js");
-      await apply(concept, { dryRun: true, approveDrift: false });
+      await apply(concept, { dryRun: true, approveDrift: false, json: opts.json ?? false });
     } catch (err) {
       console.error("drift failed:", (err as Error).message);
       process.exit(1);

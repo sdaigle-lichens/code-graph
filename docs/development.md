@@ -177,7 +177,7 @@ code-graph dogfoods itself: `scribe.config.json` at the root declares two concep
 source, and `eval/tasks.code-graph.json` is the Layer-A gate.
 
 ```sh
-just regraph   # extract + apply both concepts, then run the eval gate (expects 5/5)
+just regraph   # extract + apply both concepts, then run the eval gate (expects 6/6)
 ```
 
 Run that after anything that changes the body text of a graphed function — including a

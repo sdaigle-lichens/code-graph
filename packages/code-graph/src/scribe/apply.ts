@@ -164,7 +164,10 @@ function buildAgentUpdate(
   return update;
 }
 
-export async function apply(concept: string, opts: { dryRun: boolean; approveDrift: boolean }): Promise<void> {
+export async function apply(
+  concept: string,
+  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean }
+): Promise<void> {
   const config = loadConfig();
   const { configRoot } = config;
   const now = nowISO();
@@ -315,6 +318,34 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     const newSig = astVertexMap.get(k)!.signature;
     return !ev?.sig_seen || ev.sig_seen !== newSig;
   }).length;
+
+  if (opts.json && opts.dryRun) {
+    const ref = (v: Vertex) => ({ name: v.name, type: v.type, file: v.filepath });
+    const stillStale = unchangedKeys.filter((k) => dbMap.get(k)!.agent?.stale === true);
+    const staleKeys = [
+      ...changedKeys.filter((k) => {
+        const ev = enrichedVertexMap.get(k);
+        return !ev?.sig_seen || ev.sig_seen !== astVertexMap.get(k)!.signature;
+      }),
+      ...stillStale,
+    ];
+    console.log(
+      JSON.stringify({
+        concept,
+        new: trueNewKeys.map((k) => ref(astVertexMap.get(k)!)),
+        changed: changedKeys.map((k) => ref(astVertexMap.get(k)!)),
+        stale: staleKeys.map((k) => ref(astVertexMap.get(k) ?? dbMap.get(k)!)),
+        missing: missingKeys.map((k) => ref(dbMap.get(k)!)),
+        renameCandidates: uniqueRenames.map((r) => ({
+          from: ref(dbMap.get(r.oldKey)!),
+          to: ref(astVertexMap.get(r.newKey)!),
+          score: Number(r.score.toFixed(2)),
+        })),
+        doc: { bodyHashChanged: docHashDisplay === "changed" },
+      })
+    );
+    return;
+  }
 
   // Print drift report
   console.log(`Concept: ${concept}`);
@@ -515,7 +546,7 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
       // runs, matching the "update" upsert this used before.
       mergeRecord(store, "concepts", concept, {
         _key: concept,
-        owner_skill_path: config.concepts?.[concept]?.skill,
+        owner_skill_path: astDoc.skill.path,
         last_scribed_at: now,
       });
 

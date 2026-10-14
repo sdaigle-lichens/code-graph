@@ -19,3 +19,12 @@ Make the graph layer coherent with concept skills and machine-readable for the s
 ## Blocked by
 
 - `003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md`
+
+## Post-Mortem
+
+- **Problem:** `isDocsOnly` classified extension-less globs (`src/**`) as docs-only even with a tsconfig, silently disabling extraction. @test worked around it by editing a fixture; @reviewer caught it and failed the review.
+  **Fix:** none
+- **Problem:** `pnpm check` failed on prettier in `skills/commands.ts`, which @backend didn't catch before handing off.
+  **Fix:** none
+- **Problem:** @backend ended `HANDOFF: success` twice without writing the channel payload for @test; it had to be resumed to write it.
+  **Fix:** none
