@@ -9,6 +9,8 @@
 // hook deleted the one shared log out from under a concurrent session mid-run, which is half of
 // what that task exists to fix. With no session id resolvable it removes nothing at all: a
 // SessionEnd that cannot say which session it is has no business deleting anyone's state.
+// `077`: when the payload's `reason` says the session can be resumed under the same id
+// (`prompt_input_exit`, `other`, `resume`) nothing is removed — see `isResumableEnd`.
 // The source of truth (.claude/maestro.json) and the orchestrator skill are kept.
 //
 // Then (`036`) it SWEEPS `.claude/channels/` — retiring `.consumed/` outright and aging out
@@ -27,7 +29,7 @@
 // Reads the hook payload on stdin; no-op when it carries no cwd.
 
 const path = require("path");
-const { readStdin, sweep, resolveSessionId, removeSessionState } = require("./lib/maestro-session.cjs");
+const { readStdin, sweep, resolveSessionId, endSessionState, recordSessionRun } = require("./lib/maestro-session.cjs");
 
 async function main() {
   let payload = {};
@@ -39,10 +41,18 @@ async function main() {
   const cwd = payload.cwd;
   if (!cwd) return;
   try {
+    // `080`: fold this session's finished run into the durable metrics file BEFORE its directory
+    // can be removed below. Runs on every end (a resumable one too): a run id already recorded is
+    // replaced, not duplicated. Best-effort — metrics must never block a session's exit.
+    recordSessionRun(cwd, resolveSessionId(payload));
+  } catch {
+    // ignored
+  }
+  try {
     // `064`: the payload's own `session_id` first, CLAUDE_CODE_SESSION_ID second, and nothing at
     // all when neither resolves. `removeSessionState` owns the "only mine, plus the legacy flat
     // files" rule so this hook and its bash twin cannot disagree about what SessionEnd deletes.
-    removeSessionState(path.join(cwd, ".claude"), resolveSessionId(payload));
+    endSessionState(path.join(cwd, ".claude"), resolveSessionId(payload), payload.reason);
   } catch {
     // A session file we cannot delete is not worth failing the session's exit over.
   }
@@ -55,5 +65,5 @@ async function main() {
 
 main().then(
   () => process.exit(0),
-  () => process.exit(0),
+  () => process.exit(0)
 );

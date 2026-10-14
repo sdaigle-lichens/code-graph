@@ -26,8 +26,29 @@ const path = require("path");
 const TASKS_SUBDIR = path.join(".claude", "maestro-tasks");
 const STATUS_FILE = "status.json";
 
+// `074`: the main checkout owning `dir`'s repository — `dir` itself unless it is a LINKED git
+// worktree, whose `.git` is a file reading `gitdir: <main>/.git/worktrees/<name>`. Kept in sync with
+// mainCheckoutRoot() in apps/maestro/src/core/worktree.ts.
+function mainCheckoutRoot(dir) {
+  try {
+    const gitEntry = path.join(dir, ".git");
+    if (!fs.statSync(gitEntry).isFile()) return dir;
+    const m = /^gitdir:\s*(.+?)\s*$/m.exec(fs.readFileSync(gitEntry, "utf8"));
+    if (!m) return dir;
+    const gitDir = path.resolve(dir, m[1]);
+    if (path.basename(path.dirname(gitDir)) !== "worktrees") return dir;
+    const common = path.dirname(path.dirname(gitDir));
+    if (path.basename(common) !== ".git") return dir;
+    return path.dirname(common);
+  } catch {
+    return dir;
+  }
+}
+
+// The queue (status.json, claims/) always lives in the MAIN checkout, even when called from inside a
+// session's git worktree, so a close or claim made there is seen by every session (`074`).
 function tasksDir(projectDir) {
-  return path.join(projectDir, TASKS_SUBDIR);
+  return path.join(mainCheckoutRoot(projectDir), TASKS_SUBDIR);
 }
 
 function statusPath(projectDir) {
@@ -78,7 +99,7 @@ function writeStatus(projectDir, statusMap) {
     ordered[k] = statusMap[k];
   }
   const p = statusPath(projectDir);
-  const tmp = p + ".tmp";
+  const tmp = `${p}.${process.pid}.tmp`; // per process: two writers never share a temp file
   fs.writeFileSync(tmp, JSON.stringify(ordered, null, 2) + "\n");
   fs.renameSync(tmp, p);
   return ordered;
@@ -93,7 +114,7 @@ function writeStatus(projectDir, statusMap) {
 //     otherwise `blocked`.
 // Entries for files that no longer exist are dropped. New files appear as
 // ready/blocked. Pure single pass — readiness depends only on the done-set.
-function buildStatusMap(projectDir, doneSet) {
+function buildStatusMap(projectDir, doneSet, previous = {}) {
   const files = listTaskFiles(projectDir);
   const fileSet = new Set(files);
   const out = {};
@@ -113,6 +134,8 @@ function buildStatusMap(projectDir, doneSet) {
       status = satisfied ? "ready" : "blocked";
     }
     out[filename] = { status, blockedBy };
+    // `084`: the tracker owns `epic` (the markdown never does), so a rebuild keeps what was linked.
+    if (previous[filename] && previous[filename].epic) out[filename].epic = previous[filename].epic;
   }
   return out;
 }
@@ -128,18 +151,19 @@ function doneSetFrom(statusMap) {
 // missing ones, refresh every blockedBy from the markdown, preserve `done`, and
 // recompute all ready/blocked. Returns the written map.
 function sync(projectDir) {
-  const doneSet = doneSetFrom(readStatus(projectDir));
-  return writeStatus(projectDir, buildStatusMap(projectDir, doneSet));
+  const previous = readStatus(projectDir);
+  return writeStatus(projectDir, buildStatusMap(projectDir, doneSetFrom(previous), previous));
 }
 
 // Mark a single task file done (idempotent), then recompute the cascade and
 // persist. Re-syncs from markdown first so the JSON is current even if files
 // changed since the last write. Returns { map, marked, known }.
 function markDone(projectDir, filename) {
-  const doneSet = doneSetFrom(readStatus(projectDir));
+  const previous = readStatus(projectDir);
+  const doneSet = doneSetFrom(previous);
   const known = listTaskFiles(projectDir).includes(filename);
   if (known) doneSet.add(filename);
-  const map = writeStatus(projectDir, buildStatusMap(projectDir, doneSet));
+  const map = writeStatus(projectDir, buildStatusMap(projectDir, doneSet, previous));
   return { map, marked: known, known };
 }
 
@@ -147,6 +171,7 @@ module.exports = {
   TASKS_SUBDIR,
   STATUS_FILE,
   tasksDir,
+  mainCheckoutRoot,
   statusPath,
   listTaskFiles,
   parseBlockedBy,

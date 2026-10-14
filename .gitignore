@@ -17,3 +17,4 @@ eval/results-*.json
 **/.claude/channels/
 **/.claude/maestro_sessions/
 **/.claude/maestro-tasks/claims/
+**/.claude/maestro-metrics/

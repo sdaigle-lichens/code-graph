@@ -1063,42 +1063,38 @@
     }
   ],
   "rules": [],
-  "gates": {
-    "confidence_check": false,
-    "use_code_architecture_design_check": false
-  },
   "project_tags": [
     "backend",
     "frontend"
   ],
-  "runtimeVersion": "0.9.4",
+  "runtimeVersion": "0.11.23",
   "reports": {
     "backend": {
       "id": "backend",
       "syncedFrom": {
-        "version": 3,
-        "hash": "969f6afed8b4b15d29d894d333be67d0c4d7244ae41289386629db7c989c4cf9"
+        "version": 5,
+        "hash": "25cf882445e686b0cc909add0c6a3527b1ff0812402d335e0e3b4b20ebc3f8a5"
       }
     },
     "scribe": {
       "id": "scribe",
       "syncedFrom": {
-        "version": 2,
-        "hash": "524263f9a6413c3529a72a4e91471633d211b8f8fe23e92ae0d1f5f94c3cf40a"
+        "version": 5,
+        "hash": "b0c6dd1fae4e0499e4cb2866a4d76e617db4d58bb4b7f3cadc44144c9cf08fc3"
       }
     },
     "test": {
       "id": "test",
       "syncedFrom": {
-        "version": 3,
-        "hash": "6dee3d513c6fdfd267baf4ef5e75b19abdd00511b06110c8064ea601a6a0895c"
+        "version": 5,
+        "hash": "52ad831d85c50bdbc2f63044309e9fe045be7b05f0b9abb9e0a98634a3dfc272"
       }
     },
     "frontend": {
       "id": "frontend",
       "syncedFrom": {
-        "version": 3,
-        "hash": "657324cc950f6789d28bfd31d3eaf91691fc6b890617005c6c8e6d3ef2d221ca"
+        "version": 5,
+        "hash": "aeddaedc9e51a6eeddd5de3a0dd10d3dc426758a50b402b465d553d14c722e61"
       }
     }
   },
@@ -1120,8 +1116,8 @@
     "reviewer/scribe": {
       "id": "reviewer/scribe",
       "syncedFrom": {
-        "version": 2,
-        "hash": "c05bbd04950a965c222c5d960670a60695dcef0fb1e83e41b3024f3e457e3fdf"
+        "version": 3,
+        "hash": "ebcb0a8976ab0381663644b629d4eaac8856705a990cec7222963b1774d486d9"
       }
     },
     "reviewer/refactor": {
@@ -1148,8 +1144,8 @@
     "refactor/scribe": {
       "id": "refactor/scribe",
       "syncedFrom": {
-        "version": 2,
-        "hash": "a66435395f8f1faefac4c03627a17045a384fa82541fed57707017e2e1f99a30"
+        "version": 3,
+        "hash": "c83ec99fe5ed8323826ab3cbdd658c624ae371083a511de15341008a617fa528"
       }
     },
     "refactor/backend": {
@@ -1186,6 +1182,24 @@
         "version": 2,
         "hash": "fff8e492c24e792a2fe006bbe99b107914a60501bee7361f011274ea8a0ee2ff"
       }
+    },
+    "backend/frontend": {
+      "id": "backend/frontend",
+      "syncedFrom": {
+        "version": 2,
+        "hash": "5d7e6cff4ba0fc31e0469400ff373435a566cd04b995d39261b0f481ebaea59c"
+      }
     }
+  },
+  "use_maestro_tasks": true,
+  "start_skills": {
+    "maestro": [],
+    "to_maestro_tasks": [
+      "confidence-check",
+      "concept-skills:use-code-architecture-design-check"
+    ]
+  },
+  "end_skills": {
+    "maestro": []
   }
 }

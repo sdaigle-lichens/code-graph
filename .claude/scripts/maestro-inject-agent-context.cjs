@@ -47,6 +47,20 @@
 // routing, per-route protocols, and the report — for one line. The channel delivery is NOT
 // skipped: a payload may have arrived in this agent's lane between its two runs, and it doesn't
 // duplicate on its own (`retire()` already moved the first run's file to `.consumed/`).
+// `087`: nor is the REQUIRED-payload instruction — a resume gets it again, file names but no shapes,
+// because it governs the hand-back the resumed run is about to make (see `payloadRequirement`).
+//
+// TEAM MEETINGS: while this session's session.json carries a `meeting` that lists this agent type
+// as a participant (apps/maestro/src/core/meeting-mode.ts), the run is a meeting turn, not a
+// workflow step. HANDOFF routing, the per-route protocols, the report AND the channel delivery are
+// all skipped — delivery would inline and retire a same-run payload meant for this agent's next
+// workflow step — and the meeting notice is injected instead, on a first run and on a resume alike
+// (a resumed workflow agent carries its first run's routing in its history; the notice overrides
+// it). The skills blocks stay on a first run: they are what a participant reviews.
+//
+// OWNER RUNS (`081`): an agent type listed in session.json's `owner_runs` (a closed meeting's
+// approved change being applied) gets the skills and an owner-run notice, and NO routing, payload
+// protocols, channel delivery or report — it is a normal agent outside the workflow. Not write-confined.
 
 const fs = require("fs");
 const path = require("path");
@@ -64,38 +78,20 @@ const {
   projectOwnsHook,
   handoffRoutes,
   routesFrom,
-  resolveHandoff,
+  payloadRoutes,
+  payloadRequirement,
   readLane,
   retire,
   ensureSessionPaths,
   hasCompletedRun,
+  meetingFor,
+  meetingNotice,
+  ownerRunFor,
+  ownerRunNotice,
   resolveProjectSkillPath,
   isRootSkillPath,
+  readLogLines,
 } = require("./lib/maestro-session.cjs");
-
-// The resume signal (`040`): a `kind:"handoff"` entry already logged for this `agent_id`, read
-// straight off disk — best-effort, exactly like maestro-resume-target.cjs's own copy of this same
-// tiny reader. A missing or unreadable log comes back `[]`, which `hasCompletedRun` answers
-// `false` for, so the safe fall-through is a first run's full injection.
-function readLogLines(p) {
-  if (!p) return []; // `064`: no session directory resolved — treat it as an empty log.
-  let text;
-  try {
-    text = fs.readFileSync(p, "utf8");
-  } catch {
-    return [];
-  }
-  const lines = [];
-  for (const raw of text.split("\n")) {
-    if (!raw.trim()) continue;
-    try {
-      lines.push(JSON.parse(raw));
-    } catch {
-      // A malformed line is skipped, not fatal — best-effort read of a hook-written log.
-    }
-  }
-  return lines;
-}
 
 // ── nested-skill fallback (`061`) ───────────────────────────────────────────
 //
@@ -122,27 +118,17 @@ function nestedSkillNote(nested) {
     `${nested.length === 1 ? "One of these" : "Some of these"} ${nested.length === 1 ? "lives" : "live"} outside this ` +
     `project's root \`.claude/skills\`, so the Skill tool will answer "Unknown skill" for it instead of finding it:\n` +
     `${lines.join("\n")}\n\n` +
-    `Reading the file gets you its content, not the Skill tool's own resource handling — for a concept skill (prose, ` +
-    `no bundled scripts or resources) that is the whole of it, so this is not a lesser substitute here.`
+    `Reading the file gets you its content, not the Skill tool's own resource handling — for a prose-only skill with ` +
+    `no bundled scripts or resources that is the whole of it, so this is not a lesser substitute here.`
   );
 }
 
 // ── handoff protocol resolution — three tiers, one shared decision ─────────
 
-// The project tier: `.claude/handoffs/<sender>/<receiver>.md`, which install now MATERIALIZES for
-// every route the workflows wire (see apps/maestro/src/core/handoff-sync.ts) rather than leaving
-// as an undocumented escape hatch. There is no second file candidate any more: the plugin's
-// `templates/handoffs/` copy is gone, because an installer that blind-overwrites its own fallback
-// on every run means a user's edit there disappears silently.
-function readProjectHandoff(projectDir, handoffId) {
-  try {
-    const [sender, receiver] = handoffId.split("/");
-    const body = fs.readFileSync(path.join(projectDir, ".claude", "handoffs", sender, `${receiver}.md`), "utf8").trim();
-    return body || null;
-  } catch {
-    return null;
-  }
-}
+// The project tier — `.claude/handoffs/<sender>/<receiver>.md`, which install MATERIALIZES for
+// every route the workflows wire (see apps/maestro/src/core/handoff-sync.ts) — is read by
+// `payloadRoutes` (`087`, apps/maestro/src/core/handoff-payload.ts), the one resolver this hook
+// and the SubagentStop payload check share, so they cannot disagree about which routes need one.
 
 // The global tier: ~/.claude/maestro-handoff-defaults.sqlite. Wrapped in try/catch like every
 // other caller of a generated sqlite lib — an older `node` on this session's PATH (< 22.5, no
@@ -158,13 +144,9 @@ function readGlobalHandoff(handoffId) {
   }
 }
 
-// Project file -> global row -> shipped seed -> nothing. `resolveHandoff` is the same pure
-// function apps/maestro's own surfaces call, so the hook and the app cannot disagree about what
-// an agent will be told to emit.
-function handoffProtocol(projectDir, handoffId) {
-  const resolved = resolveHandoff(handoffId, readProjectHandoff(projectDir, handoffId), readGlobalHandoff(handoffId));
-  return resolved.content;
-}
+// Project file -> global row -> shipped seed -> nothing: `payloadRoutes` applies `resolveHandoff`,
+// the same pure function apps/maestro's own surfaces call, so the hook and the app cannot disagree
+// about what an agent will be told to emit.
 
 function collect(cfg, sessionPath, agentType) {
   const instances = cfg.workflow_instances || [];
@@ -179,11 +161,11 @@ function collect(cfg, sessionPath, agentType) {
 
   // loaded = auto-load before working; referenced = available, load only if the
   // task needs it. collectAgentSkills owns the node-walk + dedup (loaded wins).
-  const { loaded: loadedList, referenced: referencedList, matchedInstances } = collectAgentSkills(
-    searchList,
-    instances,
-    agentType
-  );
+  const {
+    loaded: loadedList,
+    referenced: referencedList,
+    matchedInstances,
+  } = collectAgentSkills(searchList, instances, agentType);
 
   // The route walk USED TO LIVE HERE, inline. It is `handoffRoutes()` in
   // apps/maestro/src/core/handoff-routes.ts now, reached through the generated lib, because the
@@ -296,14 +278,37 @@ function collectReportContext(cfg, projectDir, agentType) {
 
   const parts = [];
 
+  // `074`: this session works in a git worktree (another live session held a claim). Said first and
+  // on resumed runs too — a subagent that edits the main checkout instead would defeat the isolation.
+  const sessionState = sess ? readJson(sess.state) : null;
+  const wt = sessionState && sessionState.worktree;
+  if (wt && typeof wt.path === "string" && wt.path) {
+    const mainRoot = typeof wt.main_root === "string" && wt.main_root ? wt.main_root : projectDir;
+    parts.push(
+      `Git worktree: this task runs in an isolated worktree, because another Maestro session is working in the main checkout.\n` +
+        `- Work ONLY inside ${wt.path} (branch ${wt.branch || "unknown"}). Use that directory as your working directory and absolute paths under it for every read, edit and command.\n` +
+        `- Never edit files under ${mainRoot} outside \`.claude/\` — that is the other session's working tree.\n` +
+        `- The shared \`.claude/\` state stays in the main checkout: the task queue (${mainRoot}/.claude/maestro-tasks/) and handoff channels (${mainRoot}/.claude/channels/) are read and written at those absolute paths, not inside the worktree.\n` +
+        `- Your shell does NOT start in the worktree; it starts in the main checkout (${mainRoot}). Aim every command at the worktree from the first one: \`pnpm --dir ${wt.path} <cmd>\`, \`git -C ${wt.path} <cmd>\`, and absolute paths under ${wt.path}. Never \`cd\` (the project's guardrails forbid it); a bare \`pnpm\` or \`git\` runs against the main checkout.\n` +
+        `- If writing your handoff payload to a channel file under ${mainRoot}/.claude/channels/ is denied, do not stall, retry in a loop or ask the user: include the full payload (the JSON block) in your final message, before your HANDOFF: line. The orchestrator writes the channel file for you from it.\n` +
+        `- Do not merge, push, or remove the worktree or branch; the user does that.`
+    );
+  }
+
   const result = cfg && cfg.version === 3 ? collect(cfg, sess ? sess.state : null, agentType) : null;
+
+  // Team meeting: null unless this session runs one AND lists this agent type as a participant.
+  const meeting = meetingFor(sessionState, agentType);
+  // Owner run (`081`): an approved change being applied after the meeting closed. Not a workflow
+  // step either, but not write-confined — it gets its skills and a notice, and none of the routing,
+  // payload instructions, channel delivery or output format below.
+  const ownerRun = meeting ? null : ownerRunFor(sessionState, agentType);
+  const offWorkflow = !!(meeting || ownerRun);
 
   // `040`: is THIS SubagentStart a resume? See the header comment above for why `handoff` (never
   // `dispatch`, never session.json) is the right, race-proof signal. No session directory ⇒ no
   // lines ⇒ not a resume ⇒ full injection.
-  const isResume = payload.agent_id
-    ? hasCompletedRun(readLogLines(sess ? sess.log : null), payload.agent_id)
-    : false;
+  const isResume = payload.agent_id ? hasCompletedRun(readLogLines(sess ? sess.log : null), payload.agent_id) : false;
 
   if (result) {
     if (result.warning) {
@@ -336,11 +341,15 @@ function collectReportContext(cfg, projectDir, agentType) {
   // Replaces loaded_skills, referenced_skills, HANDOFF routing, the per-route protocols and the
   // report below — not silence. Placed before the channel delivery, which is the one block that
   // is NOT static and is never skipped.
-  if (isResume) {
+  if (meeting) {
+    parts.push(meetingNotice(meeting, agentType));
+  } else if (ownerRun) {
+    parts.push(ownerRunNotice(ownerRun, agentType));
+  } else if (isResume) {
     parts.push("Resumed run — the skills, handoff routes and output format from your first run still apply.");
   }
 
-  if (!isResume && result && result.routes.length > 0) {
+  if (!offWorkflow && !isResume && result && result.routes.length > 0) {
     const hasSuccess = result.routes.some((r) => r.label === "success");
     const lines = result.routes.map((r) => {
       const to = r.receiver ? ` (routes to \`${r.receiver}\`)` : "";
@@ -351,35 +360,32 @@ function collectReportContext(cfg, projectDir, agentType) {
     parts.push(
       `Handoff routing for the \`${agentType}\` agent. End your final message with exactly one \`HANDOFF:\` line so ` +
         `the orchestrator can route deterministically:\n${lines.join("\n")}` +
-        (hasSuccess ? "" : "\n(No success path leaves this node — it only feeds back via the condition above.)")
+        (hasSuccess ? "" : "\n(No success path leaves this node — it only feeds back via the condition above.)") +
+        "\n\nYour report's verdict and your HANDOFF line must agree. A real defect must end with the matching condition label " +
+        "when one is listed above. A report verdict of FAIL with `HANDOFF: success` is invalid, and so is ending with no " +
+        "HANDOFF line at all — the orchestrator is told about both and will not treat either as success."
     );
+  }
 
-    // Per-route payload protocol, resolved across the three tiers above so the communication
-    // contract is owned here rather than duplicated in the agent files. Only emitted for routes
-    // whose pair resolves to something — a wired route with no template anywhere (`scribe ->
-    // reviewer`) is silently skipped, exactly as the install-time sync skips it.
-    //
-    // `036`: the payload no longer rides in the final-message JSON. Each route names the CHANNEL
-    // FILE to write it to instead — `.claude/channels/<receiver>/<sender>.1.md` — which the
-    // receiving agent's own SubagentStart delivers on its next invocation. The orchestrator never
-    // sees the content at all.
-    const bareAgent = bareAgentName(agentType);
-    const protocols = [];
-    for (const r of result.routes) {
-      if (!r.receiver) continue;
-      const proto = handoffProtocol(projectDir, `${r.sender}/${r.receiver}`);
-      if (!proto) continue;
-      protocols.push(
-        `Route \`HANDOFF: ${r.label}\` → \`${r.receiver}\` — write this to ` +
-          `\`.claude/channels/${r.receiver}/${bareAgent}.1.md\`:\n\n${proto}`
-      );
-    }
-    if (protocols.length > 0) {
-      parts.push(
-        `When you hand off, write the shape for the route you take to your channel file, verbatim ` +
-          `(skip the write, or write an empty JSON object, when nothing applies):\n\n${protocols.join("\n\n")}`
-      );
-    }
+  // Per-route payload protocol, resolved across the three tiers above so the communication
+  // contract is owned here rather than duplicated in the agent files. Only emitted for routes
+  // whose pair resolves to something — a wired route with no template anywhere (`scribe ->
+  // reviewer`) is silently skipped, exactly as the install-time sync skips it.
+  //
+  // `036`: the payload no longer rides in the final-message JSON. Each route names the CHANNEL
+  // FILE to write it to instead — `.claude/channels/<receiver>/<sender>.1.md` — which the
+  // receiving agent's own SubagentStart delivers on its next invocation. The orchestrator never
+  // sees the content at all.
+  //
+  // `087`: the write is a REQUIRED step before the HANDOFF line (the SubagentStop hook flags a
+  // route whose payload was not written this run as `missing_payload`). A RESUMED run gets the
+  // requirement too, without the shapes: `040` drops the routing block above on a resume, and that
+  // is how task 086's second @reviewer pass ended without writing its payload — the one
+  // instruction that governs the NEW hand-back must not be static.
+  if (!offWorkflow && result && result.routes.length > 0) {
+    const routes = payloadRoutes(projectDir, result.routes, readGlobalHandoff);
+    const required = payloadRequirement(routes, { withShapes: !isResume });
+    if (required) parts.push(required);
   }
 
   // ── channel delivery — independent of workflow matching ────────────────
@@ -389,7 +395,9 @@ function collectReportContext(cfg, projectDir, agentType) {
   // lane, the bug `033` fixed on both ends of a route id. Same-run deliveries are inlined and
   // retired (moved to `.consumed/`, never deleted); anything else is only mentioned, never
   // inlined — see the header of handoff-channels.ts for why.
-  {
+  // Skipped for a meeting participant: neither inlined nor retired, so a payload waiting for this
+  // agent's next workflow step is still there when that step runs.
+  if (!offWorkflow) {
     const bareAgent = bareAgentName(agentType);
     const entries = readLane(projectDir, bareAgent);
     if (entries.length > 0) {
@@ -401,7 +409,19 @@ function collectReportContext(cfg, projectDir, agentType) {
       const delivered = runId ? entries.filter((e) => e.runId === runId) : [];
       const waiting = runId ? entries.filter((e) => e.runId !== runId) : entries;
 
-      if (delivered.length > 0) {
+      // `088`: a RESUME is never handed this hook's additionalContext (Claude Code runs the hook on
+      // a SendMessage resume and drops its output — task 085's backend found its lane empty because
+      // this branch had inlined the reviewer's payload into the void and retired it). So a resumed
+      // run's current-run files stay in the lane: the orchestrator names them in its SendMessage
+      // (`maestro-resume-target.cjs` prints them as `deliver:` lines and records them), and this
+      // agent's own SubagentStop retires them (maestro-subagent-log.js). Mentioned here only in
+      // case a future Claude Code does deliver resume context.
+      if (isResume && delivered.length > 0) {
+        const lines = delivered.map((e) => `- from \`${e.sender}\`: \`.claude/channels/${bareAgent}/${e.fileName}\``);
+        parts.push(
+          `In your channel from this run — Read each file before you start (it is retired when this run ends):\n${lines.join("\n")}`
+        );
+      } else if (delivered.length > 0) {
         const blocks = delivered.map((e) => `From \`${e.sender}\` (\`${e.fileName}\`):\n\n${e.body.trim()}`);
         parts.push(
           `Delivered to your channel (\`.claude/channels/${bareAgent}/\`) — inlined verbatim, nothing to re-derive:\n\n` +
@@ -448,7 +468,7 @@ function collectReportContext(cfg, projectDir, agentType) {
   // (project or global), regardless of whether `result` matched a workflow instance at all. Still
   // one of the five static blocks `040` skips on a resume — it governs the NEW final message the
   // resumed agent is about to write, but that message is already in its history from the first run.
-  if (!isResume) {
+  if (!offWorkflow && !isResume) {
     const reportPart = collectReportContext(cfg, projectDir, agentType);
     if (reportPart) parts.push(reportPart);
   }

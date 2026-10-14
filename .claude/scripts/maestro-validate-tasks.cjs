@@ -116,9 +116,7 @@ function writeTasks(tasksFile, data) {
     // --- Resolve the created task's step label ---
     const ti = p.tool_input || {};
     let resolvedLabel =
-      (ti.metadata && ti.metadata.maestro_step) ||
-      heuristicMatch(ti.subject, ti.description, [...allLabels]) ||
-      null;
+      (ti.metadata && ti.metadata.maestro_step) || heuristicMatch(ti.subject, ti.description, [...allLabels]) || null;
 
     // "mark-task-done" is a synthetic terminal step the orchestrator appends when
     // the run came from a task-queue file (it runs maestro-task-status.cjs done at

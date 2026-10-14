@@ -8,5 +8,32 @@
     "blockedBy": [
       "001-desktop-app-shell-with-project-and-concept-management.md"
     ]
+  },
+  "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "004-graph-layer-freshness-and-docs-only-concepts.md": {
+    "status": "ready",
+    "blockedBy": [
+      "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md": {
+    "status": "ready",
+    "blockedBy": [
+      "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "006-dogfood-parity-check-and-publish-the-code-graph-plugin.md": {
+    "status": "blocked",
+    "blockedBy": [
+      "004-graph-layer-freshness-and-docs-only-concepts.md",
+      "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md"
+    ],
+    "epic": "absorb-concept-skills"
   }
 }

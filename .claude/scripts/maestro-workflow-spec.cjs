@@ -24,6 +24,12 @@
 //       stands right now — read-only, for a skill that needs to show the CURRENT spec (e.g. so the
 //       user's request to `update-workflow` reads as a diff against it).
 //
+//   node maestro-workflow-spec.cjs delete --name <workflow> [projectDir]
+//       Remove the named workflow, write .claude/maestro.json, re-render the orchestrator. Refuses
+//       (exit 1, writes nothing) when no such workflow exists or it is the ONLY one. Its instances
+//       are kept — they hold the skill placements — and any no remaining workflow places are listed
+//       as `unplacedInstances`. Prints one line of JSON: { ok, mode, workflow, unplacedInstances, render }.
+//
 // `projectDir` defaults to $CLAUDE_PROJECT_DIR, then the process's cwd — the same convention every
 // other script here follows. Self-contained aside from its two `./lib/` requires, so
 // maestro-install.js can copy it into a project's .claude/scripts/ like every other CLI here.
@@ -31,7 +37,7 @@
 const fs = require("fs");
 const path = require("path");
 const { readJson } = require("./lib/maestro-session.cjs");
-const { applyWorkflowSpec, workflowToSpec } = require("./lib/maestro-workflow-spec.cjs");
+const { applyWorkflowSpec, workflowToSpec, deleteWorkflow } = require("./lib/maestro-workflow-spec.cjs");
 const { render } = require("./maestro-render-orchestrator.cjs");
 
 function die(msg) {
@@ -162,16 +168,51 @@ function runToSpec() {
   process.stdout.write(JSON.stringify(spec) + "\n");
 }
 
+function runDelete() {
+  const name = flag("name");
+  if (!name) die("--name <workflow> is required");
+  // Re-read first, for the same three-writer reason runApply gives.
+  const cfg = loadConfig();
+  if (!cfg) die(`no valid .claude/maestro.json (v3) found under ${projectDir} — run /maestro-install first.`);
+
+  const result = deleteWorkflow(cfg, name);
+  if (result.errors.length > 0) {
+    for (const e of result.errors) process.stderr.write(`maestro-workflow-spec: ${e}\n`);
+    process.exit(1);
+  }
+
+  // Slice-merge: only `workflows` changes; everything else of the freshly-read config is kept.
+  const toWrite = { ...cfg, workflows: result.config.workflows };
+  const text = JSON.stringify(toWrite, null, 2); // NO trailing newline — byte-format is load-bearing.
+  const tmp = maestroJsonPath + ".tmp";
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, maestroJsonPath);
+
+  const renderResult = render(projectDir);
+  process.stdout.write(
+    JSON.stringify({
+      ok: true,
+      mode: "delete",
+      workflow: name,
+      unplacedInstances: result.unplacedInstances,
+      render: renderResult.ok ? { ok: true, issues: renderResult.issues } : { ok: false, reason: renderResult.reason },
+    }) + "\n"
+  );
+}
+
 if (command === "create" || command === "update") {
   runApply(command);
 } else if (command === "to-spec") {
   runToSpec();
+} else if (command === "delete") {
+  runDelete();
 } else {
   process.stderr.write(
     "maestro-workflow-spec: unknown command. Usage:\n" +
       "  maestro-workflow-spec.cjs create --spec-file <path.json> [projectDir]\n" +
       "  maestro-workflow-spec.cjs update --spec-file <path.json> [projectDir]\n" +
-      "  maestro-workflow-spec.cjs to-spec --name <workflow> [projectDir]\n"
+      "  maestro-workflow-spec.cjs to-spec --name <workflow> [projectDir]\n" +
+      "  maestro-workflow-spec.cjs delete --name <workflow> [projectDir]\n"
   );
   process.exit(1);
 }

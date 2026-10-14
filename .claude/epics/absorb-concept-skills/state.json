@@ -1,0 +1,30 @@
+{
+  "slug": "absorb-concept-skills",
+  "created_at": "2026-10-14T02:05:38.811Z",
+  "manager": {
+    "name": "code-graph-44",
+    "set_at": "2026-10-14T02:06:52.010Z"
+  },
+  "workers": [
+    {
+      "name": "code-graph-02",
+      "task": "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md",
+      "added_at": "2026-10-14T02:54:46.295Z"
+    }
+  ],
+  "log": [
+    {
+      "kind": "report",
+      "id": "r001",
+      "task": "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md",
+      "file": "inbox/r001-003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md",
+      "at": "2026-10-14T02:54:32.697Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r001",
+      "at": "2026-10-14T02:54:46.329Z",
+      "by": "code-graph-44"
+    }
+  ]
+}

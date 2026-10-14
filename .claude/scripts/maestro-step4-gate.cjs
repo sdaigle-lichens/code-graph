@@ -2,7 +2,7 @@
 // Prints this project's Step 4 task-routing configuration as ONE directive line, for injection
 // into the orchestrator skill body through Claude Code's !`command` dynamic-context syntax:
 //
-//   !`node "${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/maestro-step4-gate.cjs"`
+//   !`node .claude/scripts/maestro-step4-gate.cjs`
 //
 // Reads `use_maestro_tasks` from <projectDir>/.claude/maestro.json. When true, tells the
 // orchestrator to consider running /to-maestro-tasks at this point to queue up follow-up work;

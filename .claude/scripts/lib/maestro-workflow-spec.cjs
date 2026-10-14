@@ -24,6 +24,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var maestro_workflow_spec_exports = {};
 __export(maestro_workflow_spec_exports, {
   applyWorkflowSpec: () => applyWorkflowSpec,
+  deleteWorkflow: () => deleteWorkflow,
   workflowToSpec: () => workflowToSpec
 });
 module.exports = __toCommonJS(maestro_workflow_spec_exports);
@@ -384,8 +385,33 @@ function workflowToSpec(wf, _instances) {
   const conditions = wf.edges.filter((e) => e.kind === "condition" && e.label).map((e) => ({ from: tokenFor(e.from), to: tokenFor(e.to), label: e.label }));
   return { name: wf.name, steps, conditions: conditions.length > 0 ? conditions : void 0 };
 }
+function deleteWorkflow(cfg, name) {
+  const target = cfg.workflows.find((w) => w.name === name);
+  if (!target) {
+    const available = cfg.workflows.map((w) => w.name);
+    return {
+      config: cfg,
+      unplacedInstances: [],
+      errors: [`No workflow named "${name}". Available: ${available.length > 0 ? available.join(", ") : "(none)"}.`]
+    };
+  }
+  if (cfg.workflows.length === 1) {
+    return {
+      config: cfg,
+      unplacedInstances: [],
+      errors: [`"${name}" is the only workflow; a project needs at least one.`]
+    };
+  }
+  const workflows = cfg.workflows.filter((w) => w.name !== name);
+  const stillPlaced = new Set(workflows.flatMap((w) => w.nodes.map((n) => n.instance).filter(Boolean)));
+  const unplacedInstances = [
+    ...new Set(target.nodes.map((n) => n.instance).filter((i) => !!i && !stillPlaced.has(i)))
+  ];
+  return { config: { ...cfg, workflows }, unplacedInstances, errors: [] };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   applyWorkflowSpec,
+  deleteWorkflow,
   workflowToSpec
 });

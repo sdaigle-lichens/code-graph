@@ -28,7 +28,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { ensureSessionPaths } = require("./lib/maestro-session.cjs");
+const { ensureSessionPaths, closeMeeting, closeOwnerRuns } = require("./lib/maestro-session.cjs");
 
 // Parse args: the first non-flag positional is the workflow name; `--task <f>`
 // (or `--task=<f>`) carries the optional task filename.
@@ -99,13 +99,22 @@ try {
   // Only touch active_task when a task was passed, so re-running this mid-session
   // to switch workflows doesn't silently forget the task being completed.
   if (activeTask) updated.active_task = activeTask;
+  // Starting a workflow ends any team meeting in this session: a meeting participant's runs skip
+  // HANDOFF routing and channel delivery, which a workflow step must never do. The one writer that
+  // deliberately removes a key (see apps/maestro/src/core/meeting-mode.ts). `closeMeeting` also
+  // records the participants' unstamped lane files as `meeting_leftovers`, so the sender's next
+  // workflow SubagentStop never stamps one as its own payload — the same close `end` performs.
+  const { state: meetingClosed, ended: endedMeeting } = closeMeeting(updated, projectDir);
+  // Likewise an owner-run marker (`081`): a workflow step must never be treated as an owner run.
+  const { state: closed } = closeOwnerRuns(meetingClosed, projectDir);
 
   const tmp = sessionPath + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(updated, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(closed, null, 2));
   fs.renameSync(tmp, sessionPath);
 
   const taskNote = activeTask ? `, active task "${activeTask}"` : "";
   process.stdout.write(`Maestro session: active workflow set to "${resolvedName}"${taskNote}\n`);
+  if (endedMeeting) process.stdout.write("Maestro session: the team meeting that was in progress has been ended.\n");
   process.exit(0);
 } catch (err) {
   process.stderr.write(`maestro-set-session-workflow: ${err.message}\n`);

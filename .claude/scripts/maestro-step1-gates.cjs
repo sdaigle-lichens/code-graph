@@ -1,41 +1,34 @@
 #!/usr/bin/env node
-// Prints this project's Step 1 gate configuration as ONE directive line, for injection into the
-// orchestrator skill body through Claude Code's !`command` dynamic-context syntax:
+// Prints this project's START skills as ONE directive line, for injection into a skill body
+// through Claude Code's !`command` dynamic-context syntax:
 //
-//   !`node "${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/maestro-step1-gates.cjs"`
+//   !`node .claude/scripts/maestro-step1-gates.cjs`
+//   !`node "${CLAUDE_PLUGIN_ROOT}/scripts/maestro-step1-gates.cjs" --for to_maestro_tasks`
 //
-// Reads `gates` from <projectDir>/.claude/maestro.json and prints THE WHOLE OF STEP 1 for this
-// project — not a flag the skill body then branches on. All four combinations are valid and none is
-// nested under another: the design check runs on its own perfectly well, and neither on means the
-// line simply says to continue to Step 2.
+// Reads `start_skills` from <projectDir>/.claude/maestro.json (an absent one is an empty
+// list — all of that lives in `resolveSkillLists`, the SAME function the
+// desktop app uses, bundled into lib/maestro-skill-lists.cjs) and prints THE WHOLE OF Step 1 for
+// this project: it names the configured skills in order and says nothing about any one of them.
+// Each skill states its own stop rule in its own output; the line only says to honour it.
 //
-// The template's Step 1 is three lines that amount to "do what the injected line says", plus the
-// one thing this script cannot speak to: what to do when its output never arrives at all. Keep it
-// that way. Moving a branch back into SKILL.md costs tokens on every orchestration including the
-// default (both gates off) and gives the wording somewhere to drift from the logic — the argument
-// maestro-check-runtime.cjs's header already makes at length.
+// `--for to_maestro_tasks` selects the `/to-maestro-tasks` list instead of the orchestrator's. That
+// skill runs the plugin's own copy of this file through ${CLAUDE_PLUGIN_ROOT}, so a project without
+// the runtime installed does not abort it. Any other argument (or none) means the orchestrator.
 //
 // THE CONTRACT, and every clause of it is load-bearing:
 //
-//   * Takes NO arguments.
 //   * Exits 0 unconditionally, and writes NOTHING to stderr. There is no failure branch. An
 //     injected command that exits non-zero ABORTS the whole skill invocation, and Claude then
-//     never sees the orchestrator body at all — so every degenerate case (no maestro.json, a
-//     corrupt one, version !== 3, no `gates`, a `gates` that isn't a plain object, a gate whose
-//     value isn't a boolean, any unexpected throw) resolves quietly to LINES.none rather than
-//     to an error. That is the same "absent means off" stance `resolveGates` takes in
-//     apps/maestro/src/core/config.ts, which this file mirrors — it cannot import from src/core,
-//     so a change to that rule needs the same change here.
-//   * Writes exactly one newline-terminated line on stdout, one of the four in LINES below. One
-//     line even though each is now several sentences: it keeps the contract trivially assertable,
-//     and the skill body refers to "the line above".
+//     never sees the skill body at all — so every degenerate case (no maestro.json, a corrupt one,
+//     version !== 3, wrong types, any unexpected throw) resolves quietly to a line, never an error.
+//   * Writes exactly one newline-terminated line on stdout. One line even though it is several
+//     sentences: it keeps the contract trivially assertable.
 //
-// Self-contained on purpose: the installers copy it into the project's .claude/scripts/ so the
-// orchestrator skill can name it by $CLAUDE_PROJECT_DIR path.
+// Self-contained on purpose: the installers copy it (and its lib) into the project's
+// .claude/scripts/ so the orchestrator skill can name it by $CLAUDE_PROJECT_DIR path.
 
 const fs = require("fs");
 const path = require("path");
-const { appendSessionLog } = require("./lib/maestro-session.cjs");
 
 // Best-effort `kind:"phase"` marker so /session-log and /maestro-post-mortem can see where Step 1
 // falls in the log — no `ctx_pct` here, since this script runs via `!`command`` substitution with
@@ -43,12 +36,10 @@ const { appendSessionLog } = require("./lib/maestro-session.cjs");
 // throws and never touches stdout/stderr: the one-line stdout contract below is load-bearing.
 //
 // `064`: WHICH session's log it lands in is resolved by `appendSessionLog` itself, from the
-// CLAUDE_CODE_SESSION_ID environment variable — there is no payload to carry a `session_id`, which
-// is exactly why the env fallback exists. With no id resolvable the append is a silent no-op and
-// the marker is simply skipped: the previously accepted limitation, now the fallback rather than
-// the normal path. The call site is unchanged, and so is every clause of the contract above.
+// CLAUDE_CODE_SESSION_ID environment variable. With no id resolvable the append is a silent no-op.
 function logPhase(projectDir) {
   try {
+    const { appendSessionLog } = require("./lib/maestro-session.cjs");
     const claudeDir = path.join(projectDir, ".claude");
     if (!fs.existsSync(path.join(claudeDir, "maestro.json"))) return;
     appendSessionLog(claudeDir, {
@@ -63,66 +54,56 @@ function logPhase(projectDir) {
   }
 }
 
-// The WHOLE of Step 1, one sentence-set per resolved state — not a terse flag the template then
-// branches on. Same collapse maestro-check-runtime.cjs makes with its INSTRUCTIONS map, and for the
-// same reason: a branch table in SKILL.md is re-read at the top of every single orchestration
-// including the common one, and prose that re-derives a decision made here can disagree with it.
-// The template's Step 1 is now "do what this line says", so these are what the orchestrator obeys.
+const NAMES = (list) => list.map((id) => "/" + id).join(", then ");
+
+const HONOUR = "If a start skill says to stop or asks the user something, do that before continuing.";
+
 const LINES = {
-  both:
-    "Step 1 — run these two gates now, in this order, and no others: /confidence-check, then " +
-    "/use-code-architecture-design-check. Use the Skill tool for each, in your own context — never dispatch a " +
-    "subagent for them. If confidence is low, gather more information; if the design check raises " +
-    "issues, address them. Both are gates on the same thing — that the request is understood well " +
-    "enough to commit a workflow to it — so clear them before Step 2. If this project doesn't " +
-    "actually have one of them, skip it and say so; never invent one. Then continue to Step 2.",
-  confidence:
-    "Step 1 — run this one gate now, and no others: /confidence-check. Use the Skill tool, in your " +
-    "own context — never dispatch a subagent for it. If confidence is low, gather more information " +
-    "before committing a workflow to the request. If this project doesn't actually have that " +
-    "skill, skip it and say so; never invent one. Then continue to Step 2.",
-  design:
-    "Step 1 — run this one gate now, and no others: /use-code-architecture-design-check. Use the Skill tool, in your " +
-    "own context — never dispatch a subagent for it. If it raises issues, address them before " +
-    "committing a workflow to the request. If this project doesn't actually have that skill, skip " +
-    "it and say so; never invent one. Then continue to Step 2.",
+  maestro: (list) =>
+    "Step 1 — run these start skills now, in this order, and no others: " +
+    NAMES(list) +
+    ". Use the Skill tool for each, in your own context — never dispatch a subagent for them. " +
+    HONOUR.replace("continuing", "Step 2") +
+    " Then continue to Step 2.",
+  to_maestro_tasks: (list) =>
+    "Run these start skills now, in this order, and no others: " +
+    NAMES(list) +
+    ". Use the Skill tool for each, in your own context. " +
+    HONOUR.replace("continuing", "the next step") +
+    " Then continue with the next step.",
   // Printed rather than staying silent on purpose: an explicit line says the script RAN and the
-  // answer is deliberate. Silence is indistinguishable from a broken or missing script, which the
-  // template has to treat the same way but for a different reason.
-  none: "Step 1 — no gates are enabled for this project. Do nothing here; continue straight to Step 2.",
+  // answer is deliberate. Silence is indistinguishable from a broken or missing script.
+  maestroNone:
+    "Step 1 — no start skills are configured for this project. Do nothing here; continue straight to Step 2.",
+  to_maestro_tasksNone:
+    "No start skills are configured for this project. Do nothing here; continue with the next step.",
 };
 
-function gateLine(projectDir) {
+function startLine(projectDir, target) {
   let config = null;
   try {
     config = JSON.parse(fs.readFileSync(path.join(projectDir, ".claude", "maestro.json"), "utf8"));
   } catch {
-    return LINES.none; // absent, unreadable, or not JSON
+    config = null; // absent, unreadable, or not JSON: the resolver's degenerate answer
   }
-  if (!config || typeof config !== "object" || config.version !== 3) return LINES.none;
-
-  const gates = config.gates;
-  if (!gates || typeof gates !== "object" || Array.isArray(gates)) return LINES.none;
-
-  // Strict `=== true`: a string, a number, null or a missing field is off, never truthy.
-  const confidence = gates.confidence_check === true;
-  const design = gates.use_code_architecture_design_check === true;
-
-  if (confidence && design) return LINES.both;
-  if (confidence) return LINES.confidence;
-  if (design) return LINES.design;
-  return LINES.none;
+  const { resolveSkillLists } = require("./lib/maestro-skill-lists.cjs");
+  const lists = resolveSkillLists(config);
+  const list = target === "to_maestro_tasks" ? lists.toMaestroTasksStart : lists.maestroStart;
+  if (list.length === 0) return LINES[target + "None"];
+  return LINES[target](list);
 }
 
+const argv = process.argv.slice(2);
+const forIdx = argv.indexOf("--for");
+const target = forIdx !== -1 && argv[forIdx + 1] === "to_maestro_tasks" ? "to_maestro_tasks" : "maestro";
 const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
-let line = LINES.none;
+let line = LINES[target + "None"];
 try {
-  line = gateLine(projectDir);
+  line = startLine(projectDir, target);
 } catch {
-  // Belt and braces: gateLine already swallows the expected failures, and anything it doesn't
-  // must still not take the orchestrator down with it.
-  line = LINES.none;
+  // Belt and braces: anything that escapes must still not take the skill down with it.
+  line = LINES[target + "None"];
 }
-logPhase(projectDir);
+if (target === "maestro") logPhase(projectDir);
 process.stdout.write(line + "\n");
 process.exit(0);
