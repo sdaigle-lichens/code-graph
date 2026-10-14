@@ -16,7 +16,7 @@ routes into this skill with the uncovered files as the seed.
 
 ## Preconditions
 
-1. `scribe.config.json` must exist. If it does not, use `/code-graph-init` first.
+1. `scribe.config.json` must exist. If it does not, use `create-concept-skills` first (it replaced the one-time `/code-graph-init`).
 2. A seed must be provided: a file path, directory, or symbol name that is the *center* of the
    domain. If no seed is given, run `code-graph catalog --json` repo-wide and use name-match
    to locate likely roots (more expensive; prefer a seed when one is available).
@@ -40,7 +40,7 @@ to locate the file.
 Run the catalog scoped to the seed's neighborhood rather than repo-wide:
 
 ```bash
-code-graph catalog --json
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" catalog --json
 ```
 
 (Catalog is always repo-wide but fast — ~seconds. Use the output to look up the seed file's
@@ -149,20 +149,31 @@ exactly as-is.
 Immediately after writing the config, run the zero-token structural build:
 
 ```bash
-code-graph extract <concept>
-code-graph apply <concept>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" extract <concept>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```
 
 Do not run `/scribe-enrich` — no SKILL.md exists yet, and enrichment is incremental by design.
+
+## Step 8 — hand off to `update-single-concept-skill`
+
+The concept needs a SKILL.md, and writing one is that skill's job, not this one's. Offer to invoke
+the `update-single-concept-skill` skill for the new concept (a new concept is a skeleton, so the pass is
+broad — mechanism, file map, relationships, traps — then it stamps, runs `extract` + `apply` and
+offers `/scribe-enrich`). If the user declines, leave it declared and say so.
 
 Report to the user:
 ```
 Added and built `web/workorder-store` structurally (N vertices, M edges).
 
-Enrich it when you're working in it:
-  1. Write its SKILL.md at .claude/skills/workorder-store/SKILL.md
-  2. Run /scribe-enrich web/workorder-store
+Next: update-single-concept-skill web/workorder-store  (writes its SKILL.md, stamps it)
+Then: /scribe-enrich web/workorder-store
 ```
+
+**No tsconfig:** `catalog`, `extract` and `apply` need one. Without it, still add the config key
+(hand-picked globs from the seed's directory), skip steps 2–3 and 7, and go straight to the
+hand-off — a concept skill and its git-diff staleness window (`code-graph skills status`) work with
+no graph.
 
 ## Hard rules
 
@@ -170,6 +181,8 @@ Enrich it when you're working in it:
 - **Require scribe.config.json** — stop with a helpful message if it's missing.
 - **Hub exclusion** — if the seed is a hub, warn and ask for a better seed.
 - **Never auto-run /scribe-enrich** — no SKILL.md = enrichment fails; always defer.
-- **No SKILL.md scaffolding** — an empty stub pollutes the graph; omit the `skill` field.
+- **No empty-stub SKILL.md from this skill** — an empty stub pollutes the graph; omit the `skill`
+  field until `update-single-concept-skill` writes a real one, and hand off to it (step 8) instead of
+  refusing or scaffolding.
 - **Overlap is surfaced, never resolved** — overlap is allowed by design.
 - **Per-concept approval is mandatory** — never write without explicit user acceptance.

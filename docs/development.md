@@ -93,9 +93,16 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
   plugin/                   the Claude Code plugin (--plugin-dir target)
     commands/
       graph.md              /graph slash command
-      scribe-enrich.md      /scribe-enrich slash command
-    skills/
-      scribe-code-graph/SKILL.md
+      scribe-enrich.md      /scribe-enrich slash command (runs the scribe skill's enrichment)
+      add-concept.md        /add-concept slash command
+      code-graph-init.md    /code-graph-init — alias for the create-concept-skills skill
+    skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
+      create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
+      scribe                placement rule, extract+apply rule, gap channel, enrichment procedure
+      cleanup-skill, load-concept-skills, explore-concept-skills                    building blocks
+      code-architecture-design, use-code-architecture-design-check                  design gate + brief
+      code-graph-install, code-graph-update, code-graph-uninstall                   per-project setup
+      add-concept, code-graph-retrieval                                            graph-side skills
     scripts/
       code-graph.cjs        GENERATED bundle of src/cli.ts, committed — do not edit
   editor/zed-code-graph/    Zed extension (Rust → wasm; cargo, not pnpm)

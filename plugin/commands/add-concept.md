@@ -48,7 +48,9 @@ the *judgment* of proposing the right globs.
 
 3. When done, remind the user:
    - The concept is structurally queryable now (impact / cross / vertex all work)
-   - Enrichment is deferred: write a SKILL.md, then run `/scribe-enrich <concept>`
+   - The skill offers to hand off to `update-single-concept-skill`, which writes the concept's
+     SKILL.md and stamps it; then run `/scribe-enrich <concept>`. `add-concept` never scaffolds an
+     empty SKILL.md itself, and never refuses on that account.
 
 ## Exit conditions
 
