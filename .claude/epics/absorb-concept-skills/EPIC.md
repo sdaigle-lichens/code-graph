@@ -41,3 +41,7 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   create/update/install flows inside Claude and a real Node <22.5 — maestro task 106 (switch maestro
   to code-graph, dogfood the scribe) is the natural live run. The version goes to code-graph-cutover
   as a note once 0.3.0 is committed and pushed (maestro-ca, its recorded manager, is not running).
+- 0.3.0 committed (6b97d5d) and installed locally from the repo dir; maestro-1c now manages
+  code-graph-cutover. Its finding: 0.3.0 still ships superseded commands. Decision (task 007): drop
+  /scribe-enrich, /code-graph-init and the /add-concept command (skill stays), keep /graph, list the
+  full surface in docs, publish 0.3.1 and tell maestro-1c.

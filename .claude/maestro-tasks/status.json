@@ -35,5 +35,10 @@
       "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md"
     ],
     "epic": "absorb-concept-skills"
+  },
+  "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }
