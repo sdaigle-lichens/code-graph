@@ -62,7 +62,8 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
         index.ts            programmatic surface — the pure read path, no process.exit
         config.ts           scribe.config.json loader
         version.ts          package version/root, from dist/ or the bundle
-        project-deps.ts     requireFromProject — bundle loads typescript/ts-morph from the project
+        project-deps.ts     requireFromProject — plugin deps dir first, then the project's own ts-morph
+        deps.ts             deps install|status — npm-installs pinned ts-morph into the plugin deps dir
         schema.ts           Zod types (Vertex, Edge, …)
         catalog/
           catalog.ts        repo-wide symbol catalog (ts-morph)
@@ -135,8 +136,9 @@ bundle of `src/cli.ts` that is **committed** because the plugin ships by file co
 read `git diff plugin/scripts/` — a broken build script leaves the old bundle working while source
 changes silently stop reaching the plugin.
 
-- `typescript` and `ts-morph` are not bundled: `requireFromProject` loads the consumer project's own
-  copy, and a project without them fails with "install dependencies first".
+- `typescript` and `ts-morph` are not bundled: `requireFromProject` loads `ts-morph` from the
+  plugin-owned deps dir (`code-graph deps install`) first, then the consumer project's own copy; with
+  neither, the error names `deps install`.
 - The `skills` command group (layer 1) must never load `node:sqlite`, `typescript` or `ts-morph`, so
   it runs in any repo on any supported Node. `cli.ts` imports every graph module lazily, inside its
   command — keep new ones that way.

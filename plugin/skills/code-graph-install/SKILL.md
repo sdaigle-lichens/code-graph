@@ -70,6 +70,19 @@ $ARGUMENTS
    recorded → point at `update-concept-skills`. A repo with no `tsconfig` is fine: concept skills and
    their staleness tracking work without a graph.
 
-6. **Report** in a few lines: whether the plugin was newly enabled, whether a legacy file was migrated
+6. **Keep the store out of git.** The graph store is `scribe-output/graph.db` (plus `-shm`/`-wal`),
+   or the `dbPath` in `scribe.config.json` when set. Ignore the database files only, never the whole
+   `scribe-output/` directory: the `.ast.json` / `.enriched.json` beside it are how a graph is shared.
+   Read `${CLAUDE_PROJECT_DIR:-.}/.gitignore` (missing is empty) and, per pattern not already covered
+   by an existing line, append it: `scribe-output/graph.db*` (or `<dbPath>*` relative to the config's
+   directory). Skip the step when a line already ignores it; a re-run must add nothing.
+
+7. **Graph dependencies (only for projects with TypeScript concepts).** The graph commands need
+   `ts-morph`, which the plugin does not bundle. Run `cg deps status`. If `ts-morph` shows `missing`,
+   tell the user that `cg deps install` downloads it from the npm registry into the plugin's own
+   directory (not the project), and offer to run it. If it resolves (plugin or project), do nothing.
+   Skip the whole step for a repo with no `tsconfig` or only docs-only concepts.
+
+8. **Report** in a few lines: whether the plugin was newly enabled, whether a legacy file was migrated
    (and the version it carried), the agents recorded, and the next command. Tell the user to restart
    Claude Code (or run `/reload-plugins`) if the plugin's skills do not show up straight away.

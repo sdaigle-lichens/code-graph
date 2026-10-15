@@ -27,6 +27,18 @@ const lazy = {
   gaps: () => import("./query/gaps.js"),
 };
 
+/**
+ * True (after printing why) when the config declares no concepts: graph commands that iterate
+ * concepts then exit 0 without loading typescript, ts-morph or the store. A missing config still
+ * exits 5 inside `loadConfig`.
+ */
+async function skippedForNoConcepts(command: string): Promise<boolean> {
+  const { loadConfig } = await import("./config.js");
+  if (Object.keys(loadConfig(process.cwd()).concepts).length > 0) return false;
+  console.log(`${command}: no concepts configured in scribe.config.json, skipped`);
+  return true;
+}
+
 const program = new Command();
 program.name("code-graph").version(packageVersion());
 
@@ -135,6 +147,7 @@ program
   .description("extract AST for a concept")
   .action(async (concept: string) => {
     try {
+      if (await skippedForNoConcepts("extract")) return;
       // A docs-only concept needs no TypeScript compiler, so it must not load ts-morph.
       const { loadConfig } = await import("./config.js");
       const { isDocsOnly, extractDocsOnly } = await import("./scribe/ast-output.js");
@@ -163,6 +176,7 @@ program
         console.error("apply failed: --json needs --dry-run");
         process.exit(1);
       }
+      if (await skippedForNoConcepts("apply")) return;
       const { apply } = await import("./scribe/apply.js");
       await apply(concept, {
         dryRun: opts.dryRun ?? false,
@@ -181,6 +195,7 @@ program
   .option("--json", "emit the drift as JSON (names and files)")
   .action(async (concept: string, opts: { json?: boolean }) => {
     try {
+      if (await skippedForNoConcepts("drift")) return;
       const { apply } = await import("./scribe/apply.js");
       await apply(concept, { dryRun: true, approveDrift: false, json: opts.json ?? false });
     } catch (err) {
@@ -422,11 +437,29 @@ program
     await deleteConcept(name, { yes: opts.yes ?? false });
   });
 
+const deps = program.command("deps").description("manage the plugin-owned ts-morph install used by graph commands");
+
+deps
+  .command("install")
+  .description("install pinned ts-morph into the plugin deps directory (downloads from the npm registry)")
+  .action(async () => {
+    const { depsInstall } = await import("./deps.js");
+    process.exitCode = depsInstall();
+  });
+
+deps
+  .command("status")
+  .description("show where ts-morph resolves from: plugin deps directory, then the project")
+  .action(async () => {
+    const { depsStatus } = await import("./deps.js");
+    depsStatus();
+  });
+
 registerSkillsCommands(program);
 
 program.parseAsync().catch((err: Error) => {
-  // The bundled plugin script resolves ts-morph from the project; a project that has not installed
-  // its dependencies lands here, and that message is the whole diagnosis.
+  // The bundled plugin script resolves ts-morph from the plugin deps directory, then the project;
+  // when neither has it the error lands here, and that message (naming `deps install`) is the diagnosis.
   console.error(`code-graph: ${err?.message ?? err}`);
   process.exit(1);
 });

@@ -38,8 +38,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 ## Traps
 
-- `extract` needs `typescript`/`ts-morph` from the *project's* node_modules (`requireFromProject`);
-  `apply` and `search` do not. Docs-only concepts skip ts-morph entirely.
+- `extract` needs `ts-morph` via `requireFromProject`: the plugin deps dir (`deps install`) first, then
+  the project's node_modules; `apply` and `search` do not. With no `concepts` configured, `extract`,
+  `apply` and `drift` skip with exit 0. Docs-only concepts skip ts-morph entirely.
 - `pnpm format` rewrites bodies, changing `contentHash` and marking enrichment stale: re-graph after.
 - The FTS index is rebuilt wholesale at the end of every `apply`; a half-failed apply leaves a stale index.
 

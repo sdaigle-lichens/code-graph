@@ -24,8 +24,15 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 `plugin/scripts/code-graph.cjs`, which plugin skills run with no `node_modules` beside it.
 
 - `typescript`/`ts-morph` are not bundled: every import goes through `requireFromProject`
-  (`project-deps.ts`, `createRequire(<project>/package.json)`); missing →
-  `MissingProjectDependencyError` ("install dependencies first").
+  (`project-deps.ts`). Resolution order: (a) plugin-owned deps dir (`$CLAUDE_PLUGIN_DATA/deps`, then
+  `<XDG_CACHE_HOME|~/.cache>/code-graph/deps/<version>`; both searched), populated only by the
+  explicit `code-graph deps install` (`deps.ts`, npm, pins `PINNED_DEPS` — ts-morph only, it carries
+  its own compiler; keep in step with package.json); (b) the project's own install via
+  `createRequire(<project>/package.json)`. Neither → `MissingProjectDependencyError` naming
+  `deps install`. Never download inside a graph command.
+- `extract`/`apply`/`drift` with no `concepts` in the config exit 0 with a skip message before
+  importing anything heavy (`skippedForNoConcepts` in `cli.ts`); keep new concept-iterating commands
+  behind it.
 - The version is baked in as `__CODE_GRAPH_VERSION__` and `packageRoot()` is null in the bundle —
   read version/package dir through `version.ts`, never `package.json`.
 - **Layer 1 never loads the graph stack.** `skills *` must not load `node:sqlite`, `typescript` or

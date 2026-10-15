@@ -8,8 +8,8 @@
 //
 // Two dependencies are deliberately NOT bundled: `typescript` and `ts-morph` (tens of megabytes).
 // Every import of either is rewritten to `requireFromProject` (src/project-deps.ts), which loads
-// the project's own copy via `createRequire(<project>/package.json)` and fails with an
-// install-dependencies message when it is missing. `node:sqlite` is a builtin and stays a plain
+// the copy in the plugin-owned deps directory (`code-graph deps install`) first, then the project's
+// own via `createRequire(<project>/package.json)`, and fails naming `deps install` when neither has it. `node:sqlite` is a builtin and stays a plain
 // lazy require. The `skills` layer reaches none of the three.
 //
 // IT FAILS QUIETLY: if this stops producing correct output the committed .cjs keeps working while

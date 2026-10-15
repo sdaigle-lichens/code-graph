@@ -59,6 +59,21 @@ A **docs-only** concept (no `tsconfig`, or globs that name no TypeScript files) 
 `extract` writes zero vertices plus its skill block, `apply` stores the doc so the SKILL.md body is
 searchable, and `search` finds it.
 
+With **no `concepts`** in `scribe.config.json`, `extract`, `apply` and `drift` print
+`no concepts configured in scribe.config.json, skipped` and exit 0, loading neither ts-morph nor the
+store.
+
+**Where ts-morph comes from.** The plugin bundle does not ship the TypeScript compiler. Graph
+commands (`extract`, `catalog`) resolve `ts-morph` (which carries its own compiler) in this order:
+
+1. the plugin-owned deps directory: `$CLAUDE_PLUGIN_DATA/deps` when set, and the per-user cache
+   `~/.cache/code-graph/deps/<version>` (both are searched);
+2. the project's own install (`<project>/package.json` resolution) as a fallback.
+
+Populate (1) with the explicit `code-graph deps install` (it runs `npm install` and says so);
+`code-graph deps status` shows what resolves from where. When neither has ts-morph, the error names
+`deps install`. The `skills` commands never need any of this.
+
 ### 6. Search
 
 ```sh
@@ -101,6 +116,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph query vertex <location>`  | `code-graph query vertex setWorkorderIndex`                          | Query vertex by location, name, or qualified name         |
 | `code-graph query file <filepath>`    | `code-graph query file src/store/workorder.store.ts`                 | Query all live vertices in a file with their edges        |
 | `code-graph catalog --json`           | `code-graph catalog --json --tsconfig tsconfig.app.json`             | Store-free ts-morph digest: units, exports, imports, fan-in/out, hubs (drives concept proposals) |
+| `code-graph deps install`             | `code-graph deps install`                                            | Install pinned ts-morph into the plugin deps directory (`deps status` shows what resolves) |
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
 | `code-graph eval [--tasks <path>]`    | `code-graph eval --tasks eval/tasks.json`                            | Run layer-A eval harness                                  |
 

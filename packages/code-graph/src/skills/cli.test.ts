@@ -406,19 +406,30 @@ describe("the module-load probe (positive controls)", () => {
   }
 
   it("sees ts-morph/typescript when extract runs from dist", () => {
-    write("scribe.config.json", JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: {} }));
+    write(
+      "scribe.config.json",
+      JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: { a: { globs: ["src/**"] } } })
+    );
+    write("tsconfig.json", "{}");
     const out = path.join(tmp, "probe.json");
-    run(DIST, ["extract", "nope"], { env: { PROBE_OUT: out }, preload: ["-r", probe] });
+    run(DIST, ["extract", "a"], { env: { PROBE_OUT: out }, preload: ["-r", probe] });
     const seen = JSON.parse(fs.readFileSync(out, "utf8"));
     assert.ok(seen.deps.includes("ts-morph") || seen.cached.length > 0, JSON.stringify(seen));
   });
 
   it("sees ts-morph when extract runs from the bundle in a project that has it installed", () => {
-    write("scribe.config.json", JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: {} }));
+    write(
+      "scribe.config.json",
+      JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: { a: { globs: ["src/**"] } } })
+    );
+    write("tsconfig.json", "{}");
     fs.symlinkSync(path.join(PKG, "node_modules"), path.join(tmp, "node_modules"), "dir");
     const out = path.join(tmp, "probe.json");
-    const r = run(BUNDLE, ["extract", "nope"], { env: { PROBE_OUT: out }, preload: ["-r", probe] });
-    assert.doesNotMatch(r.stderr, /install dependencies first/);
+    const r = run(BUNDLE, ["extract", "a"], {
+      env: { PROBE_OUT: out, XDG_CACHE_HOME: path.join(tmp, "empty-cache"), CLAUDE_PLUGIN_DATA: "" },
+      preload: ["-r", probe],
+    });
+    assert.doesNotMatch(r.stderr, /could not be found/);
     const seen = JSON.parse(fs.readFileSync(out, "utf8"));
     assert.ok(
       seen.cached.some((p: string) => p.includes("ts-morph")),
@@ -427,21 +438,108 @@ describe("the module-load probe (positive controls)", () => {
   });
 });
 
+// An empty plugin deps dir that the real ~/.cache and CLAUDE_PLUGIN_DATA cannot mask.
+function isolatedDeps(): Record<string, string> {
+  return { XDG_CACHE_HOME: path.join(tmp, "empty-cache"), CLAUDE_PLUGIN_DATA: "" };
+}
+
+describe("no concepts configured: graph commands skip", () => {
+  for (const cli of CLIS) {
+    for (const args of [
+      ["extract", "a"],
+      ["apply", "a"],
+      ["drift", "a"],
+    ]) {
+      it(`${cli.name} ${args[0]} exits 0 with a skip message and loads no graph stack`, () => {
+        write("scribe.config.json", JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: {} }));
+        const out = path.join(tmp, "probe.json");
+        const r = run(cli.path, args, { env: { PROBE_OUT: out, ...isolatedDeps() }, preload: ["-r", probe] });
+        assert.equal(r.code, 0, r.stderr);
+        assert.match(r.stdout, /no concepts configured in scribe\.config\.json, skipped/);
+        assert.equal(r.stderr, "");
+        const seen = JSON.parse(fs.readFileSync(out, "utf8"));
+        assert.deepEqual(seen, { sqlite: [], deps: [], cached: [] });
+      });
+    }
+  }
+
+  it("a missing scribe.config.json still exits 5", () => {
+    assert.equal(run(BUNDLE, ["extract", "a"]).code, 5);
+  });
+});
+
+describe("dependency resolution order (bundle)", () => {
+  // A fake ts-morph that announces where it came from; extract then exits, which is fine.
+  function fakeDeps(root: string, marker: string): void {
+    const dir = path.join(root, "node_modules", "ts-morph");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "package.json"), '{"name":"ts-morph","version":"0.0.0","main":"index.js"}');
+    fs.writeFileSync(path.join(dir, "index.js"), `console.error("LOADED:${marker}"); process.exit(77);`);
+  }
+  const conceptCfg = () => {
+    write(
+      "scribe.config.json",
+      JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: { a: { globs: ["src/**"] } } })
+    );
+    write("tsconfig.json", "{}");
+  };
+  const version = () => JSON.parse(fs.readFileSync(path.join(PKG, "package.json"), "utf8")).version;
+
+  it("CLAUDE_PLUGIN_DATA/deps wins over the cache dir and the project", () => {
+    conceptCfg();
+    fakeDeps(path.join(tmp, "data", "deps"), "data");
+    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", version()), "cache");
+    fakeDeps(tmp, "project");
+    const r = run(BUNDLE, ["extract", "a"], {
+      env: { CLAUDE_PLUGIN_DATA: path.join(tmp, "data"), XDG_CACHE_HOME: path.join(tmp, "xdg") },
+    });
+    assert.match(r.stderr, /LOADED:data/);
+  });
+
+  it("the cache dir wins over the project", () => {
+    conceptCfg();
+    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", version()), "cache");
+    fakeDeps(tmp, "project");
+    const r = run(BUNDLE, ["extract", "a"], { env: { CLAUDE_PLUGIN_DATA: "", XDG_CACHE_HOME: path.join(tmp, "xdg") } });
+    assert.match(r.stderr, /LOADED:cache/);
+  });
+
+  it("falls back to the project when the plugin dirs are empty", () => {
+    conceptCfg();
+    fakeDeps(tmp, "project");
+    const r = run(BUNDLE, ["extract", "a"], { env: isolatedDeps() });
+    assert.match(r.stderr, /LOADED:project/);
+  });
+
+  it("deps status runs without network and exits 0", () => {
+    const r = run(BUNDLE, ["deps", "status"], { env: isolatedDeps() });
+    assert.equal(r.code, 0, r.stderr);
+  });
+});
+
+describe("code-graph-install skill", () => {
+  it("instructs a .gitignore entry for the store database files", () => {
+    const text = fs.readFileSync(path.join(REPO, "plugin/skills/code-graph-install/SKILL.md"), "utf8");
+    assert.match(text, /\.gitignore/);
+    assert.match(text, /graph\.db/);
+  });
+});
+
 describe("bundle graph commands in a project without typescript", () => {
   for (const args of [
     ["extract", "a"],
     ["catalog", "--json"],
   ]) {
-    it(`${args.join(" ")} exits 1 with the install-dependencies message`, () => {
+    it(`${args.join(" ")} exits 1 with a message naming 'deps install'`, () => {
       write(
         "scribe.config.json",
         JSON.stringify({ project: "p", tsconfig: "tsconfig.json", concepts: { a: { globs: ["src/**"] } } })
       );
       write("tsconfig.json", "{}");
-      const r = run(BUNDLE, args);
+      const r = run(BUNDLE, args, { env: isolatedDeps() });
       assert.equal(r.code, 1);
-      assert.match(r.stderr, /"(ts-morph|typescript)" is not installed in /);
-      assert.match(r.stderr, /install dependencies first/);
+      assert.match(r.stderr, /"(ts-morph|typescript)" could not be found/);
+      assert.match(r.stderr, /code-graph deps install/);
       assert.ok(r.stderr.includes(tmp), "names the project it looked in");
       assert.doesNotMatch(r.stderr, /\n\s+at /, "a message, not a stack trace");
     });
