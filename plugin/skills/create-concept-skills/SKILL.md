@@ -1,6 +1,6 @@
 ---
 name: create-concept-skills
-description: "Builds a project's concept-skill list from scratch: reads the code-graph catalog to propose concepts, agrees them with the user, then writes scribe.config.json, a SKILL.md and sub-concepts/ skeleton per concept, stamps version 1.0, and builds the graph. Merged with the old code-graph-init. Use when a repo has no concept skills yet, when the user asks to document the project's core concepts for agents or to initialise code-graph, or when update-concept-skills reports no list exists."
+description: "Builds a project's concept-skill list from scratch: reads the code-graph catalog to propose concepts, agrees them with the user, then writes scribe.config.json, a SKILL.md and sub-concepts/ skeleton per concept, stamps version 1.0, and builds the graph. Use when a repo has no concept skills yet, when the user asks to document the project's core concepts for agents or to initialise code-graph, or when update-concept-skills reports no list exists."
 ---
 
 # Create Concept Skills
@@ -158,7 +158,7 @@ cg apply <concept>
 
 `bootstrap` once, then `extract` + `apply` per concept — zero tokens, and the new SKILL.md is
 ingested as a doc vertex so `search` finds it. **Do not enrich now**: enrichment spends tokens and
-is better done when a SKILL.md has real content — run `/scribe-enrich <concept>` after
+is better done when a SKILL.md has real content — run the `scribe` skill's enrichment for `<concept>` after
 `update-single-concept-skill`. In a repo with **no tsconfig** skip this whole step: the skills and
 the stamps are complete without a graph, and staleness is tracked by the git-diff window of
 `cg skills status`.
@@ -175,4 +175,4 @@ the `scribe` skill is the rule), not an account of every function, nothing you h
 How many concept skills were created and where each landed; any concept the user rejected; what the
 config and the repo-level stamp now say; whether the graph was built or skipped (and why). Close by
 naming `update-single-concept-skill` as the next step for the concept that matters most, and
-`/scribe-enrich` for after it.
+the `scribe` enrichment for after it.

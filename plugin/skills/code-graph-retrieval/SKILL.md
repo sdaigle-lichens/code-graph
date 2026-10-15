@@ -22,11 +22,11 @@ graph tells you *where* and *why*; you still read the source for exact detail.
 ## When NOT to use
 
 - The project has no `scribe.config.json` → fall back to Grep/Glob/Read and surface:
-  *"This project isn't initialized — run `/code-graph-init` to set up the graph."*
+  *"This project isn't initialized — run `create-concept-skills` to set up the graph."*
   (Do NOT run init yourself — it is user-triggered.)
 - You need a literal text/regex match (a string, an import path, a TODO) → use Grep.
 - The graph returns exit code `6` (no results) → fall back to a raw search.
-- You are editing/enriching the graph itself → that is `/scribe-enrich`, not this skill.
+- You are editing/enriching the graph itself → that is the `scribe` skill's enrichment, not this skill.
 
 ## Procedure
 
@@ -90,7 +90,7 @@ preserved across re-extract):
 ```sh
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" extract <concept>
 ```
-then invoke `/scribe-enrich <concept>` (it spins up the enrichment subagent), then:
+then run the `scribe` skill's enrichment procedure for `<concept>` (it spins up the enrichment subagent), then:
 ```sh
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```

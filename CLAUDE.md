@@ -19,7 +19,7 @@ pnpm + Turborepo. Run everything from the root: `pnpm build|typecheck|test|check
 - `eval/` — this repo's own Layer-A gate. `docs/` — usage, installation, development;
   `docs/implementation/` holds the master spec (`plan.md`) and phase plans.
 
-Pipeline: `extract <concept>` → `scribe-output/<concept>.ast.json` → `/scribe-enrich` →
+Pipeline: `extract <concept>` → `scribe-output/<concept>.ast.json` → enrich (`scribe` skill) →
 `.enriched.json` → `apply` (DB upsert + drift) → `search "<query>"` (BM25 seed, 1–2 hop expand).
 The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `dbPath`).
 

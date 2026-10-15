@@ -143,7 +143,7 @@ cg apply <concept>
 ```
 
 for every concept whose code or SKILL.md changed. Then **enrich** each concept whose SKILL.md you
-**revised** (its tags and invariants feed enrichment): run `/scribe-enrich <concept>` — the enrichment
+**revised** (its tags and invariants feed enrichment): run the `scribe` skill's enrichment for `<concept>` — the enrichment
 procedure lives in the `scribe` skill — and `cg apply <concept>` again to ingest it. Concepts with
 only code drift and no skill revision need extract + apply, and enrichment only if `drift` listed
 `stale` vertices.

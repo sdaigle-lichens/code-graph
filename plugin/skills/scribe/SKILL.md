@@ -1,6 +1,6 @@
 ---
 name: scribe
-description: "The one scribe entry point. The rule for what documentation goes where (concept skills under .claude/skills for agents, docs/ for humans, a referenced docs/ file for knowledge both need); the rule that a written SKILL.md is followed by extract + apply; the gap channel working agents report skill gaps through; and the enrichment procedure /scribe-enrich runs. Use when writing or moving project documentation, when a concept skill is accumulating diagrams or narrative, when deciding whether something belongs in a skill or a doc, or via /scribe-enrich."
+description: "The one scribe entry point. The rule for what documentation goes where (concept skills under .claude/skills for agents, docs/ for humans, a referenced docs/ file for knowledge both need); the rule that a written SKILL.md is followed by extract + apply; the gap channel working agents report skill gaps through; and the enrichment procedure. Use when writing or moving project documentation, when a concept skill is accumulating diagrams or narrative, when deciding whether something belongs in a skill or a doc, or to enrich a concept."
 allowed-tools: Bash, Read, Glob, Grep, Write
 ---
 
@@ -123,9 +123,9 @@ block: `{ "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not t
 left unwritten when nothing was missing — a gap is never written just to fill the file. Maestro
 relies on this exact path and shape; do not rename either.
 
-## Enrichment (what `/scribe-enrich` runs)
+## Enrichment (procedure)
 
-Enrichment adds semantic fields to a concept's AST JSON. It is invoked by `/scribe-enrich <concept>`
+Enrichment adds semantic fields to a concept's AST JSON. It is invoked by the `scribe` skill's enrichment for `<concept>`
 (and by `update-concept-skills` after a SKILL.md revision); never run it unprompted.
 
 ### Inputs

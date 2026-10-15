@@ -99,7 +99,7 @@ export function formatDanglingRefReport(refs: DanglingRef[]): string {
     "## Dangling references (stale after deletion)",
     "",
     "The following refs in other concepts now point into archived vertices.",
-    "Run `/scribe-enrich` on the affected concept(s) to update them.",
+    "Ask the `scribe` skill to enrich the affected concept(s) to update them.",
     "",
   ];
   for (const r of refs) {

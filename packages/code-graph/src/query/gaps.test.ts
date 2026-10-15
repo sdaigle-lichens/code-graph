@@ -108,7 +108,7 @@ describe("formatGapDiagnostic", () => {
     const r = analyzeConceptGaps(enrichable("workorder-store"), counts({}));
     const md = formatGapDiagnostic(r, []);
     assert.match(md, /code-graph extract workorder-store/);
-    assert.match(md, /scribe-enrich workorder-store/);
+    assert.match(md, /scribe` skill to enrich workorder-store/);
     assert.match(md, /code-graph apply workorder-store/);
   });
 
@@ -116,7 +116,7 @@ describe("formatGapDiagnostic", () => {
     const r = analyzeConceptGaps([{ name: "noskill", enrichable: false }], counts({ noskill: [2, 0] }));
     const md = formatGapDiagnostic(r, []);
     assert.match(md, /no SKILL\.md/);
-    assert.doesNotMatch(md, /scribe-enrich noskill/);
+    assert.doesNotMatch(md, /to enrich noskill/);
   });
 
   it("lists uncovered files and caps the list", () => {

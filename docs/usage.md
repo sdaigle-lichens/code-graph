@@ -4,8 +4,7 @@
 
 ### 1. Write `scribe.config.json` in your project root
 
-In a Claude Code session with the plugin loaded, the `create-concept-skills` skill (or its alias
-`/code-graph-init`) does this for you: it runs `code-graph catalog --json`, proposes concepts for
+In a Claude Code session with the plugin loaded, the `create-concept-skills` skill does this for you: it runs `code-graph catalog --json`, proposes concepts for
 per-concept approval, writes the config and a SKILL.md skeleton per concept, and stamps them at 1.0.
 By hand:
 
@@ -38,13 +37,9 @@ code-graph extract workorder-store
 
 ### 4. Enrich (agent step)
 
-In a Claude Code session with the plugin loaded:
-
-```
-/scribe-enrich workorder-store
-```
-
-This starts a subagent that reads the AST, adds semantic enrichment (purpose, cross-concept refs, tags), and writes `scribe-output/workorder-store.enriched.json`.
+In a Claude Code session with the plugin loaded, ask for enrichment of the concept (the `scribe`
+skill's enrichment procedure; `update-concept-skills` and `update-single-concept-skill` offer it
+after a revision), e.g. "enrich workorder-store". This starts a subagent that reads the AST, adds semantic enrichment (purpose, cross-concept refs, tags), and writes `scribe-output/workorder-store.enriched.json`.
 
 ### 5. Apply to graph
 
@@ -75,6 +70,19 @@ Or from inside Claude Code:
 ```
 /graph sync sends stale ops
 ```
+
+## Plugin surface
+
+Everything a user can invoke from the plugin. `/graph` is the only slash command; the rest are skills
+(slash-invocable; the lifecycle trio is hidden from the model and must be typed by the user).
+
+- `/graph <query>` — query the graph (Explore-agent fallback on exit 2/6)
+- Concept skills: `create-concept-skills`, `update-concept-skills`, `update-single-concept-skill`,
+  `add-concept`, `scribe` (incl. enrichment), `cleanup-skill`, `load-concept-skills`,
+  `explore-concept-skills`
+- Design: `code-architecture-design`, `use-code-architecture-design-check`
+- Retrieval: `code-graph-retrieval`
+- Lifecycle: `code-graph-install`, `code-graph-update`, `code-graph-uninstall`
 
 ## CLI Reference
 
@@ -127,15 +135,14 @@ window of `skills status` and the graph steps are skipped.
 
 | Skill | Use | Version effect |
 | --- | --- | --- |
-| `create-concept-skills` (alias `/code-graph-init`) | No list yet: catalog → proposal → `scribe.config.json` + SKILL.md skeletons → `bootstrap`/`extract`/`apply` | repo and skills stamped `1.0` (`--bump initial`) |
+| `create-concept-skills` | No list yet: catalog → proposal → `scribe.config.json` + SKILL.md skeletons → `bootstrap`/`extract`/`apply` | repo and skills stamped `1.0` (`--bump initial`) |
 | `update-concept-skills` | List exists, code moved: `skills status --json` / `drift --json`, revise, `extract` + `apply`, re-enrich revised | `--bump minor` |
 | `update-single-concept-skill` | One thin skill or a reported gap: deepen from `query concept` / `impact` | `--bump major` |
-| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md; gap channel; `/scribe-enrich` procedure | none |
+| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md; gap channel; enrichment procedure | none |
 | `cleanup-skill`, `load-concept-skills`, `explore-concept-skills` | Building blocks the flows call | none |
 | `code-architecture-design`, `use-code-architecture-design-check` | Design gate and brief; explore uses `query cross` / `impact` | none |
 | `code-graph-install` / `-update` / `-uninstall` | Enable/check/disable the plugin per project; install migrates `.claude/concept-skills.json` into `scribe.config.json` keeping its version | none |
-
-`add-concept` hands off to `update-single-concept-skill` for the new concept's SKILL.md.
+| `add-concept` | Add one concept to an existing config via seed-driven expansion (`/add-concept [seed]`) | none (hands off to `update-single-concept-skill` for the SKILL.md) |
 
 `skills status --json` also carries, per concept, a `graph` block when a store exists:
 `{ extracted, extractedAt, enriched, vertices, enrichedVertices, changed, stale }` (`changed` is the

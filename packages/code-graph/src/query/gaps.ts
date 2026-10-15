@@ -29,7 +29,7 @@ export type ConceptStatus = "enriched" | "partial" | "un-enriched" | "un-applied
 export type ConceptGap = {
   concept: string;
   status: ConceptStatus;
-  /** Whether `/scribe-enrich` can run — a SKILL.md is resolvable. */
+  /** Whether the `scribe` skill can enrich it — a SKILL.md is resolvable. */
   enrichable: boolean;
   liveVertices: number;
   enrichedVertices: number;
@@ -110,7 +110,8 @@ export function buildSuccessNote(report: GapReport): string | null {
   return `> ⚠ graph ${report.enrichedCount}/${report.enrichableTotal} concepts enriched — results may be partial`;
 }
 
-const PIPELINE = (c: string) => `\`code-graph extract ${c}\` → \`/scribe-enrich ${c}\` → \`code-graph apply ${c}\``;
+const PIPELINE = (c: string) =>
+  `\`code-graph extract ${c}\` → ask the \`scribe\` skill to enrich ${c} → \`code-graph apply ${c}\``;
 
 /** The full whiff diagnostic block (markdown), printed to stdout before exit 6.
  *  `uncovered` is the set of source files matched by no concept's globs; the skill
@@ -180,7 +181,7 @@ export async function fetchConceptCounts(store: DatabaseSync): Promise<ConceptCo
   return map;
 }
 
-/** Mirror of /scribe-enrich's skill resolution: a concept is enrichable when a
+/** Mirror of the `scribe` skill's enrichment resolution: a concept is enrichable when a
  *  SKILL.md actually exists via `concepts.<name>.skill` or `<skillsDir>/<name>/SKILL.md`. */
 export function conceptEnrichable(config: ScribeConfig, name: string): boolean {
   const c = config.concepts[name];

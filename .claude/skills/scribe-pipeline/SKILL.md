@@ -10,7 +10,7 @@ metadata:
 # Scribe pipeline
 
 The write path of code-graph: `extract <concept>` → `scribe-output/<concept>.ast.json` →
-(`/scribe-enrich` → `.enriched.json`) → `apply <concept>` → rows in `scribe-output/graph.db`.
+(enrichment → `.enriched.json`) → `apply <concept>` → rows in `scribe-output/graph.db`.
 The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 ## File map

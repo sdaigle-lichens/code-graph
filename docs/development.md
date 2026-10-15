@@ -93,9 +93,6 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
   plugin/                   the Claude Code plugin (--plugin-dir target)
     commands/
       graph.md              /graph slash command
-      scribe-enrich.md      /scribe-enrich slash command (runs the scribe skill's enrichment)
-      add-concept.md        /add-concept slash command
-      code-graph-init.md    /code-graph-init — alias for the create-concept-skills skill
     skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
       create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
       scribe                placement rule, extract+apply rule, gap channel, enrichment procedure

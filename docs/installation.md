@@ -17,7 +17,7 @@
 6. Verify `code-graph --version`
 7. Start a Claude Code session with the plugin loaded: `claude --plugin-dir /path/to/code-graph/plugin`
 
-Inside that session, `/graph`, `/scribe-enrich`, `/add-concept`, and the concept-skill skills (`create-concept-skills`, `update-concept-skills`, `update-single-concept-skill`, `scribe`, the design skills and the `code-graph-install|update|uninstall` trio) are available.
+Inside that session, `/graph` and the concept-skill skills (`add-concept`, `create-concept-skills`, `update-concept-skills`, `update-single-concept-skill`, `scribe`, the design skills and the `code-graph-install|update|uninstall` trio) are available.
 
 ### Enable it per project
 

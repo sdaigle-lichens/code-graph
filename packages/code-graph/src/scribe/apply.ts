@@ -206,7 +206,7 @@ export async function apply(
       enrichedDoc = EnrichedDocSchema.parse(raw);
     } catch (err) {
       console.error(`error: enriched.json validation failed — ${fmtError(err)}`);
-      console.error(`  re-run: /scribe-enrich ${concept}`);
+      console.error(`  re-run: ask the scribe skill to enrich ${concept}`);
       process.exit(1);
     }
 

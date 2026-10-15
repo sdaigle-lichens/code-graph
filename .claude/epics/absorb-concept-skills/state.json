@@ -25,6 +25,11 @@
       "name": "code-graph-24",
       "task": "006-dogfood-parity-check-and-publish-the-code-graph-plugin.md",
       "added_at": "2026-10-14T15:04:11.183Z"
+    },
+    {
+      "name": "code-graph-44",
+      "task": "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
+      "added_at": "2026-10-15T12:16:45.748Z"
     }
   ],
   "log": [
@@ -80,6 +85,20 @@
       "id": "r004",
       "at": "2026-10-14T15:04:10.635Z",
       "by": "code-graph-49"
+    },
+    {
+      "kind": "report",
+      "id": "r005",
+      "task": "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
+      "file": "inbox/r005-007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
+      "at": "2026-10-15T12:16:31.499Z",
+      "from": "code-graph-44"
+    },
+    {
+      "kind": "ack",
+      "id": "r005",
+      "at": "2026-10-15T12:16:45.432Z",
+      "by": "code-graph-3d"
     }
   ]
 }

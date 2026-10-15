@@ -108,7 +108,7 @@ cg extract <concept>
 cg apply <concept>
 ```
 
-The new SKILL.md body is ingested as the concept's doc vertex. Then offer `/scribe-enrich <concept>`:
+The new SKILL.md body is ingested as the concept's doc vertex. Then offer the `scribe` skill's enrichment for `<concept>`:
 a deepened skill's tags and invariants are what enrichment reads, and a concept enriched against the
 skeleton is the stale one. In a repo with no tsconfig, stop at the stamp.
 
