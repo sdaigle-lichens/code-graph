@@ -55,5 +55,10 @@
     "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
+  },
+  "011-stop-plain-text-search-from-repeating-the-same-edge-per-call-site.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }

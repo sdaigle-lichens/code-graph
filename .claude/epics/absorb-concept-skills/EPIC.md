@@ -75,3 +75,7 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   extract, and each version bump rewrites extractor_version once. Committed in 9f166c0. One line
   covering 009 and 010 went to maestro-0c, the only live maestro session (maestro-de is the
   recorded cutover manager).
+- maestro-0c (now the cutover manager) verified 0.3.3: --version is right, the second extract was
+  byte-identical, and the ast.json files are now committed in maestro. New non-blocking finding →
+  task 011: plain-text search prints one line per call-site edge, using the caller's start line, so
+  lines repeat. The ~14.7k token total vs the 3000 default budget also needs a check.
