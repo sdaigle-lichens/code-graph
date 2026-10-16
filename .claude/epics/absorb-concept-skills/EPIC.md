@@ -67,4 +67,10 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   concept), the cluster survives the token budget, plus a scribe hint. The cause was confirmed by
   reading the code, not on a real store; maestro's graph is the live check. `collectEdges` runs for
   every vertex in the concept before the cap is applied. A cleanup of code-graph-search SKILL.md
-  (stale ArangoDB invariant, Phase 1 reference) was offered but not ticketed.
+  (stale ArangoDB invariant, Phase 1 reference) was offered but not ticketed. Committed in ffc15aa.
+- r008 (010 done, uncommitted, code-graph-8f): 0.3.3. The three version files are aligned and
+  `check-versions.mjs` (run in pnpm check and bundle) fails on drift. ast.json no longer carries
+  per-vertex or per-edge extracted_at; apply stamps the store, and meta.extracted_at advances only
+  on a content change. No schema change. Existing ast.json files get rewritten once on the next
+  extract, and each version bump rewrites extractor_version once. Send maestro one line covering
+  009 and 010 once 0.3.3 is committed.

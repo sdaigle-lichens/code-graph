@@ -40,6 +40,11 @@
       "name": "code-graph-4c",
       "task": "009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
       "added_at": "2026-10-16T19:12:07.462Z"
+    },
+    {
+      "name": "code-graph-8f",
+      "task": "010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md",
+      "added_at": "2026-10-16T19:25:56.933Z"
     }
   ],
   "log": [
@@ -135,6 +140,20 @@
       "kind": "ack",
       "id": "r007",
       "at": "2026-10-16T19:12:07.067Z",
+      "by": "code-graph-72"
+    },
+    {
+      "kind": "report",
+      "id": "r008",
+      "task": "010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md",
+      "file": "inbox/r008-010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md",
+      "at": "2026-10-16T19:25:41.314Z",
+      "from": "code-graph-8f"
+    },
+    {
+      "kind": "ack",
+      "id": "r008",
+      "at": "2026-10-16T19:25:56.573Z",
       "by": "code-graph-72"
     }
   ]
