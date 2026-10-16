@@ -45,3 +45,17 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   code-graph-cutover. Its finding: 0.3.0 still ships superseded commands. Decision (task 007): drop
   /scribe-enrich, /code-graph-init and the /add-concept command (skill stays), keep /graph, list the
   full surface in docs, publish 0.3.1 and tell maestro-1c.
+- r005 (007 done, committed 7e3118b): 0.3.1 published locally. Post-mortem on the scribe/source
+  boundary filed as maestro ticket 108 (A: ticket wording, B: Documentation workflow route).
+- maestro-1c's 106 dogfood findings → task 008, ships as 0.3.2: no concepts = exit 0 no-op;
+  typescript/ts-morph resolve from a plugin-owned dir first (filled by an explicit
+  `code-graph deps install`, never a silent download), project install as fallback. maestro's
+  graph-concepts follow-up (maestro task 109) waits on it; send maestro-1c one line when 0.3.2 is
+  published.
+- r006 (008 done, uncommitted): 0.3.2. Only ts-morph is installed (it carries its own compiler);
+  deps dir = $CLAUDE_PLUGIN_DATA/deps, then the XDG cache, then the project. Not automated: the
+  real-npm monorepo run (verified by hand) and .gitignore idempotency (skill prose). A networked CI
+  check of `deps install` was suggested; not ticketed unless the user asks.
+- 0.3.2 committed (ae504c7) and installed locally. maestro-de (formerly maestro-1c) now manages
+  code-graph-cutover and recorded 0.3.2; maestro 109 is unblocked. Other machines see 0.3.x only
+  after feat/integrate-concept-skills is pushed and merged (maestro uses the GitHub marketplace).

@@ -2,8 +2,8 @@
   "slug": "absorb-concept-skills",
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
-    "name": "code-graph-3d",
-    "set_at": "2026-10-15T12:07:27.344Z"
+    "name": "code-graph-6f",
+    "set_at": "2026-10-15T22:38:41.973Z"
   },
   "workers": [
     {
@@ -30,6 +30,11 @@
       "name": "code-graph-44",
       "task": "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
       "added_at": "2026-10-15T12:16:45.748Z"
+    },
+    {
+      "name": "code-graph-ca",
+      "task": "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
+      "added_at": "2026-10-15T22:38:42.894Z"
     }
   ],
   "log": [
@@ -99,6 +104,19 @@
       "id": "r005",
       "at": "2026-10-15T12:16:45.432Z",
       "by": "code-graph-3d"
+    },
+    {
+      "kind": "report",
+      "id": "r006",
+      "task": "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
+      "file": "inbox/r006-008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
+      "at": "2026-10-15T22:23:32.679Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r006",
+      "at": "2026-10-15T22:38:42.438Z",
+      "by": "code-graph-6f"
     }
   ]
 }

@@ -40,5 +40,10 @@
     "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
+  },
+  "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }
