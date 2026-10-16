@@ -63,3 +63,8 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   concepts in plain text and returns no edges in --json, plus a pre-enrichment hint. Task 010:
   package.json still says 0.1.0 (the version baked into the bundle), and per-run `extracted_at` stamps make
   ast.json churn on every extract. maestro keeps ast.json uncommitted until 010 ships.
+- r007 (009 done, uncommitted, code-graph-4c): doc-seeded vertices get one-hop edges (cap 20 per
+  concept), the cluster survives the token budget, plus a scribe hint. The cause was confirmed by
+  reading the code, not on a real store; maestro's graph is the live check. `collectEdges` runs for
+  every vertex in the concept before the cap is applied. A cleanup of code-graph-search SKILL.md
+  (stale ArangoDB invariant, Phase 1 reference) was offered but not ticketed.

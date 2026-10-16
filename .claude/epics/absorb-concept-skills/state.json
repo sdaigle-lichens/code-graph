@@ -2,8 +2,8 @@
   "slug": "absorb-concept-skills",
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
-    "name": "code-graph-6f",
-    "set_at": "2026-10-15T22:38:41.973Z"
+    "name": "code-graph-72",
+    "set_at": "2026-10-16T19:12:06.577Z"
   },
   "workers": [
     {
@@ -35,6 +35,11 @@
       "name": "code-graph-ca",
       "task": "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
       "added_at": "2026-10-15T22:38:42.894Z"
+    },
+    {
+      "name": "code-graph-4c",
+      "task": "009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
+      "added_at": "2026-10-16T19:12:07.462Z"
     }
   ],
   "log": [
@@ -117,6 +122,20 @@
       "id": "r006",
       "at": "2026-10-15T22:38:42.438Z",
       "by": "code-graph-6f"
+    },
+    {
+      "kind": "report",
+      "id": "r007",
+      "task": "009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
+      "file": "inbox/r007-009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
+      "at": "2026-10-16T18:59:19.417Z",
+      "from": "code-graph-4c"
+    },
+    {
+      "kind": "ack",
+      "id": "r007",
+      "at": "2026-10-16T19:12:07.067Z",
+      "by": "code-graph-72"
     }
   ]
 }
