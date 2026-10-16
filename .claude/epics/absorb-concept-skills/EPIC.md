@@ -83,4 +83,5 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   showing (line N), (lines a, b, c) or ×N, plus every distinct reason; --json is unchanged. The
   totals line was stale (counted before trimming) and is now restated after it; --max-tokens was
   already honoured. The enrichment warning cli.ts appends runs ~14 tokens over budget (documented;
-  follow-up offered, not ticketed). No version bump: still 0.3.3.
+  follow-up offered, not ticketed). Published as 0.3.4, a version-only bump so the plugin update
+  picks it up.
