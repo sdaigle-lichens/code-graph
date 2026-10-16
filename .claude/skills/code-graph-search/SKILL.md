@@ -144,6 +144,17 @@ Markdown sections per cluster:
 - `### Relevant code` — vertex hits with edges_in/edges_out enumerated
 - `### Cross-concept side effects` — deduped `crosses_concept` edges
 
+**Edge grouping (plain text only).** `formatSearch` runs edges through `groupEdges`, which collapses
+edges sharing `(other vertex, type)` into one line (the store holds one edge per call site).
+`callSiteSuffix` renders ` (line 5)` / ` (lines 5, 9)` when edges carry `line`, else ` ×N`; distinct
+reasons are all kept. `--json` is untouched: one entry per stored edge. Don't group in `expandVertex`
+or `collectEdges` — `degree` counts raw edges.
+
+**Totals figure.** `formatSearch` emits a `__TOTALS_PLACEHOLDER__` line; `withTotals` fills it and
+iterates (max 3) until `~N tokens` equals the size of the text containing it, also setting
+`result.totals.tokens`. `applyTokenBudget` trims afterwards, so its `done()` calls `restateTokens`
+(regex `TOTALS_LINE_RE`) to re-state the figure for the trimmed output.
+
 ## Token budget (`applyTokenBudget`)
 
 Three-step degradation if markdown exceeds `maxTokens`:
@@ -154,6 +165,10 @@ Three-step degradation if markdown exceeds `maxTokens`:
 4. Hard-truncate.
 
 Skill sentinels are stripped from final output regardless.
+
+`cli.ts` calls `applyTokenBudget` first, then (only when strength is `thin`) appends the
+enrichment-gap warning. That note sits **outside** the totals figure (~14 tokens); don't move it
+before the budget step or the figure and `--max-tokens` both shift.
 
 ## Critical invariants — don't break these
 

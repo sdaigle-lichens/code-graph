@@ -86,6 +86,12 @@ Or from inside Claude Code:
 /graph sync sends stale ops
 ```
 
+Plain-text output groups edges between the same two vertices with the same type into one line. Call-site
+lines are listed when the edge carries them (`at file:108 (lines 112, 140, 155)`), otherwise a count
+(`×3`); distinct edge reasons are all shown. `--json` stays one entry per stored edge. The `~N tokens`
+figure in the totals line is the size of the printed output, after `--max-tokens` trimming. The thin-result enrichment warning is appended after that figure, so
+it is not counted in it (~14 tokens).
+
 ### Sharing a graph (committing `.ast.json`)
 
 `<concept>.ast.json` is safe to commit: re-running `extract` on an unchanged concept rewrites it

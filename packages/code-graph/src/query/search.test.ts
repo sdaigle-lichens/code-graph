@@ -89,3 +89,63 @@ describe("searchStore — doc-only match", () => {
     );
   });
 });
+
+function repeatedCallStore(): DatabaseSync {
+  const store = new DatabaseSync(":memory:");
+  applySchema(store);
+  putRecord(store, "vertices", "target", vertex("target", "isValidSessionId"));
+  putRecord(store, "vertices", "caller", { ...vertex("caller", "sweepStaleSessions"), start_line: 108 });
+  putRecord(store, "vertices", "other", { ...vertex("other", "sideEffect", "sessions"), start_line: 3 });
+  // caller calls target three times, once per call site
+  for (const line of [112, 140, 155]) {
+    putRecord(store, "edges", `c${line}`, { ...edge(`c${line}`, "caller", "target"), line, reason: "sweeps" });
+  }
+  // target reads the caller twice (no line) and crosses into another concept twice
+  putRecord(store, "edges", "o1", edge("o1", "target", "caller", "reads"));
+  putRecord(store, "edges", "o2", edge("o2", "target", "caller", "reads"));
+  for (const line of [10, 20]) {
+    putRecord(store, "edges", `x${line}`, {
+      ...edge(`x${line}`, "target", "other"),
+      line,
+      crosses_concept: true,
+    });
+  }
+  rebuildSearchIndex(store);
+  return store;
+}
+
+describe("formatSearch — repeated call sites", () => {
+  it("prints a caller that calls a vertex several times once, with its call-site lines", async () => {
+    const r = await searchStore(repeatedCallStore(), "isValidSessionId", { maxTokens: 4000, json: false });
+    const md = applyTokenBudget(r, 4000);
+    const triggered = md.split("\n").filter((l) => l.includes("triggered by `sweepStaleSessions`"));
+    assert.equal(triggered.length, 1);
+    assert.match(triggered[0], /src\/sweepStaleSessions\.ts:108 \(lines 112, 140, 155\)/);
+    assert.equal(md.match(/why: "sweeps"/g)?.length, 1);
+  });
+
+  it("deduplicates outgoing and cross-concept lines", async () => {
+    const r = await searchStore(repeatedCallStore(), "isValidSessionId", { maxTokens: 4000, json: false });
+    const md = applyTokenBudget(r, 4000);
+    assert.equal(md.split("\n").filter((l) => l.includes("→ reads `sweepStaleSessions`")).length, 1);
+    assert.match(md, /→ reads `sweepStaleSessions` \(tasks\) ×2/);
+    const cross = md.split("\n").filter((l) => l.includes("**sessions**"));
+    assert.equal(cross.length, 1);
+    assert.match(cross[0], /\(lines 10, 20\)/);
+  });
+
+  it("keeps one entry per stored edge in the JSON result", async () => {
+    const r = await searchStore(repeatedCallStore(), "isValidSessionId", { maxTokens: 4000, json: true });
+    const hit = r.hits.find((h) => h.vertex?._key === "target")!;
+    assert.equal(hit.edges_in.length, 3);
+  });
+
+  it("reports in the totals line the size of what is printed, within the budget", async () => {
+    const r = await searchStore(docOnlyStore(60), "cascade", { maxTokens: 4000, json: false });
+    for (const budget of [4000, 100]) {
+      const md = applyTokenBudget(r, budget);
+      const figure = Number(/~(\d+) tokens/.exec(md)![1]);
+      assert.ok(Math.abs(figure - Math.ceil(md.length / 4)) <= 1, `figure ${figure} vs ${Math.ceil(md.length / 4)}`);
+    }
+  });
+});

@@ -39,6 +39,36 @@ function estimateTokens(s: string): number {
   return Math.ceil(s.length / 4);
 }
 
+type EdgeGroup<V> = { edges: Edge[]; other: V; type: string };
+
+/** Collapse edges between the same vertex pair with the same type (one stored edge per call site). */
+function groupEdges<V>(items: Array<{ edge: Edge; other: V; otherKey: string }>): Array<EdgeGroup<V>> {
+  const groups = new Map<string, EdgeGroup<V>>();
+  for (const { edge, other, otherKey } of items) {
+    const k = `${otherKey}|${edge.type}`;
+    const g = groups.get(k);
+    if (g) g.edges.push(edge);
+    else groups.set(k, { edges: [edge], other, type: edge.type });
+  }
+  return Array.from(groups.values());
+}
+
+/** " (line 5)", " (lines 5, 9)" from the call sites carried by the edges, else " ×3" when repeated. */
+function callSiteSuffix(edges: Edge[]): string {
+  const lines = Array.from(new Set(edges.map((e) => e.line).filter((n): n is number => typeof n === "number"))).sort(
+    (a, b) => a - b
+  );
+  if (lines.length === 1) return ` (line ${lines[0]})`;
+  if (lines.length > 1) return ` (lines ${lines.join(", ")})`;
+  return edges.length > 1 ? ` ×${edges.length}` : "";
+}
+
+/** One ` — why: "..."` per distinct reason, so the budget's reason-stripping regex removes them all. */
+function whyText(edges: Edge[]): string {
+  const reasons = Array.from(new Set(edges.map((e) => e.reason).filter((r): r is string => !!r)));
+  return reasons.map((r) => ` — why: "${r}"`).join("");
+}
+
 function appendToMap<T>(map: Map<string, T[]>, key: string, item: T): void {
   const existing = map.get(key);
   if (existing) existing.push(item);
@@ -376,49 +406,90 @@ export function formatSearch(result: SearchResult, opts?: { skillMode?: SkillMod
         const purpose = v.purpose ? ` — ${v.purpose}` : "";
         lines.push(`- ${loc} — \`${v.name}\`${purpose}`);
 
-        for (const { edge: e, from: f } of hit.edges_in) {
-          const reason = e.reason ? ` — why: "${e.reason}"` : "";
-          lines.push(`  - ← triggered by \`${f.name}\` at ${f.filepath}:${f.start_line}${reason}`);
+        const ins = hit.edges_in.map(({ edge, from }) => ({ edge, other: from, otherKey: from._key }));
+        for (const g of groupEdges(ins)) {
+          const f = g.other;
+          lines.push(
+            `  - ← triggered by \`${f.name}\` at ${f.filepath}:${f.start_line}${callSiteSuffix(g.edges)}${whyText(g.edges)}`
+          );
         }
-        for (const { edge: e, to: t } of hit.edges_out) {
-          const reason = e.reason ? ` — why: "${e.reason}"` : "";
-          lines.push(`  - → ${e.type} \`${t.name}\` (${t.concept})${reason}`);
+        const outs = hit.edges_out.map(({ edge, to }) => ({ edge, other: to, otherKey: to._key }));
+        for (const g of groupEdges(outs)) {
+          const t = g.other;
+          lines.push(`  - → ${g.type} \`${t.name}\` (${t.concept})${callSiteSuffix(g.edges)}${whyText(g.edges)}`);
         }
       }
       lines.push("");
     }
 
     const allCross = vertexHits.flatMap((h) => h.cross_edges.map((ce) => ({ hit: h, ...ce })));
-    const uniqueCross = Array.from(new Map(allCross.map((c) => [c.edge._key, c])).values());
+    const crossGroups = new Map<string, { hit: SearchHit; other: Vertex; edges: Edge[] }>();
+    for (const c of allCross) {
+      const k = `${c.edge._from}|${c.edge._to}|${c.edge.type}`;
+      const g = crossGroups.get(k);
+      if (!g) crossGroups.set(k, { hit: c.hit, other: c.other, edges: [c.edge] });
+      else if (!g.edges.some((e) => e._key === c.edge._key)) g.edges.push(c.edge);
+    }
+    const uniqueCross = Array.from(crossGroups.values());
     if (uniqueCross.length > 0) {
       lines.push("### Cross-concept side effects");
       lines.push("");
-      for (const { hit, edge, other } of uniqueCross) {
+      for (const { hit, edges, other } of uniqueCross) {
+        const edge = edges[0];
         const isOut = edge._from === `vertices/${hit.vertex!._key}`;
         const fromName = isOut ? hit.vertex!.name : other.name;
         const toName = isOut ? other.name : hit.vertex!.name;
-        const reason = edge.reason ? ` — ${edge.reason}` : "";
-        lines.push(`- → **${other.concept}** — \`${fromName}\` ${edge.type} \`${toName}\`${reason}`);
+        const reasons = Array.from(new Set(edges.map((e) => e.reason).filter((r): r is string => !!r)));
+        const reason = reasons.map((r) => ` — ${r}`).join("");
+        lines.push(
+          `- → **${other.concept}** — \`${fromName}\` ${edge.type} \`${toName}\`${callSiteSuffix(edges)}${reason}`
+        );
       }
       lines.push("");
     }
   }
 
-  const body = lines.join("\n");
-  const tokens = estimateTokens(body);
-  result.totals.tokens = tokens;
+  return withTotals(lines.join("\n"), totals, result);
+}
 
-  const totalsLine = `> ${totals.concepts} concepts matched, ${totals.vertices} vertices, ${totals.docs} skill docs, ~${tokens} tokens`;
-  return body.replace("__TOTALS_PLACEHOLDER__", totalsLine);
+const TOTALS_LINE_RE = /^> \d+ concepts matched, .*$/m;
+
+/** Fill the totals line so its token figure is the size of the text it sits in. */
+function withTotals(body: string, totals: SearchResult["totals"], result?: SearchResult): string {
+  const line = (t: number) =>
+    `> ${totals.concepts} concepts matched, ${totals.vertices} vertices, ${totals.docs} skill docs, ~${t} tokens`;
+  let tokens = estimateTokens(body.replace("__TOTALS_PLACEHOLDER__", line(0)));
+  for (let i = 0; i < 3; i++) {
+    const next = estimateTokens(body.replace("__TOTALS_PLACEHOLDER__", line(tokens)));
+    if (next === tokens) break;
+    tokens = next;
+  }
+  if (result) result.totals.tokens = tokens;
+  return body.replace("__TOTALS_PLACEHOLDER__", line(tokens));
+}
+
+/** Re-state the totals line of already-trimmed markdown with the size actually printed. */
+function restateTokens(md: string): string {
+  const m = TOTALS_LINE_RE.exec(md);
+  if (!m) return md;
+  const set = (t: number) => md.replace(TOTALS_LINE_RE, m[0].replace(/~\d+ tokens/, `~${t} tokens`));
+  let tokens = estimateTokens(md);
+  for (let i = 0; i < 3; i++) {
+    const next = estimateTokens(set(tokens));
+    if (next === tokens) break;
+    tokens = next;
+  }
+  return set(tokens);
 }
 
 export function applyTokenBudget(result: SearchResult, maxTokens: number, opts?: { skillMode?: SkillMode }): string {
+  const done = (text: string) => restateTokens(stripSentinels(text));
   let md = formatSearch(result, opts);
-  if (estimateTokens(md) <= maxTokens) return stripSentinels(md);
+  if (estimateTokens(md) <= maxTokens) return done(md);
 
   // Step 1: drop edge reason strings
   md = md.replace(/ — why: "[^"]*"/g, "");
-  if (estimateTokens(md) <= maxTokens) return stripSentinels(md);
+  if (estimateTokens(md) <= maxTokens) return done(md);
 
   // Step 2: drop low-degree leaves (degree ≤ 1, not seeds)
   // A cluster whose hits would all be dropped (doc-seeded concepts) keeps its
@@ -435,7 +506,7 @@ export function applyTokenBudget(result: SearchResult, maxTokens: number, opts?:
   filtered.totals.concepts = filtered.clusters.length;
 
   md = formatSearch(filtered, opts).replace(/ — why: "[^"]*"/g, "");
-  if (estimateTokens(md) <= maxTokens) return stripSentinels(md);
+  if (estimateTokens(md) <= maxTokens) return done(md);
 
   // Step 3: truncate skill body between sentinels to first ~2000 chars
   const skillBlockRe = /<!--SKILL_START-->\n([\s\S]*?)\n<!--SKILL_END-->/g;
@@ -443,10 +514,10 @@ export function applyTokenBudget(result: SearchResult, maxTokens: number, opts?:
     if (body.length <= 2000) return `<!--SKILL_START-->\n${body}\n<!--SKILL_END-->`;
     return `<!--SKILL_START-->\n${body.slice(0, 2000)}\n\n_[skill body truncated]_\n<!--SKILL_END-->`;
   });
-  if (estimateTokens(truncated) <= maxTokens) return stripSentinels(truncated);
+  if (estimateTokens(truncated) <= maxTokens) return done(truncated);
   md = truncated;
 
-  return stripSentinels(md.slice(0, maxTokens * 4) + "\n\n_[truncated]_");
+  return done(md.slice(0, maxTokens * 4) + "\n\n_[truncated]_");
 }
 
 function stripSentinels(s: string): string {
