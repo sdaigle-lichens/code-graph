@@ -59,3 +59,7 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
 - 0.3.2 committed (ae504c7) and installed locally. maestro-de (formerly maestro-1c) now manages
   code-graph-cutover and recorded 0.3.2; maestro 109 is unblocked. Other machines see 0.3.x only
   after feat/integrate-concept-skills is pushed and merged (maestro uses the GitHub marketplace).
+- maestro-de's first real graph (0.3.2, 16 concepts) → task 009: doc-seeded search drops to 0
+  concepts in plain text and returns no edges in --json, plus a pre-enrichment hint. Task 010:
+  package.json still says 0.1.0 (the version baked into the bundle), and per-run `extracted_at` stamps make
+  ast.json churn on every extract. maestro keeps ast.json uncommitted until 010 ships.
