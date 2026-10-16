@@ -60,15 +60,18 @@ export function writeAstOutput(
     meta: { extractor_version: `code-graph@${packageVersion()}`, extracted_at: new Date().toISOString() },
   };
   const path = join(outputDir, `${conceptName}.ast.json`);
-  // meta.extracted_at is the time of the last real change: an unchanged re-extract keeps the old
-  // stamp, so the file is byte-identical and safe to commit.
+  // meta describes the last real change to the content (vertices, edges, skill), not the last run: when
+  // the content is unchanged the previous meta is kept whole, extractor_version included, so a plugin
+  // upgrade alone leaves the file byte-identical and safe to commit.
   const previous = readPrevious(path);
-  if (previous && typeof previous.meta?.extracted_at === "string") {
-    const { extracted_at: _prev, ...prevMeta } = previous.meta;
-    const { extracted_at: _next, ...nextMeta } = output.meta;
-    if (JSON.stringify({ ...previous, meta: prevMeta }) === JSON.stringify({ ...output, meta: nextMeta })) {
-      output.meta.extracted_at = previous.meta.extracted_at;
-    }
+  if (
+    previous &&
+    typeof previous.meta?.extracted_at === "string" &&
+    typeof previous.meta?.extractor_version === "string" &&
+    JSON.stringify({ vertices: previous.vertices, edges: previous.edges, skill: previous.skill }) ===
+      JSON.stringify({ vertices: output.vertices, edges: output.edges, skill: output.skill })
+  ) {
+    output.meta = { extractor_version: previous.meta.extractor_version, extracted_at: previous.meta.extracted_at };
   }
   writeFileSync(path, JSON.stringify(output, null, 2), "utf-8");
 }

@@ -45,8 +45,9 @@ export const VertexSchema = z.object({
   tags: z.array(z.string()).optional(),
   status: z.enum(["live", "archived"]),
   archivedAt: z.string().optional(),
-  // `extracted_at` is stamped by apply; .ast.json omits it so re-extracts stay byte-identical.
-  ast: z.object({ extracted_at: z.string().optional(), extractor_version: z.string() }),
+  // `extracted_at` and `extractor_version` are stamped by apply (the latter from the .ast.json
+  // `meta`); .ast.json omits both per vertex so re-extracts stay byte-identical. Older files may carry them.
+  ast: z.object({ extracted_at: z.string().optional(), extractor_version: z.string().optional() }),
   agent: z.object({
     authored_by: z.enum(["claude"]).nullable(),
     authored_at: z.string().optional(),
