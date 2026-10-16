@@ -142,11 +142,20 @@ cg extract <concept>
 cg apply <concept>
 ```
 
-for every concept whose code or SKILL.md changed. Then **enrich** each concept whose SKILL.md you
-**revised** (its tags and invariants feed enrichment): run the `scribe` skill's enrichment for `<concept>` — the enrichment
-procedure lives in the `scribe` skill — and `cg apply <concept>` again to ingest it. Concepts with
-only code drift and no skill revision need extract + apply, and enrichment only if `drift` listed
-`stale` vertices.
+for every concept whose code or SKILL.md changed. Then enrich, **incrementally by default**
+(the procedure lives in the `scribe` skill, "Incremental path"):
+
+1. `cg enrich targets <concept> --json` lists the new, changed and stale vertices (add
+   `--vertex <name>...` for any a code-change report named). Nothing listed: stop for this concept.
+2. Fan the targets out in small batches to **Haiku** subagents, launched by you from the main session
+   (subagents cannot spawn subagents). Each returns a partial enrichment file.
+3. `cg enrich merge <concept> <partial>` for each, spot-check a few descriptions against the code
+   (re-ask or drop bad ones), then `cg apply <concept>` to ingest.
+
+A concept whose SKILL.md you **revised** is the exception: its tags and invariants feed every
+description, so re-enrich the **whole concept** (the scribe skill's "Whole-concept path"), then merge
+and apply the same way. Concepts with only code drift and no skill revision never need that.
+With no tsconfig this whole step is skipped.
 
 ## Report
 

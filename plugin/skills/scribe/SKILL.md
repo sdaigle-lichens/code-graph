@@ -125,8 +125,37 @@ relies on this exact path and shape; do not rename either.
 
 ## Enrichment (procedure)
 
-Enrichment adds semantic fields to a concept's AST JSON. It is invoked by the `scribe` skill's enrichment for `<concept>`
-(and by `update-concept-skills` after a SKILL.md revision); never run it unprompted.
+Enrichment adds semantic fields to a concept's AST JSON. It is invoked by the update flows and the
+retrieval skill's "yes, build it" path; never run it unprompted. Two paths, incremental first.
+
+### Incremental path (default)
+
+Enrich only what needs it (`cg` = `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`). The caller (a skill running in the main session, since subagents cannot
+spawn subagents) drives it:
+
+1. `cg enrich targets <concept> --json` lists the vertices that are new, changed or stale (add
+   `--vertex <name-or-_key>...` to include named ones, e.g. those a reported gap names). Each target
+   carries `key`, `name`, `filepath`, `start_line`/`end_line`, `reasons` and `edgesWithoutReason`.
+   An empty list means nothing to do.
+2. Fan the targets out in small batches (about 10 vertices) to Haiku subagents, in parallel. Each
+   gets the batch, the concept's SKILL.md path and the output schema below, reads each vertex's
+   slice, and writes a **partial** enrichment to `$TMPDIR/<concept>.partial.<n>.json`.
+3. For each partial: `cg enrich merge <concept> <partial>` (upserts by `_key` into
+   `scribe-output/<concept>.enriched.json` and stamps `sig_seen` and `hash_seen` from ast.json; it
+   does not run `apply`).
+4. Spot-check a few merged descriptions against the code; re-ask the batch or drop the entries that
+   are wrong.
+5. `cg apply <concept>`.
+
+Enrichers return `purpose`, `inputs`, `outputs`, `tags`, `cross_concept_refs`, `document_ref` and
+edge `reason` only. They never write `sig_seen` or `hash_seen`. Each alone in its own Bash call.
+
+### Whole-concept path
+
+Use it when the concept's SKILL.md was revised (descriptions read the skill's tags and invariants),
+or the concept has never been enriched. One enricher takes every vertex and edge in the concept and
+writes its result to a partial file (`outPath`); the caller then runs `enrich merge` and `apply`
+exactly as in steps 3 to 5 above, so `sig_seen` and `hash_seen` are stamped the same way.
 
 ### Inputs
 
@@ -135,7 +164,7 @@ Enrichment adds semantic fields to a concept's AST JSON. It is invoked by the `s
 | `concept` | Concept name (e.g. `workorder-store`) |
 | `astPath` | CWD-relative path to `scribe-output/<concept>.ast.json` |
 | `skillPath` | CWD-relative path to `<skillsDir>/<concept>/SKILL.md` |
-| `outPath` | CWD-relative path to `scribe-output/<concept>.enriched.json` |
+| `outPath` | The partial enrichment file (`$TMPDIR/<concept>.partial.<n>.json`); the caller merges it into `scribe-output/<concept>.enriched.json` |
 
 ### Procedure
 
@@ -150,7 +179,6 @@ Enrichment adds semantic fields to a concept's AST JSON. It is invoked by the `s
      - `tags` — labels matching invariants or patterns found in SKILL.md (e.g. `dnd-target`, `reorder`); empty array if none apply.
      - `cross_concept_refs` — other concept names referenced via imports or calls into other concept directories; identify by scanning import paths and call targets. Empty array if none.
      - `document_ref` — link to external documentation if clearly referenced in a comment or jsdoc; `null` otherwise.
-     - `sig_seen` — copy the vertex's `signature` field verbatim from `ast.json`.
 4. **For each existing AST edge** in `ast.json`, output an edge record with only `_key` and `reason` (one sentence explaining why the edge exists).
 5. **Identify agent-authored semantic edges** — scan vertex slices for delegation patterns (`delegates-to`) and event-trigger patterns (`triggers`). Emit edges with `_from`, `_to`, `type`, `concept`, `reason`, `line` (or `null`), and `agent.authored_by: "claude"`. Only emit these when observed directly — do not infer.
 6. **Write** the enriched output to `outPath` using the exact JSON schema below.
@@ -170,8 +198,7 @@ When context is ambiguous, set the field to `null` or `[]` rather than guessing.
       "outputs": ["..."],
       "cross_concept_refs": ["other-concept-name"],
       "document_ref": null,
-      "tags": ["tag-name"],
-      "sig_seen": "<copy of the vertex's signature at enrichment time>"
+      "tags": ["tag-name"]
     }
   ],
   "edges": [
@@ -198,9 +225,10 @@ When context is ambiguous, set the field to `null` or `[]` rather than guessing.
 - **Only write to `outPath`** during enrichment — no other files; a single `Write`, no `Edit`.
 - If context is unclear, leave field `null` or `[]`. Do not fabricate.
 - Do not invoke other skills or agents from inside the enrichment.
-- `sig_seen` is the verbatim `signature` from `ast.json`: `apply` compares it with the next extract's
-  signature to flag stale prose.
-- After writing `outPath`, the caller runs `code-graph apply <concept>`; enrichment itself does not.
+- Do not write `sig_seen` or `hash_seen`: `enrich merge` stamps them from `ast.json`, and `apply`
+  compares them with the next extract to flag stale prose.
+- After writing `outPath`, the caller runs `enrich merge` (incremental) and then `code-graph apply
+  <concept>`; enrichment itself does not.
 
 ## Also true of the other files
 

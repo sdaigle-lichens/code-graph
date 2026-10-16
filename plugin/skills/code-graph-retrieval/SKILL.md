@@ -84,13 +84,17 @@ SKILL.md, and source files covered by no concept. Handle it **answer-first, non-
    "Answered via grep. Concept `X` is declared but not built — want me to build it so future
    queries hit the graph?" Framed as an investment for next time, never a prerequisite.
 
+**A subagent cannot ask.** If you have no `AskUserQuestion` (you are a subagent), the offer in
+step 3 goes nowhere. After answering, report the gap to the scribe instead; see
+[Reporting the gap](#reporting-the-gap-subagents). A main session may do both: offer and report.
+
 **On "yes" — build the concept** (uniform pipeline, safe to re-run; agent fields are
 preserved across re-extract):
 
 ```sh
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" extract <concept>
 ```
-then run the `scribe` skill's enrichment procedure for `<concept>` (it spins up the enrichment subagent), then:
+then run the `scribe` skill's whole-concept enrichment procedure for `<concept>` (it spins up the enrichment subagent), then:
 ```sh
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```
@@ -101,6 +105,26 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 - For **uncovered files**, never edit `scribe.config.json` yourself — only suggest it.
 - **Nag control:** if the user already declined building/enriching a given concept this
   session, do not re-offer it — proceed silently.
+
+### Reporting the gap (subagents)
+
+After you have answered, on a weak or empty search append one entry to
+`.claude/channels/scribe/<agent>.1.md`, where `<agent>` is your own bare agent name (`backend`, not
+`maestro:backend`). The shape is the scribe skill's gap contract, unchanged:
+
+```json
+{ "skill_gaps": [{ "skill": "<the concept's skill id>", "missing": "<query that failed + the vertices or files you expected>" }] }
+```
+
+- **One fenced `json` block per file.** If the file exists, read it, add your entry to the
+  `skill_gaps` array of that block (you may have written one for your own gaps) and rewrite the file.
+  Never add a second block.
+- **Keep a leading `<!-- maestro:run_id=... -->` line** as the first line, untouched. Never write a
+  `run_id` yourself; maestro stamps it when you finish.
+- **Nag control:** do not write the same gap (same skill and query) twice in a session.
+- Write nothing when the search answered the question; a gap is never written to fill the file.
+- A gap written from the **main session** is never stamped, so the scribe only sees a mention of it,
+  not the file inlined. Do not promise the user otherwise.
 
 `/graph concept <name>` and `/graph cross <a> <b>` emit the same diagnostic on exit 6 when a
 named concept is declared-but-not-built — same answer-first handling applies.

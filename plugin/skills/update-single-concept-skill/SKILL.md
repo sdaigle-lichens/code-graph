@@ -108,9 +108,18 @@ cg extract <concept>
 cg apply <concept>
 ```
 
-The new SKILL.md body is ingested as the concept's doc vertex. Then offer the `scribe` skill's enrichment for `<concept>`:
-a deepened skill's tags and invariants are what enrichment reads, and a concept enriched against the
-skeleton is the stale one. In a repo with no tsconfig, stop at the stamp.
+The new SKILL.md body is ingested as the concept's doc vertex. Then enrich:
+
+- **Skill deepened (this pass rewrote the SKILL.md):** a deepened skill's tags and invariants are
+  what enrichment reads, and a concept enriched against the skeleton is the stale one, so offer the
+  `scribe` skill's **whole-concept** enrichment, then `cg enrich merge` and `cg apply`.
+- **Only a reported gap to close** (no SKILL.md revision needed for the graph): enrich just the
+  vertices the gap names. `cg enrich targets <concept> --vertex <name>... --json` (plus whatever is
+  new or stale), fan the targets out in small batches to **Haiku** subagents launched from the main
+  session, `cg enrich merge <concept> <partial>` each, spot-check a few against the code (re-ask or
+  drop bad ones), then `cg apply <concept>`. The scribe skill's "Incremental path" has the detail.
+
+In a repo with no tsconfig, stop at the stamp.
 
 ## Report
 
