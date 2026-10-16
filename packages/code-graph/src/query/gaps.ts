@@ -10,7 +10,7 @@ import type { SearchResult } from "./search.js";
 
 export type GapThresholds = {
   /** A concept counts as "enriched" when this fraction of its live vertices have
-   *  a non-empty `purpose`. Tolerates a few un-enriched stragglers after re-extract. */
+   *  a non-empty `purpose` that is not stale. Tolerates a few un-enriched stragglers after re-extract. */
   enrichedRatio: number;
   /** Results are "thin" when fewer than this many vertices are returned (incl. expansion).
    *  Conservative on purpose: we'd rather suppress the note than provoke a grep-storm. */
@@ -170,7 +170,8 @@ export async function fetchConceptCounts(store: DatabaseSync): Promise<ConceptCo
     .prepare(
       `SELECT concept,
               count(*) AS live,
-              sum(CASE WHEN purpose IS NOT NULL AND purpose != '' THEN 1 ELSE 0 END) AS enriched
+              sum(CASE WHEN purpose IS NOT NULL AND purpose != ''
+                       AND coalesce(json_extract(doc, '$.agent.stale'), 0) != 1 THEN 1 ELSE 0 END) AS enriched
          FROM vertices
         WHERE status = 'live'
         GROUP BY concept`

@@ -5,7 +5,7 @@ from here.
 
 ## Layout notes
 
-- `src/scribe/` writes the store (bootstrap, extract, apply, delete-concept); `src/query/` reads it;
+- `src/scribe/` writes the store (bootstrap, extract, apply, enrich, delete-concept); `src/query/` reads it;
   `src/skills/` is layer 1 (`code-graph skills *`); `src/eval/harness.ts` runs Layer-A eval.
 - `eval/tasks.json` is the default Layer-A fixture shipped in the npm `files` set — not this
   repo's own gate (that is the root `eval/`).
@@ -88,6 +88,12 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   `SCHEMA_VERSION` too): `apply` fills the store's value from `meta`, a legacy per-vertex value wins.
   The first `extract` after 0.3.5 rewrites each committed file once. Guarded by
   `scribe/ast-stability.test.ts`; don't add timestamps or other per-run values to the file.
+- Enrichment is merged, not replaced: `enrich merge <concept> <partial>` (`scribe/enrich.ts`)
+  upserts by `_key` into `<concept>.enriched.json` (sorted, stable) and stamps `sig_seen` +
+  `hash_seen` from ast.json; `enrich targets` lists what needs enriching. `apply` has no `--merge`.
+  Staleness: a changed vertex is fresh only if `hash_seen === contentHash`; entries with no
+  `hash_seen` (pre-0.3.6) keep the `sig_seen === signature` rule (`enrichmentIsCurrent`). `gaps`
+  counts a vertex as enriched only with a non-stale purpose.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
   `--bump minor|major` when migrating an existing list.

@@ -189,6 +189,38 @@ program
     }
   });
 
+const enrich = program.command("enrich").description("incremental enrichment: list targets, merge partial results");
+
+enrich
+  .command("targets <concept>")
+  .description("list vertices that need enrichment (new, changed, stale, plus any named)")
+  .option("--vertex <name...>", "also include these vertices (name or _key)")
+  .option("--json", "output JSON")
+  .action(async (concept: string, opts: { vertex?: string[]; json?: boolean }) => {
+    try {
+      if (await skippedForNoConcepts("enrich targets")) return;
+      const { enrichTargets } = await import("./scribe/enrich.js");
+      enrichTargets(concept, { vertices: opts.vertex ?? [], json: opts.json ?? false });
+    } catch (err) {
+      console.error("enrich targets failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+enrich
+  .command("merge <concept> <partial>")
+  .description("merge a partial enrichment into <concept>.enriched.json (upsert by _key), then run apply")
+  .action(async (concept: string, partial: string) => {
+    try {
+      if (await skippedForNoConcepts("enrich merge")) return;
+      const { enrichMerge } = await import("./scribe/enrich.js");
+      enrichMerge(concept, partial);
+    } catch (err) {
+      console.error("enrich merge failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
 program
   .command("drift <concept>")
   .description("show drift for a concept (alias for apply --dry-run)")

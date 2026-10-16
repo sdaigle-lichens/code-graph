@@ -53,6 +53,7 @@ export const VertexSchema = z.object({
     authored_at: z.string().optional(),
     stale: z.boolean(),
     sig_seen: z.string().optional(),
+    hash_seen: z.string().optional(),
   }),
 });
 
@@ -96,6 +97,8 @@ export const EnrichedVertexSchema = z.object({
   document_ref: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
   sig_seen: z.string().optional(),
+  // contentHash the enricher read; absent in entries written before 0.3.6 (the signature rule applies)
+  hash_seen: z.string().optional(),
 });
 
 // Two flavors: AST-edge enrichment (just _key + reason) vs agent-authored

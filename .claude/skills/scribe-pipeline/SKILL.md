@@ -22,6 +22,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
+| `scribe/enrich.ts` | `enrich targets` (what needs enriching) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs |
 | `scribe/rows.ts` | row shaping and `toMatchExpr` (query stopwords are stripped in JS) |
@@ -30,6 +31,11 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 - Vertex `_key` includes the filepath, so moving a file orphans its enrichment until remapped.
 - Agent fields come only from enrichment and survive re-extracts; a body change sets `agent.stale`.
+- Enrichment is partial-friendly: `.enriched.json` is the only committed copy and `apply` reads it as
+  the whole truth (edge reasons are re-inserted from it), so never overwrite it with a partial; use
+  `enrich merge`. A changed vertex is fresh only when the entry's `hash_seen` equals its new
+  `contentHash`; entries without `hash_seen` fall back to `sig_seen === signature` (no mass-stale on
+  upgrade). `gaps` counts only non-stale purposes as enriched.
 - Nothing is hard-deleted: apply archives missing vertices (`status: archived`).
 - `.ast.json` is byte-stable for unchanged code: no per-item `ast.extracted_at` in the file (`apply`
   stamps it into the store), and the whole `meta` (`extractor_version` + `extracted_at`) is kept when

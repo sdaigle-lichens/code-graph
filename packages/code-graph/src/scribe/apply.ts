@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
+import { enrichmentIsCurrent } from "./enrich.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
 import {
   AstDocSchema,
@@ -114,13 +115,15 @@ function mergeVertexForInsert(
     if (ev.cross_concept_refs !== undefined) doc.cross_concept_refs = ev.cross_concept_refs;
     if (ev.document_ref !== undefined) doc.document_ref = ev.document_ref;
     if (ev.tags !== undefined) doc.tags = ev.tags;
-    if (ev.sig_seen !== undefined) {
+    if (ev.sig_seen !== undefined || ev.hash_seen !== undefined) {
       doc.agent = {
         ...(doc.agent as Record<string, unknown>),
         authored_by: "claude",
         authored_at: now,
-        stale: false,
-        sig_seen: ev.sig_seen,
+        // A new vertex whose enrichment was written against a different body is stale on arrival.
+        stale: ev.hash_seen !== undefined && ev.hash_seen !== astV.contentHash,
+        ...(ev.sig_seen !== undefined ? { sig_seen: ev.sig_seen } : {}),
+        ...(ev.hash_seen !== undefined ? { hash_seen: ev.hash_seen } : {}),
       };
     }
   }
@@ -131,7 +134,7 @@ function mergeVertexForInsert(
 function buildAgentUpdate(
   dbV: Vertex,
   ev: EnrichedVertex | undefined,
-  newSignature: string | null,
+  changedTo: Pick<Vertex, "signature" | "contentHash"> | null,
   now: string
 ): Record<string, unknown> {
   const update: Record<string, unknown> = {};
@@ -145,20 +148,29 @@ function buildAgentUpdate(
     if (ev.tags !== undefined) update.tags = ev.tags;
   }
 
-  // For changed vertices: set stale. If sig_seen matches new sig, clear stale.
-  if (newSignature !== null) {
-    const agentUpdate: Record<string, unknown> = { ...dbV.agent, stale: true };
-    if (ev?.sig_seen && ev.sig_seen === newSignature) {
+  const seen: Record<string, unknown> = {};
+  if (ev?.sig_seen !== undefined) seen.sig_seen = ev.sig_seen;
+  if (ev?.hash_seen !== undefined) seen.hash_seen = ev.hash_seen;
+
+  // Changed vertices go stale unless the enrichment was written against the new body (hash_seen),
+  // or, for entries that predate hash_seen, the new signature.
+  if (changedTo !== null) {
+    const agentUpdate: Record<string, unknown> = { ...dbV.agent, stale: true, ...seen };
+    if (enrichmentIsCurrent(ev, changedTo)) {
       agentUpdate.stale = false;
-      agentUpdate.sig_seen = ev.sig_seen;
       agentUpdate.authored_by = "claude";
       agentUpdate.authored_at = now;
-    } else if (ev?.sig_seen) {
-      agentUpdate.sig_seen = ev.sig_seen;
     }
     update.agent = agentUpdate;
-  } else if (ev?.sig_seen !== undefined) {
-    update.agent = { ...dbV.agent, sig_seen: ev.sig_seen };
+  } else if (Object.keys(seen).length > 0) {
+    const agentUpdate: Record<string, unknown> = { ...dbV.agent, ...seen };
+    // Unchanged body: enrichment stamped with this exact hash clears a stale flag left by an earlier edit.
+    if (dbV.agent?.stale === true && ev?.hash_seen !== undefined && ev.hash_seen === dbV.contentHash) {
+      agentUpdate.stale = false;
+      agentUpdate.authored_by = "claude";
+      agentUpdate.authored_at = now;
+    }
+    update.agent = agentUpdate;
   }
 
   return update;
@@ -318,23 +330,21 @@ export async function apply(
     }
   }
 
-  // Compute actual stale count: changed vertices where enriched.sig_seen does NOT match new signature
-  const willBeStaleCount = changedKeys.filter((k) => {
-    const ev = enrichedVertexMap.get(k);
-    const newSig = astVertexMap.get(k)!.signature;
-    return !ev?.sig_seen || ev.sig_seen !== newSig;
-  }).length;
+  // Changed vertices whose enrichment is not current (hash_seen, or signature for pre-hash_seen entries)
+  const staleChangedKeys = changedKeys.filter(
+    (k) => !enrichmentIsCurrent(enrichedVertexMap.get(k), astVertexMap.get(k)!)
+  );
+  const willBeStaleCount = staleChangedKeys.length;
 
   if (opts.json && opts.dryRun) {
     const ref = (v: Vertex) => ({ name: v.name, type: v.type, file: v.filepath });
-    const stillStale = unchangedKeys.filter((k) => dbMap.get(k)!.agent?.stale === true);
-    const staleKeys = [
-      ...changedKeys.filter((k) => {
-        const ev = enrichedVertexMap.get(k);
-        return !ev?.sig_seen || ev.sig_seen !== astVertexMap.get(k)!.signature;
-      }),
-      ...stillStale,
-    ];
+    // Unchanged vertices stay stale unless the enrichment now carries their exact hash.
+    const stillStale = unchangedKeys.filter((k) => {
+      const dbV = dbMap.get(k)!;
+      const ev = enrichedVertexMap.get(k);
+      return dbV.agent?.stale === true && !(ev?.hash_seen !== undefined && ev.hash_seen === dbV.contentHash);
+    });
+    const staleKeys = [...staleChangedKeys, ...stillStale];
     console.log(
       JSON.stringify({
         concept,
@@ -455,7 +465,7 @@ export async function apply(
       const astV = astVertexMap.get(k)!;
       const dbV = dbMap.get(k)!;
       const ev = enrichedVertexMap.get(k);
-      const agentUpdate = buildAgentUpdate(dbV, ev, astV.signature, now);
+      const agentUpdate = buildAgentUpdate(dbV, ev, astV, now);
       mergeRecord(store, "vertices", k, {
         filepath: astV.filepath,
         start_line: astV.start_line,

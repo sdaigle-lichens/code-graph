@@ -41,6 +41,29 @@ In a Claude Code session with the plugin loaded, ask for enrichment of the conce
 skill's enrichment procedure; `update-concept-skills` and `update-single-concept-skill` offer it
 after a revision), e.g. "enrich workorder-store". This starts a subagent that reads the AST, adds semantic enrichment (purpose, cross-concept refs, tags), and writes `scribe-output/workorder-store.enriched.json`.
 
+#### Incremental enrichment (`enrich targets`, `enrich merge`)
+
+Enrichment can build up a few vertices at a time. Run `extract <concept>` first (both commands read
+`<concept>.ast.json` and say so if it is missing).
+
+- `code-graph enrich targets <concept> [--vertex <name|key>...] --json` lists the vertices that need
+  enrichment: new (not in the store, or no purpose yet), changed, stale, plus any named with
+  `--vertex`. Each entry has `key`, `name`, `type`, `filepath`, `start_line`, `end_line`, `signature`,
+  the current `purpose`, `reasons`, and `edgesWithoutReason` (outgoing AST edges with no `reason`).
+- `code-graph enrich merge <concept> <partial.json>` merges a partial enrichment (same entry shapes as
+  `.enriched.json`) into `scribe-output/<concept>.enriched.json`. It upserts vertices and edges by
+  `_key` (fields merge per entry), keeps every other entry, rejects keys missing from `ast.json`
+  (nothing is written), and stamps `sig_seen` and `hash_seen` from the current `ast.json`. The file is
+  written sorted by key with stable formatting, so merging N vertices changes about N entries, and
+  merging the same partial twice changes nothing. Then run `apply` as usual. (`apply` has no
+  `--merge`; use `enrich merge`.)
+
+**Staleness.** `hash_seen` is the vertex `contentHash` the enricher read. After a body edit, `apply`
+marks a vertex stale unless its enrichment carries the new hash, so a body-only edit (same signature)
+goes stale and `enrich merge` clears it. Entries written before 0.3.6 have only `sig_seen`; for them
+the old signature rule still applies, so upgrading does not mass-stale existing enrichment. The
+`gaps` completeness check no longer counts a stale description as enriched.
+
 ### 5. Apply to graph
 
 ```sh
@@ -131,6 +154,8 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph extract <concept>`        | `code-graph extract workorder-store`                                 | Extract AST → `scribe-output/<concept>.ast.json`          |
 | `code-graph apply <concept>`          | `code-graph apply workorder-store`                                   | Apply enriched doc to graph (upsert + drift check)        |
 | `code-graph drift <concept>`          | `code-graph drift workorder-store`                                   | Show drift without applying (alias for `apply --dry-run`) |
+| `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --json`                   | List vertices that need enrichment                        |
+| `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
 | `code-graph search "<query>"`         | `code-graph search "sync sends stale ops"`                           | Hybrid BM25 + multi-hop search                            |
 | `code-graph query concept <name>`     | `code-graph query concept workorder-store`                           | Query a concept subgraph                                  |
 | `code-graph query impact <symbol>`    | `code-graph query impact setWorkorderIndex`                          | Query impact of a symbol                                  |
