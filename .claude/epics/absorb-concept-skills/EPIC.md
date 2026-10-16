@@ -114,3 +114,15 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   place; a leading run_id line kept untouched; no run_id written (SubagentStop stamps it); the
   file named after the agent's bare name; main-session gaps aren't promised to be inlined. maestro
   queues its end-to-end check after 0.3.7.
+- r011 (013 done, uncommitted, code-graph-16): 0.3.6, 285/285, eval 7/7. `enrich targets` and
+  `enrich merge` were chosen over `apply --merge`. merge stamps hash_seen; legacy sig_seen-only
+  entries keep the signature rule; a new vertex with a mismatched hash_seen starts stale. enrich.ts
+  is imported lazily in cli.ts, so layer 1 stays sqlite-free. Added to 014: the scribe skill stops
+  hand-stamping sig_seen. Committed in 892b871.
+- r012 (014 done, uncommitted, code-graph-db): 0.3.7; pnpm check, eval 7/7 and plugin validate pass.
+  Retrieval: subagents append skill_gaps after answering, following maestro-0c's rules (one block,
+  run_id line kept, bare agent name, per-session dedupe, main-session gaps not promised). The update
+  flows enrich only targets: batches of about 10 fanned out to Haiku subagents by the caller, then
+  `enrich merge`, a spot-check and `apply`. A revised SKILL.md re-enriches the whole concept
+  through the same merge. The scribe skill no longer hand-stamps sig_seen/hash_seen. Send
+  maestro-0c one line once 0.3.7 is committed; it queues its end-to-end check.

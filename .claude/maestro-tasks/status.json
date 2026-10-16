@@ -67,12 +67,12 @@
     "epic": "absorb-concept-skills"
   },
   "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   },
   "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md": {
-    "status": "blocked",
+    "status": "done",
     "blockedBy": [
       "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md"
     ],

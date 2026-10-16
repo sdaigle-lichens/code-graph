@@ -55,6 +55,16 @@
       "name": "code-graph-d6",
       "task": "012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
       "added_at": "2026-10-16T22:19:53.764Z"
+    },
+    {
+      "name": "code-graph-16",
+      "task": "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md",
+      "added_at": "2026-10-16T23:19:57.871Z"
+    },
+    {
+      "name": "code-graph-db",
+      "task": "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
+      "added_at": "2026-10-16T23:29:02.073Z"
     }
   ],
   "log": [
@@ -192,6 +202,34 @@
       "kind": "ack",
       "id": "r010",
       "at": "2026-10-16T22:19:53.360Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r011",
+      "task": "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md",
+      "file": "inbox/r011-013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md",
+      "at": "2026-10-16T23:19:42.703Z",
+      "from": "code-graph-16"
+    },
+    {
+      "kind": "ack",
+      "id": "r011",
+      "at": "2026-10-16T23:19:57.576Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r012",
+      "task": "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
+      "file": "inbox/r012-014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
+      "at": "2026-10-16T23:28:47.533Z",
+      "from": "code-graph-db"
+    },
+    {
+      "kind": "ack",
+      "id": "r012",
+      "at": "2026-10-16T23:29:01.743Z",
       "by": "code-graph-d1"
     }
   ]
