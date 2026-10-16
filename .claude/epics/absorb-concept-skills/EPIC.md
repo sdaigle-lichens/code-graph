@@ -72,5 +72,6 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   `check-versions.mjs` (run in pnpm check and bundle) fails on drift. ast.json no longer carries
   per-vertex or per-edge extracted_at; apply stamps the store, and meta.extracted_at advances only
   on a content change. No schema change. Existing ast.json files get rewritten once on the next
-  extract, and each version bump rewrites extractor_version once. Send maestro one line covering
-  009 and 010 once 0.3.3 is committed.
+  extract, and each version bump rewrites extractor_version once. Committed in 9f166c0. One line
+  covering 009 and 010 went to maestro-0c, the only live maestro session (maestro-de is the
+  recorded cutover manager).
