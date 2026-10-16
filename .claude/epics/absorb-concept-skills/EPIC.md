@@ -79,3 +79,8 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   byte-identical, and the ast.json files are now committed in maestro. New non-blocking finding →
   task 011: plain-text search prints one line per call-site edge, using the caller's start line, so
   lines repeat. The ~14.7k token total vs the 3000 default budget also needs a check.
+- r009 (011 done, uncommitted, code-graph-ce): plain text groups edges by (other vertex, type),
+  showing (line N), (lines a, b, c) or ×N, plus every distinct reason; --json is unchanged. The
+  totals line was stale (counted before trimming) and is now restated after it; --max-tokens was
+  already honoured. The enrichment warning cli.ts appends runs ~14 tokens over budget (documented;
+  follow-up offered, not ticketed). No version bump: still 0.3.3.
