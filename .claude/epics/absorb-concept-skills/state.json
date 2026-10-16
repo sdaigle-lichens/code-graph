@@ -50,6 +50,11 @@
       "name": "code-graph-ce",
       "task": "011-stop-plain-text-search-from-repeating-the-same-edge-per-call-site.md",
       "added_at": "2026-10-16T20:29:55.306Z"
+    },
+    {
+      "name": "code-graph-d6",
+      "task": "012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
+      "added_at": "2026-10-16T22:19:53.764Z"
     }
   ],
   "log": [
@@ -173,6 +178,20 @@
       "kind": "ack",
       "id": "r009",
       "at": "2026-10-16T20:29:54.916Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r010",
+      "task": "012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
+      "file": "inbox/r010-012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
+      "at": "2026-10-16T22:19:34.424Z",
+      "from": "code-graph-d6"
+    },
+    {
+      "kind": "ack",
+      "id": "r010",
+      "at": "2026-10-16T22:19:53.360Z",
       "by": "code-graph-d1"
     }
   ]

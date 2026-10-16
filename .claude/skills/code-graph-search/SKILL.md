@@ -177,7 +177,7 @@ before the budget step or the figure and `--max-tokens` both shift.
 - **`has-type` belongs in structural outbound.** Type-defs are useful context (one or two per function); removing it loses signal without saving meaningful tokens. Was reviewed once — stay the course.
 - **Inbound depth-2 only filters `impactTypes`.** Don't include `mounts` / `uses-hook` inbound at depth 2 — that pulls in entire component trees.
 - **Seeds are limited to 10.** Raising this multiplies expansion cost.
-- **The view uses `TOKENS(...)` not `PHRASE(...)`.** Phrase matching kills multi-word natural-language queries.
+- **`toMatchExpr` joins tokens with `OR`, never as a phrase or with `AND`.** Phrase or all-terms matching kills multi-word natural-language queries.
 
 ## Common refactor pitfalls
 

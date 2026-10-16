@@ -85,3 +85,32 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   already honoured. The enrichment warning cli.ts appends runs ~14 tokens over budget (documented;
   follow-up offered, not ticketed). Published as 0.3.4, a version-only bump so the plugin update
   picks it up.
+- maestro-0c verified 0.3.4 (edges grouped, totals ~3004). New finding → task 012: every plugin
+  release rewrites every .ast.json, because extractor_version is on each vertex and meta's
+  timestamp comparison includes the version. maestro is holding its 0.3.4 re-extract uncommitted:
+  with 012 shipped it gets one rewrite instead of two.
+- r010 (012 done, code-graph-d6, in worktree code-graph-task-012, uncommitted and unmerged): 0.3.5.
+  The extractor version is recorded only in meta; apply stamps the store's per-vertex copy from it,
+  and a per-vertex value from an older file wins. meta is kept whole when vertices, edges and skill
+  are unchanged, so an upgrade alone is byte-identical; meta.extractor_version = the version that
+  last changed the content. The skill block is in the comparison too (the user approved). Unchanged
+  vertices keep their first-written store extractor_version. No test covers a change to the skill
+  or edges alone. Send maestro-0c one line after the merge: commit only the first 0.3.5 rewrite.
+- Gaps closed before the merge (the user approved): code-graph-d6 added skill-only and edge-only
+  meta tests (275/275). The stale TOKENS/PHRASE line in the code-graph-search skill was fixed and
+  re-applied. The rest was left on purpose: the ~14-token overrun, mid-heading truncation, the
+  stale store extractor_version (nothing reads it), and the networked deps CI.
+- task-012 merged in 8113777 (0.3.5); maestro-0c was told to discard the held 0.3.4 re-extract
+  and commit only the first 0.3.5 rewrite.
+- maestro-0c verified 0.3.5: after the one-time rewrite, two re-extracts in a row were
+  byte-identical. Feature request (the user's): enrich incrementally as tasks touch code, not in a
+  bulk pass; maestro dropped its bulk-enrichment task. The user chose 2 tasks. 013 (CLI, 0.3.6):
+  `enrich targets` and `enrich merge`, stale on contentHash (hash_seen; old entries keep the
+  signature rule), and gaps ignore stale descriptions. 014 (skills, 0.3.7, blocked by 013):
+  retrieval writes skill_gaps to the scribe channel; the update flows enrich only targets via Haiku
+  fan-out from the caller plus a spot-check. Send maestro the task numbers and versions when they
+  ship.
+- maestro-0c's constraints on the gap file, added to 014: exactly one json block, merged in
+  place; a leading run_id line kept untouched; no run_id written (SubagentStop stamps it); the
+  file named after the agent's bare name; main-session gaps aren't promised to be inlined. maestro
+  queues its end-to-end check after 0.3.7.
