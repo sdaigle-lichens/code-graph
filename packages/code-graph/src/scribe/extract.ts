@@ -10,7 +10,6 @@ import {
 } from "ts-morph";
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
-import { packageVersion } from "../version.js";
 import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
 import type { Edge, Vertex } from "../schema.js";
 
@@ -499,8 +498,6 @@ export async function extract(conceptName: string): Promise<void> {
     process.exit(1);
   }
 
-  const extractorVersion = `code-graph@${packageVersion()}`;
-
   const vertices: Vertex[] = [];
   const nodeToKey = new Map<Node, string>();
   const keyToNode = new Map<string, Node>();
@@ -525,7 +522,7 @@ export async function extract(conceptName: string): Promise<void> {
       signature: signatureFromNode(name, node),
       contentHash: sha256hex(text),
       status: "live",
-      ast: { extractor_version: extractorVersion },
+      ast: {},
       agent: { authored_by: null, stale: false },
     };
     nodeToKey.set(node, key);

@@ -82,7 +82,11 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   `last-update` sha reports `unknownFreshness`, never throws.
 - `.ast.json` is byte-stable across re-extracts of unchanged code: vertices/edges carry no
   `ast.extracted_at` there (optional in the schema); `apply` stamps `ast.extracted_at` into the
-  store's JSON column. `meta.extracted_at` only advances when content changes. Guarded by
+  store's JSON column. `meta` (`extractor_version` + `extracted_at`) is kept whole when vertices,
+  edges and skill are unchanged, so `meta.extractor_version` = the version that last changed the
+  file's content. Per-vertex `ast.extractor_version` is optional in the file (schema unchanged,
+  `SCHEMA_VERSION` too): `apply` fills the store's value from `meta`, a legacy per-vertex value wins.
+  The first `extract` after 0.3.5 rewrites each committed file once. Guarded by
   `scribe/ast-stability.test.ts`; don't add timestamps or other per-run values to the file.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass

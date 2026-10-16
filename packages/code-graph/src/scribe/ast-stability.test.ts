@@ -7,6 +7,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -72,8 +73,9 @@ describe("ast.json is byte-stable across re-extracts", () => {
     assert.ok(ast.vertices.length >= 2 && ast.edges.length >= 1, "fixture has vertices and edges");
     for (const v of ast.vertices) {
       assert.equal("extracted_at" in v.ast, false, "vertex ast carries no timestamp");
-      assert.match(v.ast.extractor_version, /^code-graph@\d+\.\d+\.\d+/);
+      assert.equal("extractor_version" in v.ast, false, "version lives in meta only");
     }
+    assert.match(ast.meta.extractor_version, /^code-graph@\d+\.\d+\.\d+/);
     for (const e of ast.edges) assert.deepEqual(e.ast, {});
     assert.equal(typeof ast.meta.extracted_at, "string");
   });
@@ -134,6 +136,80 @@ describe("ast.json is byte-stable across re-extracts", () => {
     for (const v of now.vertices) assert.equal("extracted_at" in v.ast, false);
   });
 
+  it("a plugin upgrade with no content change leaves the file byte-identical (old meta version kept)", async () => {
+    tsProject();
+    run(["extract", "c"]);
+    // Fake a file last written by an older release.
+    const old = JSON.parse(readAst());
+    old.meta.extractor_version = "code-graph@0.0.1";
+    fs.writeFileSync(astPath(), JSON.stringify(old, null, 2));
+    const faked = readAst();
+    await sleep(1100);
+    assert.equal(run(["extract", "c"]).code, 0);
+    assert.equal(readAst(), faked);
+
+    // A real content change records the current version and a new timestamp.
+    write("src/a.ts", "export function alpha(x: number): number {\n  return x + 7;\n}\n");
+    run(["extract", "c"]);
+    const after = JSON.parse(readAst());
+    const pkg = JSON.parse(fs.readFileSync(path.join(PKG, "package.json"), "utf8"));
+    assert.equal(after.meta.extractor_version, `code-graph@${pkg.version}`);
+    assert.notEqual(after.meta.extracted_at, old.meta.extracted_at);
+  });
+
+  it("apply stamps ast.extractor_version into store vertices from meta, and an older per-vertex file still applies", () => {
+    tsProject();
+    run(["extract", "c"]);
+    const old = JSON.parse(readAst());
+    old.meta.extractor_version = "code-graph@0.0.1";
+    fs.writeFileSync(astPath(), JSON.stringify(old, null, 2));
+    run(["bootstrap"]);
+    assert.equal(run(["apply", "c"]).code, 0);
+    const versions = () => {
+      const db = new DatabaseSync(path.join(tmp, "scribe-output/graph.db"));
+      try {
+        const rows = db.prepare("SELECT doc FROM vertices WHERE concept = 'c'").all() as { doc: string }[];
+        return rows.map((r) => JSON.parse(r.doc).ast.extractor_version);
+      } finally {
+        db.close();
+      }
+    };
+    assert.deepEqual([...new Set(versions())], ["code-graph@0.0.1"]);
+
+    // legacy shape: per-vertex version and timestamp
+    for (const v of old.vertices) {
+      v.ast.extractor_version = "code-graph@0.0.2";
+      v.ast.extracted_at = "2020-01-01T00:00:00.000Z";
+    }
+    fs.writeFileSync(astPath(), JSON.stringify(old, null, 2));
+    assert.equal(run(["apply", "c"]).code, 0);
+  });
+
+  it("a legacy file with per-vertex extractor_version is rewritten once, then stays byte-identical", async () => {
+    tsProject();
+    run(["extract", "c"]);
+    const old = JSON.parse(readAst());
+    for (const v of old.vertices) v.ast.extractor_version = "code-graph@0.0.1";
+    fs.writeFileSync(astPath(), JSON.stringify(old, null, 2));
+    await sleep(1100);
+    assert.equal(run(["extract", "c"]).code, 0);
+    const rewritten = readAst();
+    for (const v of JSON.parse(rewritten).vertices) assert.equal("extractor_version" in v.ast, false);
+    await sleep(1100);
+    run(["extract", "c"]);
+    assert.equal(readAst(), rewritten);
+  });
+
+  it("a previous file lacking meta.extractor_version is treated as changed", () => {
+    tsProject();
+    run(["extract", "c"]);
+    const old = JSON.parse(readAst());
+    delete old.meta.extractor_version;
+    fs.writeFileSync(astPath(), JSON.stringify(old, null, 2));
+    run(["extract", "c"]);
+    assert.match(JSON.parse(readAst()).meta.extractor_version, /^code-graph@/);
+  });
+
   it("a docs-only concept re-extracts byte-identically", async () => {
     write(
       "scribe.config.json",
@@ -146,6 +222,53 @@ describe("ast.json is byte-stable across re-extracts", () => {
     await sleep(1100);
     assert.equal(run(["extract", "guide"]).code, 0);
     assert.equal(fs.readFileSync(p, "utf8"), first);
+  });
+
+  it("a skill-only change rewrites the file and advances meta.extracted_at", async () => {
+    write(
+      "scribe.config.json",
+      JSON.stringify({ project: "p", concepts: { guide: { globs: ["docs/**/*.md"], skill: "docs/SKILL.md" } } })
+    );
+    write("docs/SKILL.md", "---\nname: guide\n---\n\nbody\n");
+    assert.equal(run(["extract", "guide"]).code, 0);
+    const p = path.join(tmp, "scribe-output/guide.ast.json");
+    const before = JSON.parse(fs.readFileSync(p, "utf8"));
+    await sleep(1100);
+    write("docs/SKILL.md", "---\nname: guide\n---\n\nchanged body\n");
+    assert.equal(run(["extract", "guide"]).code, 0);
+    const after = JSON.parse(fs.readFileSync(p, "utf8"));
+    assert.deepEqual(after.vertices, before.vertices);
+    assert.deepEqual(after.edges, before.edges);
+    assert.notDeepEqual(after.skill, before.skill);
+    assert.notEqual(after.meta.extracted_at, before.meta.extracted_at);
+  });
+
+  it("an edge-only change (same vertices) advances meta.extracted_at", async () => {
+    const { writeAstOutput } = await import(path.join(PKG, "dist/scribe/ast-output.js"));
+    const config: any = { configRoot: tmp };
+    const v = (name: string) => ({
+      _key: `c/src/a.ts:${name}`,
+      name,
+      status: "live",
+      ast: {},
+      agent: { authored_by: null, stale: false },
+    });
+    const vertices = [v("one"), v("two")];
+    const edge = { _from: "c/src/a.ts:one", _to: "c/src/a.ts:two", type: "calls", ast: {} };
+    writeAstOutput(config, "e", vertices as any, [edge] as any, undefined);
+    const p = path.join(tmp, "scribe-output/e.ast.json");
+    const before = JSON.parse(fs.readFileSync(p, "utf8"));
+
+    await sleep(1100);
+    writeAstOutput(config, "e", vertices as any, [edge] as any, undefined);
+    assert.equal(JSON.parse(fs.readFileSync(p, "utf8")).meta.extracted_at, before.meta.extracted_at, "unchanged");
+
+    await sleep(1100);
+    writeAstOutput(config, "e", vertices as any, [] as any, undefined);
+    const after = JSON.parse(fs.readFileSync(p, "utf8"));
+    assert.deepEqual(after.vertices, before.vertices);
+    assert.equal(after.edges.length, 0);
+    assert.notEqual(after.meta.extracted_at, before.meta.extracted_at);
   });
 });
 

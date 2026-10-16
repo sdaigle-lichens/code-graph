@@ -216,6 +216,12 @@ export async function apply(
     }
   }
 
+  // The .ast.json records the extractor version once in meta; the store keeps it per vertex. An older
+  // file that still carries it per vertex keeps its own value.
+  for (const v of astDoc.vertices) {
+    v.ast = { ...v.ast, extractor_version: v.ast.extractor_version ?? astDoc.meta.extractor_version };
+  }
+
   // Build AST maps
   const astKeySet = new Set(astDoc.vertices.map((v) => v._key));
   const astVertexMap = new Map(astDoc.vertices.map((v) => [v._key, v]));

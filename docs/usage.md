@@ -96,11 +96,17 @@ it is not counted in it (~14 tokens).
 
 `<concept>.ast.json` is safe to commit: re-running `extract` on an unchanged concept rewrites it
 byte-for-byte identical. Vertices and edges carry no per-run timestamps (`apply` stamps the store
-with its own time), both lists are sorted by `_key`, and `meta.extracted_at` only advances when
-the content changes (a source edit, or a code-graph version bump, since `extractor_version` is part
-of the file). Editing one file therefore touches only that file's vertices and edges plus
-`meta.extracted_at`. `skills status` reports that `meta.extracted_at` as the time of the last real
-change.
+with its own time), both lists are sorted by `_key`, and the whole `meta` block
+(`extractor_version` + `extracted_at`) is kept as-is when vertices, edges and skill are unchanged.
+A code-graph upgrade alone therefore leaves the file untouched. Editing one file touches only that
+file's vertices and edges plus `meta`. `skills status` reports `meta.extracted_at` as the time of
+the last real change.
+
+`meta.extractor_version` means "the version that last changed this file's content". The file carries
+no per-vertex `extractor_version`; `apply` stamps the store's per-vertex `ast.extractor_version` from
+`meta`. Older files that still carry per-vertex values keep applying (the per-vertex value wins).
+The first `extract` after 0.3.5 rewrites each committed `.ast.json` once (dropping the per-vertex
+values); commit that rewrite.
 
 ## Plugin surface
 
