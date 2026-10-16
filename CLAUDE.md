@@ -31,6 +31,8 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
   enrichment stale. Run `just regraph` after any format pass.
 - **Vertex `_key` includes the filepath**: moving files rewrites keys and orphans
   `scribe-output/<concept>.enriched.json` (remap or re-enrich).
+- Bump the version in `packages/code-graph/package.json`, `plugin/.claude-plugin/plugin.json` and
+  `.claude-plugin/marketplace.json` together; `check-versions.mjs` (in `pnpm check` and `bundle`) fails on drift.
 - Pilot consumer `~/Documents/gits/lichens-ordonnancement-ui` is not on this machine; never commit
   there from here.
 

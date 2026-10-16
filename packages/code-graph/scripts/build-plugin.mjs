@@ -20,6 +20,7 @@ import { build } from "esbuild";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { assertVersionsAligned } from "./check-versions.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(here, "..");
@@ -49,6 +50,7 @@ const projectDeps = {
 
 /** Build the bundle into `outfile` (default: the committed plugin script). Exported for tests. */
 export async function buildPlugin(outfile = defaultOutfile) {
+  assertVersionsAligned();
   await build({
     // Pinned so the `// <path>` comments esbuild stamps do not depend on where the build ran.
     absWorkingDir: pkgRoot,

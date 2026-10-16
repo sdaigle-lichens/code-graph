@@ -1,6 +1,6 @@
 {
   "name": "code-graph",
-  "version": "0.1.0",
+  "version": "0.3.3",
   "description": "Graph-based code intelligence for Claude Code — BM25 + multi-hop retrieval over TypeScript/React codebases, in an embedded SQLite store",
   "repository": {
     "type": "git",
@@ -60,7 +60,7 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/cli.js",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "check": "prettier --check . --ignore-path ../../.prettierignore",
+    "check": "node scripts/check-versions.mjs && prettier --check . --ignore-path ../../.prettierignore",
     "format": "prettier --write . --ignore-path ../../.prettierignore"
   },
   "files": [

@@ -86,6 +86,16 @@ Or from inside Claude Code:
 /graph sync sends stale ops
 ```
 
+### Sharing a graph (committing `.ast.json`)
+
+`<concept>.ast.json` is safe to commit: re-running `extract` on an unchanged concept rewrites it
+byte-for-byte identical. Vertices and edges carry no per-run timestamps (`apply` stamps the store
+with its own time), both lists are sorted by `_key`, and `meta.extracted_at` only advances when
+the content changes (a source edit, or a code-graph version bump, since `extractor_version` is part
+of the file). Editing one file therefore touches only that file's vertices and edges plus
+`meta.extracted_at`. `skills status` reports that `meta.extracted_at` as the time of the last real
+change.
+
 ## Plugin surface
 
 Everything a user can invoke from the plugin. `/graph` is the only slash command; the rest are skills

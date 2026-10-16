@@ -45,7 +45,8 @@ export const VertexSchema = z.object({
   tags: z.array(z.string()).optional(),
   status: z.enum(["live", "archived"]),
   archivedAt: z.string().optional(),
-  ast: z.object({ extracted_at: z.string(), extractor_version: z.string() }),
+  // `extracted_at` is stamped by apply; .ast.json omits it so re-extracts stay byte-identical.
+  ast: z.object({ extracted_at: z.string().optional(), extractor_version: z.string() }),
   agent: z.object({
     authored_by: z.enum(["claude"]).nullable(),
     authored_at: z.string().optional(),
@@ -64,7 +65,7 @@ export const EdgeSchema = z.object({
   reason: z.string().optional(),
   lifecycle: z.enum(["useEffect", "handler", "mount", "callback"]).nullable().optional(),
   line: z.number().optional(),
-  ast: z.object({ extracted_at: z.string() }),
+  ast: z.object({ extracted_at: z.string().optional() }),
   agent: z.object({ authored_by: z.enum(["claude"]).nullable() }),
 });
 

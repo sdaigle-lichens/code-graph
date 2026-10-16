@@ -35,6 +35,9 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   behind it.
 - The version is baked in as `__CODE_GRAPH_VERSION__` and `packageRoot()` is null in the bundle —
   read version/package dir through `version.ts`, never `package.json`.
+- **Versions stay in lockstep**: `packages/code-graph/package.json`, `plugin/.claude-plugin/plugin.json`
+  and `.claude-plugin/marketplace.json` must carry the same version. `scripts/check-versions.mjs`
+  enforces it (in `pnpm check` and at the start of the bundle step); bump all three together.
 - **Layer 1 never loads the graph stack.** `skills *` must not load `node:sqlite`, `typescript` or
   `ts-morph`; `cli.ts` imports store/extract/query modules lazily inside each command. Keep new
   graph imports lazy and keep `skills/` free of them.
@@ -77,6 +80,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - `drift --json` / `apply --dry-run --json` `changed` is ast.json vs store: run `extract` first.
   `skills status --json` graph freshness (`scribe/freshness.ts`) is lazy and optional; a bad
   `last-update` sha reports `unknownFreshness`, never throws.
+- `.ast.json` is byte-stable across re-extracts of unchanged code: vertices/edges carry no
+  `ast.extracted_at` there (optional in the schema); `apply` stamps `ast.extracted_at` into the
+  store's JSON column. `meta.extracted_at` only advances when content changes. Guarded by
+  `scribe/ast-stability.test.ts`; don't add timestamps or other per-run values to the file.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
   `--bump minor|major` when migrating an existing list.

@@ -35,13 +35,20 @@ export async function readConceptSkill(config: ScribeConfig, conceptName: string
   return { path, body, contentHash: "sha256:" + sha256hex(body) };
 }
 
+function readPrevious(path: string): Record<string, any> | null {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 export function writeAstOutput(
   config: ScribeConfig,
   conceptName: string,
   vertices: Vertex[],
   edges: Edge[],
-  skill: SkillField | undefined,
-  extractedAt: string
+  skill: SkillField | undefined
 ): void {
   const outputDir = join(config.configRoot, "scribe-output");
   mkdirSync(outputDir, { recursive: true });
@@ -50,9 +57,20 @@ export function writeAstOutput(
     vertices,
     edges,
     ...(skill && { skill }),
-    meta: { extractor_version: `code-graph@${packageVersion()}`, extracted_at: extractedAt },
+    meta: { extractor_version: `code-graph@${packageVersion()}`, extracted_at: new Date().toISOString() },
   };
-  writeFileSync(join(outputDir, `${conceptName}.ast.json`), JSON.stringify(output, null, 2), "utf-8");
+  const path = join(outputDir, `${conceptName}.ast.json`);
+  // meta.extracted_at is the time of the last real change: an unchanged re-extract keeps the old
+  // stamp, so the file is byte-identical and safe to commit.
+  const previous = readPrevious(path);
+  if (previous && typeof previous.meta?.extracted_at === "string") {
+    const { extracted_at: _prev, ...prevMeta } = previous.meta;
+    const { extracted_at: _next, ...nextMeta } = output.meta;
+    if (JSON.stringify({ ...previous, meta: prevMeta }) === JSON.stringify({ ...output, meta: nextMeta })) {
+      output.meta.extracted_at = previous.meta.extracted_at;
+    }
+  }
+  writeFileSync(path, JSON.stringify(output, null, 2), "utf-8");
 }
 
 /** Extract a docs-only concept: zero vertices, the skill block only. */
@@ -65,6 +83,6 @@ export async function extractDocsOnly(config: ScribeConfig, conceptName: string)
     );
     process.exit(1);
   }
-  writeAstOutput(config, conceptName, [], [], skill, new Date().toISOString());
+  writeAstOutput(config, conceptName, [], [], skill);
   process.stderr.write(`0 vertices, 0 edges, skill body ${skill.body.length} chars (docs-only)\n`);
 }

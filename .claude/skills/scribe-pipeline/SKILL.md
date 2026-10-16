@@ -31,6 +31,8 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 - Vertex `_key` includes the filepath, so moving a file orphans its enrichment until remapped.
 - Agent fields come only from enrichment and survive re-extracts; a body change sets `agent.stale`.
 - Nothing is hard-deleted: apply archives missing vertices (`status: archived`).
+- `.ast.json` is byte-stable for unchanged code: no per-item `ast.extracted_at` in the file (`apply`
+  stamps it into the store), and `meta.extracted_at` advances only on content change.
 - Re-apply replaces all AST edges; agent-authored edges are upserted separately.
 - The concept SKILL.md becomes a `docs/<concept>::skill` vertex with `documented-by` edges to every
   live vertex. A docs-only concept (no code vertices) still gets the doc vertex, which is what makes

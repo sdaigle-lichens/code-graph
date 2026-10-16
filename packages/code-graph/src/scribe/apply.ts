@@ -90,7 +90,7 @@ function mergeVertexForInsert(
   > | null,
   now: string
 ): Record<string, unknown> {
-  const doc: Record<string, unknown> = { ...astV };
+  const doc: Record<string, unknown> = { ...astV, ast: { ...astV.ast, extracted_at: now } };
 
   // Apply inherited agent fields (from rename source)
   if (inheritedAgentFields) {
@@ -459,7 +459,7 @@ export async function apply(
         type: astV.type,
         name: astV.name,
         displayKey: astV.displayKey,
-        ast: astV.ast,
+        ast: { ...astV.ast, extracted_at: now },
         ...agentUpdate,
       });
       updatedCount++;

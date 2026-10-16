@@ -258,8 +258,7 @@ function buildEdges(
   keyToNode: Map<string, Node>,
   nodeToKey: Map<Node, string>,
   vertexToStore: Map<string, string>,
-  conceptName: string,
-  extractedAt: string
+  conceptName: string
 ): Edge[] {
   const edges: Edge[] = [];
   const emitted = new Set<string>();
@@ -278,7 +277,7 @@ function buildEdges(
       concept: conceptName,
       crosses_concept: false,
       line,
-      ast: { extracted_at: extractedAt },
+      ast: {},
       agent: { authored_by: null },
     });
   }
@@ -500,7 +499,6 @@ export async function extract(conceptName: string): Promise<void> {
     process.exit(1);
   }
 
-  const extractedAt = new Date().toISOString();
   const extractorVersion = `code-graph@${packageVersion()}`;
 
   const vertices: Vertex[] = [];
@@ -527,7 +525,7 @@ export async function extract(conceptName: string): Promise<void> {
       signature: signatureFromNode(name, node),
       contentHash: sha256hex(text),
       status: "live",
-      ast: { extracted_at: extractedAt, extractor_version: extractorVersion },
+      ast: { extractor_version: extractorVersion },
       agent: { authored_by: null, stale: false },
     };
     nodeToKey.set(node, key);
@@ -540,7 +538,7 @@ export async function extract(conceptName: string): Promise<void> {
     walkSourceFile(sf, fp, conceptName, vertices, nodeToKey, vertexToStore, makeVertex);
   }
 
-  const edges = buildEdges(vertices, keyToNode, nodeToKey, vertexToStore, conceptName, extractedAt);
+  const edges = buildEdges(vertices, keyToNode, nodeToKey, vertexToStore, conceptName);
 
   // Skill
   const skillField = await readConceptSkill(config, conceptName);
@@ -549,7 +547,7 @@ export async function extract(conceptName: string): Promise<void> {
   vertices.sort((a, b) => a._key.localeCompare(b._key));
   edges.sort((a, b) => a._key.localeCompare(b._key));
 
-  writeAstOutput(config, conceptName, vertices, edges, skillField, extractedAt);
+  writeAstOutput(config, conceptName, vertices, edges, skillField);
 
   const skillChars = skillField?.body.length ?? 0;
   process.stderr.write(`${vertices.length} vertices, ${edges.length} edges, skill body ${skillChars} chars\n`);
