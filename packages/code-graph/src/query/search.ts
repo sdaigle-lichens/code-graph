@@ -31,6 +31,8 @@ export type SearchResult = {
     hits: SearchHit[];
   }>;
   totals: { concepts: number; vertices: number; docs: number; tokens: number };
+  /** True when every hit came only through a skill doc (no vertex matched the query text). */
+  docOnly?: boolean;
 };
 
 function estimateTokens(s: string): number {
@@ -65,6 +67,24 @@ async function expandVertex(
     skillDocs.set(vertex.concept, skillDoc(db, vertex.concept));
   }
 
+  collectEdges(db, key, { vertexMap, edgesInMap, edgesOutMap, crossEdgesMap, incidentEdges }, true);
+}
+
+type EdgeMaps = {
+  vertexMap: Map<string, { vertex: Vertex; bm25: number }>;
+  edgesInMap: Map<string, Array<{ edge: Edge; from: Vertex }>>;
+  edgesOutMap: Map<string, Array<{ edge: Edge; to: Vertex }>>;
+  crossEdgesMap: Map<string, Array<{ edge: Edge; other: Vertex }>>;
+  incidentEdges: Map<string, Set<string>>;
+};
+
+/**
+ * One-hop structural/impact/cross edges for `key`. With `addNeighbors` the far
+ * ends join `vertexMap` (vertex seeds); without it they only appear in the edge
+ * lists (doc-loaded vertices, where pulling neighbours in would flood the result).
+ */
+function collectEdges(db: DatabaseSync, key: string, maps: EdgeMaps, addNeighbors: boolean): void {
+  const { vertexMap, edgesInMap, edgesOutMap, crossEdgesMap, incidentEdges } = maps;
   const trackEdge = (edgeKey: string, ...vkeys: string[]) => {
     for (const vk of vkeys) {
       let s = incidentEdges.get(vk);
@@ -75,11 +95,14 @@ async function expandVertex(
       s.add(edgeKey);
     }
   };
+  const addVertex = (v: Vertex) => {
+    if (addNeighbors && !vertexMap.has(v._key)) vertexMap.set(v._key, { vertex: v, bm25: 0 });
+  };
 
   const structuralTypes = ["calls", "reads", "writes", "uses-hook", "mounts", "has-type"];
   const startId = vertexId(key);
   for (const row of oneHop(db, "out", startId, structuralTypes)) {
-    if (!vertexMap.has(row.vertex._key)) vertexMap.set(row.vertex._key, { vertex: row.vertex, bm25: 0 });
+    addVertex(row.vertex);
     appendToMap(edgesOutMap, key, { edge: row.edge, to: row.vertex });
     trackEdge(row.edge._key, key, row.vertex._key);
   }
@@ -89,23 +112,26 @@ async function expandVertex(
   // — an oddity of the original traversal that the scores and the rendered
   // "triggered by" list both depend on, so it is reproduced rather than fixed.
   for (const row of twoHops(db, "in", startId, impactTypes, -1)) {
-    if (!vertexMap.has(row.vertex._key)) vertexMap.set(row.vertex._key, { vertex: row.vertex, bm25: 0 });
+    addVertex(row.vertex);
     appendToMap(edgesInMap, key, { edge: row.edge, from: row.vertex });
     trackEdge(row.edge._key, key, row.vertex._key);
   }
 
   const crossRows = [...oneHop(db, "in", startId, null, true), ...oneHop(db, "out", startId, null, true)];
   for (const row of crossRows) {
-    if (!vertexMap.has(row.vertex._key)) vertexMap.set(row.vertex._key, { vertex: row.vertex, bm25: 0 });
+    addVertex(row.vertex);
     appendToMap(crossEdgesMap, key, { edge: row.edge, other: row.vertex });
     trackEdge(row.edge._key, key, row.vertex._key);
   }
 }
 
+/** Most vertices a skill-doc seed contributes per concept, ranked by degree. */
+const DOC_VERTEX_CAP = 20;
+
 async function expandDoc(
   db: DatabaseSync,
   doc: DocVertex,
-  vertexMap: Map<string, { vertex: Vertex; bm25: number }>,
+  maps: EdgeMaps,
   skillDocs: Map<string, DocVertex | null>,
   loadVertices: boolean
 ): Promise<void> {
@@ -120,8 +146,17 @@ async function expandDoc(
       .prepare("SELECT doc FROM vertices WHERE concept = ? AND status = 'live' ORDER BY type, key")
       .all(doc.concept) as { doc: string }[]
   );
+  // Give each loaded vertex its one-hop edges (so it has a real degree), then
+  // keep only the best-connected DOC_VERTEX_CAP: a concept can hold hundreds.
+  const loaded: Array<{ v: Vertex; degree: number }> = [];
   for (const v of rows) {
-    if (!vertexMap.has(v._key)) vertexMap.set(v._key, { vertex: v, bm25: 0 });
+    if (maps.vertexMap.has(v._key)) continue;
+    collectEdges(db, v._key, maps, false);
+    loaded.push({ v, degree: maps.incidentEdges.get(v._key)?.size ?? 0 });
+  }
+  loaded.sort((a, b) => b.degree - a.degree); // stable: ties keep type,key order
+  for (const { v } of loaded.slice(0, DOC_VERTEX_CAP)) {
+    maps.vertexMap.set(v._key, { vertex: v, bm25: 0 });
   }
 }
 
@@ -132,7 +167,14 @@ export async function search(
   opts: { maxTokens: number; json: boolean; skillMode?: SkillMode }
 ): Promise<SearchResult> {
   const { db: store } = await preflight();
+  return searchStore(store, query, opts);
+}
 
+export async function searchStore(
+  store: DatabaseSync,
+  query: string,
+  opts: { maxTokens: number; json: boolean; skillMode?: SkillMode }
+): Promise<SearchResult> {
   const match = toMatchExpr(query);
   if (match === null) throw new SearchNoResultsError(query);
 
@@ -208,7 +250,15 @@ export async function search(
     await Promise.all(
       docSeeds
         .slice(i, i + 5)
-        .map((seed) => expandDoc(store, seed.doc as unknown as DocVertex, vertexMap, skillDocs, docLoadsVertices))
+        .map((seed) =>
+          expandDoc(
+            store,
+            seed.doc as unknown as DocVertex,
+            { vertexMap, edgesInMap, edgesOutMap, crossEdgesMap, incidentEdges },
+            skillDocs,
+            docLoadsVertices
+          )
+        )
     );
   }
 
@@ -278,6 +328,7 @@ export async function search(
     hits,
     clusters,
     totals: { concepts: clusters.length, vertices: totalVertices, docs: totalDocs, tokens: 0 },
+    docOnly: vertexSeeds.length === 0,
   };
   formatSearch(result, { skillMode: opts.skillMode }); // populates totals.tokens
   return result;
@@ -290,6 +341,11 @@ export function formatSearch(result: SearchResult, opts?: { skillMode?: SkillMod
 
   lines.push(`# Search: "${query}"`);
   lines.push("__TOTALS_PLACEHOLDER__");
+  if (result.docOnly) {
+    lines.push(
+      "> Hint: matched only through skill docs; enrich the concept with the `scribe` skill to make its vertices searchable by purpose and tags."
+    );
+  }
   lines.push("");
 
   for (const { concept, skill, hits } of clusters) {
@@ -365,14 +421,14 @@ export function applyTokenBudget(result: SearchResult, maxTokens: number, opts?:
   if (estimateTokens(md) <= maxTokens) return stripSentinels(md);
 
   // Step 2: drop low-degree leaves (degree ≤ 1, not seeds)
+  // A cluster whose hits would all be dropped (doc-seeded concepts) keeps its
+  // best few, so trimming never removes the concept itself.
   const filtered: SearchResult = {
     ...result,
-    clusters: result.clusters
-      .map((c) => ({
-        ...c,
-        hits: c.hits.filter((h) => h.degree > 1 || h.bm25 > 0),
-      }))
-      .filter((c) => c.hits.length > 0),
+    clusters: result.clusters.map((c) => {
+      const kept = c.hits.filter((h) => h.degree > 1 || h.bm25 > 0);
+      return { ...c, hits: kept.length > 0 || c.hits.length === 0 ? kept : c.hits.slice(0, 5) };
+    }),
     totals: { ...result.totals },
   };
   filtered.totals.vertices = filtered.clusters.reduce((n, c) => n + c.hits.length, 0);

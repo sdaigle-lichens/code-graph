@@ -27,7 +27,7 @@ query string
 [3] Expand vertex seeds  ← graph traversal, depth-bounded
    │
    ▼
-[4] Expand doc seeds     ← capture skill doc; load concept vertices ONLY if no vertex seeds
+[4] Expand doc seeds     ← capture skill doc; load top-20 (by degree) concept vertices ONLY if no vertex seeds
    │
    ▼
 [5] Score         ← 0.7 × (bm25/max) + 0.3 × (degree/max)
@@ -113,7 +113,11 @@ Skill doc for the seed's concept is loaded into `skillDocs` map.
 
 Always: capture the skill doc into `skillDocs`.
 
-Conditionally (`loadVertices === true`, i.e. zero vertex seeds): load **all** live vertices of the doc's concept with `bm25 = 0`. This is the discoverability fallback for pure-concept queries like "drag and drop" that only hit a skill body.
+Conditionally (`loadVertices === true`, i.e. zero vertex seeds): load the doc's concept's live vertices with `bm25 = 0`, **capped at `DOC_VERTEX_CAP = 20`**. This is the discoverability fallback for pure-concept queries like "drag and drop" that only hit a skill body.
+
+- Each candidate gets its one-hop edges via `collectEdges(db, key, maps, addNeighbors=false)` (the same helper `expandVertex` uses with `true`), so it has a real `degree` but pulls in no neighbors.
+- Candidates are sorted by degree desc (stable; ties keep `type, key` order) and only the top 20 enter `vertexMap`. A concept can hold hundreds of vertices.
+- `SearchResult.docOnly` is `vertexSeeds.length === 0`. `formatSearch` then adds a one-line hint under the totals: matched only through skill docs, enrich the concept with the `scribe` skill so its vertices match by purpose/tags.
 
 **Why the conditional**: when vertex seeds exist, loading all concept vertices floods the result with unrelated symbols (the original "35-vertex bloat" bug). Vertex seeds + their structural/impact expansions already cover the relevant subgraph.
 
@@ -145,7 +149,7 @@ Markdown sections per cluster:
 Three-step degradation if markdown exceeds `maxTokens`:
 
 1. Strip ` — why: "..."` reason strings from edges.
-2. Drop low-degree leaves (`degree ≤ 1` AND `bm25 === 0`).
+2. Drop low-degree leaves (`degree ≤ 1` AND `bm25 === 0`). A cluster that would be emptied (doc-seeded concepts) keeps its top 5 hits instead, so trimming never removes the concept.
 3. Truncate skill body between `<!--SKILL_START-->` / `<!--SKILL_END-->` sentinels to first ~2000 chars.
 4. Hard-truncate.
 
@@ -174,7 +178,8 @@ Skill sentinels are stripped from final output regardless.
 
 ## Files
 
-- `packages/code-graph/src/query/search.ts` — pipeline implementation
+- `packages/code-graph/src/query/search.ts` — pipeline implementation; `search` (runs `preflight`) wraps exported `searchStore(db, query, opts)`, which tests call directly
+- `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint and budget cluster-keep tests
 - `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
 - `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
 - `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)
