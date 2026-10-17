@@ -50,6 +50,17 @@ Enrichment can build up a few vertices at a time. Run `extract <concept>` first 
   enrichment: new (not in the store, or no purpose yet), changed, stale, plus any named with
   `--vertex`. Each entry has `key`, `name`, `type`, `filepath`, `start_line`, `end_line`, `signature`,
   the current `purpose`, `reasons`, and `edgesWithoutReason` (outgoing AST edges with no `reason`).
+- `--core` limits "new" to the concept's **core**: vertices whose name appears (as a whole identifier,
+  3+ characters) in the concept's SKILL.md, plus in-concept hubs (3+ inbound `calls`/`mounts` edges
+  from other vertices of the same concept). Changed, stale and `--vertex` targets are listed
+  regardless. Each target gains `core: true|false`, and the JSON gains a top-level
+  `core { size, leftOut, thin, message? }` (`leftOut` = non-core new vertices skipped). Text output
+  tags entries `core`/`non-core` and ends with a summary line. Use it to enrich a big concept
+  core-first.
+- **Thin core.** A concept with 50+ live vertices but fewer than 5 core vertices is `thin`: the
+  SKILL.md names too little to enrich from. `enrich targets --core` reports it (`core.thin`,
+  `core.message`) and `gaps` lists it under "thin core"; the flows then route to
+  `update-single-concept-skill` to deepen the skill rather than enriching blindly.
 - `code-graph enrich merge <concept> <partial.json>` merges a partial enrichment (same entry shapes as
   `.enriched.json`) into `scribe-output/<concept>.enriched.json`. It upserts vertices and edges by
   `_key` (fields merge per entry), keeps every other entry, rejects keys missing from `ast.json`
@@ -62,7 +73,9 @@ Enrichment can build up a few vertices at a time. Run `extract <concept>` first 
 marks a vertex stale unless its enrichment carries the new hash, so a body-only edit (same signature)
 goes stale and `enrich merge` clears it. Entries written before 0.3.6 have only `sig_seen`; for them
 the old signature rule still applies, so upgrading does not mass-stale existing enrichment. The
-`gaps` completeness check no longer counts a stale description as enriched.
+`gaps` completeness check no longer counts a stale description as enriched. The `gaps` ratio is
+measured over the core (enriched core / core) when the core is non-empty, else over all live
+vertices; the diagnostic then reads "N/M core vertices".
 
 ### 5. Apply to graph
 
@@ -157,7 +170,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph extract <concept>`        | `code-graph extract workorder-store`                                 | Extract AST → `scribe-output/<concept>.ast.json`          |
 | `code-graph apply <concept>`          | `code-graph apply workorder-store`                                   | Apply enriched doc to graph (upsert + drift check)        |
 | `code-graph drift <concept>`          | `code-graph drift workorder-store`                                   | Show drift without applying (alias for `apply --dry-run`) |
-| `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --json`                   | List vertices that need enrichment                        |
+| `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --core --json`            | List vertices that need enrichment (`--core`: core-first) |
 | `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
 | `code-graph search "<query>"`         | `code-graph search "sync sends stale ops"`                           | Hybrid BM25 + multi-hop search                            |
 | `code-graph query concept <name>`     | `code-graph query concept workorder-store`                           | Query a concept subgraph                                  |

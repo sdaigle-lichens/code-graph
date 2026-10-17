@@ -5,6 +5,7 @@ import { loadConfig } from "../config.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore } from "./bootstrap.js";
 import { toDocs, vertexId } from "./rows.js";
+import { coreVertices, isThinCore, thinCoreMessage } from "./core.js";
 import {
   AstDocSchema,
   EnrichedDocSchema,
@@ -86,10 +87,12 @@ export type EnrichTarget = {
   signature: string;
   purpose: string | null;
   reasons: Array<"new" | "changed" | "stale" | "named">;
+  /** Set only with `--core`: whether the vertex is in the concept's core. */
+  core?: boolean;
   edgesWithoutReason: Array<{ key: string; type: string; to: string; toName: string | null; line: number | null }>;
 };
 
-export function enrichTargets(concept: string, opts: { vertices: string[]; json: boolean }): void {
+export function enrichTargets(concept: string, opts: { vertices: string[]; json: boolean; core?: boolean }): void {
   const config = loadConfig();
   const ast = loadAst(config.configRoot, concept);
   const enriched = loadEnriched(join(config.configRoot, "scribe-output", `${concept}.enriched.json`), concept);
@@ -116,6 +119,8 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
     named.add(hits[0]._key);
   }
 
+  const core = opts.core ? coreVertices(ast.vertices, ast.edges, ast.skill?.body ?? null) : null;
+  let leftOut = 0;
   const targets: EnrichTarget[] = [];
   for (const v of ast.vertices) {
     const db = dbMap.get(v._key);
@@ -124,8 +129,10 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
     // Enrichment already written for exactly this body, waiting for `apply`: nothing to do.
     const pending = ev?.hash_seen !== undefined && ev.hash_seen === v.contentHash;
     if (!pending) {
-      if (!db || (!db.purpose && !ev?.purpose)) reasons.push("new");
-      else if (db.contentHash !== v.contentHash) reasons.push("changed");
+      if (!db || (!db.purpose && !ev?.purpose)) {
+        if (core && !core.keys.has(v._key)) leftOut++;
+        else reasons.push("new");
+      } else if (db.contentHash !== v.contentHash) reasons.push("changed");
       else if (db.agent?.stale === true) reasons.push("stale");
     }
     if (named.has(v._key)) reasons.push("named");
@@ -156,6 +163,7 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
       signature: v.signature,
       purpose: db?.purpose ?? ev?.purpose ?? null,
       reasons,
+      ...(core ? { core: core.keys.has(v._key) } : {}),
       edgesWithoutReason,
     });
   }
@@ -163,13 +171,24 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
     (a, b) => a.filepath.localeCompare(b.filepath) || a.start_line - b.start_line || a.key.localeCompare(b.key)
   );
 
+  const thin = core ? isThinCore(ast.vertices.length, core.keys.size) : false;
+  const thinMessage = thin && core ? thinCoreMessage(core.keys.size, ast.vertices.length) : null;
+
   if (opts.json) {
-    console.log(JSON.stringify({ concept, targets }, null, 2));
+    const coreInfo = core
+      ? { size: core.keys.size, leftOut, thin, ...(thinMessage ? { message: thinMessage } : {}) }
+      : null;
+    console.log(JSON.stringify({ concept, targets, ...(coreInfo ? { core: coreInfo } : {}) }, null, 2));
     return;
   }
   console.log(`Concept: ${concept} — ${targets.length} vertices to enrich`);
   for (const t of targets) {
-    console.log(`  ${t.name} (${t.type}) ${t.filepath}:${t.start_line}-${t.end_line} [${t.reasons.join(",")}]`);
+    const flags = t.core === undefined ? t.reasons : [...t.reasons, t.core ? "core" : "non-core"];
+    console.log(`  ${t.name} (${t.type}) ${t.filepath}:${t.start_line}-${t.end_line} [${flags.join(",")}]`);
+  }
+  if (core) {
+    console.log(`  core: ${core.keys.size} vertices; ${leftOut} non-core new vertices left out`);
+    if (thinMessage) console.log(`  ${thinMessage}`);
   }
 }
 

@@ -96,6 +96,15 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   Staleness: a changed vertex is fresh only if `hash_seen === contentHash`; entries with no
   `hash_seen` (pre-0.3.6) keep the `sig_seen === signature` rule (`enrichmentIsCurrent`). `gaps`
   counts a vertex as enriched only with a non-stale purpose.
+- A concept's **core** (`scribe/core.ts`, pure `coreVertices(vertices, edges, skillBody)`) = vertices
+  named in the SKILL.md (whole identifier, name 3+ chars) ∪ in-concept hubs (3+ inbound
+  `calls`/`mounts` from the same concept). Shared by `enrich targets --core` (only "new" is
+  filtered; changed/stale/named always listed; JSON adds `targets[].core` and top-level
+  `core {size, leftOut, thin, message?}`) and `gaps` (`fetchConceptCounts(db, {core: true})` reads
+  the SKILL.md from the `docs` row and `calls`/`mounts` edges). `gaps` ratio is over the core when
+  non-empty, else all live vertices. Thin core (`isThinCore`: 50+ live, <5 core) is reported in
+  `GapReport.thinCores` and `enrich targets --core`, routing to `update-single-concept-skill`.
+  Thresholds are constants in `core.ts`; no schema change.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
   `--bump minor|major` when migrating an existing list.

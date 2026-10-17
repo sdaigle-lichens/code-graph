@@ -195,12 +195,13 @@ enrich
   .command("targets <concept>")
   .description("list vertices that need enrichment (new, changed, stale, plus any named)")
   .option("--vertex <name...>", "also include these vertices (name or _key)")
+  .option("--core", "only core vertices (named in SKILL.md, plus in-concept hubs) count as new")
   .option("--json", "output JSON")
-  .action(async (concept: string, opts: { vertex?: string[]; json?: boolean }) => {
+  .action(async (concept: string, opts: { vertex?: string[]; json?: boolean; core?: boolean }) => {
     try {
       if (await skippedForNoConcepts("enrich targets")) return;
       const { enrichTargets } = await import("./scribe/enrich.js");
-      enrichTargets(concept, { vertices: opts.vertex ?? [], json: opts.json ?? false });
+      enrichTargets(concept, { vertices: opts.vertex ?? [], json: opts.json ?? false, core: opts.core ?? false });
     } catch (err) {
       console.error("enrich targets failed:", (err as Error).message);
       process.exit(1);

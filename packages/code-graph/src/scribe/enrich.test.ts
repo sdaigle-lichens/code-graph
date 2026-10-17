@@ -181,6 +181,89 @@ describe("enrich targets", () => {
   });
 });
 
+describe("enrich targets --core", () => {
+  const coreProject = (skillBody: string) => {
+    project();
+    write(
+      "scribe.config.json",
+      JSON.stringify({
+        project: "p",
+        tsconfig: "tsconfig.json",
+        concepts: { c: { globs: ["src/**/*.ts"], skill: "skills/c/SKILL.md" } },
+      })
+    );
+    write("skills/c/SKILL.md", skillBody);
+    run(["extract", "c"]);
+  };
+  const full = (...extra: string[]) => JSON.parse(run(["enrich", "targets", "c", "--json", ...extra]).stdout);
+
+  it("lists only core vertices as new and reports the left-out count", () => {
+    coreProject("# c\n\nEntry point is `alpha`.\n");
+    const out = full("--core");
+    assert.deepEqual(
+      out.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      [["alpha", ["new"], true]]
+    );
+    assert.equal(out.core.size, 1);
+    assert.equal(out.core.leftOut, 1);
+    assert.equal(out.core.thin, false);
+    const text = run(["enrich", "targets", "c", "--core"]).stdout;
+    assert.match(text, /alpha .*\[new,core\]/);
+    assert.match(text, /1 non-core new vertices left out/);
+    assert.equal(full().targets.length, 2, "without --core everything is new");
+  });
+
+  it("reports a thin core for a big concept whose SKILL.md names almost nothing", () => {
+    coreProject("# c\n\nEntry point is `alpha`.\n");
+    write(
+      "src/many.ts",
+      Array.from({ length: 50 }, (_, i) => `export function fn${i}(): number {\n  return ${i};\n}\n`).join("")
+    );
+    run(["extract", "c"]);
+    const out = full("--core");
+    assert.equal(out.core.thin, true);
+    assert.match(out.core.message, /core is thin: SKILL\.md names 1 of 52 vertices/);
+    assert.match(run(["enrich", "targets", "c", "--core"]).stdout, /core is thin/);
+  });
+
+  it("still lists named vertices outside the core", () => {
+    coreProject("# c\n\nEntry point is `alpha`.\n");
+    const out = full("--core", "--vertex", "beta");
+    assert.deepEqual(
+      out.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      [
+        ["alpha", ["new"], true],
+        ["beta", ["named"], false],
+      ]
+    );
+    assert.equal(out.core.leftOut, 1);
+  });
+
+  it("still lists changed vertices outside the core", () => {
+    coreProject("# c\n\nEntry point is `alpha`.\n");
+    run(["apply", "c", "--approve-drift"]);
+    run([
+      "enrich",
+      "merge",
+      "c",
+      writePartial({
+        concept: "c",
+        vertices: ast().vertices.map((v: any) => ({ _key: v._key, purpose: `does ${v.name}` })),
+        edges: [],
+      }),
+    ]);
+    run(["apply", "c"]);
+    write("src/b.ts", B_SRC.replace("* 2", "* 3"));
+    run(["extract", "c"]);
+    const out = full("--core");
+    assert.deepEqual(
+      out.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      [["beta", ["changed"], false]]
+    );
+    assert.equal(out.core.leftOut, 0);
+  });
+});
+
 describe("enrich merge", () => {
   it("upserts by key, keeps untouched entries, is idempotent and sorted", () => {
     project();

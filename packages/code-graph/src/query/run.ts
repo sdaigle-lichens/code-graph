@@ -28,7 +28,7 @@ async function maybeEmitConceptGap(
     .filter((n) => n in config.concepts && !isDocsOnly(config, n))
     .map((n) => ({ name: n, enrichable: conceptEnrichable(config, n) }));
 
-  const counts = await fetchConceptCounts(db);
+  const counts = await fetchConceptCounts(db, { core: true });
   const report = analyzeConceptGaps(declared, counts);
 
   if (report.fixable.length === 0 && report.unenrichable.length === 0 && undeclared.length === 0) {

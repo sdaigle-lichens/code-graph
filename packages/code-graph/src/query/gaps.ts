@@ -4,13 +4,14 @@ import type { DatabaseSync } from "node:sqlite";
 import { minimatch } from "minimatch";
 import type { ScribeConfig } from "../config.js";
 import { isDocsOnly } from "../scribe/ast-output.js";
+import { coreVertices, isThinCore, thinCoreMessage } from "../scribe/core.js";
 import type { SearchResult } from "./search.js";
 
 // ─── Tunable thresholds (deferred per phase-9; defaults are conservative) ──────
 
 export type GapThresholds = {
-  /** A concept counts as "enriched" when this fraction of its live vertices have
-   *  a non-empty `purpose` that is not stale. Tolerates a few un-enriched stragglers after re-extract. */
+  /** A concept counts as "enriched" when this fraction of its core vertices (all live vertices when
+   *  the core is empty) have a non-empty `purpose` that is not stale. Tolerates a few un-enriched stragglers after re-extract. */
   enrichedRatio: number;
   /** Results are "thin" when fewer than this many vertices are returned (incl. expansion).
    *  Conservative on purpose: we'd rather suppress the note than provoke a grep-storm. */
@@ -33,7 +34,12 @@ export type ConceptGap = {
   enrichable: boolean;
   liveVertices: number;
   enrichedVertices: number;
-  /** enrichedVertices / liveVertices, or 0 when there are no live vertices. */
+  /** Core vertices (named in SKILL.md + in-concept hubs); 0 when unknown or the core is empty. */
+  coreVertices: number;
+  coreEnrichedVertices: number;
+  /** 50+ live vertices but fewer than 5 core: the SKILL.md names too little. */
+  thinCore: boolean;
+  /** Enriched / measured, over the core when it is non-empty, else over all live vertices; 0 when none. */
   ratio: number;
 };
 
@@ -41,6 +47,8 @@ export type GapReport = {
   concepts: ConceptGap[];
   /** Concepts with a real gap (not fully enriched) that *can* be auto-fixed. */
   fixable: ConceptGap[];
+  /** Concepts whose core is thin: route to update-single-concept-skill. */
+  thinCores: ConceptGap[];
   /** Concepts with a gap but no resolvable SKILL.md — surface, never offer the pipeline. */
   unenrichable: ConceptGap[];
   /** For the success-note ratio: "enriched / enrichable". */
@@ -49,7 +57,8 @@ export type GapReport = {
 };
 
 export type DeclaredConcept = { name: string; enrichable: boolean };
-export type ConceptCounts = Map<string, { live: number; enriched: number }>;
+export type ConceptCount = { live: number; enriched: number; core?: number; coreEnriched?: number };
+export type ConceptCounts = Map<string, ConceptCount>;
 
 /** DB-free core. Classify each declared concept and bucket the actionable gaps. */
 export function analyzeConceptGaps(
@@ -59,7 +68,11 @@ export function analyzeConceptGaps(
 ): GapReport {
   const concepts: ConceptGap[] = declared.map(({ name, enrichable }) => {
     const c = counts.get(name) ?? { live: 0, enriched: 0 };
-    const ratio = c.live === 0 ? 0 : c.enriched / c.live;
+    const core = c.core ?? 0;
+    const useCore = core > 0;
+    const measured = useCore ? core : c.live;
+    const done = useCore ? (c.coreEnriched ?? 0) : c.enriched;
+    const ratio = measured === 0 ? 0 : done / measured;
     let status: ConceptStatus;
     if (c.live === 0) status = "un-applied";
     else if (ratio === 0) status = "un-enriched";
@@ -71,6 +84,9 @@ export function analyzeConceptGaps(
       enrichable,
       liveVertices: c.live,
       enrichedVertices: c.enriched,
+      coreVertices: core,
+      coreEnrichedVertices: c.coreEnriched ?? 0,
+      thinCore: c.core !== undefined && isThinCore(c.live, core),
       ratio,
     };
   });
@@ -85,6 +101,7 @@ export function analyzeConceptGaps(
   return {
     concepts,
     fixable,
+    thinCores: concepts.filter((c) => c.thinCore),
     unenrichable,
     enrichedCount,
     enrichableTotal: enrichable.length,
@@ -133,9 +150,19 @@ export function formatGapDiagnostic(
           ? "not built (0 vertices)"
           : c.status === "un-enriched"
             ? `not enriched (${c.liveVertices} vertices, 0 with purpose)`
-            : `partially enriched (${c.enrichedVertices}/${c.liveVertices} vertices)`;
+            : c.coreVertices > 0
+              ? `partially enriched (${c.coreEnrichedVertices}/${c.coreVertices} core vertices)`
+              : `partially enriched (${c.enrichedVertices}/${c.liveVertices} vertices)`;
       lines.push(`- \`${c.concept}\` — ${detail}. Build: ${PIPELINE(c.concept)}`);
     }
+    lines.push("");
+  }
+
+  if (report.thinCores.length > 0) {
+    lines.push("**Concepts with a thin core (update-single-concept-skill to deepen the SKILL.md):**");
+    lines.push("");
+    for (const c of report.thinCores)
+      lines.push(`- \`${c.concept}\` — ${thinCoreMessage(c.coreVertices, c.liveVertices)}`);
     lines.push("");
   }
 
@@ -163,9 +190,10 @@ export function formatGapDiagnostic(
 
 // ─── DB + filesystem gathering ────────────────────────────────────────────────
 
-/** One aggregation: live vertex count + count of vertices with a non-empty purpose,
- *  grouped by concept. */
-export async function fetchConceptCounts(store: DatabaseSync): Promise<ConceptCounts> {
+/** Live vertex count + count with a non-empty, non-stale `purpose`, grouped by concept. With
+ *  `opts.core`, also the same two numbers over each concept's core (SKILL.md body from the docs row,
+ *  in-concept calls/mounts edges); needs the `edges` and `docs` tables. */
+export async function fetchConceptCounts(store: DatabaseSync, opts: { core?: boolean } = {}): Promise<ConceptCounts> {
   const rows = store
     .prepare(
       `SELECT concept,
@@ -179,7 +207,37 @@ export async function fetchConceptCounts(store: DatabaseSync): Promise<ConceptCo
     .all() as Array<{ concept: string; live: number; enriched: number }>;
   const map: ConceptCounts = new Map();
   for (const r of rows) map.set(r.concept, { live: r.live, enriched: r.enriched });
+  if (opts.core) addCoreCounts(store, map);
   return map;
+}
+
+function addCoreCounts(store: DatabaseSync, map: ConceptCounts): void {
+  const vrows = store
+    .prepare(
+      `SELECT key, concept, name,
+              (purpose IS NOT NULL AND purpose != '' AND coalesce(json_extract(doc, '$.agent.stale'), 0) != 1) AS enriched
+         FROM vertices WHERE status = 'live'`
+    )
+    .all() as Array<{ key: string; concept: string; name: string; enriched: number }>;
+  const erows = store
+    .prepare(`SELECT concept, from_id AS _from, to_id AS _to, type FROM edges WHERE type IN ('calls', 'mounts')`)
+    .all() as Array<{ concept: string; _from: string; _to: string; type: string }>;
+  const drows = store.prepare(`SELECT concept, json_extract(doc, '$.body_md') AS body FROM docs`).all() as Array<{
+    concept: string;
+    body: string | null;
+  }>;
+  const bodies = new Map(drows.map((d) => [d.concept, d.body]));
+  for (const [concept, count] of map) {
+    const vs = vrows.filter((v) => v.concept === concept);
+    const es = erows.filter((e) => e.concept === concept);
+    const core = coreVertices(
+      vs.map((v) => ({ _key: v.key, name: v.name })),
+      es,
+      bodies.get(concept) ?? null
+    );
+    count.core = core.keys.size;
+    count.coreEnriched = vs.filter((v) => core.keys.has(v.key) && v.enriched).length;
+  }
 }
 
 /** Mirror of the `scribe` skill's enrichment resolution: a concept is enrichable when a
@@ -208,7 +266,7 @@ export async function computeGapReport(
   config: ScribeConfig,
   thresholds: GapThresholds = DEFAULT_THRESHOLDS
 ): Promise<GapReport> {
-  const counts = await fetchConceptCounts(db);
+  const counts = await fetchConceptCounts(db, { core: true });
   return analyzeConceptGaps(declaredConcepts(config), counts, thresholds);
 }
 
