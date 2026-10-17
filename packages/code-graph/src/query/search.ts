@@ -523,3 +523,123 @@ export function applyTokenBudget(result: SearchResult, maxTokens: number, opts?:
 function stripSentinels(s: string): string {
   return s.replace(/<!--SKILL_(START|END)-->\n?/g, "");
 }
+
+export type SearchJsonDropped = { hits: number; edges: number; clusters: number; skillBodiesTruncated: number };
+
+/**
+ * The `search --json` payload trimmed to `maxTokens` (same 4-chars-per-token estimate as the plain-text
+ * budget). `extra` (strength, gaps) is always kept and counted against the budget. Order: lowest-ranked
+ * hits and their edges first (down to the single best hit), then skill bodies, then edge lists and
+ * vertex payloads inside the surviving hits (capped 10, 3, 0 per list, vertices and edges slimmed;
+ * counted in `dropped.edges`), and only then the last hit and emptied clusters. Same shape; adds `truncated: true` and `dropped` counts only when it trims.
+ */
+export function budgetSearchJson(
+  result: SearchResult,
+  extra: Record<string, unknown>,
+  maxTokens: number
+): Record<string, unknown> {
+  const render = (r: SearchResult, meta?: Record<string, unknown>) => ({ ...r, ...extra, ...meta });
+  const size = (o: unknown) => estimateTokens(JSON.stringify(o, null, 2));
+  if (size(render(result)) <= maxTokens) return render(result);
+
+  const edgeCount = (h: SearchHit) => h.edges_in.length + h.edges_out.length + h.cross_edges.length;
+  const ranked = Array.from(new Set(result.hits.concat(result.clusters.flatMap((c) => c.hits)))).sort(
+    (a, b) => b.score - a.score
+  );
+  const dropped: SearchJsonDropped = { hits: 0, edges: 0, clusters: 0, skillBodiesTruncated: 0 };
+  const gone = new Set<SearchHit>();
+  let skillLimit: number | null = null;
+  // Per-hit compaction: cap each edge list and slim the vertices/edges inside it. null = untouched.
+  let edgeCap: number | null = null;
+  let slimVertex = false;
+  const SLIM_V = ["_key", "concept", "type", "name", "filepath", "start_line", "end_line"];
+  const SLIM_E = ["_key", "_from", "_to", "type", "concept", "crosses_concept", "line"];
+  const pick = <T>(o: T, keys: string[]): T => {
+    if (!o || typeof o !== "object") return o;
+    const src = o as Record<string, unknown>;
+    return Object.fromEntries(keys.filter((k) => k in src).map((k) => [k, src[k]])) as T;
+  };
+  const compacted = new Map<SearchHit, SearchHit>();
+  const view = (h: SearchHit): SearchHit => {
+    if (edgeCap === null) return h;
+    const hit = compacted.get(h);
+    if (hit) return hit;
+    const cap = edgeCap;
+    const made: SearchHit = {
+      ...h,
+      vertex: slimVertex ? pick(h.vertex, SLIM_V) : h.vertex,
+      edges_in: h.edges_in.slice(0, cap).map((x) => ({ edge: pick(x.edge, SLIM_E), from: pick(x.from, SLIM_V) })),
+      edges_out: h.edges_out.slice(0, cap).map((x) => ({ edge: pick(x.edge, SLIM_E), to: pick(x.to, SLIM_V) })),
+      cross_edges: h.cross_edges
+        .slice(0, cap)
+        .map((x) => ({ edge: pick(x.edge, SLIM_E), other: pick(x.other, SLIM_V) })),
+    };
+    compacted.set(h, made);
+    return made;
+  };
+  const setCompaction = (cap: number | null, slim: boolean) => {
+    edgeCap = cap;
+    slimVertex = slim;
+    compacted.clear();
+  };
+
+  const build = () => {
+    dropped.edges = 0;
+    for (const h of ranked) {
+      if (gone.has(h)) dropped.edges += edgeCount(h);
+      else if (edgeCap !== null) dropped.edges += edgeCount(h) - edgeCount(view(h));
+    }
+    const clusters = result.clusters
+      .map((c) => ({
+        ...c,
+        hits: c.hits.filter((h) => !gone.has(h)).map(view),
+        skill:
+          c.skill && skillLimit !== null && c.skill.body_md.length > skillLimit
+            ? { ...c.skill, body_md: c.skill.body_md.slice(0, skillLimit) }
+            : c.skill,
+      }))
+      .filter((c) => c.hits.length > 0 || gone.size === 0);
+    dropped.clusters = result.clusters.length - clusters.length;
+    dropped.skillBodiesTruncated =
+      skillLimit === null ? 0 : result.clusters.filter((c) => c.skill && c.skill.body_md.length > skillLimit!).length;
+    const kept = { ...result, hits: result.hits.filter((h) => !gone.has(h)).map(view), clusters };
+    return render(kept, { truncated: true, dropped: { ...dropped } });
+  };
+  const drop = (h: SearchHit) => {
+    gone.add(h);
+    dropped.hits++;
+  };
+
+  let out = build();
+  const fits = () => size(out) <= maxTokens;
+  const attempt = (cap: number | null, minKeep: number): boolean => {
+    gone.clear();
+    dropped.hits = 0;
+    skillLimit = null;
+    setCompaction(cap, cap !== null);
+    out = build();
+    for (let i = ranked.length - 1; i >= minKeep && !fits(); i--) {
+      drop(ranked[i]);
+      out = build();
+    }
+    for (const limit of [2000, 500, 0]) {
+      if (fits()) break;
+      skillLimit = limit;
+      out = build();
+    }
+    return fits();
+  };
+  // Prefer several compacted hits over one full one; keep the best hit before giving it up.
+  let ok = false;
+  for (const keep of Array.from(new Set([Math.min(5, ranked.length), 1]))) {
+    for (const cap of [null, 10, 3, 0]) {
+      if ((ok = attempt(cap, keep))) break;
+    }
+    if (ok) break;
+  }
+  if (!ok && ranked.length > 0) {
+    drop(ranked[0]);
+    out = build();
+  }
+  return out;
+}

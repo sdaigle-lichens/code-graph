@@ -244,7 +244,7 @@ program
   .option("--json", "output JSON")
   .option("--full-skill", "include full skill body in output (default: skill name only)")
   .action(async (query: string, opts: { maxTokens?: string; json?: boolean; fullSkill?: boolean }) => {
-    const { search, applyTokenBudget, SearchNoResultsError } = await lazy.search();
+    const { search, applyTokenBudget, budgetSearchJson, SearchNoResultsError } = await lazy.search();
     const { preflight } = await lazy.preflight();
     const { classifyStrength, computeGapReport, buildSuccessNote, formatGapDiagnostic, uncoveredSourceFiles } =
       await lazy.gaps();
@@ -256,10 +256,10 @@ program
       const strength = classifyStrength(result);
 
       if (json) {
-        // JSON mode is the contract for the eval harness — always include gaps.
+        // Always include strength and gaps; trim the rest to --max-tokens (the eval harness calls search() directly).
         const { db, config } = await preflight();
         const gaps = await computeGapReport(db, config);
-        console.log(JSON.stringify({ ...result, strength, gaps }, null, 2));
+        console.log(JSON.stringify(budgetSearchJson(result, { strength, gaps }, maxTokens), null, 2));
         return;
       }
 

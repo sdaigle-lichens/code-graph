@@ -242,8 +242,13 @@ The `<location>` argument supports four forms. Detection: if the segment after t
 
 ### Common options
 
-- `--max-tokens <n>` — truncation budget (default 3000)
-- `--json` — emit structured JSON instead of markdown
+- `--max-tokens <n>` — truncation budget (default 3000). Applies to `search` (markdown and `--json`);
+  `query concept|impact|cross|vertex|file --json` ignore it
+- `--json` — emit structured JSON instead of markdown. `search --json` is trimmed to the budget (lowest-ranked
+  hits first, then skill bodies, then edge lists) and adds `truncated: true` plus
+  `dropped {hits, edges, clusters, skillBodiesTruncated}` when it trims. `strength` and `gaps` are always kept;
+  budgets below ~405 tokens cannot be honoured (that fixed floor is returned anyway), and under extreme
+  budgets the best hit may be dropped
 - `--direction in|out|both` — impact direction (query impact)
 
 ## `/graph` Slash Command

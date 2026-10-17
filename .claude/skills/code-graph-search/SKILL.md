@@ -170,6 +170,25 @@ Skill sentinels are stripped from final output regardless.
 enrichment-gap warning. That note sits **outside** the totals figure (~14 tokens); don't move it
 before the budget step or the figure and `--max-tokens` both shift.
 
+### `--json` budget (`budgetSearchJson`)
+
+`search --json` is trimmed to `--max-tokens` (default 3000, same 4-chars-per-token estimate, sized on
+the pretty-printed JSON). `strength` and `gaps` (`extra`) are always kept and count against the budget.
+Under budget the payload is unchanged. When it trims it adds `truncated: true` and
+`dropped { hits, edges, clusters, skillBodiesTruncated }`; same shape otherwise.
+
+Trim order, stopping at the first that fits: (1) drop lowest-ranked hits (and their edges) down to the
+top 5, then try keeping only the best 1; (2) truncate skill `body_md` to 2000, 500, then 0 chars;
+(3) compact the surviving hits: cap each edge list at 10, 3, then 0 and slim vertices/edges to key
+fields (the cap tries come before more hits are dropped, so several compacted hits beat one full hit);
+(4) last resort: drop the best hit and emptied clusters.
+
+**Floor ~405 tokens.** Strength, gaps and the empty skeleton are fixed cost; a smaller `--max-tokens`
+cannot be honoured and returns the skeleton anyway.
+
+**Bypass.** `concept`, `impact`, `cross`, `vertex` and `file` `--json` (`query/run.ts`) still ignore
+`--max-tokens`; only `search --json` is budgeted.
+
 ## Critical invariants — don't break these
 
 - **One BM25 query, one expansion pass.** Don't add a second-round seed phase or recursive expansion — depth is capped intentionally for token budget.

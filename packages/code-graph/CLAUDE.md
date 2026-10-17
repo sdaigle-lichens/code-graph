@@ -105,6 +105,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   non-empty, else all live vertices. Thin core (`isThinCore`: 50+ live, <5 core) is reported in
   `GapReport.thinCores` and `enrich targets --core`, routing to `update-single-concept-skill`.
   Thresholds are constants in `core.ts`; no schema change.
+- `search --json` honours `--max-tokens` (default 3000) via `budgetSearchJson` in `query/search.ts`:
+  adds `truncated`/`dropped` only when trimming, always keeps `strength` + `gaps`, cannot go below a
+  ~405-token floor, and may drop the best hit as a last resort. `concept|impact|cross|vertex|file --json`
+  (`query/run.ts`) still bypass `--max-tokens`. See the `code-graph-search` skill.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
   `--bump minor|major` when migrating an existing list.

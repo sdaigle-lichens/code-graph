@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { applySchema, rebuildSearchIndex } from "../scribe/bootstrap.js";
 import { putRecord } from "../scribe/rows.js";
-import { searchStore, applyTokenBudget } from "./search.js";
+import { searchStore, applyTokenBudget, budgetSearchJson } from "./search.js";
 
 function vertex(key: string, name: string, concept = "tasks") {
   return {
@@ -113,6 +113,59 @@ function repeatedCallStore(): DatabaseSync {
   rebuildSearchIndex(store);
   return store;
 }
+
+describe("budgetSearchJson", () => {
+  const extra = { strength: "strong", gaps: { fixable: [], unenrichable: [] } };
+
+  it("returns the result untouched, with no truncated flag, when it fits", async () => {
+    const r = await searchStore(docOnlyStore(10), "cascade", { maxTokens: 4000, json: true });
+    const out = budgetSearchJson(r, extra, 100000);
+    assert.equal(out.truncated, undefined);
+    assert.equal(out.strength, "strong");
+    assert.equal((out.hits as unknown[]).length, r.hits.length);
+  });
+
+  it("trims an over-budget result to the budget, keeps shape, strength and gaps, and counts the drops", async () => {
+    const r = await searchStore(docOnlyStore(60), "cascade", { maxTokens: 4000, json: true });
+    const full = JSON.stringify(budgetSearchJson(r, extra, 1e9), null, 2).length / 4;
+    const budget = 1500;
+    assert.ok(full > budget, "fixture must exceed the budget");
+    const out = budgetSearchJson(r, extra, budget);
+    const text = JSON.stringify(out, null, 2);
+    assert.ok(Math.ceil(text.length / 4) <= budget, `got ${Math.ceil(text.length / 4)} tokens`);
+    const parsed = JSON.parse(text);
+    assert.equal(parsed.truncated, true);
+    assert.equal(parsed.strength, "strong");
+    assert.deepEqual(parsed.gaps, extra.gaps);
+    assert.equal(parsed.query, "cascade");
+    assert.ok(Array.isArray(parsed.hits) && Array.isArray(parsed.clusters));
+    assert.ok(parsed.dropped.hits > 0);
+    assert.equal(parsed.hits.length + parsed.dropped.hits, r.hits.length);
+    assert.ok(parsed.hits.length >= 1, "best hit survives");
+  });
+
+  it("keeps the best hit, compacted, when a single hit alone exceeds the budget", async () => {
+    const store = new DatabaseSync(":memory:");
+    applySchema(store);
+    putRecord(store, "vertices", "hub", vertex("hub", "uniqueHubSymbol"));
+    for (let i = 0; i < 300; i++) {
+      putRecord(store, "vertices", `c${i}`, vertex(`c${i}`, `caller${i}`));
+      putRecord(store, "edges", `e${i}`, { ...edge(`e${i}`, `c${i}`, "hub"), reason: "x".repeat(80) });
+    }
+    rebuildSearchIndex(store);
+    const r = await searchStore(store, "uniqueHubSymbol", { maxTokens: 3000, json: true });
+    const budget = 1000;
+    const out = budgetSearchJson(r, extra, budget);
+    const text = JSON.stringify(out, null, 2);
+    assert.ok(Math.ceil(text.length / 4) <= budget, `got ${Math.ceil(text.length / 4)} tokens`);
+    const parsed = JSON.parse(text);
+    assert.equal(parsed.truncated, true);
+    assert.equal(parsed.hits[0].vertex.name, "uniqueHubSymbol");
+    assert.equal(parsed.clusters[0].hits[0].vertex.name, "uniqueHubSymbol");
+    assert.ok(parsed.dropped.edges > 0);
+    assert.equal(parsed.strength, "strong");
+  });
+});
 
 describe("formatSearch — repeated call sites", () => {
   it("prints a caller that calls a vertex several times once, with its call-site lines", async () => {
