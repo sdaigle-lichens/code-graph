@@ -75,6 +75,11 @@
       "name": "code-graph-6b",
       "task": "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
       "added_at": "2026-10-17T00:54:24.058Z"
+    },
+    {
+      "name": "code-graph-18",
+      "task": "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
+      "added_at": "2026-10-17T01:08:14.829Z"
     }
   ],
   "log": [
@@ -267,6 +272,20 @@
       "kind": "ack",
       "id": "r014",
       "at": "2026-10-17T00:54:23.778Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r015",
+      "task": "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
+      "file": "inbox/r015-017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
+      "at": "2026-10-17T01:08:04.164Z",
+      "from": "code-graph-18"
+    },
+    {
+      "kind": "ack",
+      "id": "r015",
+      "at": "2026-10-17T01:08:14.531Z",
       "by": "code-graph-d1"
     }
   ]

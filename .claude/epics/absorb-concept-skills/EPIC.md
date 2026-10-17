@@ -154,3 +154,11 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   message; gaps reports thinCores. Added to 017: the thin-core message says "SKILL.md names N" but
   gets the whole core size, and the scribe-pipeline skill map needs a core.ts row. Left on
   purpose: addCoreCounts is O(concepts x rows), negligible at 16 concepts. 017 is unblocked.
+  Committed in fe54a57.
+- r015 (017 done, code-graph-18, uncommitted): 0.3.10, 306 tests, eval 7/7, plugin validate green.
+  The subagent path is in the scribe and both update skills: 20 or fewer targets are enriched
+  inline, more give a "left to enrich" list. --core is used on first touch, and a thin core goes to
+  update-single-concept-skill. The thin-core message was reworded and the scribe-pipeline map has
+  its core.ts row. Post-mortem: the worker routed the task as Documentation (@scribe only), got
+  HANDOFF: partial and had to dispatch @backend. That is the same scribe/source boundary as maestro
+  ticket 108, so it's maestro's to handle, not a code-graph ticket. 018 is unblocked.
