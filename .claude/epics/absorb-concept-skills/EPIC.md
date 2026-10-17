@@ -124,5 +124,28 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   run_id line kept, bare agent name, per-session dedupe, main-session gaps not promised). The update
   flows enrich only targets: batches of about 10 fanned out to Haiku subagents by the caller, then
   `enrich merge`, a spot-check and `apply`. A revised SKILL.md re-enriches the whole concept
-  through the same merge. The scribe skill no longer hand-stamps sig_seen/hash_seen. Send
-  maestro-0c one line once 0.3.7 is committed; it queues its end-to-end check.
+  through the same merge. The scribe skill no longer hand-stamps sig_seen/hash_seen. Committed in
+  f9b7b6d and pushed; the 0.3.7 line went to maestro-0c, whose end-to-end check is the first live run.
+- Deps friction (the user's, after updating to 0.3.7): the cache folder is named after the
+  code-graph version, so every release needs `deps install` again from a terminal. Task 015
+  (0.3.8): name it after PINNED_DEPS (`ts-morph@28.0.0`), also under $CLAUDE_PLUGIN_DATA/deps; no
+  automatic download; one last reinstall after upgrading. Must work on macOS (the home .cache
+  folder, no Library/Caches path).
+- maestro-0c's end-to-end prep, checked in the code. First, maestro runs the update flows inside its
+  scribe subagent, which can't launch 0.3.7's Haiku fan-out. Second, with nothing enriched,
+  `enrich targets` lists every vertex (274 on claude-session-bridge). Third, `search --json` ignores
+  --max-tokens (459 KB); the eval harness calls search() directly, so trimming is safe. The user
+  chose 3 tasks, run in order after 015:
+  - 016 (CLI, 0.3.9): `enrich targets --core`; core = vertices named in SKILL.md plus in-concept
+    hubs with 3 or more inbound calls/mounts. gaps' 90% is measured over the core (all vertices
+    when the core is empty). A thin core (50+ live vertices, fewer than 5 core) is reported.
+  - 017 (skills, 0.3.10): a subagent enriches up to 20 targets inline; above that it reports them
+    as "left to enrich". First touch uses --core. The main-session fan-out is unchanged.
+  - 018 (0.3.11): search --json honours --max-tokens.
+  maestro-0c gets the task numbers and versions now; its plugin cache is at 0.3.4.
+- r013 (015 done, code-graph-a7, uncommitted): 0.3.8, 289 tests, eval 7/7. `depsKey()` = sorted
+  `name@version` pairs joined with `+`, used under both the .cache and $CLAUDE_PLUGIN_DATA deps
+  folders. Old deps/<version> folders are ignored (tested). A real deps status/install/extract run
+  used a temp cache; checked here that the bundle searches deps/ts-morph@28.0.0. Not run on macOS.
+  A scoped pin (`@scope/pkg`) would put a `/` in the key, which is harmless today because ts-morph
+  is the only pin. 016 is unblocked.

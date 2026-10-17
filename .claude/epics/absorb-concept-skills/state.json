@@ -3,7 +3,7 @@
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
     "name": "code-graph-d1",
-    "set_at": "2026-10-16T19:53:16.569Z"
+    "set_at": "2026-10-17T00:18:07.170Z"
   },
   "workers": [
     {
@@ -65,6 +65,11 @@
       "name": "code-graph-db",
       "task": "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
       "added_at": "2026-10-16T23:29:02.073Z"
+    },
+    {
+      "name": "code-graph-a7",
+      "task": "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
+      "added_at": "2026-10-17T00:18:07.805Z"
     }
   ],
   "log": [
@@ -230,6 +235,20 @@
       "kind": "ack",
       "id": "r012",
       "at": "2026-10-16T23:29:01.743Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r013",
+      "task": "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
+      "file": "inbox/r013-015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
+      "at": "2026-10-17T00:17:54.506Z",
+      "from": "code-graph-a7"
+    },
+    {
+      "kind": "ack",
+      "id": "r013",
+      "at": "2026-10-17T00:18:07.481Z",
       "by": "code-graph-d1"
     }
   ]
