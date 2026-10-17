@@ -98,7 +98,7 @@
     "epic": "absorb-concept-skills"
   },
   "018-make-search-json-honour-max-tokens.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md"
     ],

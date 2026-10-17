@@ -80,6 +80,11 @@
       "name": "code-graph-18",
       "task": "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
       "added_at": "2026-10-17T01:08:14.829Z"
+    },
+    {
+      "name": "code-graph-bf",
+      "task": "018-make-search-json-honour-max-tokens.md",
+      "added_at": "2026-10-17T02:05:54.527Z"
     }
   ],
   "log": [
@@ -286,6 +291,20 @@
       "kind": "ack",
       "id": "r015",
       "at": "2026-10-17T01:08:14.531Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r016",
+      "task": "018-make-search-json-honour-max-tokens.md",
+      "file": "inbox/r016-018-make-search-json-honour-max-tokens.md",
+      "at": "2026-10-17T02:05:45.943Z",
+      "from": "code-graph-bf"
+    },
+    {
+      "kind": "ack",
+      "id": "r016",
+      "at": "2026-10-17T02:05:54.079Z",
       "by": "code-graph-d1"
     }
   ]

@@ -16,6 +16,13 @@ Trim the JSON to the budget in the same order of priority as the plain-text budg
 - [ ] The other --json query commands are checked for the same bypass and either fixed or listed in the report
 - [ ] A test covers a result over budget; pnpm check and pnpm test are green; the version is 0.3.11 in all three files and the bundle is regenerated
 
+## Post-Mortem
+
+- **Problem:** First implementation dropped every hit at the default budget on the real store (unit fixtures had tiny hits); @test caught it only by running the built CLI against the real graph.
+  **Fix:** none
+- **Problem:** @backend ended `HANDOFF: success` on the loop-back without writing the test channel payload; had to be resumed to write it.
+  **Fix:** none
+
 ## Blocked by
 
 - `017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md`
