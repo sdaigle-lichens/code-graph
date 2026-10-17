@@ -70,6 +70,11 @@
       "name": "code-graph-a7",
       "task": "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
       "added_at": "2026-10-17T00:18:07.805Z"
+    },
+    {
+      "name": "code-graph-6b",
+      "task": "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
+      "added_at": "2026-10-17T00:54:24.058Z"
     }
   ],
   "log": [
@@ -249,6 +254,19 @@
       "kind": "ack",
       "id": "r013",
       "at": "2026-10-17T00:18:07.481Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r014",
+      "task": "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
+      "file": "inbox/r014-016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
+      "at": "2026-10-17T00:54:12.438Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r014",
+      "at": "2026-10-17T00:54:23.778Z",
       "by": "code-graph-d1"
     }
   ]

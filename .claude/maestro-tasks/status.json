@@ -84,14 +84,14 @@
     "epic": "absorb-concept-skills"
   },
   "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md"
     ],
     "epic": "absorb-concept-skills"
   },
   "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md": {
-    "status": "blocked",
+    "status": "ready",
     "blockedBy": [
       "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md"
     ],

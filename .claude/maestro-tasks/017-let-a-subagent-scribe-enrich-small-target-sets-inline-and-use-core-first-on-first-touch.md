@@ -11,6 +11,8 @@ In maestro, update-concept-skills and update-single-concept-skill run inside the
 - **Without it** (a subagent: no Agent tool, no AskUserQuestion): with 20 or fewer targets, the scribe enriches them itself (purpose/tags/edge reason, in the same partial format), then runs `enrich merge`, a spot-check and `apply`. With more than 20, it enriches nothing and reports the target list as "left to enrich", to be fanned out from a main session, in its final report (names, filepaths, reasons). maestro doesn't call the enrich commands itself, so this behaviour lives in the skills.
 - **First touch:** when the concept has nothing enriched yet, the flows run `enrich targets --core` (task 016); afterwards they use plain `enrich targets`. A thin core reported by 016 goes to update-single-concept-skill to deepen the skill (in a subagent, it's reported, not run).
 
+From 016 (r014): `enrich targets --core --json` exposes `core.size`, `leftOut`, `thin` and `message`; use them. Two small fixes ride along. First, `thinCoreMessage` (scribe/core.ts:58) says "SKILL.md names N", but its callers (enrich.ts:175, gaps.ts:165) pass the whole core size, named plus hubs. Reword it to "N of M vertices are core (named in SKILL.md or hubs)", or pass the named count, and update core.test.ts:67. Second, add a `core.ts` row to the scribe-pipeline skill's scribe/ file map (then extract + apply that concept).
+
 Keep the version bumps (update = `--bump minor`, single = `--bump major`), the no-tsconfig path (graph steps skipped) and the scribe gap-channel contract text verbatim. Version 0.3.10 in all three files, bundle regenerated if it changes.
 
 ## Acceptance criteria

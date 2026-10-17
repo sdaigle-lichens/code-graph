@@ -148,4 +148,9 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   folders. Old deps/<version> folders are ignored (tested). A real deps status/install/extract run
   used a temp cache; checked here that the bundle searches deps/ts-morph@28.0.0. Not run on macOS.
   A scoped pin (`@scope/pkg`) would put a `/` in the key, which is harmless today because ts-morph
-  is the only pin. 016 is unblocked.
+  is the only pin. 016 is unblocked. Committed in 1e0c9a6.
+- r014 (016 done, code-graph-6b, uncommitted): 0.3.9, 306 tests, eval 7/7. New pure scribe/core.ts
+  is shared by enrich and gaps. `enrich targets --core` --json gives core.size, leftOut, thin and
+  message; gaps reports thinCores. Added to 017: the thin-core message says "SKILL.md names N" but
+  gets the whole core size, and the scribe-pipeline skill map needs a core.ts row. Left on
+  purpose: addCoreCounts is O(concepts x rows), negligible at 16 concepts. 017 is unblocked.
