@@ -89,8 +89,11 @@ store.
 **Where ts-morph comes from.** The plugin bundle does not ship the TypeScript compiler. Graph
 commands (`extract`, `catalog`) resolve `ts-morph` (which carries its own compiler) in this order:
 
-1. the plugin-owned deps directory: `$CLAUDE_PLUGIN_DATA/deps` when set, and the per-user cache
-   `~/.cache/code-graph/deps/<version>` (both are searched);
+1. the plugin-owned deps directory: `$CLAUDE_PLUGIN_DATA/deps/<key>` when set, and the per-user cache
+   `~/.cache/code-graph/deps/<key>` (both are searched). `<key>` names the pinned deps, e.g.
+   `ts-morph@28.0.0`, not the code-graph version, so a plugin update reuses the install and a new
+   download happens only when a pin changes. After upgrading from 0.3.7 or earlier, run
+   `deps install` once more; the old `deps/0.3.*` folders are never searched and can be deleted;
 2. the project's own install (`<project>/package.json` resolution) as a fallback.
 
 Populate (1) with the explicit `code-graph deps install` (it runs `npm install` and says so);

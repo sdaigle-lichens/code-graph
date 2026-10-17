@@ -24,8 +24,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 `plugin/scripts/code-graph.cjs`, which plugin skills run with no `node_modules` beside it.
 
 - `typescript`/`ts-morph` are not bundled: every import goes through `requireFromProject`
-  (`project-deps.ts`). Resolution order: (a) plugin-owned deps dir (`$CLAUDE_PLUGIN_DATA/deps`, then
-  `<XDG_CACHE_HOME|~/.cache>/code-graph/deps/<version>`; both searched), populated only by the
+  (`project-deps.ts`). Resolution order: (a) plugin-owned deps dir (`$CLAUDE_PLUGIN_DATA/deps/<key>`, then
+  `<XDG_CACHE_HOME|~/.cache>/code-graph/deps/<key>`; both searched; `<key>` = `depsKey()`, the pins,
+  e.g. `ts-morph@28.0.0`, not the version, so installs survive plugin updates; old `deps/0.3.*`
+  folders are never searched and can be deleted; reinstall once after upgrading), populated only by the
   explicit `code-graph deps install` (`deps.ts`, npm, pins `PINNED_DEPS` — ts-morph only, it carries
   its own compiler; keep in step with package.json); (b) the project's own install via
   `createRequire(<project>/package.json)`. Neither → `MissingProjectDependencyError` naming

@@ -6,9 +6,12 @@
 // which resolves them in this order:
 //
 //   (a) a plugin-owned deps directory, populated by the explicit `code-graph deps install` step:
-//       `$CLAUDE_PLUGIN_DATA/deps` when Claude Code exposes it, and always the per-user cache
-//       `<XDG_CACHE_HOME|~/.cache>/code-graph/deps/<version>` (both are searched, so an install made
-//       with or without the env var is found either way);
+//       `$CLAUDE_PLUGIN_DATA/deps/<key>` when Claude Code exposes it, and always the per-user cache
+//       `<XDG_CACHE_HOME|~/.cache>/code-graph/deps/<key>` (both are searched, so an install made
+//       with or without the env var is found either way). `<key>` names the pinned deps, e.g.
+//       `ts-morph@28.0.0`, not the code-graph version: one install survives every plugin update and a
+//       new download is needed only when a pin changes. After upgrading from <= 0.3.7, run
+//       `deps install` once more; the old `deps/0.3.*` folders are never searched and can be deleted;
 //   (b) the project's own install, `createRequire(<project>/package.json)` (hoisted monorepo installs
 //       included) — the fallback.
 //
@@ -23,7 +26,6 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { findConfigRoot } from "./skills/state.js";
-import { packageVersion } from "./version.js";
 
 /**
  * What `deps install` installs. ts-morph carries its own TypeScript compiler (`@ts-morph/common`)
@@ -48,16 +50,24 @@ export class MissingProjectDependencyError extends Error {
   }
 }
 
+/** Folder name for a set of pinned deps: sorted `name@version` pairs joined with `+` (stable, version-independent). */
+export function depsKey(deps: Readonly<Record<string, string>> = PINNED_DEPS): string {
+  return Object.entries(deps)
+    .map(([name, version]) => `${name}@${version}`)
+    .sort()
+    .join("+");
+}
+
 /** Per-user cache location for the plugin-owned deps. */
 export function cacheDepsDir(): string {
   const cache = process.env.XDG_CACHE_HOME || join(homedir(), ".cache");
-  return join(cache, "code-graph", "deps", packageVersion());
+  return join(cache, "code-graph", "deps", depsKey());
 }
 
 /** Plugin-owned deps directories in lookup order; the first is where `deps install` writes. */
 export function pluginDepsDirs(): string[] {
   const dirs: string[] = [];
-  if (process.env.CLAUDE_PLUGIN_DATA) dirs.push(join(process.env.CLAUDE_PLUGIN_DATA, "deps"));
+  if (process.env.CLAUDE_PLUGIN_DATA) dirs.push(join(process.env.CLAUDE_PLUGIN_DATA, "deps", depsKey()));
   dirs.push(cacheDepsDir());
   return dirs;
 }

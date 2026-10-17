@@ -483,12 +483,12 @@ describe("dependency resolution order (bundle)", () => {
     );
     write("tsconfig.json", "{}");
   };
-  const version = () => JSON.parse(fs.readFileSync(path.join(PKG, "package.json"), "utf8")).version;
+  const DEPS_KEY = "ts-morph@28.0.0";
 
   it("CLAUDE_PLUGIN_DATA/deps wins over the cache dir and the project", () => {
     conceptCfg();
-    fakeDeps(path.join(tmp, "data", "deps"), "data");
-    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", version()), "cache");
+    fakeDeps(path.join(tmp, "data", "deps", DEPS_KEY), "data");
+    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", DEPS_KEY), "cache");
     fakeDeps(tmp, "project");
     const r = run(BUNDLE, ["extract", "a"], {
       env: { CLAUDE_PLUGIN_DATA: path.join(tmp, "data"), XDG_CACHE_HOME: path.join(tmp, "xdg") },
@@ -498,10 +498,18 @@ describe("dependency resolution order (bundle)", () => {
 
   it("the cache dir wins over the project", () => {
     conceptCfg();
-    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", version()), "cache");
+    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", DEPS_KEY), "cache");
     fakeDeps(tmp, "project");
     const r = run(BUNDLE, ["extract", "a"], { env: { CLAUDE_PLUGIN_DATA: "", XDG_CACHE_HOME: path.join(tmp, "xdg") } });
     assert.match(r.stderr, /LOADED:cache/);
+  });
+
+  it("does not search an old deps/<version> folder", () => {
+    conceptCfg();
+    fakeDeps(path.join(tmp, "xdg", "code-graph", "deps", "0.3.7"), "old");
+    fakeDeps(tmp, "project");
+    const r = run(BUNDLE, ["extract", "a"], { env: { CLAUDE_PLUGIN_DATA: "", XDG_CACHE_HOME: path.join(tmp, "xdg") } });
+    assert.match(r.stderr, /LOADED:project/);
   });
 
   it("falls back to the project when the plugin dirs are empty", () => {
