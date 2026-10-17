@@ -56,5 +56,5 @@ export function isThinCore(live: number, core: number): boolean {
 }
 
 export function thinCoreMessage(namedCount: number, live: number): string {
-  return `core is thin: SKILL.md names ${namedCount} of ${live} vertices, deepen the skill`;
+  return `core is thin: ${namedCount} of ${live} vertices are core (named in SKILL.md or hubs), deepen the skill`;
 }

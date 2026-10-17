@@ -23,6 +23,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
 | `scribe/enrich.ts` | `enrich targets` (what needs enriching) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
+| `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets --core` and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs |
 | `scribe/rows.ts` | row shaping and `toMatchExpr` (query stopwords are stripped in JS) |

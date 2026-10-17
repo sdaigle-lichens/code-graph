@@ -147,8 +147,15 @@ for every concept whose code or SKILL.md changed. Then enrich, **incrementally b
 
 1. `cg enrich targets <concept> --json` lists the new, changed and stale vertices (add
    `--vertex <name>...` for any a code-change report named). Nothing listed: stop for this concept.
-2. Fan the targets out in small batches to **Haiku** subagents, launched by you from the main session
-   (subagents cannot spawn subagents). Each returns a partial enrichment file.
+   When the concept has nothing enriched yet (first touch), use `cg enrich targets <concept> --core --json`
+   instead; its `core.size`, `core.leftOut`, `core.thin` and `core.message` say how much was left
+   out and whether the core is thin. A thin core goes to `update-single-concept-skill` to deepen
+   the skill (run it from the main session; from a subagent, report it with `core.message`, do not run it).
+2. **Main session (Agent tool):** fan the targets out in small batches to **Haiku** subagents,
+   launched by you. Each returns a partial enrichment file.
+   **Subagent (no Agent tool):** with 20 or fewer targets, enrich them yourself (purpose, tags, edge
+   reason, same partial format); with more than 20, enrich nothing and list them under "left to
+   enrich" in the final report (names, filepaths, reasons) for a main session to fan out.
 3. `cg enrich merge <concept> <partial>` for each, spot-check a few descriptions against the code
    (re-ask or drop bad ones), then `cg apply <concept>` to ingest.
 
@@ -161,4 +168,5 @@ With no tsconfig this whole step is skipped.
 
 Four counts — added, deleted, revised, untouched — and the concept ids behind each; which concepts
 were re-extracted and re-enriched (or that the graph step was skipped for lack of a tsconfig); any
-skill that needs a deep pass; and what the repo-level version moved to.
+skill that needs a deep pass (including any thin core); the "left to enrich" list when a subagent
+deferred more than 20 targets; and what the repo-level version moved to.

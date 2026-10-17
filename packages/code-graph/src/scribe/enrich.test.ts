@@ -222,7 +222,7 @@ describe("enrich targets --core", () => {
     run(["extract", "c"]);
     const out = full("--core");
     assert.equal(out.core.thin, true);
-    assert.match(out.core.message, /core is thin: SKILL\.md names 1 of 52 vertices/);
+    assert.match(out.core.message, /core is thin: 1 of 52 vertices are core/);
     assert.match(run(["enrich", "targets", "c", "--core"]).stdout, /core is thin/);
   });
 

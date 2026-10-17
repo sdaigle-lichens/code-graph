@@ -130,16 +130,29 @@ retrieval skill's "yes, build it" path; never run it unprompted. Two paths, incr
 
 ### Incremental path (default)
 
-Enrich only what needs it (`cg` = `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`). The caller (a skill running in the main session, since subagents cannot
-spawn subagents) drives it:
+Enrich only what needs it (`cg` = `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`). The caller
+drives it. Which step 2 applies depends on whether you have the Agent tool: the main session fans out
+to Haiku; a subagent (no Agent tool, no `AskUserQuestion`) enriches inline or defers, see step 2.
 
 1. `cg enrich targets <concept> --json` lists the vertices that are new, changed or stale (add
    `--vertex <name-or-_key>...` to include named ones, e.g. those a reported gap names). Each target
    carries `key`, `name`, `filepath`, `start_line`/`end_line`, `reasons` and `edgesWithoutReason`.
-   An empty list means nothing to do.
-2. Fan the targets out in small batches (about 10 vertices) to Haiku subagents, in parallel. Each
-   gets the batch, the concept's SKILL.md path and the output schema below, reads each vertex's
-   slice, and writes a **partial** enrichment to `$TMPDIR/<concept>.partial.<n>.json`.
+   An empty list means nothing to do. **First touch** (the concept has nothing enriched yet: no
+   `scribe-output/<concept>.enriched.json`, or it is empty): use `cg enrich targets <concept> --core --json`
+   so only the core (vertices the SKILL.md names plus hubs) is listed; afterwards use plain
+   `enrich targets`. `--core` JSON adds `core.size`, `core.leftOut`, `core.thin` and `core.message`:
+   report `leftOut` as not enriched yet. When `core.thin` is true the skill names too little to
+   enrich well: route to `update-single-concept-skill` to deepen it (from a subagent, report it with
+   `core.message`, do not run it).
+2. **With the Agent tool (main session):** fan the targets out in small batches (about 10 vertices)
+   to Haiku subagents, in parallel. Each gets the batch, the concept's SKILL.md path and the output
+   schema below, reads each vertex's slice, and writes a **partial** enrichment to
+   `$TMPDIR/<concept>.partial.<n>.json`.
+   **Without it (a subagent):** subagents cannot spawn subagents. With **20 or fewer** targets,
+   enrich them yourself (`purpose`, `tags`, edge `reason`, same partial format, written to
+   `$TMPDIR/<concept>.partial.1.json`), then continue with steps 3 to 5. With **more than 20**,
+   enrich nothing and put a "left to enrich" list in your final report (each target's name,
+   filepath and reasons) so a main session can fan it out; still run `apply` for the structural graph.
 3. For each partial: `cg enrich merge <concept> <partial>` (upserts by `_key` into
    `scribe-output/<concept>.enriched.json` and stamps `sig_seen` and `hash_seen` from ast.json; it
    does not run `apply`).

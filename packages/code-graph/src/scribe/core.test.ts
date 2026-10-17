@@ -64,7 +64,7 @@ describe("thin core", () => {
     assert.equal(isThinCore(50, 4), true);
     assert.equal(isThinCore(49, 0), false);
     assert.equal(isThinCore(50, 5), false);
-    assert.match(thinCoreMessage(2, 148), /SKILL\.md names 2 of 148/);
+    assert.match(thinCoreMessage(2, 148), /2 of 148 vertices are core \(named in SKILL\.md or hubs\)/);
   });
   it("is reported by analyzeConceptGaps", () => {
     const counts = new Map([["big", { live: 60, enriched: 0, core: 3, coreEnriched: 0 }]]);
@@ -85,7 +85,7 @@ describe("thin core", () => {
       [{ name: "big", enrichable: true }],
       new Map([["big", { live: 148, enriched: 2, core: 2, coreEnriched: 2 }]])
     );
-    assert.match(formatGapDiagnostic(big, []), /thin core[\s\S]*`big`[\s\S]*SKILL\.md names 2 of 148/);
+    assert.match(formatGapDiagnostic(big, []), /thin core[\s\S]*`big`[\s\S]*2 of 148 vertices are core/);
   });
 });
 
