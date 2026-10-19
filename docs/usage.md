@@ -39,7 +39,11 @@ code-graph extract workorder-store
 
 In a Claude Code session with the plugin loaded, ask for enrichment of the concept (the `scribe`
 skill's enrichment procedure; `update-concept-skills` and `update-single-concept-skill` offer it
-after a revision), e.g. "enrich workorder-store". This starts a subagent that reads the AST, adds semantic enrichment (purpose, cross-concept refs, tags), and writes `scribe-output/workorder-store.enriched.json`.
+after a revision), e.g. "enrich workorder-store". It decides from `enrich targets --summary --json`
+(below), adds semantic enrichment (purpose, cross-concept refs, tags) and merges it into
+`scribe-output/workorder-store.enriched.json`. The main session fans targets out to subagents in
+batches; a flow running as a subagent enriches up to 20 targets inline (changed/stale first, then
+SKILL-named, then hubs) and reports the rest as "left to enrich" for a main session.
 
 #### Incremental enrichment (`enrich targets`, `enrich merge`)
 
@@ -58,7 +62,8 @@ Enrichment can build up a few vertices at a time. Run `extract <concept>` first 
   concept's SKILL.md, plus in-concept hubs (3+ inbound `calls`/`mounts` edges from other vertices of
   the same concept).
 - **Touched.** After a concept's first apply, `apply` stamps `agent.touched_at` on every vertex with
-  no purpose that arrives new or with a changed body; the first apply stamps nothing (ingesting a
+  no purpose that arrives new, with a changed body, or under a new key through an approved rename
+  (`--approve-drift` or `y`, since 0.3.13); the first apply stamps nothing (ingesting a
   concept is not a task). So `extract` → `apply` → `enrich targets` lists a vertex a task added or
   edited even when it is non-core and never enriched. A vertex not yet applied, a body differing
   from the store's, or a pre-0.3.12 `agent.stale` also counts as touched.

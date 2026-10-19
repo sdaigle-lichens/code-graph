@@ -350,10 +350,30 @@ describe("enrich targets — lazy after the first touch", () => {
     );
 
     // enriching them clears them
-    run(["enrich", "merge", "c", writePartial(partial("gamma", "returns 33"))]);
-    run(["enrich", "merge", "c", writePartial(partial("epsilon", "returns 5"))]);
-    run(["apply", "c"]);
+    assert.equal(run(["enrich", "merge", "c", writePartial(partial("gamma", "returns 33"))]).code, 0);
+    assert.equal(run(["enrich", "merge", "c", writePartial(partial("epsilon", "returns 5"))]).code, 0);
+    assert.equal(run(["apply", "c"]).code, 0);
     assert.deepEqual(out().targets, []);
+  });
+
+  it("an approved rename of a never-enriched non-core vertex is stamped touched and listed as new", () => {
+    coreEnriched();
+    write("src/d.ts", D_SRC.replace("delta", "delta2"));
+    assert.equal(run(["extract", "c"]).code, 0);
+    const dry = JSON.parse(run(["apply", "c", "--dry-run", "--json"]).stdout);
+    assert.deepEqual(
+      dry.renameCandidates.map((r: any) => [r.from.name, r.to.name]),
+      [["delta", "delta2"]],
+      "delta -> delta2 is one rename candidate"
+    );
+    assert.equal(run(["apply", "c", "--approve-drift"]).code, 0);
+    assert.ok(storeVertex("delta2").agent.touched_at, "apply stamped the renamed vertex");
+    const o = out();
+    assert.deepEqual(
+      o.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      [["delta2", ["new"], false]]
+    );
+    assert.equal(o.core.leftOut, 2, "beta and gamma stay left out");
   });
 
   it("treats a never-enriched vertex flagged stale by an older apply as touched (upgrade path)", () => {

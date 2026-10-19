@@ -37,8 +37,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   previous apply, or `--vertex`-named; the rest count in `core.leftOut`. Touched
   (`touchedSinceApply`) = not in the store yet, a body differing from the store's, `agent.touched_at`
   or `agent.stale` set. `apply` stamps `agent.touched_at` on a purpose-less vertex that is new or
-  body-changed, but never on a concept's first apply (an empty store for it): that ingest is not a
-  task, so nothing is touched before it.
+  body-changed, or the new key of an approved rename (`--approve-drift` or interactive `y`) whose
+  merged vertex has no purpose, but never on a concept's first apply (an empty store for it): that
+  ingest is not a task, so nothing is touched before it.
 - Enrichment is partial-friendly: `.enriched.json` is the only committed copy and `apply` reads it as
   the whole truth (edge reasons are re-inserted from it), so never overwrite it with a partial; use
   `enrich merge`. A changed vertex is fresh only when the entry's `hash_seen` equals its new

@@ -449,6 +449,10 @@ export async function apply(
         },
         now
       );
+      // A renamed vertex that was never enriched is still a task's touch: keep it an `enrich targets` target.
+      if (conceptWasApplied && !merged.purpose) {
+        merged.agent = { ...(merged.agent as Record<string, unknown>), touched_at: now };
+      }
       putRecord(store, "vertices", r.newKey, merged);
       mergeRecord(store, "vertices", r.oldKey, { status: "archived", archivedAt: now });
       insertedCount++;

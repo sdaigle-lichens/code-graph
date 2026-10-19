@@ -112,21 +112,25 @@ The new SKILL.md body is ingested as the concept's doc vertex. Then enrich:
 
 - **Skill deepened (this pass rewrote the SKILL.md):** a deepened skill's tags and invariants are
   what enrichment reads, and a concept enriched against the skeleton is the stale one, so offer the
-  `scribe` skill's **whole-concept** enrichment, then `cg enrich merge` and `cg apply`. From a
-  subagent there is no Agent tool: enrich inline if the concept has 20 or fewer vertices, otherwise
-  enrich nothing and report the "left to enrich" list.
+  `scribe` skill's **whole-concept** enrichment (the vertices already enriched plus the core, not
+  every vertex; never-enriched non-core vertices stay lazy), then `cg enrich merge` and `cg apply`.
+  `--all` is only for a full pass the user explicitly asks for. From a subagent there is no Agent
+  tool: enrich **up to 20** of them inline (changed and stale first, then vertices the SKILL.md
+  names, then hubs, then the rest) and report the remainder under "left to enrich". When this
+  pass's SKILL.md edit grew the core, the report says "core grew from N to M with this run's skill
+  edit" (`core.size` before and after).
 - **Only a reported gap to close** (no SKILL.md revision needed for the graph): enrich just the
-  vertices the gap names. `cg enrich targets <concept> --vertex <name>... --json` gives their full
-  details; `cg enrich targets <concept> --summary --json` adds whatever else is changed, stale, core
-  or touched since the last apply, with `core.size`, `core.leftOut`, `core.thin` and
-  `core.message`. In the main session, fan the targets out in small
-  batches to **Haiku** subagents. In a subagent (no Agent tool): with 20 or fewer targets enrich them
-  yourself in the same partial format; with more, enrich nothing and report a "left to enrich" list
-  (names, filepaths, reasons). Then `cg enrich merge <concept> <partial>` each, spot-check a few
-  against the code (re-ask or drop bad ones), then `cg apply <concept>`. The scribe skill's
-  "Incremental path" has the detail. A thin core is what this skill exists to fix: this pass is the
-  deepening, so re-run the whole-concept enrichment above (`enrich targets --all`) rather than the
-  lazy core-first listing.
+  vertices the gap names. Decide with `cg enrich targets <concept> --summary --json`, which adds
+  whatever else is changed, stale, core or touched since the last apply, with `core.size`,
+  `core.leftOut`, `core.thin` and `core.message`; each batch reads full details for its own targets
+  only with `cg enrich targets <concept> --json --vertex <key>...`. In the main session, fan the
+  targets out in small batches to **Haiku** subagents. In a subagent (no Agent tool): enrich up to
+  20 yourself in the same partial format, gap-named vertices first, then the order above, and
+  report the rest as a "left to enrich" list (names, filepaths, reasons; they stay targets on the
+  next run). Then `cg enrich merge <concept> <partial>` each, spot-check a few against the code
+  (re-ask or drop bad ones), then `cg apply <concept>`. The scribe skill's "Incremental path" has
+  the detail. A thin core is what this skill exists to fix: this pass is the deepening, so the
+  rewritten SKILL.md names more and the whole-concept enrichment above covers the grown core.
 
 In a repo with no tsconfig, stop at the stamp.
 

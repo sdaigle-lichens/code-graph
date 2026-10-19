@@ -145,25 +145,30 @@ cg apply <concept>
 for every concept whose code or SKILL.md changed. Then enrich, **incrementally by default**
 (the procedure lives in the `scribe` skill, "Incremental path"):
 
-1. `cg enrich targets <concept> --summary --json` lists what needs enriching, lazily, on first touch
-   and after: changed and stale vertices, plus never-enriched ones that are core or that this run's
-   `extract` → `apply` saw as new or changed. Never-enriched, untouched, non-core vertices are not
-   listed; `core.leftOut` counts them. Nothing listed: stop for this concept. `core.size`,
-   `core.leftOut`, `core.thin` and `core.message` say how much was left out and whether the core is
-   thin. A thin core goes to `update-single-concept-skill` to deepen the skill (run it from the main
-   session; from a subagent, report it with `core.message`, do not run it). For a batch's full
-   details (signature, edges without a reason) run `cg enrich targets <concept> --json --vertex <key>...`.
+1. Decide with `cg enrich targets <concept> --summary --json`: it lists what needs enriching,
+   lazily by default: changed and stale vertices, plus never-enriched ones that are core or that
+   this run's `extract` → `apply` saw as new, changed or renamed. Never-enriched, untouched,
+   non-core vertices are not listed; `core.leftOut` counts them. Nothing listed: stop for this
+   concept. `core.size`, `core.leftOut`, `core.thin` and `core.message` say how much was left out
+   and whether the core is thin. A thin core goes to `update-single-concept-skill` to deepen the
+   skill (run it from the main session; from a subagent, report it with `core.message`, do not run
+   it). Each batch reads full details (signature, edges without a reason) for its own targets only:
+   `cg enrich targets <concept> --json --vertex <key>...`.
 2. **Main session (Agent tool):** fan the targets out in small batches to **Haiku** subagents,
    launched by you. Each returns a partial enrichment file.
-   **Subagent (no Agent tool):** with 20 or fewer targets, enrich them yourself (purpose, tags, edge
-   reason, same partial format); with more than 20, enrich nothing and list them under "left to
-   enrich" in the final report (names, filepaths, reasons) for a main session to fan out.
+   **Subagent (no Agent tool):** enrich **up to 20** targets yourself (purpose, tags, edge reason,
+   same partial format), in this order: changed and stale, then vertices the SKILL.md names, then
+   hubs, then the rest. List the remainder under "left to enrich" in the final report (names,
+   filepaths, reasons) for a main session to fan out; they keep `agent.touched_at`, so they stay
+   targets on the next run. Never skip the inline part because the list is long.
 3. `cg enrich merge <concept> <partial>` for each, spot-check a few descriptions against the code
    (re-ask or drop bad ones), then `cg apply <concept>` to ingest.
 
 A concept whose SKILL.md you **revised** is the exception: its tags and invariants feed every
-description, so re-enrich the **whole concept** (the scribe skill's "Whole-concept path"), then merge
-and apply the same way. Concepts with only code drift and no skill revision never need that.
+description, so re-enrich the **whole concept** (the scribe skill's "Whole-concept path"): the
+vertices already enriched plus the core, not every vertex; never-enriched non-core vertices stay
+lazy. Then merge and apply the same way. `--all` is only for a full pass the user explicitly asks
+for. Concepts with only code drift and no skill revision never need that.
 With no tsconfig this whole step is skipped.
 
 ## Report
@@ -171,4 +176,6 @@ With no tsconfig this whole step is skipped.
 Four counts — added, deleted, revised, untouched — and the concept ids behind each; which concepts
 were re-extracted and re-enriched (or that the graph step was skipped for lack of a tsconfig); any
 skill that needs a deep pass (including any thin core); the "left to enrich" list when a subagent
-deferred more than 20 targets; and what the repo-level version moved to.
+had more than 20 targets; "core grew from N to M with this run's skill edit" when a SKILL.md revised
+in this run grew a concept's core (`core.size` before and after the edit); and what the repo-level
+version moved to.

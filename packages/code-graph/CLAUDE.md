@@ -96,7 +96,7 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   `enrich targets` is lazy: a never-enriched vertex is `new` only if core, touched since the previous
   apply (`touchedSinceApply`) or `--vertex`-named; the rest count in `core.leftOut` (always
   reported). `apply` stamps `agent.touched_at` (optional in `VertexSchema`, no `SCHEMA_VERSION` bump)
-  on un-enriched new/changed vertices, never on a concept's first apply. `--all` = old listing,
+  on un-enriched new/changed vertices or approved renames, never on a concept's first apply. `--all` = old listing,
   `--core` = no-op, `--vertex` narrows to the named vertices (full details), `--summary` = counts +
   core block + one line per target, no edge arrays (compact JSON with `--json`).
   Staleness: a changed vertex is fresh only if `hash_seen === contentHash`; entries with no
