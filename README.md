@@ -6,6 +6,14 @@ No server and no Docker: the graph is a single file in your project's `scribe-ou
 
 One query returns: the SKILL.md invariants, precisely scoped code vertices with file/line, and cross-concept side effects — as a single dense markdown dump that Claude Code can act on immediately.
 
+## Install
+
+In Claude Code:
+
+```
+/plugin install code-graph --marketplace sdaigle-lichens/code-graph
+```
+
 ## Docs
 
 - [Installation](docs/installation.md) — prerequisites, dev install (`pnpm link --global`), Claude Code plugin registration.
