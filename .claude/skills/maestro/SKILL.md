@@ -21,7 +21,7 @@ If the text below is missing, empty, or reads `[shell command execution disabled
 
 ### Step 2 — Match to workflow
 
-1. Match the request to a workflow in the table below by its success path and agents. Read only enough to route (the request, and at most enough of the repo to tell which path fits), never to design. If none clearly matches, offer to build one with the `create-workflow` skill; ask the user to clarify only if they'd rather not.
+1. Match the request to a workflow in the table below by its success path and agents. Read only enough to route (the request, and at most enough of the repo to tell which path fits), never to design. Pick a workflow whose agents can make **every** change the request names — code, tests, version bumps, a build or regenerate step — not just the main one. If none clearly matches, offer to build one with the `create-workflow` skill; ask the user to clarify only if they'd rather not.
 2. Record the workflow so the `SubagentStart` hook injects the right skills and handoff rules. If the request named a `.claude/maestro-tasks/NNN-*.md` file, record it now too:
 
 ```bash
@@ -80,8 +80,9 @@ Route on each subagent's final `HANDOFF:` line:
 **After each subagent returns, run `node .claude/scripts/maestro-task-status.cjs handoff-issues`.** It prints and clears what the `SubagentStop` hook found:
 - a missing `HANDOFF:` line, or a FAIL verdict ending `HANDOFF: success` (invalid: a real defect takes its matching condition edge). Never default to `success`: pick the edge that matches the defect, or resume the agent for a corrected line, and say which.
 - a missing payload (the route expects a channel file the agent didn't write this run). **Resume, never skip**: `SendMessage` its `agent_id` to write the named file, then route as its `HANDOFF:` says. Never dispatch the receiver without it. **In a worktree run, don't resume it to retry the write** (writes into the main checkout's `.claude/channels/` are intermittently denied there): `handoff-issues` then prints a worktree note. You write the channel file yourself from the payload in the agent's final message, and name its path in the receiver's prompt (a file you write is unstamped, so `SubagentStart` only mentions it). It needs no user approval.
+- a label with no route (no condition edge in this workflow matches it). **Stop and ask**: tell the user what the agent couldn't do and offer the choices (re-run under a workflow that can, dispatch one agent outside the workflow, or stop). Never dispatch anyone off-workflow on your own.
 
-If the hook didn't run and the line is missing or matches no condition, treat it the same way and tell the user about the ambiguity.
+If the hook didn't run, check the line yourself: a missing line is handled as above, and a label that matches no condition edge stops and goes to the user, as above.
 
 ### Step 4 — Mark the task done
 

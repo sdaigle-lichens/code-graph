@@ -65,6 +65,7 @@ __export(maestro_session_exports, {
   checkChannelWrite: () => checkChannelWrite,
   checkHandoff: () => checkHandoff,
   checkPayload: () => checkPayload,
+  checkRoute: () => checkRoute,
   checkWorktreeWrite: () => checkWorktreeWrite,
   closeMeeting: () => closeMeeting,
   closeOwnerRuns: () => closeOwnerRuns,
@@ -1321,6 +1322,19 @@ function checkHandoff(msg) {
   }
   return null;
 }
+function checkRoute(msg, routes, workflow) {
+  const label = lastHandoffLabel(msg);
+  if (label === null || label.toLowerCase() === "success") return null;
+  const want = label.toLowerCase();
+  if (routes.some((r) => r.label.toLowerCase() === want)) return null;
+  const known = routes.filter((r) => r.label.toLowerCase() !== "success").map((r) => r.label);
+  return {
+    kind: "unrouted",
+    verdict: reportVerdict(msg),
+    label,
+    message: "The subagent ended HANDOFF: " + label + ', which no condition edge in workflow "' + workflow + '" handles (its conditions: ' + (known.length ? known.join(", ") : "none") + "). Stop: tell the user what the agent could not do and let them choose (switch workflow, dispatch an agent outside it, or stop). Do not dispatch another agent on your own."
+  };
+}
 function checkPayload(msg, routes, written) {
   const label = lastHandoffLabel(msg);
   if (label === null) return null;
@@ -2151,6 +2165,7 @@ function meetingNotice(meeting, agentType) {
   checkChannelWrite,
   checkHandoff,
   checkPayload,
+  checkRoute,
   checkWorktreeWrite,
   closeMeeting,
   closeOwnerRuns,

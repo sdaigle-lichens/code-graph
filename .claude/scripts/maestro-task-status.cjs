@@ -890,12 +890,15 @@ function handoffIssuesCommand() {
     return;
   }
   // `087` adds `missing_payload`: the route taken expects a payload the sender never wrote.
+  // `108` adds `unrouted`: a condition label the active workflow has no edge for.
   const what = (i) =>
     i.kind === "missing"
       ? "NO HANDOFF line"
       : i.kind === "missing_payload"
         ? `NO PAYLOAD written for HANDOFF: ${i.label}${i.agent_id ? ` (agent_id ${i.agent_id})` : ""}`
-        : "verdict FAIL but HANDOFF: success";
+        : i.kind === "unrouted"
+          ? `NO ROUTE for HANDOFF: ${i.label}`
+          : "verdict FAIL but HANDOFF: success";
   const lines = issues.map(
     (i) => `  - ${i.agent}: ${what(i)}` + `${i.verdict ? ` (verdict ${i.verdict})` : ""}. ${i.message}`
   );

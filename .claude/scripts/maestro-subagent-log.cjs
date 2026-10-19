@@ -43,6 +43,7 @@ const {
   handbackHandoff,
   meetingFor,
   checkHandoff,
+  checkRoute,
   checkPayload,
   handoffRoutes,
   routesFrom,
@@ -93,6 +94,20 @@ function agentPayloadRoutes(cwd, claudeDir, agentType, sessionStatePath) {
   const { searchList } = resolveSearchList(cfg, readSession(sessionStatePath));
   const routes = routesFrom(handoffRoutes(searchList, cfg.workflow_instances || []), agentType);
   return payloadRoutes(cwd, routes, readGlobalHandoff);
+}
+
+// `108`: this agent's routes in the workflow the orchestrator recorded, or null when none was
+// recorded (or it names no workflow) — the search list is then a guess, and a label missing from a
+// guessed workflow is not evidence of a missing edge.
+function activeWorkflowRoutes(claudeDir, agentType, sessionStatePath) {
+  const cfg = readJson(path.join(claudeDir, "maestro.json"));
+  if (!cfg || cfg.version !== 3) return null;
+  const { searchList, activeWorkflowName } = resolveSearchList(cfg, readSession(sessionStatePath));
+  if (!activeWorkflowName || !searchList.length || searchList.some((w) => w.name !== activeWorkflowName)) return null;
+  return {
+    workflow: activeWorkflowName,
+    routes: routesFrom(handoffRoutes(searchList, cfg.workflow_instances || []), agentType),
+  };
 }
 
 // Parse the HANDOFF: label from the agent's final message.
@@ -210,6 +225,11 @@ function parseHandoff(msg) {
         let issue = null;
         if (!inMeeting && !inOwnerRun && offeredSkills(claudeDir, agentType, sess.state)) {
           issue = checkHandoff(handoffMsg);
+          // `108`: a condition label the active workflow has no edge for — stop and ask, never improvise.
+          if (!issue) {
+            const active = activeWorkflowRoutes(claudeDir, agentType, sess.state);
+            if (active) issue = checkRoute(handoffMsg, active.routes, active.workflow);
+          }
           // `087`: the third issue — the route taken expects a payload and this run wrote none.
           // Checked BEFORE the stamping below; measured from this run's own dispatch entry, so a
           // file left from an earlier pass (or a loop-back's first run) does not count.
