@@ -145,12 +145,14 @@ cg apply <concept>
 for every concept whose code or SKILL.md changed. Then enrich, **incrementally by default**
 (the procedure lives in the `scribe` skill, "Incremental path"):
 
-1. `cg enrich targets <concept> --json` lists the new, changed and stale vertices (add
-   `--vertex <name>...` for any a code-change report named). Nothing listed: stop for this concept.
-   When the concept has nothing enriched yet (first touch), use `cg enrich targets <concept> --core --json`
-   instead; its `core.size`, `core.leftOut`, `core.thin` and `core.message` say how much was left
-   out and whether the core is thin. A thin core goes to `update-single-concept-skill` to deepen
-   the skill (run it from the main session; from a subagent, report it with `core.message`, do not run it).
+1. `cg enrich targets <concept> --summary --json` lists what needs enriching, lazily, on first touch
+   and after: changed and stale vertices, plus never-enriched ones that are core or that this run's
+   `extract` → `apply` saw as new or changed. Never-enriched, untouched, non-core vertices are not
+   listed; `core.leftOut` counts them. Nothing listed: stop for this concept. `core.size`,
+   `core.leftOut`, `core.thin` and `core.message` say how much was left out and whether the core is
+   thin. A thin core goes to `update-single-concept-skill` to deepen the skill (run it from the main
+   session; from a subagent, report it with `core.message`, do not run it). For a batch's full
+   details (signature, edges without a reason) run `cg enrich targets <concept> --json --vertex <key>...`.
 2. **Main session (Agent tool):** fan the targets out in small batches to **Haiku** subagents,
    launched by you. Each returns a partial enrichment file.
    **Subagent (no Agent tool):** with 20 or fewer targets, enrich them yourself (purpose, tags, edge

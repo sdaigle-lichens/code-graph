@@ -193,20 +193,35 @@ const enrich = program.command("enrich").description("incremental enrichment: li
 
 enrich
   .command("targets <concept>")
-  .description("list vertices that need enrichment (new, changed, stale, plus any named)")
-  .option("--vertex <name...>", "also include these vertices (name or _key)")
-  .option("--core", "only core vertices (named in SKILL.md, plus in-concept hubs) count as new")
+  .description(
+    "list vertices that need enrichment: changed, stale, and never-enriched ones that are core or new/changed since the previous apply"
+  )
+  .option("--vertex <name...>", "list just these vertices (name or _key), with full details")
+  .option("--all", "list every never-enriched vertex, not only core and touched ones (whole-concept enrichment)")
+  .option("--summary", "counts per reason, the core block and one short line per target (no edge arrays)")
+  .option("--core", "no-op: core-first is the default (kept for older skills)")
   .option("--json", "output JSON")
-  .action(async (concept: string, opts: { vertex?: string[]; json?: boolean; core?: boolean }) => {
-    try {
-      if (await skippedForNoConcepts("enrich targets")) return;
-      const { enrichTargets } = await import("./scribe/enrich.js");
-      enrichTargets(concept, { vertices: opts.vertex ?? [], json: opts.json ?? false, core: opts.core ?? false });
-    } catch (err) {
-      console.error("enrich targets failed:", (err as Error).message);
-      process.exit(1);
+  .action(
+    async (
+      concept: string,
+      opts: { vertex?: string[]; json?: boolean; core?: boolean; all?: boolean; summary?: boolean }
+    ) => {
+      try {
+        if (await skippedForNoConcepts("enrich targets")) return;
+        const { enrichTargets } = await import("./scribe/enrich.js");
+        enrichTargets(concept, {
+          vertices: opts.vertex ?? [],
+          json: opts.json ?? false,
+          all: opts.all ?? false,
+          summary: opts.summary ?? false,
+          core: opts.core ?? false,
+        });
+      } catch (err) {
+        console.error("enrich targets failed:", (err as Error).message);
+        process.exit(1);
+      }
     }
-  });
+  );
 
 enrich
   .command("merge <concept> <partial>")

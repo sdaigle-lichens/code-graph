@@ -22,8 +22,8 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
-| `scribe/enrich.ts` | `enrich targets` (what needs enriching) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
-| `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets --core` and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
+| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
+| `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs |
 | `scribe/rows.ts` | row shaping and `toMatchExpr` (query stopwords are stripped in JS) |
@@ -31,7 +31,14 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 ## Invariants
 
 - Vertex `_key` includes the filepath, so moving a file orphans its enrichment until remapped.
-- Agent fields come only from enrichment and survive re-extracts; a body change sets `agent.stale`.
+- Agent fields come only from enrichment and survive re-extracts; a body change sets `agent.stale`
+  on every changed vertex, never-enriched ones included.
+- `enrich targets` is lazy: a never-enriched vertex is `new` only when core, touched since the
+  previous apply, or `--vertex`-named; the rest count in `core.leftOut`. Touched
+  (`touchedSinceApply`) = not in the store yet, a body differing from the store's, `agent.touched_at`
+  or `agent.stale` set. `apply` stamps `agent.touched_at` on a purpose-less vertex that is new or
+  body-changed, but never on a concept's first apply (an empty store for it): that ingest is not a
+  task, so nothing is touched before it.
 - Enrichment is partial-friendly: `.enriched.json` is the only committed copy and `apply` reads it as
   the whole truth (edge reasons are re-inserted from it), so never overwrite it with a partial; use
   `enrich merge`. A changed vertex is fresh only when the entry's `hash_seen` equals its new

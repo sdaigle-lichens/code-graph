@@ -134,16 +134,18 @@ Enrich only what needs it (`cg` = `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-grap
 drives it. Which step 2 applies depends on whether you have the Agent tool: the main session fans out
 to Haiku; a subagent (no Agent tool, no `AskUserQuestion`) enriches inline or defers, see step 2.
 
-1. `cg enrich targets <concept> --json` lists the vertices that are new, changed or stale (add
-   `--vertex <name-or-_key>...` to include named ones, e.g. those a reported gap names). Each target
-   carries `key`, `name`, `filepath`, `start_line`/`end_line`, `reasons` and `edgesWithoutReason`.
-   An empty list means nothing to do. **First touch** (the concept has nothing enriched yet: no
-   `scribe-output/<concept>.enriched.json`, or it is empty): use `cg enrich targets <concept> --core --json`
-   so only the core (vertices the SKILL.md names plus hubs) is listed; afterwards use plain
-   `enrich targets`. `--core` JSON adds `core.size`, `core.leftOut`, `core.thin` and `core.message`:
-   report `leftOut` as not enriched yet. When `core.thin` is true the skill names too little to
-   enrich well: route to `update-single-concept-skill` to deepen it (from a subagent, report it with
-   `core.message`, do not run it).
+1. `cg enrich targets <concept> --summary --json` is the small, inline-readable listing: counts per
+   reason, the `core` block (`size`, `leftOut`, `thin`, `message`), the total of edges without a
+   reason, and one short line per target (`key`, `name`, `type`, `loc`, `reasons`, `core`). It is
+   lazy on first touch and after: changed and stale vertices, plus never-enriched vertices that are
+   core (the SKILL.md names them, or hubs) or that an `extract` → `apply` saw as new or changed
+   since the previous apply. Every other never-enriched vertex is counted in `core.leftOut`: report
+   it as not enriched yet. An empty list means nothing to do. For full details (signature, purpose,
+   `edgesWithoutReason`) of just some vertices, e.g. one batch or those a reported gap names, run
+   `cg enrich targets <concept> --json --vertex <name-or-_key>...`; that is what a batch enricher
+   reads. (`--core` is accepted and does nothing: core-first is the default.) When `core.thin` is
+   true the skill names too little to enrich well: route to `update-single-concept-skill` to deepen
+   it (from a subagent, report it with `core.message`, do not run it).
 2. **With the Agent tool (main session):** fan the targets out in small batches (about 10 vertices)
    to Haiku subagents, in parallel. Each gets the batch, the concept's SKILL.md path and the output
    schema below, reads each vertex's slice, and writes a **partial** enrichment to
@@ -166,7 +168,9 @@ edge `reason` only. They never write `sig_seen` or `hash_seen`. Each alone in it
 ### Whole-concept path
 
 Use it when the concept's SKILL.md was revised (descriptions read the skill's tags and invariants),
-or the concept has never been enriched. One enricher takes every vertex and edge in the concept and
+or the concept has never been enriched. `cg enrich targets <concept> --all --summary --json` lists
+every vertex not enriched yet (the lazy default would leave the untouched non-core ones out). One
+enricher takes every vertex and edge in the concept and
 writes its result to a partial file (`outPath`); the caller then runs `enrich merge` and `apply`
 exactly as in steps 3 to 5 above, so `sig_seen` and `hash_seen` are stamped the same way.
 

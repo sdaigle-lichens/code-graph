@@ -69,6 +69,25 @@ function whyText(edges: Edge[]): string {
   return reasons.map((r) => ` — why: "${r}"`).join("");
 }
 
+/** How an inbound edge reads from the hit's side: `A calls hit` renders "← called by `A`". */
+const INBOUND_LABELS: Record<Edge["type"], string> = {
+  calls: "called by",
+  reads: "read by",
+  writes: "written by",
+  mounts: "mounted by",
+  subscribes: "subscribed to by",
+  "uses-hook": "used as a hook by",
+  "delegates-to": "delegated to by",
+  "has-type": "type of",
+  triggers: "triggered by",
+  describes: "described by",
+  "documented-by": "documents",
+};
+
+function inboundLabel(type: string): string {
+  return INBOUND_LABELS[type as Edge["type"]] ?? `${type} from`;
+}
+
 function appendToMap<T>(map: Map<string, T[]>, key: string, item: T): void {
   const existing = map.get(key);
   if (existing) existing.push(item);
@@ -410,7 +429,7 @@ export function formatSearch(result: SearchResult, opts?: { skillMode?: SkillMod
         for (const g of groupEdges(ins)) {
           const f = g.other;
           lines.push(
-            `  - ← triggered by \`${f.name}\` at ${f.filepath}:${f.start_line}${callSiteSuffix(g.edges)}${whyText(g.edges)}`
+            `  - ← ${inboundLabel(g.type)} \`${f.name}\` at ${f.filepath}:${f.start_line}${callSiteSuffix(g.edges)}${whyText(g.edges)}`
           );
         }
         const outs = hit.edges_out.map(({ edge, to }) => ({ edge, other: to, otherKey: to._key }));

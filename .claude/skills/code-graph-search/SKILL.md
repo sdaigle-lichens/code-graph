@@ -100,7 +100,7 @@ vertex reachable more than one way once results are de-duplicated, so changing i
 `impact` and `vertex` output.
 
 The inbound traversal attributes **depth-2 rows to the seed as well**, inflating its degree.
-That is a quirk of the original pipeline that the scores and the rendered "triggered by" list
+That is a quirk of the original pipeline that the scores and the rendered inbound-edge list
 both depend on — reproduced deliberately, not a bug to fix in passing.
 
 Neighbors discovered here are added to `vertexMap` with `bm25 = 0` (they didn't BM25-match; they got pulled in by structure). They are **not themselves expanded** — depth caps at the values above.
@@ -141,7 +141,11 @@ Hits grouped by `vertex.concept`. Each cluster gets the matching skill doc (full
 
 Markdown sections per cluster:
 - `### Skill` — full body if `skillMode === "full"`, else one-liner pointer
-- `### Relevant code` — vertex hits with edges_in/edges_out enumerated
+- `### Relevant code` — vertex hits with edges_in/edges_out enumerated. Inbound lines are labelled
+  by edge type through `INBOUND_LABELS` (`← called by`, `← mounted by`, `← triggered by` only for
+  `triggers`; unknown types fall back to `<type> from`); outbound lines show the type. `--json` is
+  unchanged. Only `calls`/`triggers`/`delegates-to` reach `edges_in` through `searchStore`, so test
+  other labels through `formatSearch` directly.
 - `### Cross-concept side effects` — deduped `crosses_concept` edges
 
 **Edge grouping (plain text only).** `formatSearch` runs edges through `groupEdges`, which collapses

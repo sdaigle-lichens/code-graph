@@ -270,6 +270,9 @@ export async function apply(
     store.prepare("SELECT doc FROM vertices WHERE concept = ? AND status = 'live'").all(concept) as { doc: string }[]
   );
   const dbMap = new Map(dbVertices.map((v) => [v._key, v]));
+  // A concept's first apply ingests every vertex at once: none of them was touched by a task, so
+  // only later applies stamp `agent.touched_at` on un-enriched new/changed vertices (lazy targets).
+  const conceptWasApplied = dbVertices.length > 0;
 
   // Compute diff sets
   const newKeys: string[] = [];
@@ -456,7 +459,9 @@ export async function apply(
     for (const k of finalNewKeys) {
       const astV = astVertexMap.get(k)!;
       const ev = enrichedVertexMap.get(k);
-      putRecord(store, "vertices", k, mergeVertexForInsert(astV, ev, null, null, now));
+      const doc = mergeVertexForInsert(astV, ev, null, null, now);
+      if (conceptWasApplied && !doc.purpose) doc.agent = { ...(doc.agent as Record<string, unknown>), touched_at: now };
+      putRecord(store, "vertices", k, doc);
       insertedCount++;
     }
 
@@ -466,6 +471,9 @@ export async function apply(
       const dbV = dbMap.get(k)!;
       const ev = enrichedVertexMap.get(k);
       const agentUpdate = buildAgentUpdate(dbV, ev, astV, now);
+      if (!agentUpdate.purpose && !dbV.purpose) {
+        agentUpdate.agent = { ...(agentUpdate.agent as Record<string, unknown>), touched_at: now };
+      }
       mergeRecord(store, "vertices", k, {
         filepath: astV.filepath,
         start_line: astV.start_line,

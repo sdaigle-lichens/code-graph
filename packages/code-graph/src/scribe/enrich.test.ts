@@ -138,7 +138,11 @@ describe("enrich targets", () => {
   it("lists new vertices with what an enricher needs, then changed, then named", () => {
     project();
     run(["extract", "c"]);
-    const first = targets();
+    // Lazy by default: no SKILL.md (empty core), never applied, so nothing is a target yet.
+    const lazy = JSON.parse(run(["enrich", "targets", "c", "--json"]).stdout);
+    assert.deepEqual(lazy.targets, []);
+    assert.equal(lazy.core.leftOut, 2);
+    const first = targets("--all");
     assert.equal(first.length, 2);
     const beta = first.find((t: any) => t.name === "beta");
     assert.deepEqual(beta.reasons, ["new"]);
@@ -210,7 +214,12 @@ describe("enrich targets --core", () => {
     const text = run(["enrich", "targets", "c", "--core"]).stdout;
     assert.match(text, /alpha .*\[new,core\]/);
     assert.match(text, /1 non-core new vertices left out/);
-    assert.equal(full().targets.length, 2, "without --core everything is new");
+    assert.deepEqual(full(), out, "--core is a no-op: core-first is the default");
+    assert.equal(run(["enrich", "targets", "c"]).stdout, text, "same text with and without --core");
+    const all = full("--all");
+    assert.equal(all.targets.length, 2, "--all lists every never-enriched vertex");
+    assert.equal(all.core.leftOut, 0);
+    assert.deepEqual(full("--all", "--core"), all, "--all wins over --core");
   });
 
   it("reports a thin core for a big concept whose SKILL.md names almost nothing", () => {
@@ -226,17 +235,14 @@ describe("enrich targets --core", () => {
     assert.match(run(["enrich", "targets", "c", "--core"]).stdout, /core is thin/);
   });
 
-  it("still lists named vertices outside the core", () => {
+  it("--vertex narrows to the named vertices, even outside the core, and does not count them as left out", () => {
     coreProject("# c\n\nEntry point is `alpha`.\n");
     const out = full("--core", "--vertex", "beta");
     assert.deepEqual(
       out.targets.map((t: any) => [t.name, t.reasons, t.core]),
-      [
-        ["alpha", ["new"], true],
-        ["beta", ["named"], false],
-      ]
+      [["beta", ["named"], false]]
     );
-    assert.equal(out.core.leftOut, 1);
+    assert.equal(out.core.leftOut, 0);
   });
 
   it("still lists changed vertices outside the core", () => {
@@ -261,6 +267,258 @@ describe("enrich targets --core", () => {
       [["beta", ["changed"], false]]
     );
     assert.equal(out.core.leftOut, 0);
+  });
+});
+
+describe("enrich targets — lazy after the first touch", () => {
+  const C_SRC = "export function gamma(): number {\n  return 3;\n}\n";
+  const D_SRC = "export function delta(): number {\n  return 4;\n}\n";
+
+  /** alpha is core (named in SKILL.md); beta, gamma, delta are non-core. Core enriched and applied. */
+  function coreEnriched() {
+    project();
+    write(
+      "scribe.config.json",
+      JSON.stringify({
+        project: "p",
+        tsconfig: "tsconfig.json",
+        concepts: { c: { globs: ["src/**/*.ts"], skill: "skills/c/SKILL.md" } },
+      })
+    );
+    write("skills/c/SKILL.md", "# c\n\nEntry point is `alpha`.\n");
+    write("src/c.ts", C_SRC);
+    write("src/d.ts", D_SRC);
+    assert.equal(run(["extract", "c"]).code, 0);
+    assert.equal(run(["apply", "c", "--approve-drift"]).code, 0);
+    // first touch: core only
+    assert.deepEqual(
+      targets().map((t: any) => [t.name, t.reasons, t.core]),
+      [["alpha", ["new"], true]]
+    );
+    assert.equal(run(["enrich", "merge", "c", writePartial(partial("alpha", "adds one"))]).code, 0);
+    assert.equal(run(["apply", "c"]).code, 0);
+  }
+  const out = (...extra: string[]) => JSON.parse(run(["enrich", "targets", "c", "--json", ...extra]).stdout);
+
+  it("lists no untouched never-enriched non-core vertex once the core is enriched, and counts them as leftOut", () => {
+    coreEnriched();
+    const o = out();
+    assert.deepEqual(o.targets, []);
+    assert.equal(o.core.size, 1);
+    assert.equal(o.core.leftOut, 3);
+    const text = run(["enrich", "targets", "c"]).stdout;
+    assert.match(text, /0 vertices to enrich/);
+    assert.match(text, /core: 1 vertices; 3 non-core new vertices left out/);
+    assert.match(text, /--all lists them/);
+    // the concept's first apply stamped nothing
+    for (const n of ["beta", "gamma", "delta"]) assert.equal(storeVertex(n).agent.touched_at, undefined, n);
+  });
+
+  it("extract -> apply -> enrich targets lists a task-edited and a task-added non-core vertex as new", () => {
+    coreEnriched();
+    write("src/c.ts", C_SRC.replace("return 3", "return 33"));
+    write("src/e.ts", "export function epsilon(): number {\n  return 5;\n}\n");
+    assert.equal(run(["extract", "c"]).code, 0);
+    // extract without apply already sees them (not in store / body differs)
+    assert.deepEqual(
+      out()
+        .targets.map((t: any) => t.name)
+        .sort(),
+      ["epsilon", "gamma"]
+    );
+    assert.equal(run(["apply", "c"]).code, 0);
+    assert.ok(storeVertex("gamma").agent.touched_at, "apply stamped the edited vertex");
+    assert.ok(storeVertex("epsilon").agent.touched_at, "apply stamped the added vertex");
+    assert.equal(storeVertex("beta").agent.touched_at, undefined, "untouched vertex not stamped");
+    const expected = [
+      ["gamma", ["new"], false],
+      ["epsilon", ["new"], false],
+    ];
+    const o = out();
+    assert.deepEqual(
+      o.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      expected
+    );
+    assert.equal(o.core.leftOut, 2, "beta and delta stay left out");
+
+    // a second plain apply (nothing changed) keeps them listed
+    assert.equal(run(["extract", "c"]).code, 0);
+    assert.equal(run(["apply", "c"]).code, 0);
+    assert.deepEqual(
+      out().targets.map((t: any) => [t.name, t.reasons, t.core]),
+      expected
+    );
+
+    // enriching them clears them
+    run(["enrich", "merge", "c", writePartial(partial("gamma", "returns 33"))]);
+    run(["enrich", "merge", "c", writePartial(partial("epsilon", "returns 5"))]);
+    run(["apply", "c"]);
+    assert.deepEqual(out().targets, []);
+  });
+
+  it("treats a never-enriched vertex flagged stale by an older apply as touched (upgrade path)", () => {
+    coreEnriched();
+    const db = new DatabaseSync(path.join(tmp, "scribe-output/graph.db"));
+    const key = keyOf("delta");
+    const doc = JSON.parse((db.prepare("SELECT doc FROM vertices WHERE key = ?").get(key) as { doc: string }).doc);
+    doc.agent = { ...doc.agent, stale: true };
+    delete doc.agent.touched_at;
+    db.prepare("UPDATE vertices SET doc = ? WHERE key = ?").run(JSON.stringify(doc), key);
+    db.close();
+    const o = out();
+    assert.deepEqual(
+      o.targets.map((t: any) => [t.name, t.reasons]),
+      [["delta", ["new"]]]
+    );
+    assert.equal(o.core.leftOut, 2);
+  });
+
+  it("--all restores the every-never-enriched listing; --core is accepted and equals the default", () => {
+    coreEnriched();
+    const all = out("--all");
+    assert.deepEqual(
+      all.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      [
+        ["beta", ["new"], false],
+        ["gamma", ["new"], false],
+        ["delta", ["new"], false],
+      ]
+    );
+    assert.equal(all.core.leftOut, 0);
+    const def = run(["enrich", "targets", "c", "--json"]);
+    const core = run(["enrich", "targets", "c", "--json", "--core"]);
+    assert.equal(core.code, 0);
+    assert.equal(core.stdout, def.stdout);
+    assert.equal(run(["enrich", "targets", "c", "--core"]).stdout, run(["enrich", "targets", "c"]).stdout);
+  });
+
+  it("plain text shows each target's count of edges without a reason", () => {
+    coreEnriched();
+    const text = run(["enrich", "targets", "c", "--all"]).stdout;
+    assert.match(text, /beta \(function\) src\/b\.ts:\d+-\d+ \[new,non-core\] — 1 edge without a reason/);
+    assert.match(text, /gamma \(function\) src\/c\.ts:\d+-\d+ \[new,non-core\] — 0 edges without a reason/);
+  });
+});
+
+describe("enrich targets --summary and --vertex on a 200+ vertex concept", () => {
+  const N = 220;
+  const CORE = 20;
+  function bigProject() {
+    write(
+      "scribe.config.json",
+      JSON.stringify({
+        project: "p",
+        tsconfig: "tsconfig.json",
+        concepts: { c: { globs: ["src/**/*.ts"], skill: "skills/c/SKILL.md" } },
+      })
+    );
+    write(
+      "tsconfig.json",
+      JSON.stringify({ compilerOptions: { target: "ES2022", module: "ESNext", strict: true }, include: ["src"] })
+    );
+    // a call chain: every fn has one outbound calls edge (no hubs), the last calls nothing
+    write(
+      "src/many.ts",
+      Array.from({ length: N }, (_, i) =>
+        i < N - 1
+          ? `export function fn${i}(): number {\n  return fn${i + 1}() + ${i};\n}\n`
+          : `export function fn${i}(): number {\n  return ${i};\n}\n`
+      ).join("")
+    );
+    const named = Array.from({ length: CORE }, (_, i) => `\`fn${i}\``).join(", ");
+    write("skills/c/SKILL.md", `# c\n\nThe chain starts with ${named}.\n`);
+    fs.symlinkSync(path.join(PKG, "node_modules"), path.join(tmp, "node_modules"), "dir");
+    assert.equal(run(["extract", "c"]).code, 0);
+  }
+  const SUMMARY_KEYS = ["concept", "core", "counts", "edgesWithoutReason", "targets", "total"];
+  const LINE_KEYS = ["core", "edgesWithoutReason", "key", "loc", "name", "reasons", "type"];
+
+  it("--summary --json: per-reason counts, core block, edge total, one short line per target, a few KB", () => {
+    bigProject();
+    const r = run(["enrich", "targets", "c", "--summary", "--json"]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.stdout.trim().split("\n").length, 1, "single-line compact JSON");
+    const bytes = Buffer.byteLength(r.stdout);
+    assert.ok(bytes < 5000, `summary is ${bytes} bytes`);
+    const s = JSON.parse(r.stdout);
+    assert.deepEqual(Object.keys(s).sort(), SUMMARY_KEYS);
+    assert.equal(s.concept, "c");
+    assert.equal(s.total, CORE);
+    assert.deepEqual(s.counts, { new: CORE, changed: 0, stale: 0, named: 0 });
+    assert.deepEqual(s.core, { size: CORE, leftOut: N - CORE, thin: false });
+    assert.equal(s.targets.length, CORE);
+    for (const t of s.targets) {
+      assert.deepEqual(Object.keys(t).sort(), LINE_KEYS);
+      assert.match(t.loc, /^src\/many\.ts:\d+-\d+$/);
+      assert.deepEqual(t.reasons, ["new"]);
+      assert.equal(t.core, true);
+      assert.equal(t.edgesWithoutReason, 1);
+    }
+    assert.equal(s.edgesWithoutReason, CORE);
+    assert.doesNotMatch(r.stdout, /signature|purpose|"to"|toName/, "no signatures, purposes or edge arrays");
+
+    // the full listing is much bigger than the summary
+    const fullBytes = Buffer.byteLength(run(["enrich", "targets", "c", "--json"]).stdout);
+    assert.ok(fullBytes > bytes * 2, `full ${fullBytes} vs summary ${bytes}`);
+
+    // --all --summary: every vertex, still no edge arrays
+    const all = JSON.parse(run(["enrich", "targets", "c", "--all", "--summary", "--json"]).stdout);
+    assert.equal(all.total, N);
+    assert.equal(all.targets.length, N);
+    assert.equal(all.core.leftOut, 0);
+    assert.equal(all.counts.new, N);
+    assert.equal(all.edgesWithoutReason, N - 1);
+    assert.ok(all.targets.every((t: any) => typeof t.edgesWithoutReason === "number"));
+  });
+
+  it("--summary text: header counts, core line, edge total and one line per target", () => {
+    bigProject();
+    const text = run(["enrich", "targets", "c", "--summary"]).stdout;
+    const lines = text.trimEnd().split("\n");
+    assert.match(
+      lines[0],
+      new RegExp(`^Concept: c — ${CORE} vertices to enrich \\(new ${CORE}, changed 0, stale 0, named 0\\)$`)
+    );
+    assert.match(text, new RegExp(`core: ${CORE} vertices; ${N - CORE} non-core new vertices left out`));
+    assert.match(text, new RegExp(`edges without a reason: ${CORE}\\b`));
+    const targetLines = lines.filter((l) => /^ {2}[0-9a-f]{8,} fn\d+ \(function\) /.test(l));
+    assert.equal(targetLines.length, CORE);
+    for (const l of targetLines) {
+      assert.match(l, /fn\d+ \(function\) src\/many\.ts:\d+-\d+ \[new,core\] — 1 edge without a reason$/);
+    }
+    assert.ok(Buffer.byteLength(text) < 5000, `text summary is ${Buffer.byteLength(text)} bytes`);
+  });
+
+  it("--json --vertex returns full details for just those vertices", () => {
+    bigProject();
+    const k150 = keyOf("fn150");
+    const o = JSON.parse(run(["enrich", "targets", "c", "--json", "--vertex", "fn5", k150]).stdout);
+    assert.deepEqual(
+      o.targets.map((t: any) => [t.name, t.reasons, t.core]),
+      [
+        ["fn5", ["new", "named"], true],
+        ["fn150", ["named"], false],
+      ]
+    );
+    for (const t of o.targets) {
+      assert.match(t.signature, new RegExp(t.name));
+      assert.equal(t.purpose, null);
+      assert.equal(typeof t.start_line, "number");
+      assert.ok(Array.isArray(t.edgesWithoutReason));
+      assert.equal(t.edgesWithoutReason.length, 1);
+    }
+    assert.equal(o.targets[1].edgesWithoutReason[0].toName, "fn151");
+    assert.equal(o.core.leftOut, N - CORE - 1, "a named vertex is not left out");
+
+    // --vertex with --summary summarises just the named ones
+    const s = JSON.parse(run(["enrich", "targets", "c", "--summary", "--json", "--vertex", "fn150"]).stdout);
+    assert.equal(s.total, 1);
+    assert.deepEqual(s.counts, { new: 0, changed: 0, stale: 0, named: 1 });
+    assert.equal(s.targets[0].name, "fn150");
+
+    const bad = run(["enrich", "targets", "c", "--json", "--vertex", "noSuchFn"]);
+    assert.notEqual(bad.code, 0);
+    assert.match(bad.stderr, /noSuchFn/);
   });
 });
 

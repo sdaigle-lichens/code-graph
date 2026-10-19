@@ -86,13 +86,52 @@ export type EnrichTarget = {
   end_line: number;
   signature: string;
   purpose: string | null;
-  reasons: Array<"new" | "changed" | "stale" | "named">;
-  /** Set only with `--core`: whether the vertex is in the concept's core. */
-  core?: boolean;
+  reasons: TargetReason[];
+  /** Whether the vertex is in the concept's core (named in SKILL.md, or an in-concept hub). */
+  core: boolean;
   edgesWithoutReason: Array<{ key: string; type: string; to: string; toName: string | null; line: number | null }>;
 };
 
-export function enrichTargets(concept: string, opts: { vertices: string[]; json: boolean; core?: boolean }): void {
+export type TargetReason = "new" | "changed" | "stale" | "named";
+const REASONS: TargetReason[] = ["new", "changed", "stale", "named"];
+
+/** One short line per target in the `--summary` form: no signature, purpose or edge arrays. */
+export type EnrichTargetSummary = {
+  key: string;
+  name: string;
+  type: string;
+  loc: string;
+  reasons: TargetReason[];
+  core: boolean;
+  edgesWithoutReason: number;
+};
+
+export type EnrichTargetsOptions = {
+  /** `--vertex`: list just these (name, displayKey or _key), each with full details. */
+  vertices: string[];
+  json: boolean;
+  /** `--all`: every never-enriched vertex is a target (the pre-0.3.12 listing). */
+  all?: boolean;
+  /** `--summary`: counts, the core block and one short line per target. */
+  summary?: boolean;
+  /** `--core`: accepted for 0.3.10/0.3.11 skills; core-first is the default now, so it is a no-op. */
+  core?: boolean;
+};
+
+/**
+ * Whether a never-enriched vertex was touched by a task since the concept's previous apply: new in
+ * code (not in the store yet, extract without apply), a body that differs from the store's, or a
+ * vertex `apply` stamped `agent.touched_at` (new or changed while un-enriched, after the concept's
+ * first apply) or flagged stale (a body change seen by an apply that predates `touched_at`).
+ * Nothing counts as touched before the concept's first apply: that ingest is not a task.
+ */
+function touchedSinceApply(v: Vertex, db: Vertex | undefined, conceptApplied: boolean): boolean {
+  if (!conceptApplied) return false;
+  if (!db) return true;
+  return db.contentHash !== v.contentHash || db.agent?.touched_at !== undefined || db.agent?.stale === true;
+}
+
+export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void {
   const config = loadConfig();
   const ast = loadAst(config.configRoot, concept);
   const enriched = loadEnriched(join(config.configRoot, "scribe-output", `${concept}.enriched.json`), concept);
@@ -119,24 +158,29 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
     named.add(hits[0]._key);
   }
 
-  const core = opts.core ? coreVertices(ast.vertices, ast.edges, ast.skill?.body ?? null) : null;
+  const core = coreVertices(ast.vertices, ast.edges, ast.skill?.body ?? null);
+  const conceptApplied = dbMap.size > 0;
   let leftOut = 0;
   const targets: EnrichTarget[] = [];
   for (const v of ast.vertices) {
     const db = dbMap.get(v._key);
     const ev = evMap.get(v._key);
-    const reasons: EnrichTarget["reasons"] = [];
+    const isCore = core.keys.has(v._key);
+    const reasons: TargetReason[] = [];
     // Enrichment already written for exactly this body, waiting for `apply`: nothing to do.
     const pending = ev?.hash_seen !== undefined && ev.hash_seen === v.contentHash;
     if (!pending) {
       if (!db || (!db.purpose && !ev?.purpose)) {
-        if (core && !core.keys.has(v._key)) leftOut++;
-        else reasons.push("new");
+        // Never enriched: lazy unless it is core, a task touched it, or `--all`.
+        if (opts.all || isCore || touchedSinceApply(v, db, conceptApplied)) reasons.push("new");
+        else if (!named.has(v._key)) leftOut++;
       } else if (db.contentHash !== v.contentHash) reasons.push("changed");
       else if (db.agent?.stale === true) reasons.push("stale");
     }
     if (named.has(v._key)) reasons.push("named");
     if (reasons.length === 0) continue;
+    // `--vertex` narrows the listing to the named vertices (a batch's full details).
+    if (named.size > 0 && !named.has(v._key)) continue;
 
     const from = vertexId(v._key);
     const edgesWithoutReason = ast.edges
@@ -163,7 +207,7 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
       signature: v.signature,
       purpose: db?.purpose ?? ev?.purpose ?? null,
       reasons,
-      ...(core ? { core: core.keys.has(v._key) } : {}),
+      core: isCore,
       edgesWithoutReason,
     });
   }
@@ -171,25 +215,62 @@ export function enrichTargets(concept: string, opts: { vertices: string[]; json:
     (a, b) => a.filepath.localeCompare(b.filepath) || a.start_line - b.start_line || a.key.localeCompare(b.key)
   );
 
-  const thin = core ? isThinCore(ast.vertices.length, core.keys.size) : false;
-  const thinMessage = thin && core ? thinCoreMessage(core.keys.size, ast.vertices.length) : null;
+  const thin = isThinCore(ast.vertices.length, core.keys.size);
+  const thinMessage = thin ? thinCoreMessage(core.keys.size, ast.vertices.length) : null;
+  const coreInfo = { size: core.keys.size, leftOut, thin, ...(thinMessage ? { message: thinMessage } : {}) };
+  const leftOutLine =
+    `core: ${core.keys.size} vertices; ${leftOut} non-core new vertices left out` +
+    (leftOut > 0 ? " (never enriched, untouched since the last apply; --all lists them)" : "");
+  const flagsOf = (t: { reasons: TargetReason[]; core: boolean }) => [...t.reasons, t.core ? "core" : "non-core"];
+  const loc = (t: EnrichTarget) => `${t.filepath}:${t.start_line}-${t.end_line}`;
+  const edgeCount = (n: number) => `${n} edge${n === 1 ? "" : "s"} without a reason`;
+
+  if (opts.summary) {
+    const counts = Object.fromEntries(
+      REASONS.map((r) => [r, targets.filter((t) => t.reasons.includes(r)).length])
+    ) as Record<TargetReason, number>;
+    const edgesWithoutReason = targets.reduce((n, t) => n + t.edgesWithoutReason.length, 0);
+    const lines: EnrichTargetSummary[] = targets.map((t) => ({
+      key: t.key,
+      name: t.name,
+      type: t.type,
+      loc: loc(t),
+      reasons: t.reasons,
+      core: t.core,
+      edgesWithoutReason: t.edgesWithoutReason.length,
+    }));
+    if (opts.json) {
+      // Compact on purpose: the summary exists to be read inline, so it carries no indentation.
+      console.log(
+        JSON.stringify({ concept, total: targets.length, counts, core: coreInfo, edgesWithoutReason, targets: lines })
+      );
+      return;
+    }
+    const countText = REASONS.map((r) => `${r} ${counts[r]}`).join(", ");
+    console.log(`Concept: ${concept} — ${targets.length} vertices to enrich (${countText})`);
+    console.log(`  ${leftOutLine}`);
+    if (thinMessage) console.log(`  ${thinMessage}`);
+    console.log(`  edges without a reason: ${edgesWithoutReason}`);
+    for (const l of lines) {
+      console.log(
+        `  ${l.key} ${l.name} (${l.type}) ${l.loc} [${flagsOf(l).join(",")}] — ${edgeCount(l.edgesWithoutReason)}`
+      );
+    }
+    return;
+  }
 
   if (opts.json) {
-    const coreInfo = core
-      ? { size: core.keys.size, leftOut, thin, ...(thinMessage ? { message: thinMessage } : {}) }
-      : null;
-    console.log(JSON.stringify({ concept, targets, ...(coreInfo ? { core: coreInfo } : {}) }, null, 2));
+    console.log(JSON.stringify({ concept, targets, core: coreInfo }, null, 2));
     return;
   }
   console.log(`Concept: ${concept} — ${targets.length} vertices to enrich`);
   for (const t of targets) {
-    const flags = t.core === undefined ? t.reasons : [...t.reasons, t.core ? "core" : "non-core"];
-    console.log(`  ${t.name} (${t.type}) ${t.filepath}:${t.start_line}-${t.end_line} [${flags.join(",")}]`);
+    console.log(
+      `  ${t.name} (${t.type}) ${loc(t)} [${flagsOf(t).join(",")}] — ${edgeCount(t.edgesWithoutReason.length)}`
+    );
   }
-  if (core) {
-    console.log(`  core: ${core.keys.size} vertices; ${leftOut} non-core new vertices left out`);
-    if (thinMessage) console.log(`  ${thinMessage}`);
-  }
+  console.log(`  ${leftOutLine}`);
+  if (thinMessage) console.log(`  ${thinMessage}`);
 }
 
 // ─── merge ────────────────────────────────────────────────────────────────────

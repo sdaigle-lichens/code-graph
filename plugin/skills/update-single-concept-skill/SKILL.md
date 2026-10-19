@@ -116,15 +116,17 @@ The new SKILL.md body is ingested as the concept's doc vertex. Then enrich:
   subagent there is no Agent tool: enrich inline if the concept has 20 or fewer vertices, otherwise
   enrich nothing and report the "left to enrich" list.
 - **Only a reported gap to close** (no SKILL.md revision needed for the graph): enrich just the
-  vertices the gap names. `cg enrich targets <concept> --vertex <name>... --json` (plus whatever is
-  new or stale; on first touch, when nothing is enriched yet, add `--core` and read `core.size`,
-  `core.leftOut`, `core.thin` and `core.message`). In the main session, fan the targets out in small
+  vertices the gap names. `cg enrich targets <concept> --vertex <name>... --json` gives their full
+  details; `cg enrich targets <concept> --summary --json` adds whatever else is changed, stale, core
+  or touched since the last apply, with `core.size`, `core.leftOut`, `core.thin` and
+  `core.message`. In the main session, fan the targets out in small
   batches to **Haiku** subagents. In a subagent (no Agent tool): with 20 or fewer targets enrich them
   yourself in the same partial format; with more, enrich nothing and report a "left to enrich" list
   (names, filepaths, reasons). Then `cg enrich merge <concept> <partial>` each, spot-check a few
   against the code (re-ask or drop bad ones), then `cg apply <concept>`. The scribe skill's
   "Incremental path" has the detail. A thin core is what this skill exists to fix: this pass is the
-  deepening, so re-run the whole-concept enrichment above rather than `--core`.
+  deepening, so re-run the whole-concept enrichment above (`enrich targets --all`) rather than the
+  lazy core-first listing.
 
 In a repo with no tsconfig, stop at the stamp.
 

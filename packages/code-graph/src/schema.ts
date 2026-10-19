@@ -54,6 +54,9 @@ export const VertexSchema = z.object({
     stale: z.boolean(),
     sig_seen: z.string().optional(),
     hash_seen: z.string().optional(),
+    // Stamped by `apply` when a vertex with no purpose arrives new or with a changed body in a
+    // concept that was already in the store: a task touched it, so lazy `enrich targets` lists it.
+    touched_at: z.string().optional(),
   }),
 });
 

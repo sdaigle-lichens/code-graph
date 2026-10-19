@@ -46,19 +46,32 @@ after a revision), e.g. "enrich workorder-store". This starts a subagent that re
 Enrichment can build up a few vertices at a time. Run `extract <concept>` first (both commands read
 `<concept>.ast.json` and say so if it is missing).
 
-- `code-graph enrich targets <concept> [--vertex <name|key>...] --json` lists the vertices that need
-  enrichment: new (not in the store, or no purpose yet), changed, stale, plus any named with
-  `--vertex`. Each entry has `key`, `name`, `type`, `filepath`, `start_line`, `end_line`, `signature`,
-  the current `purpose`, `reasons`, and `edgesWithoutReason` (outgoing AST edges with no `reason`).
-- `--core` limits "new" to the concept's **core**: vertices whose name appears (as a whole identifier,
-  3+ characters) in the concept's SKILL.md, plus in-concept hubs (3+ inbound `calls`/`mounts` edges
-  from other vertices of the same concept). Changed, stale and `--vertex` targets are listed
-  regardless. Each target gains `core: true|false`, and the JSON gains a top-level
-  `core { size, leftOut, thin, message? }` (`leftOut` = non-core new vertices skipped). Text output
-  tags entries `core`/`non-core` and ends with a summary line. Use it to enrich a big concept
-  core-first.
+- `code-graph enrich targets <concept> [--json]` lists the vertices that need enrichment: changed,
+  stale, and **never-enriched** (`new`) ones. It is lazy (since 0.3.12): a never-enriched vertex is a
+  target only when it is in the concept's core, was touched by a task since the previous apply, or is
+  named with `--vertex`. The rest are counted in `core.leftOut`. Each entry has `key`, `name`, `type`,
+  `filepath`, `start_line`, `end_line`, `signature`, the current `purpose`, `reasons`, `core`
+  (`true|false`) and `edgesWithoutReason` (outgoing AST edges with no `reason`). The JSON always has
+  a top-level `core { size, leftOut, thin, message? }`. Text output tags each entry
+  `core`/`non-core`, shows its count of edges without a reason, and ends with the core/leftOut line.
+- The **core** is the vertices whose name appears (as a whole identifier, 3+ characters) in the
+  concept's SKILL.md, plus in-concept hubs (3+ inbound `calls`/`mounts` edges from other vertices of
+  the same concept).
+- **Touched.** After a concept's first apply, `apply` stamps `agent.touched_at` on every vertex with
+  no purpose that arrives new or with a changed body; the first apply stamps nothing (ingesting a
+  concept is not a task). So `extract` → `apply` → `enrich targets` lists a vertex a task added or
+  edited even when it is non-core and never enriched. A vertex not yet applied, a body differing
+  from the store's, or a pre-0.3.12 `agent.stale` also counts as touched.
+- `--all` lists every never-enriched vertex (the pre-0.3.12 listing), for whole-concept enrichment.
+  `--core` is still accepted as a no-op: core-first is the default.
+- `--vertex <name|key>...` narrows the listing to just those vertices, with full details
+  (`enrich targets <c> --json --vertex <k>...` is how a batch reads its targets).
+- `--summary` (text, or compact JSON with `--json`) gives the total, counts per reason, the `core`
+  block, the total of edges without a reason and one short line per target (`key`, `name`, `type`,
+  `loc` = `filepath:start-end`, `reasons`, `core`, `edgesWithoutReason` as a count). No edge arrays,
+  so it stays a few KB on a concept of 200+ vertices.
 - **Thin core.** A concept with 50+ live vertices but fewer than 5 core vertices is `thin`: the
-  SKILL.md names too little to enrich from. `enrich targets --core` reports it (`core.thin`,
+  SKILL.md names too little to enrich from. `enrich targets` reports it (`core.thin`,
   `core.message`) and `gaps` lists it under "thin core"; the flows then route to
   `update-single-concept-skill` to deepen the skill rather than enriching blindly.
 - `code-graph enrich merge <concept> <partial.json>` merges a partial enrichment (same entry shapes as
@@ -127,7 +140,9 @@ Or from inside Claude Code:
 
 Plain-text output groups edges between the same two vertices with the same type into one line. Call-site
 lines are listed when the edge carries them (`at file:108 (lines 112, 140, 155)`), otherwise a count
-(`×3`); distinct edge reasons are all shown. `--json` stays one entry per stored edge. The `~N tokens`
+(`×3`); distinct edge reasons are all shown. Inbound edges are labelled by their type (`← called by`,
+`← mounted by`, `← triggered by` only for `triggers`, ...), outbound ones show the type. `--json`
+stays one entry per stored edge. The `~N tokens`
 figure in the totals line is the size of the printed output, after `--max-tokens` trimming. The thin-result enrichment warning is appended after that figure, so
 it is not counted in it (~14 tokens).
 
@@ -170,7 +185,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph extract <concept>`        | `code-graph extract workorder-store`                                 | Extract AST → `scribe-output/<concept>.ast.json`          |
 | `code-graph apply <concept>`          | `code-graph apply workorder-store`                                   | Apply enriched doc to graph (upsert + drift check)        |
 | `code-graph drift <concept>`          | `code-graph drift workorder-store`                                   | Show drift without applying (alias for `apply --dry-run`) |
-| `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --core --json`            | List vertices that need enrichment (`--core`: core-first) |
+| `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --summary --json`         | List vertices that need enrichment (lazy; `--all`: every) |
 | `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
 | `code-graph search "<query>"`         | `code-graph search "sync sends stale ops"`                           | Hybrid BM25 + multi-hop search                            |
 | `code-graph query concept <name>`     | `code-graph query concept workorder-store`                           | Query a concept subgraph                                  |

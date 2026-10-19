@@ -93,17 +93,23 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - Enrichment is merged, not replaced: `enrich merge <concept> <partial>` (`scribe/enrich.ts`)
   upserts by `_key` into `<concept>.enriched.json` (sorted, stable) and stamps `sig_seen` +
   `hash_seen` from ast.json; `enrich targets` lists what needs enriching. `apply` has no `--merge`.
+  `enrich targets` is lazy: a never-enriched vertex is `new` only if core, touched since the previous
+  apply (`touchedSinceApply`) or `--vertex`-named; the rest count in `core.leftOut` (always
+  reported). `apply` stamps `agent.touched_at` (optional in `VertexSchema`, no `SCHEMA_VERSION` bump)
+  on un-enriched new/changed vertices, never on a concept's first apply. `--all` = old listing,
+  `--core` = no-op, `--vertex` narrows to the named vertices (full details), `--summary` = counts +
+  core block + one line per target, no edge arrays (compact JSON with `--json`).
   Staleness: a changed vertex is fresh only if `hash_seen === contentHash`; entries with no
   `hash_seen` (pre-0.3.6) keep the `sig_seen === signature` rule (`enrichmentIsCurrent`). `gaps`
   counts a vertex as enriched only with a non-stale purpose.
 - A concept's **core** (`scribe/core.ts`, pure `coreVertices(vertices, edges, skillBody)`) = vertices
   named in the SKILL.md (whole identifier, name 3+ chars) ∪ in-concept hubs (3+ inbound
-  `calls`/`mounts` from the same concept). Shared by `enrich targets --core` (only "new" is
-  filtered; changed/stale/named always listed; JSON adds `targets[].core` and top-level
+  `calls`/`mounts` from the same concept). Shared by `enrich targets` (only "new" is
+  filtered; changed/stale/named always listed; JSON has `targets[].core` and top-level
   `core {size, leftOut, thin, message?}`) and `gaps` (`fetchConceptCounts(db, {core: true})` reads
   the SKILL.md from the `docs` row and `calls`/`mounts` edges). `gaps` ratio is over the core when
   non-empty, else all live vertices. Thin core (`isThinCore`: 50+ live, <5 core) is reported in
-  `GapReport.thinCores` and `enrich targets --core`, routing to `update-single-concept-skill`.
+  `GapReport.thinCores` and `enrich targets`, routing to `update-single-concept-skill`.
   Thresholds are constants in `core.ts`; no schema change.
 - `search --json` honours `--max-tokens` (default 3000) via `budgetSearchJson` in `query/search.ts`:
   adds `truncated`/`dropped` only when trimming, always keeps `strength` + `gaps`, cannot go below a

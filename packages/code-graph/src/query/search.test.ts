@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { applySchema, rebuildSearchIndex } from "../scribe/bootstrap.js";
 import { putRecord } from "../scribe/rows.js";
-import { searchStore, applyTokenBudget, budgetSearchJson } from "./search.js";
+import { searchStore, applyTokenBudget, budgetSearchJson, formatSearch } from "./search.js";
 
 function vertex(key: string, name: string, concept = "tasks") {
   return {
@@ -171,9 +171,10 @@ describe("formatSearch — repeated call sites", () => {
   it("prints a caller that calls a vertex several times once, with its call-site lines", async () => {
     const r = await searchStore(repeatedCallStore(), "isValidSessionId", { maxTokens: 4000, json: false });
     const md = applyTokenBudget(r, 4000);
-    const triggered = md.split("\n").filter((l) => l.includes("triggered by `sweepStaleSessions`"));
-    assert.equal(triggered.length, 1);
-    assert.match(triggered[0], /src\/sweepStaleSessions\.ts:108 \(lines 112, 140, 155\)/);
+    const calledBy = md.split("\n").filter((l) => l.includes("← called by `sweepStaleSessions`"));
+    assert.equal(calledBy.length, 1);
+    assert.match(calledBy[0], /src\/sweepStaleSessions\.ts:108 \(lines 112, 140, 155\)/);
+    assert.doesNotMatch(md, /triggered by/, "a calls edge is not labelled as a triggers edge");
     assert.equal(md.match(/why: "sweeps"/g)?.length, 1);
   });
 
@@ -200,5 +201,88 @@ describe("formatSearch — repeated call sites", () => {
       const figure = Number(/~(\d+) tokens/.exec(md)![1]);
       assert.ok(Math.abs(figure - Math.ceil(md.length / 4)) <= 1, `figure ${figure} vs ${Math.ceil(md.length / 4)}`);
     }
+  });
+});
+
+describe("formatSearch — inbound edge labels", () => {
+  /** inboundTarget is reached inbound by one edge of each impact type the search traverses. */
+  function inboundStore(): DatabaseSync {
+    const store = new DatabaseSync(":memory:");
+    applySchema(store);
+    putRecord(store, "vertices", "t", vertex("t", "inboundTarget"));
+    const sources: Array<[string, string]> = [
+      ["callerFn", "calls"],
+      ["triggerFn", "triggers"],
+      ["delegatorFn", "delegates-to"],
+    ];
+    for (const [name, type] of sources) {
+      putRecord(store, "vertices", name, vertex(name, name));
+      putRecord(store, "edges", `e-${name}`, edge(`e-${name}`, name, "t", type));
+    }
+    rebuildSearchIndex(store);
+    return store;
+  }
+
+  it("labels each inbound edge by its type in plain text", async () => {
+    const r = await searchStore(inboundStore(), "inboundTarget", { maxTokens: 4000, json: false });
+    const md = applyTokenBudget(r, 4000);
+    const inbound = md.split("\n").filter((l) => l.includes("  - ← "));
+    assert.ok(
+      inbound.some((l) => l.includes("← called by `callerFn`")),
+      md
+    );
+    assert.ok(
+      inbound.some((l) => l.includes("← triggered by `triggerFn`")),
+      md
+    );
+    assert.ok(
+      inbound.some((l) => l.includes("← delegated to by `delegatorFn`")),
+      md
+    );
+    assert.equal(inbound.filter((l) => l.includes("triggered by")).length, 1, "only the triggers edge");
+  });
+
+  it("leaves --json unchanged: edges_in carry the raw stored edge type", async () => {
+    const r = await searchStore(inboundStore(), "inboundTarget", { maxTokens: 4000, json: true });
+    const hit = r.hits.find((h) => h.vertex?._key === "t")!;
+    assert.deepEqual(hit.edges_in.map((x) => [x.from.name, x.edge.type]).sort(), [
+      ["callerFn", "calls"],
+      ["delegatorFn", "delegates-to"],
+      ["triggerFn", "triggers"],
+    ]);
+    const text = JSON.stringify(r);
+    assert.doesNotMatch(text, /called by|triggered by|delegated to by/);
+  });
+
+  it("labels the other edge types too when they reach a hit inbound", () => {
+    const t = { ...vertex("t", "hitFn"), purpose: undefined } as any;
+    const types: Array<[string, string]> = [
+      ["mounts", "mounted by"],
+      ["reads", "read by"],
+      ["writes", "written by"],
+      ["uses-hook", "used as a hook by"],
+      ["subscribes", "subscribed to by"],
+      ["has-type", "type of"],
+    ];
+    const hit = {
+      vertex: t,
+      edges_in: types.map(([type], i) => ({
+        edge: edge(`x${i}`, `s${i}`, "t", type) as any,
+        from: vertex(`s${i}`, `src${i}`) as any,
+      })),
+      edges_out: [],
+      cross_edges: [],
+      bm25: 1,
+      degree: types.length,
+      score: 1,
+    };
+    const md = formatSearch({
+      query: "hitFn",
+      hits: [hit],
+      clusters: [{ concept: "tasks", skill: null, hits: [hit] }],
+      totals: { concepts: 1, vertices: 1, docs: 0, tokens: 0 },
+    });
+    types.forEach(([, label], i) => assert.ok(md.includes(`← ${label} \`src${i}\``), `${label}\n${md}`));
+    assert.doesNotMatch(md, /triggered by/);
   });
 });
