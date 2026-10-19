@@ -161,4 +161,119 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   update-single-concept-skill. The thin-core message was reworded and the scribe-pipeline map has
   its core.ts row. Post-mortem: the worker routed the task as Documentation (@scribe only), got
   HANDOFF: partial and had to dispatch @backend. That is the same scribe/source boundary as maestro
-  ticket 108, so it's maestro's to handle, not a code-graph ticket. 018 is unblocked.
+  ticket 108, so it's maestro's to handle, not a code-graph ticket. 018 is unblocked. The user had it
+  added to 108 (still uncommitted in maestro), with a new criterion: the ticket named the code work
+  and was still misrouted, so fix A alone doesn't cover it. 017 committed in 4c818ec.
+- r016 (018 done, code-graph-bf): 0.3.11, 309 tests, eval 7/7. budgetSearchJson trims hits, then
+  skill bodies, edges and vertex fields, and adds truncated + dropped. strength and gaps are always
+  kept. Checked here: "design check" --json on this repo is ~3000 tokens with truncated:true.
+  Also left open: budgets under ~405 tokens can't be met (documented), and the best hit is dropped
+  at 600 tokens. Committed in 4cbc905 and pushed; the 0.3.8-0.3.11 ready line went to maestro-0c.
+- Deferred ideas (the user agreed not to ticket them yet). Nothing reads query JSON today: the
+  plugin skills and /graph use plain text, which is already budgeted, and maestro calls no
+  code-graph query with --json. The 459 KB came from a hand-run query.
+  1. --max-tokens on concept/impact/cross/vertex/file --json (query/run.ts prints raw JSON; each
+     needs its own trim policy: cross is a bare array, impact is nested).
+  2. Search JSON without duplication, so edges survive the budget. Every hit appears twice (hits
+     and clusters[].hits) and gaps lists each concept in both `concepts` and `fixable`. At the
+     default budget every edge is dropped. Fix: clusters refer to hit keys (a JSON shape change;
+     eval calls search() directly, so it's unaffected).
+  Ticket them if maestro's end-to-end check shows an agent, the scribe or maestro code reading
+  query JSON, or plain-text search losing edges that matter to an answer. maestro-0c was asked to
+  watch for both.
+- This session is now code-graph-82 (set-manager done). maestro-cb (the cutover manager now) ran
+  the end-to-end check of 0.3.11 and it passed. The inline core of 18 was enriched in a subagent.
+  task-queue's core of 28 was deferred, then fanned out to 3 Haiku batches, and 6 spot-checks were
+  correct. Edge reasons survive a re-extract, and search "blockedBy" went from 13th to 4th. Findings:
+  (1) a plain-language search missed agents-view (before enrichment) even though its SKILL.md
+  mentions avatar 15+ times; (2) no query JSON is read (the deferred ideas stay deferred), but
+  `enrich targets --json` is 29 KB on task-queue; (3) the scribe's own SKILL.md edit grew the core
+  from 18 to 22, past the inline limit; (4) the `"ast": {}` churn is one-time, nothing needed.
+  Found here: plain `enrich targets` after the first touch lists every never-enriched vertex
+  (enrich.ts:132), about 246 on task-queue, so laziness broke on the second run. The user chose:
+  - 019 (CLI, 0.3.12): lazy by default (never-enriched, unchanged, non-core vertices are never
+    targets), `--all`, and `--summary` with `--json --vertex` for each batch.
+  - 020 (skills, 0.3.13, blocked by 019): a subagent enriches up to 20 targets (changed/stale,
+    then named, then hubs) and lists the rest; the report says when the core grew; the
+    whole-concept path covers enriched vertices plus the core.
+  - (1): maestro-cb re-runs the search now that agents-view is enriched; ticket only if it still
+    misses.
+- maestro-cb's re-run: agents-view now comes first (18 vertices, ~1014 tokens) but only for the
+  avatar half. The description half (agent-descriptions.ts, enriched) is missing. Not ticketed: a
+  two-intent query under OR-BM25 ranks one intent's cluster, and a second search finds the other.
+  Ticket it if it happens again on single-intent queries. Added to 019: inbound edges in plain-text
+  search all print "← triggered by" whatever their type (search.ts:413); label them by type.
+- maestro-cb confirmed the single-intent search ("how an agent's description is edited") hits
+  agents-view first with the description code enriched. No ticket. setAgentDescription isn't in the
+  core, so it's listed with no purpose; that's lazy enrichment working as designed. Idea, not
+  ticketed: a search hit with no purpose is a natural enrichment signal, so retrieval could report
+  it through the gap channel for update-single-concept-skill to enrich. Revisit if un-enriched hits
+  keep showing up in answers.
+- The user asked for it → task 021 (0.3.14, blocked by 020, same skills). Plain-text search marks
+  hits with no purpose as not enriched. Retrieval appends one "enrich only" skill_gaps entry for
+  the un-enriched hits its answer used (5 or fewer, deduped by skill and vertex, contract
+  verbatim). update-single-concept-skill closes it by enriching the named vertices only: no SKILL.md
+  edit, no stamp. Tell maestro-cb once 021 ships: the scribe will see "enrich only" gaps.
+- Session renamed to manager-concept-skills-merge (set-manager).
+- r017 (019, 0.3.12, not committed yet). Worker: 320/320 tests, `pnpm check` 6/6, eval 7/7.
+  - Detection mechanism: `apply` stamps `agent.touched_at` on un-enriched vertices that are new or
+    have a changed body, but never on a concept's first apply (`conceptWasApplied`). This is in
+    apply.ts L273 and L462-476, verified.
+  - `enrich targets` also counts these as touched: a vertex missing from the store, a hash mismatch,
+    or a purpose-less `agent.stale` (for 0.3.11 stores).
+  - `touched_at` stays until the vertex is enriched, so a target a subagent leaves out stays a target
+    on the next run. 020's "leave the rest" relies on this.
+  - Spot-check on scribe-pipeline: `--summary` lists 35 targets (core 17), 50 left out and 98 edges
+    without a reason, one line per target.
+  - Inbound labels come from `INBOUND_LABELS` (search.ts:73), verified.
+  - Behaviour change: `--vertex` now narrows the output to the named vertices; it used to add them.
+    The worker updated all three plugin skills.
+  - Folded into 020: stamp `touched_at` on an approved rename of an un-enriched vertex
+    (apply.ts ~434-456), and assert the exit codes in enrich.test.ts:353-355.
+  - Left for the user: `just regraph` (ts-morph isn't loadable in the worker's sandbox, so the
+    stored code-graph-search and scribe-pipeline doc vertices hold the old text). The root
+    `pnpm test` ENOENT on /tmp/tsx-1000 is environmental.
+  - Committed as 79a11a1 and the user ran `just regraph`, so 020 is ready. maestro's cutover manager
+    (now manager-code-graph-merge) got the 0.3.12 changes. I asked for task-queue's target count if
+    it re-runs the update flow.
+  - manager-code-graph-merge ran `enrich targets --summary` with the 0.3.12 PATH CLI.
+    - task-queue: 0 targets, core 28 (all enriched), 75 left out, 0 edges without a reason.
+    - agents-view: 0 targets, core 18, 48 left out.
+    - Lazy targeting holds in maestro. Its installed plugin is still 0.3.11 until the user updates it.
+- r018 (020, 0.3.13, not committed yet). This session was down, so the report went to
+  manager-code-graph-merge, which forwarded it without acking. I re-ran set-manager, acked it and
+  recorded the worker.
+  - Worker results: 321/321 tests, desktop 114/114, `pnpm check` green, eval 7/7.
+  - Verified: the rename stamp at apply.ts:452. The three skills no longer say all-or-nothing or
+    --core, and the gap-channel text is untouched in the scribe diff. Versions are in lockstep.
+  - Not run: `claude plugin validate` (not on the sandbox PATH) and the scribe-pipeline regraph.
+    Both are left to the user.
+  - Not ticketed: tests for renaming an already-enriched vertex and for approving a rename without
+    `--approve-drift` (optional, low value).
+  - Not ours: "the scribe always ends with a routable `HANDOFF: success`". HANDOFF labels belong to
+    maestro: its scribe agent (plugins/maestro/agents/scribe.md) has no HANDOFF rule, and the code-graph
+    scribe skill stays maestro-neutral. maestro's 111 run hit the same NO ROUTE stop, so I passed it
+    to manager-code-graph-merge to ticket in maestro.
+  - The dotfile stubs at the repo root are sandbox artefacts. Never commit them.
+  - The user committed 020 and ran `just regraph`. The stubs are now in this checkout's
+    `.git/info/exclude`, and the setup-claude-guardrails skill (ai-dev-tools) learned to exclude them.
+- r019 (021, 0.3.14, not committed yet). Acked.
+  - Worker results: 325/325 tests, desktop 114/114, `pnpm check` and typecheck green, eval 7/7.
+  - Verified: `formatSearch` ends a hit with no purpose in ` — _not enriched_` (search.ts:427), and
+    `--json` is unchanged. code-graph-retrieval writes "enrich only" `skill_gaps` entries.
+    update-single and scribe send an all-"enrich only" gap straight to the "Only a reported gap to
+    close" branch, with no SKILL.md edit or stamp; a mixed gap runs the full pass. The scribe diff only
+    adds text, so the gap-channel contract is untouched. Versions are 0.3.14 in lockstep.
+  - Not run: `claude plugin validate` (not on the sandbox PATH). Left to the user.
+  - Not ticketed:
+    - `--vertex <name>` (scribe) vs `<key>` (update-single). Both work, and update-single already
+      explains when to use a key.
+    - turbo.json has no `globalPassThroughEnv` for TMPDIR, so root `pnpm test` fails in the
+      sandbox (verified). It's dev environment, not epic scope; raised with the user.
+    - The scribe's free-text HANDOFF line is maestro's 114.
+  - manager-code-graph-merge: maestro needs no change for 0.3.14, because nothing there reads
+    `missing`. Its task 112 counts an "enrich only" gap as handled after enrichment, with no stamp.
+    I confirmed what the scribe report signals for such a gap:
+    - It names update-single as the flow, with no changed skill and no new version.
+    - Vertices past 20 appear under "left to enrich", and search re-surfaces them later.
+    - A concept with no graph stops with nothing to enrich, and that also counts as handled.

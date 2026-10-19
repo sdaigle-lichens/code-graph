@@ -103,5 +103,24 @@
       "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md"
     ],
     "epic": "absorb-concept-skills"
+  },
+  "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md": {
+    "status": "done",
+    "blockedBy": [
+      "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "021-report-un-enriched-search-hits-through-the-gap-channel-so-they-get-enriched.md": {
+    "status": "done",
+    "blockedBy": [
+      "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md"
+    ],
+    "epic": "absorb-concept-skills"
   }
 }

@@ -2,8 +2,8 @@
   "slug": "absorb-concept-skills",
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
-    "name": "code-graph-d1",
-    "set_at": "2026-10-17T00:18:07.170Z"
+    "name": "manager-concept-skills-merge",
+    "set_at": "2026-10-19T12:44:56.068Z"
   },
   "workers": [
     {
@@ -85,6 +85,16 @@
       "name": "code-graph-bf",
       "task": "018-make-search-json-honour-max-tokens.md",
       "added_at": "2026-10-17T02:05:54.527Z"
+    },
+    {
+      "name": "Keep enrich targets lazy after first touch",
+      "task": "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md",
+      "added_at": "2026-10-19T02:23:11.143Z"
+    },
+    {
+      "name": "Subagent enrichment with target limits",
+      "task": "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
+      "added_at": "2026-10-19T12:44:58.037Z"
     }
   ],
   "log": [
@@ -306,6 +316,47 @@
       "id": "r016",
       "at": "2026-10-17T02:05:54.079Z",
       "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r017",
+      "task": "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md",
+      "file": "inbox/r017-019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md",
+      "at": "2026-10-19T02:21:13.375Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r017",
+      "at": "2026-10-19T02:23:09.734Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r018",
+      "task": "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
+      "file": "inbox/r018-020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
+      "at": "2026-10-19T12:35:20.991Z",
+      "from": "Subagent enrichment with target limits"
+    },
+    {
+      "kind": "ack",
+      "id": "r018",
+      "at": "2026-10-19T12:44:57.284Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r019",
+      "task": "021-report-un-enriched-search-hits-through-the-gap-channel-so-they-get-enriched.md",
+      "file": "inbox/r019-021-report-un-enriched-search-hits-through-the-gap-channel-so-they-get-enriched.md",
+      "at": "2026-10-19T14:45:43.862Z",
+      "from": "Un-enriched search hits reporting"
+    },
+    {
+      "kind": "ack",
+      "id": "r019",
+      "at": "2026-10-19T14:45:56.189Z",
+      "by": "manager-concept-skills-merge"
     }
   ]
 }
