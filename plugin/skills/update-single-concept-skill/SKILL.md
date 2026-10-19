@@ -38,6 +38,14 @@ On a `2.0`+ skill read the existing file first and treat it as mostly correct: r
 traps someone paid for in a debugging session. If a gap report named the skill, the `missing` text is
 your starting question.
 
+**An "enrich only" gap skips the deepening.** When every gap passed for this skill has a `missing`
+that starts with `enrich only:` (search hits an agent used that had no purpose), the skill text is
+not in question: go straight to step 8's **Only a reported gap to close** branch with the named
+vertices. No research pass, no SKILL.md or sub-concept edit, no cleanup, no `skills stamp` (the text
+did not change, so no major bump) and no `extract`. With no graph there is nothing to enrich: stop.
+A mix of "enrich only" and ordinary gaps runs the full pass; the named vertices join step 8's
+enrichment.
+
 ### 2. Understand the concept, and its neighbours
 
 **With a graph** (the concept is built: `cg status` shows rows, `cg query concept <name>` exits 0):
@@ -119,8 +127,10 @@ The new SKILL.md body is ingested as the concept's doc vertex. Then enrich:
   names, then hubs, then the rest) and report the remainder under "left to enrich". When this
   pass's SKILL.md edit grew the core, the report says "core grew from N to M with this run's skill
   edit" (`core.size` before and after).
-- **Only a reported gap to close** (no SKILL.md revision needed for the graph): enrich just the
-  vertices the gap names. Decide with `cg enrich targets <concept> --summary --json`, which adds
+- **Only a reported gap to close** (no SKILL.md revision needed for the graph; an "enrich only" gap
+  lands here directly from step 1): enrich just the vertices the gap names (an "enrich only" gap
+  lists them as `<name> (<filepath>)`; pass the names, or a `_key` from `cg query vertex
+  <filepath>:<name>` when a name is ambiguous). Decide with `cg enrich targets <concept> --summary --json`, which adds
   whatever else is changed, stale, core or touched since the last apply, with `core.size`,
   `core.leftOut`, `core.thin` and `core.message`; each batch reads full details for its own targets
   only with `cg enrich targets <concept> --json --vertex <key>...`. In the main session, fan the

@@ -123,8 +123,28 @@ After you have answered, on a weak or empty search append one entry to
   `run_id` yourself; maestro stamps it when you finish.
 - **Nag control:** do not write the same gap (same skill and query) twice in a session.
 - Write nothing when the search answered the question; a gap is never written to fill the file.
+  The one exception is the "enrich only" entry below.
 - A gap written from the **main session** is never stamped, so the scribe only sees a mention of it,
   not the file inlined. Do not promise the user otherwise.
+
+**Un-enriched hits your answer used ("enrich only").** In plain-text output a hit with no purpose
+ends in ` — _not enriched_` (`--json`: `purpose` absent or null). Code a search finds and you rely on
+is worth enriching, so after answering, if your answer **actually used** such hits, append one entry
+to the same file, under the same rules above (one block merged in place, the leading `run_id` line
+kept, no `run_id` written, your bare agent name):
+
+```json
+{ "skill_gaps": [{ "skill": "<the hit's concept skill id>", "missing": "enrich only: <name> (<filepath>), <name> (<filepath>) — found by search \"<query>\"" }] }
+```
+
+- `missing` **starts with `enrich only:`**. This is not a weak-search gap and not a request to revise
+  the SKILL.md: the scribe only enriches the named vertices and leaves the skill text alone.
+- Only hits the answer used, not every un-enriched hit in the output. Group them by concept skill:
+  one entry per skill, **at most 5 vertices per entry** (more used hits: keep the 5 you leaned on most).
+- **Dedupe per session by (skill, vertex):** never name a vertex again for the same skill, even
+  from a different query; drop it from the entry, and skip the entry when nothing is left.
+- With no graph (no tsconfig, no `scribe.config.json` concepts) there are no hits to mark: nothing
+  to report.
 
 `/graph concept <name>` and `/graph cross <a> <b>` emit the same diagnostic on exit 6 when a
 named concept is declared-but-not-built — same answer-first handling applies.

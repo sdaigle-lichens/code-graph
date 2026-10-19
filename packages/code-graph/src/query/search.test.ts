@@ -204,6 +204,64 @@ describe("formatSearch — repeated call sites", () => {
   });
 });
 
+describe("formatSearch — un-enriched hits", () => {
+  function enrichmentStore(): DatabaseSync {
+    const store = new DatabaseSync(":memory:");
+    applySchema(store);
+    putRecord(store, "vertices", "bare", vertex("bare", "setAgentDescription"));
+    putRecord(store, "vertices", "rich", {
+      ...vertex("rich", "getAgentDescription"),
+      purpose: "Reads an agent's description",
+    });
+    rebuildSearchIndex(store);
+    return store;
+  }
+
+  it("marks a hit with no purpose as not enriched in plain text, and only that hit", async () => {
+    const r = await searchStore(enrichmentStore(), "setAgentDescription getAgentDescription", {
+      maxTokens: 4000,
+      json: false,
+    });
+    const lines = applyTokenBudget(r, 4000).split("\n");
+    const bare = lines.find((l) => l.includes("`setAgentDescription`"))!;
+    const rich = lines.find((l) => l.includes("`getAgentDescription`"))!;
+    assert.match(bare, /`setAgentDescription` — _not enriched_$/);
+    assert.match(rich, /`getAgentDescription` — Reads an agent's description$/);
+    assert.doesNotMatch(rich, /not enriched/);
+  });
+
+  it("leaves --json unchanged: no marker, no added field", async () => {
+    const r = await searchStore(enrichmentStore(), "setAgentDescription", { maxTokens: 4000, json: true });
+    const hit = r.hits.find((h) => h.vertex?._key === "bare")!;
+    assert.equal(hit.vertex!.purpose ?? null, null);
+    assert.doesNotMatch(JSON.stringify(r), /not enriched/);
+  });
+
+  it("keeps the marker on kept hits under a tight budget, with the totals figure matching", async () => {
+    const r = await searchStore(docOnlyStore(60), "cascade", { maxTokens: 4000, json: false });
+    for (const budget of [4000, 150]) {
+      const md = applyTokenBudget(r, budget);
+      const hitLines = md.split("\n").filter((l) => /^- @src\/fn\d+\.ts/.test(l));
+      assert.ok(hitLines.length > 0, `budget ${budget}: some hits kept`);
+      for (const l of hitLines) assert.match(l, / — _not enriched_$/);
+      const figure = Number(/~(\d+) tokens/.exec(md)![1]);
+      assert.ok(Math.abs(figure - Math.ceil(md.length / 4)) <= 1, `figure ${figure} vs ${Math.ceil(md.length / 4)}`);
+    }
+  });
+
+  it("treats an empty-string purpose as not enriched", async () => {
+    const store = new DatabaseSync(":memory:");
+    applySchema(store);
+    putRecord(store, "vertices", "empty", { ...vertex("empty", "emptyPurposeFn"), purpose: "" });
+    rebuildSearchIndex(store);
+    const r = await searchStore(store, "emptyPurposeFn", { maxTokens: 4000, json: false });
+    const line = applyTokenBudget(r, 4000)
+      .split("\n")
+      .find((l) => l.includes("`emptyPurposeFn`"))!;
+    assert.match(line, /`emptyPurposeFn` — _not enriched_$/);
+  });
+});
+
 describe("formatSearch — inbound edge labels", () => {
   /** inboundTarget is reached inbound by one edge of each impact type the search traverses. */
   function inboundStore(): DatabaseSync {

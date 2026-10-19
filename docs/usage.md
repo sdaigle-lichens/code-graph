@@ -147,7 +147,9 @@ Plain-text output groups edges between the same two vertices with the same type 
 lines are listed when the edge carries them (`at file:108 (lines 112, 140, 155)`), otherwise a count
 (`×3`); distinct edge reasons are all shown. Inbound edges are labelled by their type (`← called by`,
 `← mounted by`, `← triggered by` only for `triggers`, ...), outbound ones show the type. `--json`
-stays one entry per stored edge. The `~N tokens`
+stays one entry per stored edge. A hit with no purpose ends in ` — _not enriched_` (plain text only;
+in `--json` its `purpose` stays absent or null); the `code-graph-retrieval` skill reports the ones an
+answer used as an "enrich only" gap (see the `scribe` skill row below). The `~N tokens`
 figure in the totals line is the size of the printed output, after `--max-tokens` trimming. The thin-result enrichment warning is appended after that figure, so
 it is not counted in it (~14 tokens).
 
@@ -236,8 +238,8 @@ window of `skills status` and the graph steps are skipped.
 | --- | --- | --- |
 | `create-concept-skills` | No list yet: catalog → proposal → `scribe.config.json` + SKILL.md skeletons → `bootstrap`/`extract`/`apply` | repo and skills stamped `1.0` (`--bump initial`) |
 | `update-concept-skills` | List exists, code moved: `skills status --json` / `drift --json`, revise, `extract` + `apply`, re-enrich revised | `--bump minor` |
-| `update-single-concept-skill` | One thin skill or a reported gap: deepen from `query concept` / `impact` | `--bump major` |
-| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md; gap channel; enrichment procedure | none |
+| `update-single-concept-skill` | One thin skill or a reported gap: deepen from `query concept` / `impact`. An "enrich only" gap just enriches the named vertices (`enrich merge` + `apply`), no SKILL.md edit | `--bump major` (none for "enrich only") |
+| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md; gap channel (incl. "enrich only" gaps for un-enriched search hits); enrichment procedure | none |
 | `cleanup-skill`, `load-concept-skills`, `explore-concept-skills` | Building blocks the flows call | none |
 | `code-architecture-design`, `use-code-architecture-design-check` | Design gate and brief; explore uses `query cross` / `impact` | none |
 | `code-graph-install` / `-update` / `-uninstall` | Enable/check/disable the plugin per project; install migrates `.claude/concept-skills.json` into `scribe.config.json` keeping its version | none |

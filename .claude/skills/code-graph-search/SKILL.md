@@ -141,7 +141,10 @@ Hits grouped by `vertex.concept`. Each cluster gets the matching skill doc (full
 
 Markdown sections per cluster:
 - `### Skill` — full body if `skillMode === "full"`, else one-liner pointer
-- `### Relevant code` — vertex hits with edges_in/edges_out enumerated. Inbound lines are labelled
+- `### Relevant code` — vertex hits with edges_in/edges_out enumerated. A hit with no (or empty)
+  `purpose` ends in ` — _not enriched_` instead of ` — <purpose>`, so an agent can tell "not enriched"
+  from "nothing to say"; the `code-graph-retrieval` skill reports the ones an answer used as an
+  `enrich only:` gap. Plain text only: `--json` keeps `purpose` absent/null and adds no field. Inbound lines are labelled
   by edge type through `INBOUND_LABELS` (`← called by`, `← mounted by`, `← triggered by` only for
   `triggers`; unknown types fall back to `<type> from`); outbound lines show the type. `--json` is
   unchanged. Only `calls`/`triggers`/`delegates-to` reach `edges_in` through `searchStore`, so test
@@ -217,7 +220,7 @@ cannot be honoured and returns the skeleton anyway.
 ## Files
 
 - `packages/code-graph/src/query/search.ts` — pipeline implementation; `search` (runs `preflight`) wraps exported `searchStore(db, query, opts)`, which tests call directly
-- `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint and budget cluster-keep tests
+- `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint, not-enriched marker and budget cluster-keep tests
 - `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
 - `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
 - `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)

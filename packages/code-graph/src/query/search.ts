@@ -422,7 +422,9 @@ export function formatSearch(result: SearchResult, opts?: { skillMode?: SkillMod
       for (const hit of vertexHits) {
         const v = hit.vertex!;
         const loc = `@${v.filepath}:${v.start_line}-${v.end_line}`;
-        const purpose = v.purpose ? ` — ${v.purpose}` : "";
+        // An un-enriched hit is marked so an agent can tell it apart from "nothing to say"
+        // and report it through the gap channel (code-graph-retrieval). --json is unchanged.
+        const purpose = v.purpose ? ` — ${v.purpose}` : " — _not enriched_";
         lines.push(`- ${loc} — \`${v.name}\`${purpose}`);
 
         const ins = hit.edges_in.map(({ edge, from }) => ({ edge, other: from, otherKey: from._key }));
