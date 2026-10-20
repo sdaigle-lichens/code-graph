@@ -21,10 +21,10 @@
 // The tsc build (dist/) does not use this module for loading: its imports resolve against
 // code-graph's own dependencies as they always have.
 
-import { existsSync } from "node:fs";
+import { statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { findConfigRoot } from "./skills/state.js";
 
 /**
@@ -36,15 +36,58 @@ export const PINNED_DEPS: Readonly<Record<string, string>> = { "ts-morph": "28.0
 
 export const INSTALL_COMMAND = "code-graph deps install";
 
+/** Claude Code's Bash sandbox marks every sandboxed command with `SANDBOX_RUNTIME=1`. */
+export function isSandboxed(): boolean {
+  return process.env.SANDBOX_RUNTIME === "1";
+}
+
+/** `<XDG_CACHE_HOME|~/.cache>/code-graph`, absolute: the directory to allow-list for a sandboxed session. */
+export function cacheRootDir(): string {
+  return resolve(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "code-graph");
+}
+
+/** How a plugin deps dir looks from this process: usable, truly absent, or probably hidden from it. */
+export type DepsDirState = "present" | "absent" | "unreadable";
+
+/**
+ * Stat `<dir>/node_modules`. EACCES/EPERM is `unreadable`. ENOENT is `absent`, except in a sandbox:
+ * bubblewrap can leave a denied home path out of the mount, so ENOENT there is `unreadable` too.
+ */
+export function probeDepsDir(dir: string): DepsDirState {
+  try {
+    statSync(join(dir, "node_modules"));
+    return "present";
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM") return "unreadable";
+    return isSandboxed() ? "unreadable" : "absent";
+  }
+}
+
+/** Advice for a sandboxed session that cannot read the plugin deps dir. */
+export function sandboxReadAdvice(): string {
+  return (
+    `The plugin deps directory may exist but cannot be read from this sandboxed session. ` +
+    `Check with \`code-graph deps status\` in your own shell; if ts-morph is installed there, add ` +
+    `${cacheRootDir()} to \`sandbox.filesystem.allowRead\` in your Claude Code settings, ` +
+    `or run the graph command outside the sandbox.`
+  );
+}
+
 export class MissingProjectDependencyError extends Error {
   constructor(
     readonly dependency: string,
-    readonly projectRoot: string
+    readonly projectRoot: string,
+    readonly unreadable = false
   ) {
     super(
       `"${dependency}" could not be found: not in code-graph's plugin deps directory and not installed in ` +
-        `${projectRoot}. Run \`${INSTALL_COMMAND}\` (for the plugin: \`node "\${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install\`) ` +
-        `to install ts-morph for code-graph, then re-run. The \`code-graph skills\` commands need neither.`
+        `${projectRoot}. ` +
+        (unreadable
+          ? `${sandboxReadAdvice()} If it is not installed anywhere, run \`${INSTALL_COMMAND}\` in your own shell. `
+          : `Run \`${INSTALL_COMMAND}\` (for the plugin: \`node "\${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install\`) ` +
+            `to install ts-morph for code-graph, then re-run. `) +
+        `The \`code-graph skills\` commands need neither.`
     );
     this.name = "MissingProjectDependencyError";
   }
@@ -86,7 +129,7 @@ export function resolveDependency(
   projectRoot: string
 ): { path: string; source: "plugin" | "project" } | null {
   for (const dir of pluginDepsDirs()) {
-    if (!existsSync(join(dir, "node_modules"))) continue;
+    if (probeDepsDir(dir) !== "present") continue;
     const path = tryResolve(name, dir);
     if (path) return { path, source: "plugin" };
   }
@@ -101,6 +144,9 @@ export function projectRootForDeps(): string {
 /** `require(name)` from the plugin deps dir, else the project; throws `MissingProjectDependencyError` when absent. */
 export function requireFromProject(name: string): unknown {
   const found = resolveDependency(name, projectRootForDeps());
-  if (!found) throw new MissingProjectDependencyError(name, projectRootForDeps());
+  if (!found) {
+    const unreadable = pluginDepsDirs().some((dir) => probeDepsDir(dir) === "unreadable");
+    throw new MissingProjectDependencyError(name, projectRootForDeps(), unreadable);
+  }
   return createRequire(found.path)(found.path);
 }

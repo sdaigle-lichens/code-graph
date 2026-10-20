@@ -80,8 +80,21 @@ $ARGUMENTS
 7. **Graph dependencies (only for projects with TypeScript concepts).** The graph commands need
    `ts-morph`, which the plugin does not bundle. Run `cg deps status`. If `ts-morph` shows `missing`,
    tell the user that `cg deps install` downloads it from the npm registry into the plugin's own
-   directory (not the project), and offer to run it. If it resolves (plugin or project), do nothing.
+   directory (not the project), and offer to run it. `deps install` downloads from the npm registry,
+   which the sandbox usually blocks, so tell the user to run it in their own shell (`! code-graph deps
+   install`, or `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install`). If it resolves
+   (plugin or project), do nothing for the install.
    Skip the whole step for a repo with no `tsconfig` or only docs-only concepts.
+
+   **Sandbox read access.** Read `sandbox.enabled` in `~/.claude/settings.json` and the project's
+   `.claude/settings.json` / `.claude/settings.local.json` (missing is empty). Only when it is true and
+   `cg deps status` reports `ts-morph` missing or unreadable (the sandbox hides `~/.cache`), offer to add
+   the absolute `code-graph` cache dir named in `deps status`' advice line (i.e.
+   `<XDG_CACHE_HOME|~/.cache>/code-graph`) to `sandbox.filesystem.allowRead`. Say it is a lasting
+   settings change and add it only on the user's yes. Default to the user settings
+   (`~/.claude/settings.json`, since the cache is per user); offer `.claude/settings.local.json` as the
+   alternative. Edit the JSON with Edit, merging into an existing `allowRead` array, and skip it when the
+   path is already there (a re-run adds nothing). Skip this when the sandbox is not enabled.
 
 8. **Report** in a few lines: whether the plugin was newly enabled, whether a legacy file was migrated
    (and the version it carried), the agents recorded, and the next command. Tell the user to restart

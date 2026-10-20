@@ -31,7 +31,12 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   explicit `code-graph deps install` (`deps.ts`, npm, pins `PINNED_DEPS` — ts-morph only, it carries
   its own compiler; keep in step with package.json); (b) the project's own install via
   `createRequire(<project>/package.json)`. Neither → `MissingProjectDependencyError` naming
-  `deps install`. Never download inside a graph command.
+  `deps install`. Never download inside a graph command. A deps dir is probed with `probeDepsDir`
+  (stat): EACCES/EPERM, or ENOENT while `SANDBOX_RUNTIME=1` (bubblewrap can hide a denied home path),
+  counts as `unreadable`, not `absent`; the error and `deps status` then name
+  `sandbox.filesystem.allowRead` and the absolute cache dir instead of only `deps install`.
+  `deps install` stays on `~/.cache`: `CLAUDE_PLUGIN_DATA` is unset in the user's shell and Claude Code
+  documents no way to locate it from there.
 - `extract`/`apply`/`drift` with no `concepts` in the config exit 0 with a skip message before
   importing anything heavy (`skippedForNoConcepts` in `cli.ts`); keep new concept-iterating commands
   behind it.

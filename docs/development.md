@@ -138,7 +138,8 @@ changes silently stop reaching the plugin.
 
 - `typescript` and `ts-morph` are not bundled: `requireFromProject` loads `ts-morph` from the
   plugin-owned deps dir (`code-graph deps install`) first, then the consumer project's own copy; with
-  neither, the error names `deps install`.
+  neither, the error names `deps install` (or, when a deps dir is unreadable in a sandbox, the
+  `sandbox.filesystem.allowRead` fix).
 - The `skills` command group (layer 1) must never load `node:sqlite`, `typescript` or `ts-morph`, so
   it runs in any repo on any supported Node. `cli.ts` imports every graph module lazily, inside its
   command — keep new ones that way.

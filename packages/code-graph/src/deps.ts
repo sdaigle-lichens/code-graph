@@ -4,17 +4,37 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { PINNED_DEPS, pluginDepsDirs, projectRootForDeps, resolveDependency } from "./project-deps.js";
+import {
+  PINNED_DEPS,
+  pluginDepsDirs,
+  probeDepsDir,
+  projectRootForDeps,
+  resolveDependency,
+  sandboxReadAdvice,
+} from "./project-deps.js";
 
 export function depsStatus(): void {
   const projectRoot = projectRootForDeps();
-  console.log(`plugin deps dirs (searched in order): ${pluginDepsDirs().join(", ")}`);
+  const dirs = pluginDepsDirs();
+  console.log(`plugin deps dirs (searched in order): ${dirs.join(", ")}`);
+  const states = dirs.map((dir) => ({ dir, state: probeDepsDir(dir) }));
   for (const name of Object.keys(PINNED_DEPS)) {
     const found = resolveDependency(name, projectRoot);
+    if (found) {
+      console.log(`  ${name}: ${found.source} (${found.path})`);
+      continue;
+    }
+    const unreadable = states.some((s) => s.state === "unreadable");
     console.log(
-      found ? `  ${name}: ${found.source} (${found.path})` : `  ${name}: missing — run \`code-graph deps install\``
+      unreadable
+        ? `  ${name}: missing or unreadable from this session`
+        : `  ${name}: missing — run \`code-graph deps install\``
     );
   }
+  if (!states.some((s) => s.state === "unreadable")) return;
+  for (const { dir, state } of states)
+    console.log(`  ${dir}: ${state === "unreadable" ? "unreadable (not absent)" : state}`);
+  console.log(sandboxReadAdvice());
 }
 
 /** Install the pinned deps into the first plugin deps dir with npm. Returns the process exit code. */

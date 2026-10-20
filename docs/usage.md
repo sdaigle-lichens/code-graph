@@ -129,7 +129,9 @@ commands (`extract`, `catalog`) resolve `ts-morph` (which carries its own compil
 
 Populate (1) with the explicit `code-graph deps install` (it runs `npm install` and says so);
 `code-graph deps status` shows what resolves from where. When neither has ts-morph, the error names
-`deps install`. The `skills` commands never need any of this.
+`deps install`. Inside a Claude Code Bash sandbox (`SANDBOX_RUNTIME=1`) an unreadable `~/.cache` looks
+missing; the error and `deps status` then say so and name `sandbox.filesystem.allowRead` with the
+absolute cache dir. The `skills` commands never need any of this.
 
 ### 6. Search
 
