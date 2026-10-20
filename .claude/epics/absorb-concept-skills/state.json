@@ -95,6 +95,10 @@
       "name": "Subagent enrichment with target limits",
       "task": "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
       "added_at": "2026-10-19T12:44:58.037Z"
+    },
+    {
+      "name": "maestro-905d8964",
+      "added_at": "2026-10-20T01:27:42.634Z"
     }
   ],
   "log": [
@@ -356,6 +360,19 @@
       "kind": "ack",
       "id": "r019",
       "at": "2026-10-19T14:45:56.189Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r020",
+      "task": "022-tell-an-unreadable-deps-dir-from-a-missing-one-in-a-sandboxed-session.md",
+      "file": "inbox/r020-022-tell-an-unreadable-deps-dir-from-a-missing-one-in-a-sandboxed-session.md",
+      "at": "2026-10-20T01:28:11.730Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r020",
+      "at": "2026-10-20T01:28:16.650Z",
       "by": "manager-concept-skills-merge"
     }
   ]

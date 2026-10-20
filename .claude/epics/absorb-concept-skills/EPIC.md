@@ -277,3 +277,32 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     - It names update-single as the flow, with no changed skill and no new version.
     - Vertices past 20 appear under "left to enrich", and search re-surfaces them later.
     - A concept with no graph stops with nothing to enrich, and that also counts as handled.
+- Committed: d161a48 (021, by the user/worker), cfc481d (bookkeeping), a1628e6 (maestro runtime
+  0.11.27), 234c409 (README install line). Not pushed.
+- maestro's request: a sandboxed session can't read `~/.cache/code-graph/deps`, so `extract`
+  says "run deps install" even though ts-morph is installed.
+  - Verified: `resolveDependency` uses `existsSync`, which is false for EACCES too. Sandboxed
+    commands carry `SANDBOX_RUNTIME=1`. A denied home path may show as ENOENT, so errno alone isn't
+    enough.
+  - Ticketed as one task, 022 (0.3.15): sandbox-aware error and status text, plus the install skill
+    offering a consented `sandbox.filesystem.allowRead` entry.
+  - The user chose to keep `~/.cache` as the target. The plugin data dir is used only if the CLI can
+    locate it from the user's shell through something Claude Code documents; guessing its internal
+    layout is ruled out.
+- 022 (0.3.15, not committed). Worker maestro-905d8964 finished before 022 was linked: I wrote the
+  ticket without `maestro-epic link`, so `done` printed no report command. Linked it and recorded the
+  worker afterwards. Always `link` a new ticket.
+  - Worker results: 329/329 package tests, `pnpm check` green, eval 7/7.
+  - Not run: `claude plugin validate`, and the step 7 consent flow end to end.
+  - Verified:
+    - `probeDepsDir` (project-deps.ts:56) counts EACCES/EPERM, or ENOENT under `SANDBOX_RUNTIME=1`,
+      as unreadable.
+    - The sandboxed error names `sandbox.filesystem.allowRead` and the absolute cache dir, and still
+      says to run `deps install` in your own shell if it isn't installed anywhere.
+    - The non-sandboxed text is unchanged, and versions are 0.3.15 in lockstep.
+  - The install target stays `~/.cache`: Claude Code documents no way to find `CLAUDE_PLUGIN_DATA`
+    from the user's shell, as the user decided.
+  - Report r020 was filed late, after the link, and matches what I verified. Acked.
+  - Recurring, both raised again:
+    - The scribe's free-text HANDOFF line (`HANDOFF: scribe complete`) is maestro's 114.
+    - Root `pnpm test` fails in the sandbox until turbo passes TMPDIR through.

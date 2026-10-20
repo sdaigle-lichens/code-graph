@@ -122,5 +122,10 @@
       "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md"
     ],
     "epic": "absorb-concept-skills"
+  },
+  "022-tell-an-unreadable-deps-dir-from-a-missing-one-in-a-sandboxed-session.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }
