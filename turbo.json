@@ -1,5 +1,8 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  // Strict env mode drops TMPDIR; Node then falls back to /tmp, which a sandboxed session cannot write
+  // (vitest in apps/desktop failed with `mkdir /tmp/<id>/ssr`). Pass it through, unhashed.
+  "globalPassThroughEnv": ["TMPDIR"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
