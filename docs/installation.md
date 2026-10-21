@@ -14,6 +14,13 @@
 5. Put the CLI on PATH with `just link` (`pnpm add -g "$(pwd)/packages/code-graph"`). The workspace
    root is private and has no `bin`, so linking the root installs nothing. Requires `PNPM_HOME` /
    `pnpm bin -g` to be on PATH. Note `pnpm link --global` was removed in pnpm 10.
+   On macOS the global bin dir is `~/Library/pnpm/bin`. If `just link` fails with
+   `ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH`, run `pnpm setup` (or add
+   `export PNPM_HOME="$HOME/Library/pnpm"` and `export PATH="$PNPM_HOME/bin:$PATH"` to `~/.zshrc`),
+   then open a new shell. If `pnpm` then fails with `.../global/v11/.../node_modules/pnpm/pnpm: No
+   such file or directory`, a broken self-installed `pnpm` in that bin dir is shadowing Homebrew's:
+   check `which -a pnpm`, remove `~/Library/pnpm/bin/pnpm` and `pnpx`, run `hash -r`, and update
+   pnpm with `brew upgrade pnpm` rather than `pnpm self-update`.
 6. Verify `code-graph --version`
 7. Start a Claude Code session with the plugin loaded: `claude --plugin-dir /path/to/code-graph/plugin`
 
