@@ -59,7 +59,11 @@ cg search "<what the gap asked>"   # BM25 + expansion across concepts
 
 Use the pointers (`@filepath:line`) as your `Read` targets; the graph says *where* and *why*, you
 still read the source. Exit 6 (no results) or a concept the graph does not know: fall back to reading.
-The graph reflects the last `apply` — verify a stale-looking pointer against the file.
+The graph reflects the last `apply` — verify a stale-looking pointer against the file. Check
+`cg skills status --json` for this concept's `unextracted` (`changed`/`new`/`removed` files under its
+globs since the last `extract`): when non-zero the graph is behind the source, so run
+`cg extract <concept>` then `cg apply <concept>` before trusting the pointers (step 8 runs them again
+after the SKILL.md edit).
 
 **Without a graph** (no tsconfig, or never extracted): read the concept's own code through the file
 map the skill carries and its globs in `scribe.config.json`, bounded by that map.

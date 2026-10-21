@@ -56,13 +56,19 @@ SKILL.md, path mismatches, unmarked skills and docs-only skills. **Each skill is
 `lastUpdate`**, not the repo's — a skill deepened by `update-single-concept-skill` is ahead, and
 re-doing it wastes the pass. A concept with `commitsSince: 0` is untouched; skip it.
 
+`status` also carries `unextracted: { changed, new, removed, files[] }` per concept: source files
+under its globs that were edited, added or removed since the last `extract` (file counts, not
+vertices; absent until the concept's `.ast.json` records `meta.files`, i.e. after one `extract` on
+0.3.17+). Any non-zero count means the graph is behind the source: that concept goes through
+`extract` + `apply` in step 3 and step 6 even when its vertex-level `graph.changed` reads 0.
+
 This works with **no tsconfig and no graph**: `status` is a git-diff window over the globs (`scope`
 falls back to `"repo"` when a concept declares none), and is the whole staleness signal in such a
 repo. If `reason` is `unstamped`/`unknown-commit`/`not-a-git-repo`, treat that skill as stale.
 
 ### 3. Read what moved
 
-For each concept with `commitsSince > 0`:
+For each concept with `commitsSince > 0` or a non-zero `unextracted` count:
 
 1. **Documentation first** — `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/`. A reframed concept shows
    up here in the author's words.
@@ -72,7 +78,9 @@ For each concept with `commitsSince > 0`:
    cg extract <concept> && cg drift <concept> --json
    ```
 
-   Shape: `{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged } }`.
+   Shape: `{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged }, unextracted }`.
+   (`drift` compares the `.ast.json` just written with the store; run `extract` first, as above, or its
+   vertex lists miss unextracted edits. `unextracted` then reads zero.)
    `new`/`missing` are vertices added or gone — a concept gaining a whole directory or losing one is
    a candidate to **add or delete**; `changed`/`stale` are where the SKILL.md's claims may now be
    wrong (`stale` = prose enriched against an older body); `renameCandidates` are moves, not
@@ -135,7 +143,9 @@ cg skills stamp --bump minor
 Never call a bare `skills stamp` without `--bump`: at repo level it defaults to `initial` and resets
 the version to 1.0. Pass `--sha <session-start-commit>` if the session committed since it started.
 
-**Then the graph** (skip entirely with no tsconfig / no `concepts`):
+**Then the graph** (skip entirely with no tsconfig / no `concepts`). Run it for every concept whose
+skill you revised **and** every concept with a non-zero `unextracted` count, even when its skill text
+needs no change:
 
 ```bash
 cg extract <concept>

@@ -93,6 +93,15 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - `drift --json` / `apply --dry-run --json` `changed` is ast.json vs store: run `extract` first.
   `skills status --json` graph freshness (`scribe/freshness.ts`) is lazy and optional; a bad
   `last-update` sha reports `unknownFreshness`, never throws.
+- **Unextracted changes** (`scribe/unextracted.ts`): `extract` records a sha256 per code file
+  (`.[cm]?[jt]sx?`) its globs match in `.ast.json` `meta.files` (a scan, not only tsconfig files, so the
+  same scan later finds new ones). `skills status` (`concepts[].unextracted`, text `unextracted: N
+  changed, N new, N removed file(s)`) and `drift`/`apply --dry-run` (`unextracted` in `--json`) rescan
+  and diff; counts are **files**, separate from vertex `changed`. Null/absent for an ast.json from
+  before 0.3.17: the first `extract` rewrites each committed ast.json once to add `meta.files`.
+  `meta.files` moves with the source while `extracted_at`/`extractor_version` keep the byte-stability
+  rule. The module imports only fs/crypto/minimatch; `skills/unextracted-imports.test.ts` guards that
+  the `skills status` import graph never reaches typescript, ts-morph or node:sqlite.
 - `.ast.json` is byte-stable across re-extracts of unchanged code: vertices/edges carry no
   `ast.extracted_at` there (optional in the schema); `apply` stamps `ast.extracted_at` into the
   store's JSON column. `meta` (`extractor_version` + `extracted_at`) is kept whole when vertices,

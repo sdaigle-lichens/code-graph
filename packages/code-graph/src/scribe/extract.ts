@@ -10,6 +10,7 @@ import {
 } from "ts-morph";
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
+import { scanConceptFiles } from "./unextracted.js";
 import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
 import type { Edge, Vertex } from "../schema.js";
 
@@ -544,7 +545,9 @@ export async function extract(conceptName: string): Promise<void> {
   vertices.sort((a, b) => a._key.localeCompare(b._key));
   edges.sort((a, b) => a._key.localeCompare(b._key));
 
-  writeAstOutput(config, conceptName, vertices, edges, skillField);
+  // Record what the globs matched now (not just the tsconfig files) so `skills status` / `drift` can see
+  // source edits made after this extract, using the same scan.
+  writeAstOutput(config, conceptName, vertices, edges, skillField, scanConceptFiles(configRoot, concept.globs));
 
   const skillChars = skillField?.body.length ?? 0;
   process.stderr.write(`${vertices.length} vertices, ${edges.length} edges, skill body ${skillChars} chars\n`);

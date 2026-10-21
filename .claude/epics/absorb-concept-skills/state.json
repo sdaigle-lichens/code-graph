@@ -3,7 +3,7 @@
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
     "name": "manager-concept-skills-merge",
-    "set_at": "2026-10-21T02:21:57.300Z"
+    "set_at": "2026-10-21T12:40:16.898Z"
   },
   "workers": [
     {
@@ -99,6 +99,18 @@
     {
       "name": "maestro-905d8964",
       "added_at": "2026-10-20T01:27:42.634Z"
+    },
+    {
+      "name": "maestro-5b4ae740",
+      "added_at": "2026-10-21T12:50:58.453Z"
+    },
+    {
+      "name": "maestro-898f8113",
+      "added_at": "2026-10-21T13:27:19.064Z"
+    },
+    {
+      "name": "maestro-27239325",
+      "added_at": "2026-10-21T13:35:07.889Z"
     }
   ],
   "log": [
@@ -373,6 +385,48 @@
       "kind": "ack",
       "id": "r020",
       "at": "2026-10-20T01:28:16.650Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r021",
+      "task": "023-keep-search-honest-while-most-concepts-are-un-enriched.md",
+      "file": "inbox/r021-023-keep-search-honest-while-most-concepts-are-un-enriched.md",
+      "at": "2026-10-21T12:40:03.398Z",
+      "from": "maestro-5b4ae740"
+    },
+    {
+      "kind": "ack",
+      "id": "r021",
+      "at": "2026-10-21T12:50:57.726Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r022",
+      "task": "024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md",
+      "file": "inbox/r022-024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md",
+      "at": "2026-10-21T13:25:05.102Z",
+      "from": "maestro-898f8113"
+    },
+    {
+      "kind": "ack",
+      "id": "r022",
+      "at": "2026-10-21T13:27:18.391Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r023",
+      "task": "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md",
+      "file": "inbox/r023-025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md",
+      "at": "2026-10-21T13:33:16.582Z",
+      "from": "maestro-27239325"
+    },
+    {
+      "kind": "ack",
+      "id": "r023",
+      "at": "2026-10-21T13:35:07.367Z",
       "by": "manager-concept-skills-merge"
     }
   ]

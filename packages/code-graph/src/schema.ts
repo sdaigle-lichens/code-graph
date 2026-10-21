@@ -88,6 +88,8 @@ export const AstDocSchema = z.object({
   meta: z.object({
     extractor_version: z.string(),
     extracted_at: z.string(),
+    /** Content hash per source file the globs matched at extract time (see `scribe/unextracted.ts`). */
+    files: z.record(z.string(), z.string()).optional(),
   }),
 });
 

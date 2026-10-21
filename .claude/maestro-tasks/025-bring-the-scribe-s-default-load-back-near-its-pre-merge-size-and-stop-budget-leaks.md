@@ -35,6 +35,14 @@ the budget.
 --summary`) ≤ 8 KB for 16 concepts: per concept id, version, last-update, commits/files since, graph
 counts, and nothing else. Point the update flows at it where they don't need the full form.
 
+**4. Stale search index after an upgrade (found verifying 023).** 0.3.16 indexes names split into
+words (`nameIndexText`), but a store built earlier keeps its old FTS rows until `code-graph reindex`
+or the next `apply`. Nothing tells a user who only upgraded the plugin, and their search silently
+behaves like 0.3.15. Record the FTS row format (a constant, e.g. `FTS_FORMAT`, stored in the store's
+meta) when the index is built. When `search` finds a missing or older format, rebuild the index once
+(`rebuildSearchIndex` is cheap and needs no extract) or, if the store can't be written, print one
+line saying to run `code-graph reindex`. No `SCHEMA_VERSION` bump.
+
 Version 0.3.18 in all three files (next free patch if another task ships first), bundle regenerated.
 Update docs/usage.md, the `code-graph-search` skill and packages/code-graph/CLAUDE.md
 (`search --json` floor note).
@@ -44,6 +52,7 @@ Update docs/usage.md, the `code-graph-search` skill and packages/code-graph/CLAU
 - [ ] `plugin/skills/scribe/SKILL.md` ≤ 9 KB; the enrichment procedure lives in a reference file the skill reads only when enriching; the gap-channel contract text is unchanged
 - [ ] `search --json --max-tokens N` output is ≤ ~4N bytes with `gaps` included, for N=400 on a 16-concept store (test); `gaps` no longer lists concepts twice
 - [ ] `skills status` has a compact JSON form ≤ 8 KB for 16 concepts (test with a 16-concept fixture), and the update flows use it
+- [ ] A store indexed before 0.3.16 is detected by `search`, which reindexes once (or says to run `code-graph reindex` when it can't write); a test covers an old-format store
 - [ ] claude plugin validate, pnpm check, pnpm test and just eval (7/7) are green; version bumped in all three files, bundle regenerated
 
 ## Blocked by

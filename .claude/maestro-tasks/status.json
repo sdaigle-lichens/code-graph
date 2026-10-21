@@ -129,17 +129,17 @@
     "epic": "absorb-concept-skills"
   },
   "023-keep-search-honest-while-most-concepts-are-un-enriched.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   },
   "024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   },
   "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "023-keep-search-honest-while-most-concepts-are-un-enriched.md"
     ],

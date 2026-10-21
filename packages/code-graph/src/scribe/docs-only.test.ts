@@ -174,7 +174,7 @@ describe("docs-only extract / apply / search", () => {
 });
 
 describe("drift --json / apply --dry-run --json", () => {
-  const SHAPE = ["changed", "concept", "doc", "missing", "new", "renameCandidates", "stale"];
+  const SHAPE = ["changed", "concept", "doc", "missing", "new", "renameCandidates", "stale", "unextracted"];
 
   function tsProject() {
     write(

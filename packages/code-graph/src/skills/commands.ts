@@ -17,6 +17,7 @@ import {
   resolveSkillPath,
   stampConceptSkill,
 } from "./concept-skills.js";
+import { formatUnextracted } from "../scribe/unextracted.js";
 import { checkConceptSkills, conceptSkillsStatus, headSha } from "./report.js";
 import {
   configPath,
@@ -196,7 +197,10 @@ export function registerSkillsCommands(program: Command): void {
             ? c.reason
             : `${c.commitsSince} commit(s), ${c.filesChanged.length} file(s)`;
         const g = c.graph ? `  graph: ${c.graph.changed} changed, ${c.graph.stale} stale` : "";
-        out(`  ${name}  ${v}  ${since}${g}${c.path ? `  ${relative(process.cwd(), join(projectRoot, c.path))}` : ""}`);
+        const u = c.unextracted && (c.unextracted.files.length > 0 ? `  ${formatUnextracted(c.unextracted)}` : "");
+        out(
+          `  ${name}  ${v}  ${since}${g}${u ?? ""}${c.path ? `  ${relative(process.cwd(), join(projectRoot, c.path))}` : ""}`
+        );
       }
     });
 

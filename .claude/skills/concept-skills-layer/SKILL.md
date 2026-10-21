@@ -24,7 +24,12 @@ those lines in place and preserves the file's own line endings.
 globs. An unknown or malformed sha reports unknown freshness instead of failing. When a graph
 store exists the report also carries per-concept graph freshness: changed and stale vertex counts
 and whether the concept was extracted and enriched. `changed` compares `<concept>.ast.json` with the
-store, so it reflects source edits only after `extract`; same for `drift --json`. A malformed or
+store, so it reflects source edits only after `extract`; same for `drift --json`. Source edits nobody
+has extracted are counted separately as `unextracted {changed,new,removed}` **files**
+(`concepts[].unextracted` in `skills status`, `unextracted` in `drift --json`; text `unextracted: N
+changed, N new, N removed file(s)`): `scribe/unextracted.ts` rescans the globs and diffs against
+`.ast.json` `meta.files`. Null for an ast.json without `meta.files` (written before 0.3.17). It must
+stay layer-1 safe (fs/crypto/minimatch only; `skills/unextracted-imports.test.ts` guards it). A malformed or
 unknown sha sets `unknownFreshness` (reasons `malformed-sha`, `unknown-commit`).
 
 ## Skill resolution

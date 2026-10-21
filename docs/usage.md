@@ -107,7 +107,10 @@ Upserts vertices, edges, and skill doc into the store, in one transaction. Shows
 `{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged } }`.
 Vertices are `{ name, type, file }`; a rename candidate is `{ from, to, score }`. `--json` without
 `--dry-run` exits 1. `changed` compares `<concept>.ast.json` (the last extract) with the store, so
-run `extract <concept>` first, then `drift`, to see pending source edits.
+run `extract <concept>` first, then `drift`, to see pending source edits. The JSON also carries
+`unextracted: { changed, new, removed, files[] }`: source files edited, added or deleted since the last
+`extract` (counted in files, from `meta.files` in the ast.json); non-zero means run `extract` then
+`apply`. It is absent for an ast.json written before 0.3.17.
 
 A **docs-only** concept (no `tsconfig`, or globs that name no TypeScript files) needs no compiler:
 `extract` writes zero vertices plus its skill block, `apply` stores the doc so the SKILL.md body is
@@ -252,6 +255,9 @@ window of `skills status` and the graph steps are skipped.
 same ast.json-vs-store count as `drift`, so extract first). A recorded `last-update` sha that is
 malformed or unknown to git yields `unknownFreshness: true` (`reason: "malformed-sha"` or
 `"unknown-commit"`, `commitsSince: null`) instead of an error. Docs-only concepts have no `graph` block.
+Each concept also carries `unextracted: { changed, new, removed, files[] }` (text form
+`unextracted: N changed, N new, N removed file(s)`): source files changed since the last `extract`,
+which `graph.changed` cannot see. Null until the next `extract` records `meta.files`.
 
 ### `query vertex` calling forms
 

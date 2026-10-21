@@ -14,6 +14,8 @@ import { existsSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 import { discoverConceptSkills, type ConceptSkill } from "./concept-skills.js";
 import { readConcepts, readConceptSkillsState, type SkillsConcept } from "./state.js";
+// Graph-free on purpose (fs + hashing + minimatch): see the header and the layer-1 import guard test.
+import { unextractedChanges, type UnextractedChanges } from "../scribe/unextracted.js";
 
 interface Matched {
   concept: string;
@@ -122,6 +124,12 @@ export interface ConceptStatus extends GitWindow {
   scope: "globs" | "repo";
   /** Graph freshness (see `scribe/freshness.ts`); present only when a store holds this concept. */
   graph?: import("../scribe/freshness.js").GraphFreshness;
+  /**
+   * Source files under the globs that differ from what the last `extract` recorded (edited, new, removed).
+   * Counts files, not vertices; present only when `<concept>.ast.json` records `meta.files`. A non-zero
+   * count means: run `extract` then `apply`.
+   */
+  unextracted?: UnextractedChanges;
 }
 
 export interface StatusReport {
@@ -185,6 +193,7 @@ export async function conceptSkillsStatus(projectRoot: string): Promise<StatusRe
     if (m.byPath) claimed.add(m.byPath.skillPath);
     if (m.byName) claimed.add(m.byName.skillPath);
     const path = skill ? skill.skillPath : m.declared && existsSync(m.declared) ? m.declared : null;
+    const unextracted = unextractedChanges(projectRoot, m.concept, m.config.globs);
     concepts.push({
       concept: m.concept,
       skill: skill?.id ?? null,
@@ -194,6 +203,7 @@ export async function conceptSkillsStatus(projectRoot: string): Promise<StatusRe
       globs: m.config.globs,
       scope: "globs",
       ...gitWindow(projectRoot, skill?.lastUpdate, m.config.globs),
+      ...(unextracted && { unextracted }),
     });
   }
   for (const s of skills) {

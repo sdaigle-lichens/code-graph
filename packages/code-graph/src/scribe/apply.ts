@@ -6,6 +6,7 @@ import { loadConfig } from "../config.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
 import { enrichmentIsCurrent } from "./enrich.js";
+import { formatUnextracted, unextractedChanges } from "./unextracted.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
 import {
   AstDocSchema,
@@ -339,6 +340,9 @@ export async function apply(
   );
   const willBeStaleCount = staleChangedKeys.length;
 
+  const conceptGlobs = config.concepts[concept]?.globs;
+  const unextracted = conceptGlobs ? unextractedChanges(configRoot, concept, conceptGlobs) : null;
+
   if (opts.json && opts.dryRun) {
     const ref = (v: Vertex) => ({ name: v.name, type: v.type, file: v.filepath });
     // Unchanged vertices stay stale unless the enrichment now carries their exact hash.
@@ -361,6 +365,8 @@ export async function apply(
           score: Number(r.score.toFixed(2)),
         })),
         doc: { bodyHashChanged: docHashDisplay === "changed" },
+        // Files edited/added/removed since the last extract; null when ast.json predates `meta.files`.
+        unextracted,
       })
     );
     return;
@@ -376,6 +382,12 @@ export async function apply(
   );
   if (astDoc.skill) {
     console.log(`  doc:        body_hash ${docHashDisplay}`);
+  }
+
+  if (opts.dryRun && unextracted && unextracted.files.length > 0) {
+    console.log(`  ${formatUnextracted(unextracted)} since the last extract — vertex counts above do not include them`);
+    for (const f of unextracted.files) console.log(`    ${f.kind.padEnd(8)} ${f.path}`);
+    console.log(`  run: code-graph extract ${concept} && code-graph apply ${concept}`);
   }
 
   if (uniqueRenames.length > 0) {

@@ -9,6 +9,7 @@ import type { ScribeConfig } from "../config.js";
 import { resolveConceptSkillPath } from "../skills/concept-skills.js";
 import { packageVersion } from "../version.js";
 import type { Edge, Vertex } from "../schema.js";
+import type { FileHashes } from "./unextracted.js";
 
 export type SkillField = { path: string; body: string; contentHash: string };
 
@@ -48,7 +49,8 @@ export function writeAstOutput(
   conceptName: string,
   vertices: Vertex[],
   edges: Edge[],
-  skill: SkillField | undefined
+  skill: SkillField | undefined,
+  files?: FileHashes
 ): void {
   const outputDir = join(config.configRoot, "scribe-output");
   mkdirSync(outputDir, { recursive: true });
@@ -57,7 +59,11 @@ export function writeAstOutput(
     vertices,
     edges,
     ...(skill && { skill }),
-    meta: { extractor_version: `code-graph@${packageVersion()}`, extracted_at: new Date().toISOString() },
+    meta: {
+      extractor_version: `code-graph@${packageVersion()}`,
+      extracted_at: new Date().toISOString(),
+      ...(files && { files }),
+    },
   };
   const path = join(outputDir, `${conceptName}.ast.json`);
   // meta describes the last real change to the content (vertices, edges, skill), not the last run: when
@@ -71,7 +77,13 @@ export function writeAstOutput(
     JSON.stringify({ vertices: previous.vertices, edges: previous.edges, skill: previous.skill }) ===
       JSON.stringify({ vertices: output.vertices, edges: output.edges, skill: output.skill })
   ) {
-    output.meta = { extractor_version: previous.meta.extractor_version, extracted_at: previous.meta.extracted_at };
+    // `meta.files` is a fresh scan, not content: it moves with the source (a comment edit changes a hash
+    // but no vertex) while the version and timestamp stay.
+    output.meta = {
+      extractor_version: previous.meta.extractor_version,
+      extracted_at: previous.meta.extracted_at,
+      ...(files && { files }),
+    };
   }
   writeFileSync(path, JSON.stringify(output, null, 2), "utf-8");
 }

@@ -25,6 +25,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
+| `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
 | `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs |
 | `scribe/rows.ts` | row shaping and `toMatchExpr` (query stopwords are stripped in JS) |
 
@@ -49,7 +50,10 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 - `.ast.json` is byte-stable for unchanged code: no per-item `ast.extracted_at` in the file (`apply`
   stamps it into the store), and the whole `meta` (`extractor_version` + `extracted_at`) is kept when
   vertices, edges and skill are unchanged. So `meta.extractor_version` = the version that last
-  changed the file's content; there is no per-vertex `extractor_version` in the file, `apply` fills
+  changed the file's content. `meta.files` (optional path -> sha256 of every code file the globs match,
+  no `SCHEMA_VERSION` bump) is the exception: it moves with the source and is kept even when vertices
+  are unchanged, feeding unextracted-change detection; the first `extract` after 0.3.17 rewrites each
+  file once. There is no per-vertex `extractor_version` in the file, `apply` fills
   the store's `ast.extractor_version` from `meta` (a legacy per-vertex value still wins).
 - Re-apply replaces all AST edges; agent-authored edges are upserted separately.
 - The concept SKILL.md becomes a `docs/<concept>::skill` vertex with `documented-by` edges to every

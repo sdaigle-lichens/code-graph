@@ -340,3 +340,69 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - `maestro-epic link` doesn't re-parse `## Blocked by`, so I set `blockedBy` in `status.json` by
     hand.
   - Versions are a plan only: each task takes the next free patch if another ships first.
+- 023 (0.3.16, not committed): worker maestro-5b4ae740, report r021. Acked, worker recorded.
+  - Cause found: `unicode61` doesn't split camelCase, so `parseGapsHandled` was the single token
+    `parsegapshandled`. Enriched purposes also crowded the 10 seeds. The fix indexes names plus
+    their words (`nameIndexText`); `FTS_WEIGHTS` is unchanged. Low confidence uses exit 7,
+    `low_confidence` in JSON and a fallback line. Exact symbol hits and docs-only concepts are
+    exempt.
+  - Worker results: maestro eval 2/8 → 7/8. `ma-design-check` still fails because nothing ties
+    "design check" to `seedSkillsFor`.
+  - Verified by me: 364/364 package tests, `just eval` 7/7. Ran four queries against maestro's
+    store: gap-ack, install-runtime and fork now surface the right concept and vertex, all with
+    exit 7 and the fallback line. "design check" lands in log-view and is flagged low.
+  - Not run: `claude plugin validate` (no `claude` on PATH in the sandbox; the user runs it).
+  - Gap found: a store indexed before 0.3.16 keeps its old FTS rows until `reindex`/`apply`, and
+    nothing says so. Added as item 4 to 025: an FTS format stamp, and search reindexes once.
+  - Unrelated in the worktree: a maestro runtime update to 0.12.2 (`.claude/scripts/*`,
+    `settings.json` hooks for `maestro-session-name.cjs`, `maestro.json`). Kept out of the 023
+    commit.
+- manager-code-graph-merge acked 0.3.16, 023–027 and both corrections.
+  - No maestro hook maps search exit codes, so exit 7 needs no change there.
+  - maestro's own tasks: R6 install command is 115; R9 re-stamp and the "design check" keyword are
+    in 116 (needs 0.3.16 + `reindex`). Uninstalling concept-skills@maestro is the user's.
+  - Flagged back: 116's "exits 0" criterion can't pass while maestro-architecture is un-enriched,
+    because 0.3.16 exits 7 for an under-enriched top concept unless the hit is an exact symbol name.
+  - They are waiting on 027 for the R7 fixture path.
+  - Resolved: 116 now reads "`seedSkillsFor` in the top 5, exit 0 or 7". There's no enrichment to
+    reach 50%, because lazy enrichment is the steady state.
+- 023 committed as e47e776 (not by me).
+- 024 (0.3.17, not committed): worker maestro-898f8113, report r022. Acked, worker recorded.
+  - `extract` records a sha256 per code file in `.ast.json` `meta.files`. `scribe/unextracted.ts`
+    (fs/crypto/minimatch only) rescans and reports `unextracted: { changed, new, removed }` in files,
+    in `skills status` and `drift`. The update flows extract + apply when it's non-zero. Layer 1 is
+    guarded by `skills/unextracted-imports.test.ts`.
+  - Verified by me:
+    - 377/377 package tests and `just eval` 7/7.
+    - I ran the pending extract + apply for scribe-pipeline and concept-skills-layer (ts-morph
+      resolves from this repo's own install); the new ast.json has `meta.files`.
+    - End to end, a throwaway new file under `src/scribe/` showed as "1 new" in both `skills status`
+      and `drift` (with the extract + apply hint). Deleted afterwards.
+  - Known limits from the reviewer, accepted for now: `SKIP_DIRS` is hard-coded (a concept globbing
+    `dist`/`build` isn't scanned), and every status call hashes every matched file.
+  - An ast.json written before 0.3.17 reports no `unextracted` until its next extract. Consumers with
+    committed ast.json see each one change once.
+  - Root `pnpm test` through turbo still fails in the sandbox (TMPDIR). The worker also saw 4 failures
+    with `--env-mode=loose` that it calls sandbox-only; I haven't checked them. The turbo
+    `globalPassThroughEnv` fix is still the user's call.
+  - maestro's 116 now needs 0.3.17 and extracts and applies every concept. I corrected its check:
+    docs-only ast.json carries no `meta.files` by design (`extractDocsOnly`; confirmed on
+    concept-skills-layer), and stamped-only skills with no `concepts` entry get no ast.json.
+    Suggested: `meta.files` only where vertices > 0. Accepted: 116 now uses that wording, and checks
+    marked skills with no `concepts` entry only through their git window.
+- 025 (0.3.18): worker maestro-27239325, report r023. Acked, worker recorded. It was built in the
+  worktree `../code-graph-task-025` (branch `task-025`, from e47e776), uncommitted.
+  - Built: scribe SKILL.md 16 666 → 8 958 B, with the procedure in `scribe/enrichment.md`; `gaps`
+    compacted and trimmed before hits, with `dropped.gaps` and a floor of ~150 tokens;
+    `skills status --summary`; `FTS_FORMAT=2` in a meta table, so search reindexes once.
+  - Verified by me in the worktree: 383/383, scribe 8 958 B, gap-contract text unchanged.
+  - Findings, not ticketed yet:
+    - a truly read-only `graph.db` fails earlier, in `bootstrapStore` (same on HEAD), so the reindex
+      hint only shows on lock/busy;
+    - "unwritable" is also returned on a busy lock.
+  - Blocker: it overlaps the uncommitted 024 in skills/commands.ts, report.ts, the update skill,
+    usage.md, CLAUDE.md, the versions and the bundle. The order is to commit 024, then the worker
+    rebases task-025, keeps `unextracted` in `--summary`, and regenerates the bundle. Told the worker
+    to hold.
+  - Lesson: a worker in a separate worktree branches from HEAD and misses uncommitted sibling work.
+    Commit each finished task before the next one starts.
