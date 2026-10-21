@@ -11,7 +11,15 @@ One query returns: the SKILL.md invariants, precisely scoped code vertices with 
 In Claude Code:
 
 ```
-/plugin install code-graph --marketplace sdaigle-lichens/code-graph
+/plugin marketplace add sdaigle-lichens/code-graph
+/plugin install code-graph@code-graph
+```
+
+Or from a shell:
+
+```
+claude plugin marketplace add sdaigle-lichens/code-graph
+claude plugin install code-graph@code-graph
 ```
 
 ## Docs
