@@ -465,3 +465,6 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   refuses) when mapped files changed but SKILL.md didn't (committed or uncommitted), and `--reviewed`
   suppresses it; the flows need a one-line reason per stamp-only. Blocked by 028 (same stamp action,
   flow skills and usage.md); one worker can take both in sequence.
+- Contract rule (maestro request, user-approved here): `.claude/rules/plugin-skills.md` now requires
+  any `plugin/contracts/` change to be called out in that version's release note to maestro, with the
+  old and new shape. A breaking change keeps accepting the old shape for one version.

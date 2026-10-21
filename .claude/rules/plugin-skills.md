@@ -16,6 +16,9 @@ Concept-skill flows shipped with the plugin. Each calls only
 - `scribe` is the only scribe skill (enrichment lives in it). Keep its gap-channel contract
   (`.claude/channels/scribe/<agent>.1.md` with `{ "skill_gaps": [{ "skill", "missing" }] }`) verbatim:
   maestro depends on it. The format is pinned by `plugin/contracts/skill-gaps.example.json` and a test.
-  Maestro vendors `plugin/contracts/skill-gaps.{example,schema}.json` into its own test fixtures (copied
-  at 0.3.20): any contract change must be sent to maestro's manager so it re-copies them.
+  Maestro vendors `plugin/contracts/skill-gaps.{example,schema}.json` into its test fixtures (copied at
+  0.3.20) and never reads them from here. Any change under `plugin/contracts/` must be called out in
+  that version's release note to maestro's manager, with the old and new shape. A breaking change (a
+  renamed or removed field, or a new required one) keeps accepting the old shape for one version so
+  maestro can follow.
 - Nothing developer-facing (`CLAUDE.md`, `.claude/`) may live under `plugin/`; `pnpm check` fails on it.
