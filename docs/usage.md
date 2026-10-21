@@ -229,9 +229,9 @@ the `skills` block of `scribe.config.json`. They work in any repo — no store, 
 | `code-graph skills agents-set [names...]`  | Replace the agents list (no names empties it)                               |
 
 Versions are `major.minor`: `initial` writes 1.0, a list-wide update bumps the minor, a single-concept
-deep pass bumps the major. **A repo-level `skills stamp` without `--bump` defaults to `initial` and
-resets the version to 1.0** — pass `--bump minor|major` when migrating an existing list (e.g. from
-`.claude/concept-skills.json`).
+deep pass bumps the major. **A repo-level `skills stamp` without `--bump` refuses (exit 1, nothing
+written) when a version already exists** in `scribe.config.json` or the legacy `.claude/concept-skills.json`;
+with none it stamps 1.0. Pass `--bump minor|major` explicitly, or `--bump initial` to reset to 1.0 on purpose.
 
 ### Concept-skill skills (plugin)
 

@@ -148,8 +148,8 @@ Exit 9 means the sandbox blocked the SKILL.md write: the output says `set exactl
 metadata block:` (or, for an unmarked skill, `replace the metadata block (or add it to the frontmatter)
 with exactly:`) and the lines. Apply them with Edit, then re-run `cg skills status`.
 
-Never call a bare `skills stamp` without `--bump`: at repo level it defaults to `initial` and resets
-the version to 1.0. Pass `--sha <session-start-commit>` if the session committed since it started.
+Never call a bare `skills stamp` without `--bump`: at repo level it refuses (exit 1) over an
+existing version; `--bump initial` would reset it to 1.0. Pass `--sha <session-start-commit>` if the session committed since it started.
 
 **Then the graph** (skip entirely with no tsconfig / no `concepts`). Run it for every concept whose
 skill you revised **and** every concept with a non-zero `unextracted` count, even when its skill text

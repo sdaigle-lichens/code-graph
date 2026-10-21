@@ -235,6 +235,55 @@ for (const cli of CLIS) {
       assert.equal(fs.readFileSync(path.join(tmp, "scribe.config.json"), "utf8"), bad);
     });
 
+    describe("repo-level stamp without --bump", () => {
+      const sources = {
+        "scribe.config.json": () =>
+          write(
+            "scribe.config.json",
+            JSON.stringify({ project: "p", skills: { version: "1.30", last_update: "old" } })
+          ),
+        "legacy .claude/concept-skills.json": () =>
+          write(".claude/concept-skills.json", JSON.stringify({ version: "1.30", last_update: "old" })),
+      };
+      for (const [name, seed] of Object.entries(sources)) {
+        it(`refuses over a version in ${name}: exit 1, nothing written, names version and options`, () => {
+          seed();
+          const cfg = path.join(tmp, "scribe.config.json");
+          const before = fs.existsSync(cfg) ? fs.readFileSync(cfg) : null;
+          const r = run(cli.path, ["skills", "stamp", "--sha", "new", "--root", tmp]);
+          assert.equal(r.code, 1);
+          assert.match(r.stderr, /1\.30/);
+          assert.match(r.stderr, /--bump minor\|major/);
+          assert.match(r.stderr, /--bump initial/);
+          assert.equal(r.stdout, "");
+          if (before) assert.ok(fs.readFileSync(cfg).equals(before));
+          else assert.equal(fs.existsSync(cfg), false);
+          assert.equal(json(run(cli.path, ["skills", "state", "--root", tmp])).version, "1.30");
+        });
+      }
+
+      it("with no existing version stamps 1.0; --bump initial over an existing version still resets", () => {
+        write("scribe.config.json", JSON.stringify({ project: "p" }));
+        assert.equal(json(run(cli.path, ["skills", "stamp", "--sha", "a", "--root", tmp])).version, "1.0");
+        run(cli.path, ["skills", "stamp", "--bump", "minor", "--sha", "b", "--root", tmp]);
+        assert.equal(json(run(cli.path, ["skills", "state", "--root", tmp])).version, "1.1");
+        const reset = run(cli.path, ["skills", "stamp", "--bump", "initial", "--sha", "c", "--root", tmp]);
+        assert.equal(reset.code, 0, reset.stderr);
+        assert.equal(json(reset).version, "1.0");
+      });
+
+      it("a stamp without --bump never decreases an existing version (repo level and per skill)", () => {
+        write("scribe.config.json", JSON.stringify({ project: "p", skills: { version: "1.30", last_update: "old" } }));
+        const p = write(".claude/skills/auth/SKILL.md", marked("auth", "2.7"));
+        const repo = run(cli.path, ["skills", "stamp", "--root", tmp]);
+        const skill = run(cli.path, ["skills", "stamp", "auth", "--root", tmp]);
+        assert.equal(repo.code, 1);
+        assert.equal(skill.code, 1);
+        assert.equal(json(run(cli.path, ["skills", "state", "--root", tmp])).version, "1.30");
+        assert.match(fs.readFileSync(p, "utf8"), /version: "2\.7"/);
+      });
+    });
+
     it("stamp <skill>: an unmarked skill gets the initial 1.0, a marked one needs --bump", () => {
       const p = write("apps/api/.claude/skills/job-queue/SKILL.md", unmarked("job-queue"));
       const first = run(cli.path, ["skills", "stamp", "job-queue", "--sha", "s1", "--root", tmp]);
@@ -340,6 +389,50 @@ for (const cli of CLIS) {
           } finally {
             fs.chmodSync(p, 0o644);
           }
+        });
+      }
+
+      for (const kind of ["marked", "unmarked"] as const) {
+        it(`${kind} CRLF: exit 9 and --print lines, applied verbatim, equal a writable stamp (CRLF kept)`, () => {
+          const { p, sha, original } = setup((s) =>
+            (kind === "marked" ? marked("auth", "1.2", s) : unmarked("auth")).replace(/\n/g, "\r\n")
+          );
+          const bump = kind === "marked" ? ["--bump", "minor"] : [];
+          const args = ["skills", "stamp", "auth", ...bump, "--sha", sha, "--root", tmp];
+
+          // Apply printed lines the way Edit would on a CRLF file: each line keeps the file's EOL.
+          const applyCrlf = (lines: string[]): string => {
+            assert.ok(lines.every((l) => !l.includes("\r")));
+            if (lines[0].startsWith("metadata:")) {
+              return original.replace(/\r\n---\r\n/, `\r\n${lines.join("\r\n")}\r\n---\r\n`);
+            }
+            return original
+              .split("\r\n")
+              .map((l) => lines.find((x) => x.split(":")[0] === l.split(":")[0] && l.startsWith(" ")) ?? l)
+              .join("\r\n");
+          };
+
+          fs.chmodSync(p, 0o444);
+          let blockedLines: string[];
+          let printedLines: string[];
+          try {
+            const blocked = run(cli.path, [...args, "--json"]);
+            assert.equal(blocked.code, 9, blocked.stderr);
+            blockedLines = json(blocked).blocked.lines;
+            const printed = run(cli.path, [...args, "--print", "--json"]);
+            assert.equal(printed.code, 0, printed.stderr);
+            printedLines = json(printed).blocked.lines;
+            assert.deepEqual(printedLines, blockedLines);
+            assert.ok(fs.readFileSync(p, "utf8") === original);
+          } finally {
+            fs.chmodSync(p, 0o644);
+          }
+          const applied = applyCrlf(blockedLines);
+          const writable = run(cli.path, args);
+          assert.equal(writable.code, 0, writable.stderr);
+          const stamped = fs.readFileSync(p, "utf8");
+          assert.equal(stamped, applied);
+          assert.equal(stamped.replace(/\r\n/g, "").includes("\n"), false, "stamp must keep CRLF throughout");
         });
       }
 

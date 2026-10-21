@@ -116,6 +116,14 @@ export function registerSkillsCommands(program: Command): void {
 
         if (!target) {
           const current = readConceptSkillsState(projectRoot);
+          // No version yet: the first stamp is `initial`. An existing one is never reset implicitly;
+          // create (initial), update (minor) and deepen (major) differ, so the caller must say which.
+          if (!opts.bump && current?.version) {
+            die(
+              `stamp needs --bump minor|major (current repo-level version is ${current.version}); ` +
+                "use --bump initial to reset it to 1.0 deliberately"
+            );
+          }
           const version = nextVersion(current?.version, opts.bump ?? "initial");
           if (!version) die("stamp needs --bump minor|major|initial");
           let written: boolean;

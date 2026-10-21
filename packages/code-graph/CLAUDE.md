@@ -154,8 +154,8 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   (`summarizeStatus`, `skills/report.ts`). `concept|impact|cross|vertex|file --json`
   (`query/run.ts`) still bypass `--max-tokens`. See the `code-graph-search` skill.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
-- A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
-  `--bump minor|major` when migrating an existing list.
+- A repo-level `skills stamp` without `--bump` **refuses** (exit 1, nothing written) when a
+  version exists (config or legacy file); `--bump initial` resets to 1.0 on purpose. Always pass `--bump`.
 - `skills stamp` exits **9** (`EXIT_STAMP_NOT_WRITTEN`) when the SKILL.md write hits EROFS/EPERM/EACCES
   (`isWriteBlocked`): `planStamp` computes the result, the CLI prints the lines to apply by hand.
   `--print` forces that path with exit 0.

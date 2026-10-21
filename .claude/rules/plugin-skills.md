@@ -10,7 +10,7 @@ Concept-skill flows shipped with the plugin. Each calls only
 
 - Every flow must work with no tsconfig: graph steps (`catalog`, `extract`, `apply`, `drift`) are
   skipped and staleness comes from `skills status`' git-diff window.
-- Repo-level `skills stamp` without `--bump` resets to **1.0**. Create = `--bump initial`,
+- Repo-level `skills stamp` without `--bump` **refuses** over an existing version (1.0 only when none exists). Create = `--bump initial`,
   update = `--bump minor`, single-skill deepening = `--bump major`; install's migration of
   `.claude/concept-skills.json` uses `skills agents-set` (seeds the block, version untouched).
 - `scribe` is the only scribe skill (enrichment lives in it). Keep its gap-channel contract

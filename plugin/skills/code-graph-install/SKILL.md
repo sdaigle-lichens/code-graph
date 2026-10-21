@@ -42,7 +42,7 @@ $ARGUMENTS
    ```
 
    (pass exactly what `skills agents` printed; no names if it printed `[]`). **Never run a bare
-   `skills stamp` or `skills stamp --bump initial` here**: at repo level it resets the version to 1.0.
+   `skills stamp` or `skills stamp --bump initial` here**: a bare stamp refuses over an existing version and `--bump initial` resets it to 1.0.
    The legacy version must come through unchanged. Re-run `cg skills state` and verify `source` is now
    `scribe.config.json` and `version`/`last_update` equal what you showed. If `scribe.config.json` did
    not exist, the write created it holding only `project` and `skills`; say so — `create-concept-skills`
