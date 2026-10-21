@@ -115,6 +115,10 @@
     {
       "name": "maestro-fef84d2f",
       "added_at": "2026-10-21T15:00:41.494Z"
+    },
+    {
+      "name": "maestro-195f90c4",
+      "added_at": "2026-10-21T15:17:58.653Z"
     }
   ],
   "log": [
@@ -445,6 +449,20 @@
       "kind": "ack",
       "id": "r024",
       "at": "2026-10-21T15:00:41.029Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r025",
+      "task": "027-give-the-gap-file-format-a-tested-owner-and-move-developer-rules-out-of-plugin.md",
+      "file": "inbox/r025-027-give-the-gap-file-format-a-tested-owner-and-move-developer-rules-out-of-plugin.md",
+      "at": "2026-10-21T15:17:51.368Z",
+      "from": "maestro-195f90c4"
+    },
+    {
+      "kind": "ack",
+      "id": "r025",
+      "at": "2026-10-21T15:17:58.337Z",
       "by": "manager-concept-skills-merge"
     }
   ]

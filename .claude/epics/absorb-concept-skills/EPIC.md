@@ -430,3 +430,20 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Worker reports `claude plugin validate` and full `pnpm test` passed outside the sandbox (user-run).
   - Overlap: 027 is in progress in `../code-graph-task-027` from e6c35b8 (already at 0.3.20) and lacks
     026; it touches the version files and the bundle. Commit 026, then 027 rebases.
+  - Landed (user-approved) as e876d55. Asked maestro-195f90c4 (presumed 027 worker) to rebase.
+  - maestro ack: maestro never runs `deps status` or maps code-graph exit codes, so exit 8 and
+    `not-visible` need no maestro change. Still waiting on 027's fixture path.
+- 027 (0.3.20): worker maestro-195f90c4, interim note (no report yet). Rebased onto e876d55: 440/440,
+  check green, eval 7/7; fixture `plugin/contracts/skill-gaps.example.json`. Reviewer/scribe pending,
+  so not landed. The worktree also has a turbo.json `globalPassThroughEnv: ["TMPDIR"]` change, out of
+  scope: kept out of the 027 commit, user decision pending.
+  - Report r025 acked, worker recorded. Built: `plugin/contracts/skill-gaps.{example,schema}.json`;
+    `gap-contract.test.ts` parses the skill_gaps examples in scribe + retrieval SKILL.md against the
+    fixture; scribe says how gaps arrive without maestro; `plugin/skills/CLAUDE.md` moved to
+    `.claude/rules/plugin-skills.md` (paths `plugin/skills/**`); `check-plugin-clean.mjs` in `pnpm check`.
+  - Verified by me in the worktree: 440/440, `pnpm check` 6/6 (incl. check-plugin-clean), `just eval`
+    7/7; bundle rebuilt differs from e876d55 only in the version string. Contract path/format unchanged.
+  - Follow-up suggested by the worker: a test for check-plugin-clean's exit code.
+  - Landed (user-approved) as 82a46ab, plus turbo.json `globalPassThroughEnv: ["TMPDIR"]` as its own
+    commit 5b19298 (user chose a separate commit); branch fast-forwarded cleanly. Fixture path sent to
+    manager-code-graph-merge. All tickets 003-027 done.
