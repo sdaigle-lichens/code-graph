@@ -223,7 +223,7 @@ the `skills` block of `scribe.config.json`. They work in any repo — no store, 
 | `code-graph skills state`                  | Repo-level list record (`{"present": false}` when none yet)                 |
 | `code-graph skills stamp [skill] [--bump minor\|major\|initial] [--sha <sha>]` | Stamp one skill's marker; with no skill, the repo-level `skills` block |
 | `code-graph skills check [--json] [--strict]` | Concepts missing a SKILL.md, path mismatches, unmarked and docs-only skills (`--strict` exits 1) |
-| `code-graph skills status [--json]`        | Per-concept version, last-update and commits since, over its globs          |
+| `code-graph skills status [--json\|--summary]` | Per-concept version, last-update and commits since, over its globs          |
 | `code-graph skills agents`                 | The agents list agent notes may be written for (JSON array)                 |
 | `code-graph skills agents-discover`        | Agents the project has (`.claude/agents` + maestro.json), read-only         |
 | `code-graph skills agents-set [names...]`  | Replace the agents list (no names empties it)                               |
@@ -249,6 +249,18 @@ window of `skills status` and the graph steps are skipped.
 | `code-architecture-design`, `use-code-architecture-design-check` | Design gate and brief; explore uses `query cross` / `impact` | none |
 | `code-graph-install` / `-update` / `-uninstall` | Enable/check/disable the plugin per project; install migrates `.claude/concept-skills.json` into `scribe.config.json` keeping its version | none |
 | `add-concept` | Add one concept to an existing config via seed-driven expansion (`/add-concept [seed]`) | none (hands off to `update-single-concept-skill` for the SKILL.md) |
+
+`skills status --summary` is the compact form (implies JSON; about 2 KB for 16 concepts against 30+ KB
+for `--json`): `{head, list: {v, at, commits}, concepts: [{id, v, at, commits, files, graph?: {vertices,
+enriched, changed, stale}, unextracted?: {changed, new, removed}}]}`. `commits: null` means the window could not be counted. The update flows
+use it; reach for `--json` only for one concept's file list.
+
+Search index format: the FTS row format is recorded in the store's `meta` table (`fts_format`). When
+`search` finds it missing or older (a store indexed before 0.3.18, e.g. one built by 0.3.15), it rebuilds the
+index once; if the store cannot be written it prints one line to stderr saying to run `code-graph reindex`.
+That hint only covers lock/busy-type write failures. A truly read-only `graph.db` (file or directory
+permissions) fails earlier, in `bootstrapStore`, before `search` reaches the index check, so the hint
+never appears for it.
 
 `skills status --json` also carries, per concept, a `graph` block when a store exists:
 `{ extracted, extractedAt, enriched, vertices, enrichedVertices, changed, stale }` (`changed` is the
@@ -276,9 +288,12 @@ The `<location>` argument supports four forms. Detection: if the segment after t
   `query concept|impact|cross|vertex|file --json` ignore it
 - `--json` — emit structured JSON instead of markdown. `search --json` is trimmed to the budget (lowest-ranked
   hits first, then skill bodies, then edge lists) and adds `truncated: true` plus
-  `dropped {hits, edges, clusters, skillBodiesTruncated}` when it trims. `strength` and `gaps` are always kept;
-  budgets below ~405 tokens cannot be honoured (that fixed floor is returned anyway), and under extreme
-  budgets the best hit may be dropped
+  `dropped {hits, edges, clusters, skillBodiesTruncated, gaps}` when it trims. The budget bounds the whole
+  payload (about 4 bytes per token). `gaps` is compact (`{enriched, enrichable, concepts: ["<concept>: <status>
+  <enriched>/<live>", ...]}`, one line per concept with a gap, none listed twice) and is cut first when over
+  budget: first to the concepts the results are about, then to the counts alone (`dropped.gaps` = lines cut);
+  `strength` is always kept. The remaining fixed floor is the empty result skeleton (roughly 150 tokens);
+  under extreme budgets the best hit may be dropped
 - `--direction in|out|both` — impact direction (query impact)
 
 ## `/graph` Slash Command

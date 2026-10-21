@@ -3,8 +3,8 @@ import { preflight } from "./preflight.js";
 import type { Vertex, Edge } from "../schema.js";
 import { oneHop, twoHops, skillDoc, type DocVertex } from "./queries.js";
 import { toDocs, toMatchExpr, vertexId } from "../scribe/rows.js";
-import { FTS_WEIGHTS } from "../scribe/bootstrap.js";
-import { analyzeConceptGaps, fetchConceptCounts, type ConceptGap } from "./gaps.js";
+import { FTS_WEIGHTS, ensureSearchIndexFormat } from "../scribe/bootstrap.js";
+import { analyzeConceptGaps, fetchConceptCounts, isCompactGaps, type CompactGaps, type ConceptGap } from "./gaps.js";
 
 export class SearchNoResultsError extends Error {
   constructor(query: string) {
@@ -268,6 +268,10 @@ export async function search(
   opts: { maxTokens: number; json: boolean; skillMode?: SkillMode }
 ): Promise<SearchResult> {
   const { db: store } = await preflight();
+  // stderr: `--json` keeps stdout parseable.
+  if (ensureSearchIndexFormat(store) === "unwritable") {
+    console.error("search index predates this code-graph and the store is read-only: run `code-graph reindex`");
+  }
   return searchStore(store, query, opts);
 }
 
@@ -616,7 +620,14 @@ function stripSentinels(s: string): string {
   return s.replace(/<!--SKILL_(START|END)-->\n?/g, "");
 }
 
-export type SearchJsonDropped = { hits: number; edges: number; clusters: number; skillBodiesTruncated: number };
+export type SearchJsonDropped = {
+  hits: number;
+  edges: number;
+  clusters: number;
+  skillBodiesTruncated: number;
+  /** Concept lines cut from the compact `gaps` block. */
+  gaps: number;
+};
 
 /**
  * The `search --json` payload trimmed to `maxTokens` (same 4-chars-per-token estimate as the plain-text
@@ -630,15 +641,42 @@ export function budgetSearchJson(
   extra: Record<string, unknown>,
   maxTokens: number
 ): Record<string, unknown> {
-  const render = (r: SearchResult, meta?: Record<string, unknown>) => ({ ...r, ...extra, ...meta });
+  // A compact `gaps` block (CompactGaps) is trimmed before any hit is: all lines, then the concepts
+  // the results are about (or the first 3), then counts only. Any other `gaps` shape is opaque.
+  const gaps = isCompactGaps(extra.gaps) ? (extra.gaps as CompactGaps) : null;
+  const relevant = new Set(result.clusters.map((c) => c.concept));
+  const gapLines = (level: number): string[] => {
+    if (!gaps || level === 0) return gaps?.concepts ?? [];
+    if (level >= 2) return [];
+    const hit = gaps.concepts.filter((l) => relevant.has(l.slice(0, l.indexOf(":"))));
+    return hit.length > 0 ? hit : gaps.concepts.slice(0, 3);
+  };
+  let gapLevel = 0;
+  const render = (r: SearchResult, meta?: Record<string, unknown>) => ({
+    ...r,
+    ...extra,
+    ...(gaps ? { gaps: { ...gaps, concepts: gapLines(gapLevel) } } : {}),
+    ...meta,
+  });
   const size = (o: unknown) => estimateTokens(JSON.stringify(o, null, 2));
+  const gapsDropped = () => (gaps ? gaps.concepts.length - gapLines(gapLevel).length : 0);
   if (size(render(result)) <= maxTokens) return render(result);
+  if (gaps) {
+    for (gapLevel = 1; gapLevel <= 2; gapLevel++) {
+      const trimmed = render(result, {
+        truncated: true,
+        dropped: { hits: 0, edges: 0, clusters: 0, skillBodiesTruncated: 0, gaps: gapsDropped() },
+      });
+      if (size(trimmed) <= maxTokens) return trimmed;
+    }
+    gapLevel = 2;
+  }
 
   const edgeCount = (h: SearchHit) => h.edges_in.length + h.edges_out.length + h.cross_edges.length;
   const ranked = Array.from(new Set(result.hits.concat(result.clusters.flatMap((c) => c.hits)))).sort(
     (a, b) => b.score - a.score
   );
-  const dropped: SearchJsonDropped = { hits: 0, edges: 0, clusters: 0, skillBodiesTruncated: 0 };
+  const dropped: SearchJsonDropped = { hits: 0, edges: 0, clusters: 0, skillBodiesTruncated: 0, gaps: gapsDropped() };
   const gone = new Set<SearchHit>();
   let skillLimit: number | null = null;
   // Per-hit compaction: cap each edge list and slim the vertices/edges inside it. null = untouched.

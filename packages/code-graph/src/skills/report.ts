@@ -140,6 +140,53 @@ export interface StatusReport {
   concepts: ConceptStatus[];
 }
 
+export interface StatusSummary {
+  head: string;
+  list: { v: string; at: string; commits: number | null } | null;
+  concepts: {
+    id: string;
+    v: string | null;
+    at: string | null;
+    /** Commits since `at` over the concept's globs; null when not countable. */
+    commits: number | null;
+    files: number;
+    /** Live vertices / enriched / changed / stale; absent when the store holds none for the concept. */
+    graph?: { vertices: number; enriched: number; changed: number; stale: number };
+    /** Source files edited / added / removed since the last extract (counts only); absent until the .ast.json records them. */
+    unextracted?: { changed: number; new: number; removed: number };
+  }[];
+}
+
+/** The compact form of `skills status --json` (one short entry per concept; no globs, paths or file lists). */
+export function summarizeStatus(report: StatusReport): StatusSummary {
+  return {
+    head: report.head.slice(0, 8),
+    list: report.list
+      ? { v: report.list.version, at: report.list.lastUpdate.slice(0, 8), commits: report.list.commitsSince }
+      : null,
+    concepts: report.concepts.map((c) => ({
+      id: c.concept ?? c.skill ?? "?",
+      v: c.version,
+      at: c.lastUpdate ? c.lastUpdate.slice(0, 8) : null,
+      commits: c.commitsSince,
+      files: c.filesChanged.length,
+      ...(c.graph
+        ? {
+            graph: {
+              vertices: c.graph.vertices,
+              enriched: c.graph.enrichedVertices,
+              changed: c.graph.changed,
+              stale: c.graph.stale,
+            },
+          }
+        : {}),
+      ...(c.unextracted
+        ? { unextracted: { changed: c.unextracted.changed, new: c.unextracted.new, removed: c.unextracted.removed } }
+        : {}),
+    })),
+  };
+}
+
 /** Runs git in `projectRoot`; null when git fails (not a repository, unknown sha, no git). */
 export function git(projectRoot: string, args: string[]): string | null {
   try {

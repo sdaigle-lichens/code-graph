@@ -264,8 +264,14 @@ program
   .action(async (query: string, opts: { maxTokens?: string; json?: boolean; fullSkill?: boolean }) => {
     const { search, applyTokenBudget, budgetSearchJson, SearchNoResultsError } = await lazy.search();
     const { preflight } = await lazy.preflight();
-    const { classifyStrength, computeGapReport, buildSuccessNote, formatGapDiagnostic, uncoveredSourceFiles } =
-      await lazy.gaps();
+    const {
+      classifyStrength,
+      computeGapReport,
+      compactGaps,
+      buildSuccessNote,
+      formatGapDiagnostic,
+      uncoveredSourceFiles,
+    } = await lazy.gaps();
     try {
       const maxTokens = parseInt(opts.maxTokens ?? "3000", 10);
       const json = opts.json ?? false;
@@ -276,7 +282,7 @@ program
       if (json) {
         // Always include strength and gaps; trim the rest to --max-tokens (the eval harness calls search() directly).
         const { db, config } = await preflight();
-        const gaps = await computeGapReport(db, config);
+        const gaps = compactGaps(await computeGapReport(db, config));
         const low = result.confidence?.low === true;
         const extra = {
           strength,

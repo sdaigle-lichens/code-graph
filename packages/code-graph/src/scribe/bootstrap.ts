@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS concepts (
   doc TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
   ref_kind UNINDEXED,
   ref_key  UNINDEXED,
@@ -75,6 +80,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
 
 /** Bumped when the schema changes in a way an older binary cannot read. */
 export const SCHEMA_VERSION = 1;
+
+/**
+ * Format of the `search_fts` rows, stored in `meta` (`fts_format`) by `rebuildSearchIndex`. Bump it
+ * whenever the indexed text changes (1 = raw names; 2 = names split into words, 0.3.16). `search`
+ * reindexes once when the store holds a lower value. Not a schema change: no SCHEMA_VERSION bump.
+ */
+export const FTS_FORMAT = 2;
 
 /** Column weights for bm25(), mirroring the boosts the ArangoSearch view used. */
 export const FTS_WEIGHTS = { name: 3.0, purpose: 2.0, tags: 1.5, body_md: 1.0 };
@@ -118,6 +130,45 @@ export function rebuildSearchIndex(store: DatabaseSync): void {
         FROM docs
   `);
   store.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
+  store
+    .prepare(
+      "INSERT INTO meta(key, value) VALUES ('fts_format', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    )
+    .run(String(FTS_FORMAT));
+}
+
+/** The FTS row format the index was built with; 0 when never recorded (built before 0.3.18). */
+export function storedFtsFormat(store: DatabaseSync): number {
+  const row = store.prepare("SELECT value FROM meta WHERE key = 'fts_format'").get() as { value: string } | undefined;
+  return row ? Number(row.value) || 0 : 0;
+}
+
+export type IndexFormatCheck = "current" | "rebuilt" | "unwritable";
+
+/**
+ * Brings an index built by an older code-graph up to `FTS_FORMAT`: rebuilds it once, or reports
+ * `unwritable` (the caller tells the user to run `code-graph reindex`). A store with nothing to
+ * index is left alone.
+ */
+export function ensureSearchIndexFormat(store: DatabaseSync): IndexFormatCheck {
+  if (storedFtsFormat(store) >= FTS_FORMAT) return "current";
+  const n = store.prepare("SELECT (SELECT count(*) FROM vertices) + (SELECT count(*) FROM docs) AS n").get() as {
+    n: number;
+  };
+  if (n.n === 0) return "current";
+  try {
+    store.exec("BEGIN IMMEDIATE");
+    try {
+      rebuildSearchIndex(store);
+      store.exec("COMMIT");
+    } catch (err) {
+      store.exec("ROLLBACK");
+      throw err;
+    }
+    return "rebuilt";
+  } catch {
+    return "unwritable";
+  }
 }
 
 /** Creates the store file and schema if absent; safe to call repeatedly. */

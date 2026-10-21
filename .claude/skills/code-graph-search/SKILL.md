@@ -69,8 +69,12 @@ because a bare `AND` / `OR` / `NEAR` / `*` / `-` / `:` in user input is an FTS5 
 exact identifier query still matches the whole token. `toMatchExpr` also offers the words of a
 `SCREAMING_SNAKE` token alongside the phrase. Why: in a consumer where most concepts are
 un-enriched, only enriched purposes matched plain-language queries, so the two enriched concepts
-crowded out everything else (maestro eval 2/8 -> 7/8). An index built before 0.3.16 needs
-`code-graph reindex`.
+crowded out everything else (maestro eval 2/8 -> 7/8). The row format is `FTS_FORMAT`
+(`bootstrap.ts`), stored in the `meta` table by `rebuildSearchIndex`; `search` calls
+`ensureSearchIndexFormat` and rebuilds once when it is missing or older, or prints one stderr line
+telling the user to run `code-graph reindex` when the rebuild hits a lock/busy-type write failure (a truly
+read-only `graph.db` fails earlier, in `bootstrapStore`, so no hint). Bump `FTS_FORMAT` when the
+indexed text changes.
 
 `LIMIT 10` — top 10 seeds only. No surviving tokens, or no matches → `SearchNoResultsError`
 (CLI exit 6).
@@ -195,18 +199,22 @@ before the budget step or the figure and `--max-tokens` both shift.
 ### `--json` budget (`budgetSearchJson`)
 
 `search --json` is trimmed to `--max-tokens` (default 3000, same 4-chars-per-token estimate, sized on
-the pretty-printed JSON). `strength` and `gaps` (`extra`) are always kept and count against the budget.
-Under budget the payload is unchanged. When it trims it adds `truncated: true` and
-`dropped { hits, edges, clusters, skillBodiesTruncated }`; same shape otherwise.
+the pretty-printed JSON), and the budget bounds the whole payload. `strength` (`extra`) is always kept;
+`gaps` is the compact `CompactGaps` from `gaps.ts` (`enriched`, `enrichable`, and one `concepts` line
+per concept with a gap, in declaration order; the full `GapReport` bucketed every concept twice and is
+no longer emitted). Under budget the payload is unchanged. When it trims it adds `truncated: true` and
+`dropped { hits, edges, clusters, skillBodiesTruncated, gaps }`; same shape otherwise.
 
-Trim order, stopping at the first that fits: (1) drop lowest-ranked hits (and their edges) down to the
+Trim order, stopping at the first that fits: (0) cut `gaps` lines to those of the result's concepts
+(else the first 3), then to none (counts only; `dropped.gaps` counts the cut lines); (1) drop lowest-ranked hits (and their edges) down to the
 top 5, then try keeping only the best 1; (2) truncate skill `body_md` to 2000, 500, then 0 chars;
 (3) compact the surviving hits: cap each edge list at 10, 3, then 0 and slim vertices/edges to key
 fields (the cap tries come before more hits are dropped, so several compacted hits beat one full hit);
 (4) last resort: drop the best hit and emptied clusters.
 
-**Floor ~405 tokens.** Strength, gaps and the empty skeleton are fixed cost; a smaller `--max-tokens`
-cannot be honoured and returns the skeleton anyway.
+**Floor ~150 tokens** (was ~405 before gaps were compactable). Strength, the gap counts and the empty
+skeleton are fixed cost; a smaller `--max-tokens` cannot be honoured and returns the skeleton anyway.
+A non-compact `gaps` value passed to `budgetSearchJson` is opaque and never trimmed.
 
 **Bypass.** `concept`, `impact`, `cross`, `vertex` and `file` `--json` (`query/run.ts`) still ignore
 `--max-tokens`; only `search --json` is budgeted.
@@ -238,6 +246,8 @@ cannot be honoured and returns the skeleton anyway.
 - `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint, not-enriched marker and budget cluster-keep tests
 - `packages/code-graph/src/query/confidence.test.ts` — `assessConfidence` thresholds and exact-hit / docs-only exemptions
 - `packages/code-graph/src/query/search-exit.test.ts` — exit code 7 and `low_confidence` JSON fields
+- `packages/code-graph/src/query/search-gaps-budget.test.ts` — compact `gaps` trimming and `dropped.gaps`
+- `packages/code-graph/src/query/index-format.test.ts` — `fts_format` stamp and one-time reindex
 - `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
 - `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
 - `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)

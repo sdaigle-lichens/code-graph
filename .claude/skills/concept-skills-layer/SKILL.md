@@ -32,6 +32,10 @@ changed, N new, N removed file(s)`): `scribe/unextracted.ts` rescans the globs a
 stay layer-1 safe (fs/crypto/minimatch only; `skills/unextracted-imports.test.ts` guards it). A malformed or
 unknown sha sets `unknownFreshness` (reasons `malformed-sha`, `unknown-commit`).
 
+`skills status --summary` (implies JSON) is the compact form the update flows read: `summarizeStatus`
+in `skills/report.ts` keeps only `head`, `list {v, at, commits}` and per concept `id, v, at, commits,
+files, graph? {vertices, enriched, changed, stale}`; `commits: null` = window not countable.
+
 ## Skill resolution
 
 A concept's SKILL.md is its explicit `skill` path (taken as declared, even if missing), else the

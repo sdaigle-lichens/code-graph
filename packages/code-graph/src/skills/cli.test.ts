@@ -13,6 +13,7 @@
 import { describe, it, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -335,6 +336,50 @@ for (const cli of CLIS) {
       assert.match(text.stdout, /auth {2}v1\.2 {2}1 commit\(s\), 1 file\(s\)/);
     });
 
+    it("status --summary on a 16-concept project is one short JSON line, well under 8 KB", () => {
+      git("init", "-q");
+      const concepts: Record<string, { globs: string[] }> = {};
+      for (let i = 0; i < 16; i++) {
+        const id = `feature-area-${String(i).padStart(2, "0")}`;
+        concepts[id] = { globs: [`src/${id}/**`, `src/shared-${id}/**/*.ts`] };
+        write(`src/${id}/a.ts`, "1");
+      }
+      write("scribe.config.json", JSON.stringify({ project: "p", concepts }));
+      git("add", "-A");
+      git("commit", "-q", "-m", "base");
+      const base = git("rev-parse", "HEAD");
+      for (const id of Object.keys(concepts)) write(`.claude/skills/${id}/SKILL.md`, marked(id, "1.2", base));
+      for (let i = 0; i < 16; i++) write(`src/feature-area-${String(i).padStart(2, "0")}/a.ts`, "2");
+      git("add", "-A");
+      git("commit", "-q", "-m", "change");
+      // Each concept's last extract saw a.ts with the old content, so one file is unextracted.
+      const oldHash = "sha256:" + createHash("sha256").update("1").digest("hex");
+      for (const id of Object.keys(concepts)) {
+        write(`scribe-output/${id}.ast.json`, JSON.stringify({ meta: { files: { [`src/${id}/a.ts`]: oldHash } } }));
+      }
+
+      const r = run(cli.path, ["skills", "status", "--summary", "--root", tmp]);
+      assert.equal(r.code, 0, r.stderr);
+      assert.equal(r.stderr, "");
+      assert.ok(r.stdout.length <= 8 * 1024, `summary is ${r.stdout.length} bytes`);
+      assert.equal(r.stdout.trim().split("\n").length, 1, "one line");
+      const s = json(r);
+      assert.deepEqual(Object.keys(s).sort(), ["concepts", "head", "list"]);
+      assert.equal(s.head, git("rev-parse", "HEAD").slice(0, 8));
+      assert.equal(s.list, null);
+      assert.equal(s.concepts.length, 16);
+      assert.deepEqual(s.concepts[0], {
+        id: "feature-area-00",
+        v: "1.2",
+        at: base.slice(0, 8),
+        commits: 1,
+        files: 1,
+        unextracted: { changed: 1, new: 0, removed: 0 },
+      });
+      const full = run(cli.path, ["skills", "status", "--json", "--root", tmp]);
+      assert.ok(r.stdout.length < full.stdout.length / 2, "summary is much smaller than --json");
+    });
+
     it("agents-set / agents / agents-discover", () => {
       assert.deepEqual(json(run(cli.path, ["skills", "agents", "--root", tmp])), []);
       const set = run(cli.path, ["skills", "agents-set", "backend", "test", "--root", tmp]);
@@ -558,6 +603,23 @@ describe("bundle graph commands in a project without typescript", () => {
     const r = run(BUNDLE, ["skills", "list", "--json"]);
     assert.equal(r.code, 0, r.stderr);
     assert.deepEqual(json(r), { count: 0, skills: [] });
+  });
+});
+
+describe("the scribe skill's default load", () => {
+  const dir = path.join(REPO, "plugin/skills/scribe");
+
+  it("SKILL.md stays at or under 9 KB, with the enrichment procedure in enrichment.md", () => {
+    const size = fs.statSync(path.join(dir, "SKILL.md")).size;
+    assert.ok(size <= 9 * 1024, `scribe SKILL.md is ${size} bytes (limit 9216)`);
+    assert.ok(fs.existsSync(path.join(dir, "enrichment.md")), "enrichment.md is missing");
+  });
+
+  it("SKILL.md keeps the gap-channel contract and points at enrichment.md", () => {
+    const body = fs.readFileSync(path.join(dir, "SKILL.md"), "utf8");
+    assert.match(body, /\.claude\/channels\/scribe\//);
+    assert.match(body, /skill_gaps/);
+    assert.match(body, /enrichment\.md/);
   });
 });
 

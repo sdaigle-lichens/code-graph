@@ -132,8 +132,14 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   `GapReport.thinCores` and `enrich targets`, routing to `update-single-concept-skill`.
   Thresholds are constants in `core.ts`; no schema change.
 - `search --json` honours `--max-tokens` (default 3000) via `budgetSearchJson` in `query/search.ts`:
-  adds `truncated`/`dropped` only when trimming, always keeps `strength` + `gaps`, cannot go below a
-  ~405-token floor, and may drop the best hit as a last resort. `concept|impact|cross|vertex|file --json`
+  adds `truncated`/`dropped` (incl. `dropped.gaps`) only when trimming and bounds the whole payload:
+  `gaps` is the compact `CompactGaps` (`query/gaps.ts`, one line per gapped concept, never listed
+  twice) and is cut before any hit (relevant concepts, then counts). `strength` is always kept; the
+  floor is the empty skeleton (~150 tokens), and the best hit may be dropped as a last resort.
+  `search` stamps `meta.fts_format` (`FTS_FORMAT`, `scribe/bootstrap.ts`) in `rebuildSearchIndex` and
+  reindexes once via `ensureSearchIndexFormat` when it is missing or older (no `SCHEMA_VERSION` bump);
+  bump `FTS_FORMAT` whenever the indexed text changes. `skills status --summary` is the compact form
+  (`summarizeStatus`, `skills/report.ts`). `concept|impact|cross|vertex|file --json`
   (`query/run.ts`) still bypass `--max-tokens`. See the `code-graph-search` skill.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass

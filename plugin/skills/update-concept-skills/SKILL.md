@@ -46,15 +46,18 @@ unrecorded: carry on, step 6 records it.
 ### 2. Find the freshness picture
 
 ```bash
-cg skills status --json
+cg skills status --summary
 cg skills check --json
 ```
 
-`status` gives per concept `version`, `lastUpdate`, `commitsSince`, `filesChanged` (over the
-concept's globs) and `scope`; `list` carries the repo-level window. `check` lists concepts with no
+`status --summary` (compact, about 2 KB for 16 concepts; the full `--json` is 30+ KB, read it only
+for one concept's file list) gives per concept `id`, `v` (version), `at` (last-update), `commits`
+and `files` since (over the concept's globs) and a `graph` count block; `list` carries the
+repo-level window. `commits: null` means the window could not be counted (unstamped, unknown
+commit, not a git repo): treat that skill as stale. `check` lists concepts with no
 SKILL.md, path mismatches, unmarked skills and docs-only skills. **Each skill is diffed from its own
 `lastUpdate`**, not the repo's — a skill deepened by `update-single-concept-skill` is ahead, and
-re-doing it wastes the pass. A concept with `commitsSince: 0` is untouched; skip it.
+re-doing it wastes the pass. A concept with `commits: 0` is untouched; skip it.
 
 `status` also carries `unextracted: { changed, new, removed, files[] }` per concept: source files
 under its globs that were edited, added or removed since the last `extract` (file counts, not
@@ -62,13 +65,14 @@ vertices; absent until the concept's `.ast.json` records `meta.files`, i.e. afte
 0.3.17+). Any non-zero count means the graph is behind the source: that concept goes through
 `extract` + `apply` in step 3 and step 6 even when its vertex-level `graph.changed` reads 0.
 
-This works with **no tsconfig and no graph**: `status` is a git-diff window over the globs (`scope`
-falls back to `"repo"` when a concept declares none), and is the whole staleness signal in such a
-repo. If `reason` is `unstamped`/`unknown-commit`/`not-a-git-repo`, treat that skill as stale.
+`--summary` carries it as `unextracted: { changed, new, removed }` (counts only, no `files[]`).
+
+This works with **no tsconfig and no graph**: `status` is a git-diff window over the globs (the
+whole repo when a concept declares none), and is the whole staleness signal in such a repo.
 
 ### 3. Read what moved
 
-For each concept with `commitsSince > 0` or a non-zero `unextracted` count:
+For each concept with `commits > 0` or a non-zero `unextracted` count:
 
 1. **Documentation first** — `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/`. A reframed concept shows
    up here in the author's words.
@@ -87,8 +91,8 @@ For each concept with `commitsSince > 0` or a non-zero `unextracted` count:
    delete+add — revise file maps rather than treating them as new code; `doc.bodyHashChanged` says
    the SKILL.md itself was edited since the last `apply`.
 3. **Without a graph** (no tsconfig, or the concept was never extracted): skip `drift`, and read the
-   window instead — `git diff --stat <lastUpdate>..HEAD -- <globs>` and `filesChanged` from
-   `status`. For a large diff delegate to a subagent and ask only *which concepts are implicated*.
+   window instead — `git diff --stat <lastUpdate>..HEAD -- <globs>` and the file list from
+   `cg skills status --json` (full form; read it for that concept only). For a large diff delegate to a subagent and ask only *which concepts are implicated*.
 
 ### 4. Decide what changes
 

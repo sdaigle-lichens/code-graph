@@ -34,8 +34,8 @@ $ARGUMENTS
    agent not in the list and any listed agent that no longer exists. Ask before changing; apply with
    `cg skills agents-set <name>...`.
 
-4. **Freshness.** Run `cg skills status --json`. `list.commitsSince` is how far the list trails HEAD;
-   each concept row shows its own `commitsSince` and `filesChanged`. This is a git-diff window over
+4. **Freshness.** Run `cg skills status --summary`. `list.commits` is how far the list trails HEAD;
+   each concept row shows its own `commits` and `files` count. This is a git-diff window over
    the concept globs, so it works with no tsconfig and no graph. Offer `update-concept-skills` when
    anything trails. Run `cg skills check --json` and mention concepts with no SKILL.md, path
    mismatches or unmarked skills.

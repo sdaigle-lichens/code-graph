@@ -18,7 +18,7 @@ import {
   stampConceptSkill,
 } from "./concept-skills.js";
 import { formatUnextracted } from "../scribe/unextracted.js";
-import { checkConceptSkills, conceptSkillsStatus, headSha } from "./report.js";
+import { checkConceptSkills, conceptSkillsStatus, headSha, summarizeStatus } from "./report.js";
 import {
   configPath,
   discoverProjectAgents,
@@ -157,8 +157,9 @@ export function registerSkillsCommands(program: Command): void {
     .command("status")
     .description("git freshness per concept: version, last-update, commits since last-update over its globs")
     .option("--json", "machine-readable output")
+    .option("--summary", "compact JSON: id, version, last-update, commits/files since, graph counts (implies --json)")
     .option(rootOption, rootHelp)
-    .action(async (opts: RootOpts & { json?: boolean }) => {
+    .action(async (opts: RootOpts & { json?: boolean; summary?: boolean }) => {
       const projectRoot = resolveProjectRoot(opts.root);
       const report = await conceptSkillsStatus(projectRoot);
       // Layer 1 stays graph-free: the store is only touched (lazily) when its file exists, and any
@@ -183,6 +184,7 @@ export function registerSkillsCommands(program: Command): void {
       } catch {
         // git-only output
       }
+      if (opts.summary) return json(summarizeStatus(report));
       if (opts.json) return json(report);
       if (report.list) {
         const n = report.list.unknownFreshness ? "unknown freshness" : (report.list.commitsSince ?? report.list.reason);

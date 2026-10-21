@@ -108,6 +108,33 @@ export function analyzeConceptGaps(
   };
 }
 
+/** The `gaps` block of `search --json`: counts plus one line per concept that has a gap. Enriched
+ *  concepts are only counted; no concept is listed twice (the full report buckets overlap). */
+export type CompactGaps = {
+  enriched: number;
+  enrichable: number;
+  /** `<concept>: <status> <enriched>/<live>[ no-skill][ thin-core]`, in declaration order. */
+  concepts: string[];
+};
+
+export function compactGaps(report: GapReport): CompactGaps {
+  return {
+    enriched: report.enrichedCount,
+    enrichable: report.enrichableTotal,
+    concepts: report.concepts
+      .filter((c) => c.status !== "enriched")
+      .map(
+        (c) =>
+          `${c.concept}: ${c.status} ${c.enrichedVertices}/${c.liveVertices}` +
+          `${c.enrichable ? "" : " no-skill"}${c.thinCore ? " thin-core" : ""}`
+      ),
+  };
+}
+
+export function isCompactGaps(v: unknown): v is CompactGaps {
+  return !!v && typeof v === "object" && Array.isArray((v as CompactGaps).concepts);
+}
+
 export type ResultStrength = "strong" | "thin";
 
 /** Conservative thinness check — only the genuinely sparse case is "thin". */
