@@ -127,5 +127,36 @@
     "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
+  },
+  "023-keep-search-honest-while-most-concepts-are-un-enriched.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md": {
+    "status": "ready",
+    "blockedBy": [
+      "023-keep-search-honest-while-most-concepts-are-un-enriched.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "026-name-the-fix-when-the-store-can-t-open-and-make-uninstall-list-what-install-added.md": {
+    "status": "ready",
+    "blockedBy": [
+      "023-keep-search-honest-while-most-concepts-are-un-enriched.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "027-give-the-gap-file-format-a-tested-owner-and-move-developer-rules-out-of-plugin.md": {
+    "status": "ready",
+    "blockedBy": [
+      "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md"
+    ],
+    "epic": "absorb-concept-skills"
   }
 }

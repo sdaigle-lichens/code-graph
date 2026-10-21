@@ -306,3 +306,37 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Recurring, both raised again:
     - The scribe's free-text HANDOFF line (`HANDOFF: scribe complete`) is maestro's 114.
     - Root `pnpm test` fails in the sandbox until turbo passes TMPDIR through.
+- maestro's merge review (`~/gits/maestro/.claude/epics/code-graph-cutover/merge-review.md`, sent by
+  manager-code-graph-merge with the user's approval). It reported regressions R1–R9.
+  - R2 (the committed 491 KB bundle) is accepted: no task.
+  - The user decided lazy enrichment is the intended steady state, so R1 is structural.
+  - The reviewer's 8-task eval is copied to `maestro-eval-tasks.json` in this epic dir.
+  - Verified in code before ticketing:
+    - R1, a correction: SKILL.md text is indexed. `search_fts` covers `docs(body_md)` with
+      `FTS_WEIGHTS` body_md 1.0 (name 3, purpose 2). The cause is ranking or expansion, not
+      indexing, so 023 asks for a diagnosis first.
+    - R3: confirmed. `graphFreshness` compares `.ast.json` with the store only.
+    - R4: confirmed. `cli.ts` passes `gaps` as `extra`, which `budgetSearchJson` never trims. Scribe
+      SKILL.md is 16 666 B.
+    - R5: confirmed. `db.ts` imports `node:sqlite` statically behind lazy CLI imports.
+    - The reviewer's ask that `deps status` report ENOENT as "absent" inside the sandbox would break
+      the 0.3.15 case, because bubblewrap hides denied paths as ENOENT. 026 says "absent" only when
+      the cache root is visible, and "not visible" otherwise.
+    - R6: confirmed. The uninstall skill names none of the install-added artefacts.
+    - R7: confirmed. `skill_gaps` appears only in markdown.
+    - R8: `plugin/skills/CLAUDE.md` exists, added in 6ee80fe.
+    - R9: confirmed. The retrieval skill still says it "spins up the enrichment subagent". The stale
+      stamps are maestro's to fix.
+  - Ticketed and linked:
+    - 023 (0.3.16): R1 + R9 wording. Search ranking plus a `low_confidence` flag and a new exit code.
+    - 024 (0.3.17): R3. Detects unextracted source changes by file hash, with no ts-morph in
+      layer 1.
+    - 025 (0.3.18): R4. Scribe enrichment moves to a reference file (≤ 9 KB), `gaps` is budgeted,
+      and `skills status` gets a compact form. Blocked by 023.
+    - 026 (0.3.19): R5 + R6. Node-sqlite exit code, three-way `deps status`, and an uninstall that
+      lists install artefacts. Blocked by 023.
+    - 027 (0.3.20): R7 + R8. Fixture at `plugin/contracts/skill-gaps.example.json`, and the rules file
+      moves to `.claude/rules/`. Blocked by 025.
+  - `maestro-epic link` doesn't re-parse `## Blocked by`, so I set `blockedBy` in `status.json` by
+    hand.
+  - Versions are a plan only: each task takes the next free patch if another ships first.

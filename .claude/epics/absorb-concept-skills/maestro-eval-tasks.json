@@ -1,0 +1,18 @@
+[
+  { "id": "tq-blockedby", "prompt": "blockedBy cascade", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["task-queue"], "vertices_in_top_k": [{ "name": "parseBlockedBy", "k": 5 }, { "name": "buildStatusMap", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "tq-claims", "prompt": "claim a task so two sessions do not grab the same one", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["task-queue"], "vertices_in_top_k": [{ "name": "claimTask", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "av-description", "prompt": "how an agent's description is edited", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["agents-view"], "vertices_in_top_k": [{ "name": "setAgentDescription", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "afs-fork", "prompt": "fork a global agent into the project", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["agent-fork-sync"], "vertices_in_top_k": [{ "name": "forkAgent", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "ma-design-check", "prompt": "design check", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["maestro-architecture"], "vertices_in_top_k": [{ "name": "seedSkillsFor", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "ma-gap-ack", "prompt": "SKILL_GAPS_HANDLED acknowledgement", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["maestro-architecture"], "vertices_in_top_k": [{ "name": "parseGapsHandled", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "ma-handoff-route", "prompt": "HANDOFF route check", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["maestro-architecture"], "vertices_in_top_k": [{ "name": "checkRoute", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } },
+  { "id": "im-install", "prompt": "install the runtime into a project", "mode": "search",
+    "expected": { "concepts_in_top_clusters": ["installing-maestro"], "vertices_in_top_k": [{ "name": "installRuntime", "k": 5 }], "skill_present": true, "min_cross_concept_edges": 0 } }
+]
