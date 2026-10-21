@@ -100,6 +100,8 @@ export interface GitWindow {
   commitsSince: number | null;
   /** Files changed in `<lastUpdate>..HEAD` within the scope; `[]` when it cannot be computed. */
   filesChanged: string[];
+  /** The same files with the commits touching each since `<lastUpdate>` (`[]` when none or not computable). */
+  filesChangedCounts?: { path: string; commits: number }[];
   /** Why `commitsSince` is null: never stamped, a sha git does not know, or not a git repo. */
   reason?: "unstamped" | "unknown-commit" | "malformed-sha" | "not-a-git-repo";
   /** True when the window could not be computed because the recorded sha is unusable (unknown or malformed). */
@@ -223,10 +225,95 @@ export function gitWindow(projectRoot: string, sha: string | null | undefined, g
   if (count === null || files === null) {
     return { commitsSince: null, filesChanged: [], reason: "unknown-commit", unknownFreshness: true };
   }
+  const filesChanged = files.split("\n").filter(Boolean);
   return {
     commitsSince: Number(count.trim()),
-    filesChanged: files.split("\n").filter(Boolean),
+    filesChanged,
+    filesChangedCounts: commitCounts(projectRoot, sha, pathspecs, filesChanged),
   };
+}
+
+/** Commits per file in `<sha>..HEAD` (one `git log --name-only` pass), for the files that differ. */
+function commitCounts(
+  projectRoot: string,
+  sha: string,
+  pathspecs: string[],
+  filesChanged: string[]
+): { path: string; commits: number }[] {
+  if (filesChanged.length === 0) return [];
+  const log = git(projectRoot, ["log", "--format=", "--name-only", "--no-renames", `${sha}..HEAD`, ...pathspecs]);
+  const counts = new Map<string, number>();
+  for (const line of (log ?? "").split("\n")) if (line) counts.set(line, (counts.get(line) ?? 0) + 1);
+  return filesChanged.map((p) => ({ path: p, commits: counts.get(p) ?? 1 }));
+}
+
+/** Files under the concept's globs at HEAD (tracked), for the changed vs. unchanged split. */
+export function mappedFiles(projectRoot: string, globs: string[]): string[] {
+  if (globs.length === 0) return [];
+  const out = git(projectRoot, ["ls-files", "--", ...globs.map((g) => `:(glob)${g}`)]);
+  return (out ?? "").split("\n").filter(Boolean);
+}
+
+/** A SKILL.md without its frontmatter `metadata:` marker lines (`version`, `last-update`), line endings normalised. */
+function stripMarkerLines(text: string): string {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  if (lines[0] !== "---") return lines.join("\n");
+  const end = lines.indexOf("---", 1);
+  if (end === -1) return lines.join("\n");
+  let inMetadata = false;
+  return lines
+    .filter((l, i) => {
+      if (i === 0 || i >= end) return true;
+      if (/^\S/.test(l)) inMetadata = /^metadata:\s*$/.test(l);
+      return !(inMetadata && /^\s+(version|last-update):/.test(l));
+    })
+    .join("\n");
+}
+
+export interface BlindStampWarning {
+  reason: "mapped-files-changed-skill-unchanged";
+  files: string[];
+}
+
+/**
+ * The check behind `skills stamp <skill>`: mapped files changed since the previous stamp while the
+ * SKILL.md did not (not committed in the window, nothing staged or unstaged). Null means no warning,
+ * including every case where the check cannot apply (unstamped, no globs, unusable sha, no git).
+ */
+export function blindStampWarning(projectRoot: string, skill: ConceptSkill): BlindStampWarning | null {
+  if (!skill.lastUpdate) return null;
+  const m = matchConcepts(projectRoot, [skill]).find((c) => c.byPath || c.byName);
+  if (!m || m.config.globs.length === 0) return null;
+  const window = gitWindow(projectRoot, skill.lastUpdate, m.config.globs);
+  if (window.commitsSince === null || window.filesChanged.length === 0) return null;
+  const skillRel = rel(projectRoot, skill.skillPath);
+  // The commit that carried the previous stamp rewrote the metadata marker lines; that alone is not
+  // an edit. Only those lines, inside the frontmatter, are ignored: a body `version:` is prose.
+  const pending = git(projectRoot, ["status", "--porcelain", "--", skillRel]);
+  if (pending === null || pending.trim()) return null;
+  const before = git(projectRoot, ["show", `${skill.lastUpdate}:${skillRel}`]);
+  const after = git(projectRoot, ["show", `HEAD:${skillRel}`]);
+  // Absent at either end (added or removed in the window) is an edit.
+  if (before === null || after === null) return null;
+  if (stripMarkerLines(before) !== stripMarkerLines(after)) return null;
+  return { reason: "mapped-files-changed-skill-unchanged", files: window.filesChanged };
+}
+
+/** One concept's status for `skills status <skill>`, matched like `stamp` (id, directory or SKILL.md path). */
+export function findConceptStatus(
+  projectRoot: string,
+  report: StatusReport,
+  skillPath: string | null,
+  target: string
+): ConceptStatus | null {
+  return (
+    report.concepts.find(
+      (c) =>
+        (skillPath !== null && c.path !== null && resolve(projectRoot, c.path) === skillPath) ||
+        c.skill === target ||
+        c.concept === target
+    ) ?? null
+  );
 }
 
 export async function conceptSkillsStatus(projectRoot: string): Promise<StatusReport> {

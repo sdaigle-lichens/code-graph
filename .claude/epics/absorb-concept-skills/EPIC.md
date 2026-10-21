@@ -491,3 +491,28 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
 - Contract rule (maestro request, user-approved here): `.claude/rules/plugin-skills.md` now requires
   any `plugin/contracts/` change to be called out in that version's release note to maestro, with the
   old and new shape. A breaking change keeps accepting the old shape for one version.
+- 030 landed as 7011b96 (0.3.22) plus bc663f7 (records), committed outside this session; maestro notified.
+- 029 report r028 acked; worker maestro-61c322e9 recorded. Built in the main tree on top of 030, as 0.3.23:
+  - `skills status [skill]` with `filesChangedCounts` (one `git log --name-only` pass) and, in the
+    single-skill form, `filesUnchanged`; the text list is capped at 10, then `+N more`;
+  - `blindStampWarning`: mapped files changed while SKILL.md was untouched in the window and in the
+    working tree; changed `version:`/`last-update:` lines don't count as an edit. It writes to stderr
+    plus `warning` in the JSON, `--reviewed` suppresses it, and it rides along with exit 9;
+  - the update flows require the file list and a one-line reason per stamp-only; scribe has one line.
+  - Verified by me: build, 470/470, `pnpm check` 6/6, `just eval` 7/7, `claude plugin validate` passed;
+    code and skill diffs read.
+  - Open nits:
+    - the marker-line filter matches `version:` anywhere in the file, not only in `metadata:`;
+    - a stamp commit that adds a whole new SKILL.md counts as an edit once, so there is no warning on
+      the first re-stamp after creation;
+    - the `+N more` cap is untested;
+    - scribe SKILL.md is 9090 B (cap 9216).
+    None blocks.
+  - Follow-up sent to the worker (user-approved), done in the same tree:
+    - `blindStampWarning` now compares the SKILL.md at `last-update` against HEAD, stripping only the
+      `version`/`last-update` lines inside the frontmatter `metadata:` block. A body `version:` counts
+      as an edit, and so does an added or removed SKILL.md;
+    - tests for both the marker filter and the `+N more` caps;
+    - usage.md states the first-re-stamp-after-creation limit.
+    Verified by me: build, 474/474, `pnpm check` 6/6, `just eval` 7/7, `claude plugin validate` passed.
+    Size left as is.

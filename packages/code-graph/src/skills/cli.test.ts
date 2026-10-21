@@ -470,6 +470,171 @@ for (const cli of CLIS) {
       });
     });
 
+    describe("per-file status and the blind-stamp warning", () => {
+      const skillRel = ".claude/skills/auth/SKILL.md";
+      const commit = (msg: string) => {
+        git("add", "-A");
+        git("commit", "-q", "-m", msg);
+      };
+
+      // a.ts changes twice, b.ts once, c.ts never; the skill is stamped at the base commit.
+      function setup(bodyExtra = ""): { base: string; p: string } {
+        git("init", "-q");
+        write("scribe.config.json", JSON.stringify({ project: "p", concepts: { auth: { globs: ["src/auth/**"] } } }));
+        write("src/auth/a.ts", "1");
+        write("src/auth/b.ts", "1");
+        write("src/auth/c.ts", "1");
+        commit("base");
+        const base = git("rev-parse", "HEAD");
+        const p = write(skillRel, marked("auth", "1.0", base) + bodyExtra);
+        commit("skill");
+        const stamped = git("rev-parse", "HEAD");
+        fs.writeFileSync(p, marked("auth", "1.0", stamped) + bodyExtra);
+        commit("stamp");
+        write("src/auth/a.ts", "2");
+        commit("a2");
+        write("src/auth/a.ts", "3");
+        write("src/auth/b.ts", "2");
+        commit("a3 b2");
+        return { base: stamped, p };
+      }
+
+      it("status <skill> lists changed files with commit counts and the unchanged ones", () => {
+        setup();
+        const r = run(cli.path, ["skills", "status", "auth", "--json", "--root", tmp]);
+        assert.equal(r.code, 0, r.stderr);
+        const body = json(r);
+        assert.equal(body.concepts.length, 1);
+        const c = body.concepts[0];
+        assert.deepEqual([...c.filesChanged].sort(), ["src/auth/a.ts", "src/auth/b.ts"]);
+        const counts = Object.fromEntries(
+          c.filesChangedCounts.map((f: { path: string; commits: number }) => [f.path, f.commits])
+        );
+        assert.deepEqual(counts, { "src/auth/a.ts": 2, "src/auth/b.ts": 1 });
+        assert.deepEqual(c.filesUnchanged, ["src/auth/c.ts"]);
+        const dir = run(cli.path, ["skills", "status", ".claude/skills/auth", "--json", "--root", tmp]);
+        assert.equal(json(dir).concepts[0].skill, "auth");
+        const text = run(cli.path, ["skills", "status", skillRel, "--root", tmp]);
+        assert.match(text.stdout, /changed {2}src\/auth\/a\.ts {2}\(2 commits\)/);
+        assert.match(text.stdout, /unchanged {2}src\/auth\/c\.ts/);
+        assert.equal(run(cli.path, ["skills", "status", "nope", "--root", tmp]).code, 1);
+      });
+
+      it("a changed body-level version: line counts as a prose edit; marker-only changes still warn", () => {
+        const body = "\n```yaml\nversion: 1\n```\n";
+        const { p } = setup(body);
+        const warned = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]);
+        assert.match(warned.stderr, /warning/);
+        git("checkout", "-q", "--", skillRel);
+        fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace("version: 1\n```", "version: 2\n```"));
+        commit("body version");
+        const quiet = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]);
+        assert.equal(quiet.stderr, "");
+        assert.equal(json(quiet).warning, undefined);
+      });
+
+      it("the text status view caps the changed list at 10 (+N more); status <skill> caps the unchanged list", () => {
+        git("init", "-q");
+        write("scribe.config.json", JSON.stringify({ project: "p", concepts: { auth: { globs: ["src/auth/**"] } } }));
+        for (let i = 0; i < 12; i++) {
+          write(`src/auth/changed${String(i).padStart(2, "0")}.ts`, "1");
+          write(`src/auth/same${String(i).padStart(2, "0")}.ts`, "1");
+        }
+        write(skillRel, marked("auth", "1.0", "x"));
+        commit("base");
+        const stamped = git("rev-parse", "HEAD");
+        fs.writeFileSync(path.join(tmp, skillRel), marked("auth", "1.0", stamped));
+        commit("stamp");
+        for (let i = 0; i < 12; i++) write(`src/auth/changed${String(i).padStart(2, "0")}.ts`, "2");
+        commit("change");
+
+        const full = run(cli.path, ["skills", "status", "--root", tmp]).stdout;
+        assert.equal(full.split("\n").filter((l) => /^ {4}changed {2}/.test(l)).length, 10);
+        assert.match(full, /\+2 more changed file\(s\)/);
+
+        const one = run(cli.path, ["skills", "status", "auth", "--root", tmp]).stdout;
+        assert.equal(one.split("\n").filter((l) => /^ {4}unchanged {2}/.test(l)).length, 10);
+        assert.match(one, /\+2 more unchanged file\(s\)/);
+      });
+
+      it("status --summary stays counts-only", () => {
+        setup();
+        const s = json(run(cli.path, ["skills", "status", "auth", "--summary", "--root", tmp]));
+        assert.equal(s.concepts.length, 1);
+        assert.equal(s.concepts[0].files, 2);
+        assert.equal(s.concepts[0].filesChangedCounts, undefined);
+      });
+
+      it("stamp warns on a blind stamp, still writes, exits 0 and adds warning to the JSON", () => {
+        const { p } = setup();
+        const r = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]);
+        assert.equal(r.code, 0, r.stderr);
+        assert.match(r.stderr, /warning/);
+        assert.match(r.stderr, /src\/auth\/a\.ts/);
+        assert.match(r.stderr, /src\/auth\/b\.ts/);
+        const body = json(r);
+        assert.equal(body.written, true);
+        assert.equal(body.warning.reason, "mapped-files-changed-skill-unchanged");
+        assert.deepEqual([...body.warning.files].sort(), ["src/auth/a.ts", "src/auth/b.ts"]);
+        assert.match(fs.readFileSync(p, "utf8"), /version: "1\.1"/);
+      });
+
+      it("no warning with --reviewed, with an uncommitted SKILL.md edit, or a committed one in the window", () => {
+        const { p } = setup();
+        const reviewed = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--reviewed", "--root", tmp]);
+        assert.equal(reviewed.stderr, "");
+        assert.equal(json(reviewed).warning, undefined);
+
+        git("checkout", "-q", "--", skillRel);
+        fs.appendFileSync(p, "\nnew prose\n");
+        const dirty = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]);
+        assert.equal(dirty.stderr, "");
+        assert.equal(json(dirty).warning, undefined);
+
+        // A prose edit committed inside the window counts too.
+        git("checkout", "-q", "--", skillRel);
+        fs.appendFileSync(p, "\nnew prose\n");
+        commit("edit skill");
+        const committed = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]);
+        assert.equal(committed.code, 0);
+        assert.equal(committed.stderr, "");
+        assert.equal(json(committed).warning, undefined);
+      });
+
+      it("no warning for an unstamped skill, a docs-only skill or an unknown sha", () => {
+        git("init", "-q");
+        write("scribe.config.json", JSON.stringify({ project: "p", concepts: { auth: { globs: ["src/auth/**"] } } }));
+        write("src/auth/a.ts", "1");
+        write(".claude/skills/auth/SKILL.md", unmarked("auth"));
+        write(".claude/skills/docs/SKILL.md", marked("docs", "1.0", "deadbeef"));
+        commit("base");
+        assert.equal(run(cli.path, ["skills", "stamp", "auth", "--root", tmp]).stderr, "");
+        assert.equal(run(cli.path, ["skills", "stamp", "docs", "--bump", "minor", "--root", tmp]).stderr, "");
+        write(".claude/skills/auth/SKILL.md", marked("auth", "1.0", "zzzz"));
+        assert.equal(run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]).stderr, "");
+      });
+
+      it(
+        "a blocked write with a warning still exits 9, printing the lines and the warning",
+        { skip: process.getuid?.() === 0 },
+        () => {
+          const { p } = setup();
+          fs.chmodSync(p, 0o444);
+          try {
+            const r = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--root", tmp]);
+            assert.equal(r.code, 9);
+            assert.match(r.stderr, /warning/);
+            assert.match(r.stdout, /last-update: /);
+            const j = run(cli.path, ["skills", "stamp", "auth", "--bump", "minor", "--json", "--root", tmp]);
+            assert.equal(j.code, 9);
+            assert.equal(json(j).warning.reason, "mapped-files-changed-skill-unchanged");
+          } finally {
+            fs.chmodSync(p, 0o644);
+          }
+        }
+      );
+    });
+
     it("stamp <skill> of something that does not exist exits 1", () => {
       const r = run(cli.path, ["skills", "stamp", "nope", "--root", tmp]);
       assert.equal(r.code, 1);

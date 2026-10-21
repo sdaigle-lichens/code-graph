@@ -1,6 +1,6 @@
 {
   "name": "code-graph",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "description": "Graph-based code intelligence for Claude Code — BM25 + multi-hop retrieval over TypeScript/React codebases, in an embedded SQLite store",
   "repository": {
     "type": "git",

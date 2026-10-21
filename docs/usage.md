@@ -221,9 +221,9 @@ the `skills` block of `scribe.config.json`. They work in any repo — no store, 
 | ------------------------------------------ | --------------------------------------------------------------------------- |
 | `code-graph skills list [--json]`          | Every concept skill under every nested `.claude/skills`                     |
 | `code-graph skills state`                  | Repo-level list record (`{"present": false}` when none yet)                 |
-| `code-graph skills stamp [skill] [--bump minor\|major\|initial] [--sha <sha>]` | Stamp one skill's marker; with no skill, the repo-level `skills` block |
+| `code-graph skills stamp [skill] [--bump minor\|major\|initial] [--sha <sha>] [--reviewed]` | Stamp one skill's marker; with no skill, the repo-level `skills` block. Warns on a blind stamp (see below) |
 | `code-graph skills check [--json] [--strict]` | Concepts missing a SKILL.md, path mismatches, unmarked and docs-only skills (`--strict` exits 1) |
-| `code-graph skills status [--json\|--summary]` | Per-concept version, last-update and commits since, over its globs          |
+| `code-graph skills status [skill] [--json\|--summary]` | Per-concept version, last-update and commits since, over its globs; with a skill, that concept only, naming each changed file with its commit count |
 | `code-graph skills agents`                 | The agents list agent notes may be written for (JSON array)                 |
 | `code-graph skills agents-discover`        | Agents the project has (`.claude/agents` + maestro.json), read-only         |
 | `code-graph skills agents-set [names...]`  | Replace the agents list (no names empties it)                               |
@@ -232,6 +232,22 @@ Versions are `major.minor`: `initial` writes 1.0, a list-wide update bumps the m
 deep pass bumps the major. **A repo-level `skills stamp` without `--bump` refuses (exit 1, nothing
 written) when a version already exists** in `scribe.config.json` or the legacy `.claude/concept-skills.json`;
 with none it stamps 1.0. Pass `--bump minor|major` explicitly, or `--bump initial` to reset to 1.0 on purpose.
+
+`skills status <skill>` (id, directory or SKILL.md path, resolved like `stamp`) shows that concept only: each
+changed file in `<last-update>..HEAD` with its commit count, then the unchanged mapped files (capped at 10).
+`--json` adds `filesChangedCounts: [{path, commits}]` per concept (`filesChanged` is unchanged) and, for the
+single-skill form, `filesUnchanged`. The full text view lists the first 10 changed files under each concept,
+then `+N more`. `--summary` stays counts-only.
+
+**Blind-stamp warning.** `skills stamp <skill>` compares the previous `last-update`..HEAD: when files in the
+concept's globs changed and the SKILL.md neither changed in that window nor has an uncommitted change (staged
+or unstaged), it prints a warning naming the files on stderr, still writes and exits 0; the JSON result gains
+`warning: { reason: "mapped-files-changed-skill-unchanged", files[] }`. Changed `version:` and `last-update:` marker
+lines do not count as a SKILL.md edit, so a bare re-stamp cannot clear the warning. `--reviewed` silences it, and is for
+after you read the SKILL.md against those files. No check for an unstamped skill, a docs-only skill (no
+globs) or an unknown or malformed previous sha. A blocked write still exits 9 and prints the lines, plus the
+warning. It never refuses a stamp. Known limit: the first re-stamp after a skill is created gives no
+warning, because the commit that added the SKILL.md counts as an edit.
 
 ### Concept-skill skills (plugin)
 

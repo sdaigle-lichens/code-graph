@@ -33,6 +33,13 @@ changed, N new, N removed file(s)`): `scribe/unextracted.ts` rescans the globs a
 stay layer-1 safe (fs/crypto/minimatch only; `skills/unextracted-imports.test.ts` guards it). A malformed or
 unknown sha sets `unknownFreshness` (reasons `malformed-sha`, `unknown-commit`).
 
+`skills status <skill>` (resolved like `stamp`) shows one concept with per-file commit counts
+(`filesChangedCounts`, from one `git log --name-only` pass in `gitWindow`) and the unchanged mapped files
+(`filesUnchanged`, `mappedFiles`). `skills stamp <skill>` runs `blindStampWarning` first: mapped files changed
+since the previous `last-update`, SKILL.md unchanged in that window and in the working tree. It warns on stderr
+(`warning` in the JSON), still writes, never refuses, and rides along with exit 9; `--reviewed` suppresses it.
+Skipped for unstamped, glob-less or unknown/malformed-sha skills.
+
 `skills status --summary` (implies JSON) is the compact form the update flows read: `summarizeStatus`
 in `skills/report.ts` keeps only `head`, `list {v, at, commits}` and per concept `id, v, at, commits,
 files, graph? {vertices, enriched, changed, stale}`; `commits: null` = window not countable.

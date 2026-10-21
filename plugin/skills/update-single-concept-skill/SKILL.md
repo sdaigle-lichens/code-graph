@@ -110,6 +110,11 @@ version reflects the file a session will load.
 cg skills stamp <concept-id> --bump major
 ```
 
+Run `cg skills status <concept-id>` before deciding edit-or-stamp and show the file list. A stamp-only
+means reading the SKILL.md sections covering those files and a one-line reason in your report; a blind
+stamp (changed files, SKILL.md untouched) prints a warning. Pass `--reviewed` only after that comparison,
+never by default.
+
 Alone in its own Bash call. On exit 9 (sandbox blocked the write) the output says `set exactly these
 lines in its metadata block:` (unmarked skill: `replace the metadata block (or add it to the
 frontmatter) with exactly:`) and the lines; apply them with Edit, then re-run `cg skills status`. The repo-level record is **not** touched: the list did not change, only

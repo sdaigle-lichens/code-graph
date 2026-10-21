@@ -21,7 +21,15 @@ import {
   type StampPlan,
 } from "./concept-skills.js";
 import { formatUnextracted } from "../scribe/unextracted.js";
-import { checkConceptSkills, conceptSkillsStatus, headSha, summarizeStatus } from "./report.js";
+import {
+  blindStampWarning,
+  checkConceptSkills,
+  conceptSkillsStatus,
+  findConceptStatus,
+  headSha,
+  mappedFiles,
+  summarizeStatus,
+} from "./report.js";
 import {
   configPath,
   discoverProjectAgents,
@@ -35,6 +43,9 @@ import {
 /** `skills stamp <skill>`: the stamp was computed but the SKILL.md write was blocked (read-only or
  *  sandboxed filesystem); the lines to apply by hand were printed. */
 export const EXIT_STAMP_NOT_WRITTEN = 9;
+
+/** Cap on files listed per concept in the text status view. */
+const MAX_LISTED_FILES = 10;
 
 interface RootOpts {
   root?: string;
@@ -105,11 +116,15 @@ export function registerSkillsCommands(program: Command): void {
     .option("--sha <sha>", "commit to record (default: HEAD)")
     .option("--print", "compute and print the lines to set without writing the SKILL.md (exit 0)")
     .option("--json", "with a blocked write or --print: machine-readable output")
+    .option(
+      "--reviewed",
+      "silence the blind-stamp warning: only after reading the SKILL.md against the changed mapped files"
+    )
     .option(rootOption, rootHelp)
     .action(
       async (
         target: string | undefined,
-        opts: RootOpts & { bump?: string; sha?: string; print?: boolean; json?: boolean }
+        opts: RootOpts & { bump?: string; sha?: string; print?: boolean; json?: boolean; reviewed?: boolean }
       ) => {
         const projectRoot = resolveProjectRoot(opts.root);
         const lastUpdate = opts.sha || headSha(projectRoot);
@@ -148,10 +163,22 @@ export function registerSkillsCommands(program: Command): void {
         } catch (err) {
           die((err as Error).message);
         }
+        // A blind stamp (mapped files changed, SKILL.md untouched) is warned about, never refused.
+        const warning = skill && !opts.reviewed ? blindStampWarning(projectRoot, skill) : null;
+        if (warning) {
+          const shown = warning.files.slice(0, MAX_LISTED_FILES * 2);
+          process.stderr.write(
+            `code-graph skills: warning: ${warning.files.length} mapped file(s) changed since the last stamp but ` +
+              `${relative(process.cwd(), skillPath)} did not (committed or uncommitted). Compare them with the SKILL.md, ` +
+              `then pass --reviewed if it still holds:\n${shown.map((f) => `  ${f}\n`).join("")}` +
+              (shown.length < warning.files.length ? `  +${warning.files.length - shown.length} more\n` : "")
+          );
+        }
+        const warn = warning ? { warning } : {};
         // Reports a stamp that was computed but not written: the lines to apply by hand with Edit.
         const report = (reason: string, exitCode: number): never => {
           const blocked = { reason, lines: plan.lines };
-          if (opts.json) json({ stamped: skillPath, version, lastUpdate, written: false, blocked });
+          if (opts.json) json({ stamped: skillPath, version, lastUpdate, written: false, blocked, ...warn });
           else {
             out(`stamp computed, not written: ${skillPath}`);
             out(`reason: ${reason}`);
@@ -175,7 +202,7 @@ export function registerSkillsCommands(program: Command): void {
             die((err as Error).message);
           }
         }
-        json({ stamped: skillPath, version, lastUpdate, written });
+        json({ stamped: skillPath, version, lastUpdate, written, ...warn });
       }
     );
 
@@ -203,14 +230,27 @@ export function registerSkillsCommands(program: Command): void {
     });
 
   skills
-    .command("status")
-    .description("git freshness per concept: version, last-update, commits since last-update over its globs")
+    .command("status [skill]")
+    .description(
+      "git freshness per concept: version, last-update, commits since last-update over its globs; " +
+        "with a skill (id, directory or SKILL.md path) only that concept, naming each changed file and its commit count"
+    )
     .option("--json", "machine-readable output")
     .option("--summary", "compact JSON: id, version, last-update, commits/files since, graph counts (implies --json)")
     .option(rootOption, rootHelp)
-    .action(async (opts: RootOpts & { json?: boolean; summary?: boolean }) => {
+    .action(async (target: string | undefined, opts: RootOpts & { json?: boolean; summary?: boolean }) => {
       const projectRoot = resolveProjectRoot(opts.root);
       const report = await conceptSkillsStatus(projectRoot);
+      let unchangedFiles: string[] | null = null;
+      if (target) {
+        const skillPath =
+          (await findConceptSkill(projectRoot, target))?.skillPath ?? (await resolveSkillPath(projectRoot, target));
+        const one = findConceptStatus(projectRoot, report, skillPath, target);
+        if (!one) die(`no skill or concept "${target}" found under ${projectRoot}`);
+        report.concepts = [one];
+        const changed = new Set(one.filesChanged);
+        unchangedFiles = mappedFiles(projectRoot, one.globs).filter((f) => !changed.has(f));
+      }
       // Layer 1 stays graph-free: the store is only touched (lazily) when its file exists, and any
       // failure to read it leaves the git-only report untouched.
       try {
@@ -234,7 +274,11 @@ export function registerSkillsCommands(program: Command): void {
         // git-only output
       }
       if (opts.summary) return json(summarizeStatus(report));
-      if (opts.json) return json(report);
+      if (opts.json) {
+        if (unchangedFiles)
+          return json({ ...report, concepts: [{ ...report.concepts[0], filesUnchanged: unchangedFiles }] });
+        return json(report);
+      }
       if (report.list) {
         const n = report.list.unknownFreshness ? "unknown freshness" : (report.list.commitsSince ?? report.list.reason);
         out(`list v${report.list.version} @${report.list.lastUpdate.slice(0, 8)}  ${n} commit(s) since`);
@@ -252,6 +296,16 @@ export function registerSkillsCommands(program: Command): void {
         out(
           `  ${name}  ${v}  ${since}${g}${u ?? ""}${c.path ? `  ${relative(process.cwd(), join(projectRoot, c.path))}` : ""}`
         );
+        const counts = c.filesChangedCounts ?? [];
+        const show = unchangedFiles ? counts : counts.slice(0, MAX_LISTED_FILES);
+        for (const f of show) out(`    changed  ${f.path}  (${f.commits} commit${f.commits === 1 ? "" : "s"})`);
+        if (show.length < counts.length) out(`    +${counts.length - show.length} more changed file(s)`);
+        if (unchangedFiles) {
+          for (const f of unchangedFiles.slice(0, MAX_LISTED_FILES)) out(`    unchanged  ${f}`);
+          if (unchangedFiles.length > MAX_LISTED_FILES) {
+            out(`    +${unchangedFiles.length - MAX_LISTED_FILES} more unchanged file(s)`);
+          }
+        }
       }
     });
 

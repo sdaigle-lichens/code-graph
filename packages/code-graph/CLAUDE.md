@@ -159,3 +159,7 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - `skills stamp` exits **9** (`EXIT_STAMP_NOT_WRITTEN`) when the SKILL.md write hits EROFS/EPERM/EACCES
   (`isWriteBlocked`): `planStamp` computes the result, the CLI prints the lines to apply by hand.
   `--print` forces that path with exit 0.
+- `skills stamp <skill>` **warns, never refuses** on a blind stamp (`blindStampWarning`, `skills/report.ts`):
+  mapped files changed since the previous `last-update`, SKILL.md unchanged in the window and in the working
+  tree (staged or not). Stderr + `warning` in the JSON; `--reviewed` suppresses; exit 9 is unaffected.
+  `skills status <skill>` lists changed files with commit counts (`filesChangedCounts`) and unchanged ones.

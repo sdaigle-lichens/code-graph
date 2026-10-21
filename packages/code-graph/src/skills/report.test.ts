@@ -189,15 +189,32 @@ describe("gitWindow", () => {
     assert.deepEqual(gitWindow(tmp, base, ["src/auth/**"]), {
       commitsSince: 2,
       filesChanged: ["src/auth/a.ts", "src/auth/deep/nested/c.ts"],
+      filesChangedCounts: [
+        { path: "src/auth/a.ts", commits: 1 },
+        { path: "src/auth/deep/nested/c.ts", commits: 1 },
+      ],
     });
     assert.deepEqual(gitWindow(tmp, base, []), {
       commitsSince: 3,
       filesChanged: ["src/auth/a.ts", "src/auth/deep/nested/c.ts", "src/billing/b.ts"],
+      filesChangedCounts: [
+        { path: "src/auth/a.ts", commits: 1 },
+        { path: "src/auth/deep/nested/c.ts", commits: 1 },
+        { path: "src/billing/b.ts", commits: 1 },
+      ],
     });
     // `:(glob)` magic: a single `*` does not cross a directory.
-    assert.deepEqual(gitWindow(tmp, base, ["src/auth/*"]), { commitsSince: 1, filesChanged: ["src/auth/a.ts"] });
+    assert.deepEqual(gitWindow(tmp, base, ["src/auth/*"]), {
+      commitsSince: 1,
+      filesChanged: ["src/auth/a.ts"],
+      filesChangedCounts: [{ path: "src/auth/a.ts", commits: 1 }],
+    });
     const head = git("rev-parse", "HEAD");
-    assert.deepEqual(gitWindow(tmp, head, ["src/auth/**"]), { commitsSince: 0, filesChanged: [] });
+    assert.deepEqual(gitWindow(tmp, head, ["src/auth/**"]), {
+      commitsSince: 0,
+      filesChanged: [],
+      filesChangedCounts: [],
+    });
   });
 });
 
@@ -238,6 +255,12 @@ describe("conceptSkillsStatus", () => {
         "scribe.config.json",
         "src/auth/a.ts",
       ],
+      filesChangedCounts: [
+        { path: ".claude/skills/auth/SKILL.md", commits: 1 },
+        { path: "docs/.claude/skills/runbook/SKILL.md", commits: 1 },
+        { path: "scribe.config.json", commits: 1 },
+        { path: "src/auth/a.ts", commits: 1 },
+      ],
     });
     assert.deepEqual(r.concepts, [
       {
@@ -250,6 +273,7 @@ describe("conceptSkillsStatus", () => {
         scope: "globs",
         commitsSince: 1,
         filesChanged: ["src/auth/a.ts"],
+        filesChangedCounts: [{ path: "src/auth/a.ts", commits: 1 }],
       },
       {
         concept: "billing",
@@ -277,6 +301,12 @@ describe("conceptSkillsStatus", () => {
           "docs/.claude/skills/runbook/SKILL.md",
           "scribe.config.json",
           "src/auth/a.ts",
+        ],
+        filesChangedCounts: [
+          { path: ".claude/skills/auth/SKILL.md", commits: 1 },
+          { path: "docs/.claude/skills/runbook/SKILL.md", commits: 1 },
+          { path: "scribe.config.json", commits: 1 },
+          { path: "src/auth/a.ts", commits: 1 },
         ],
       },
     ]);

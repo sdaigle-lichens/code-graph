@@ -107,8 +107,9 @@ script and read-only `git` (`diff`, `log`, `show`, `rev-parse`) only; never a bu
 or a write outside `.claude/` and `docs/`.
 
 Never hand-edit a concept skill's `metadata.version` or `metadata.last-update`; `skills stamp` writes
-them. Exception: on exit 9 (sandbox blocked the write) apply the printed lines with Edit, then re-run
-`skills status`.
+them. A stamp-only needs `skills status <skill>` read first and `--reviewed` only after comparing (see
+the update flows). Exception: on exit 9 (sandbox blocked the write) apply the printed lines with Edit,
+then re-run `skills status`.
 
 ## Reporting a gap
 

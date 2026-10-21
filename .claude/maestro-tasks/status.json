@@ -165,7 +165,7 @@
     "epic": "absorb-concept-skills"
   },
   "029-make-stamp-only-a-checked-decision-list-what-changed-and-warn-on-a-blind-stamp.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
     ],

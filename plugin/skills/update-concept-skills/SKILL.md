@@ -96,6 +96,10 @@ For each concept with `commits > 0` or a non-zero `unextracted` count:
 
 ### 4. Decide what changes
 
+Before deciding edit or stamp-only for a skill, run `cg skills status <concept-id>` and show its file list
+(changed files with commit counts). A **stamp-only** needs you to read the SKILL.md sections covering those
+files, and a one-line reason per stamp-only in this run's report (which files, why the prose still holds).
+
 Work through all five, in order, writing the answer to each even when "nothing":
 
 1. **Concepts to add** — core code belonging to no existing skill (`new[]` with no home; files from
@@ -143,6 +147,9 @@ deleted (a major is a wholesale re-derivation, `create-concept-skills`' job):
 ```bash
 cg skills stamp --bump minor
 ```
+
+Stamping without editing the SKILL.md prints a blind-stamp warning naming the changed files (still exit 0).
+Pass `--reviewed` only after the comparison above, never by default. Edit the skill first when the warning is right.
 
 Exit 9 means the sandbox blocked the SKILL.md write: the output says `set exactly these lines in its
 metadata block:` (or, for an unmarked skill, `replace the metadata block (or add it to the frontmatter)
