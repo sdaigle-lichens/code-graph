@@ -8,8 +8,9 @@ SKILL.md).
 ## Layout
 
 pnpm + Turborepo. Run everything from the root: `pnpm build|typecheck|test|check|verify` or `just`.
-Packages and apps have their own CLAUDE.md where needed (`packages/code-graph`, `apps/desktop`,
-`plugin/skills`).
+Packages and apps have their own CLAUDE.md where needed (`packages/code-graph`, `apps/desktop`).
+Rules for editing `plugin/skills/**` are in `.claude/rules/plugin-skills.md`; `plugin/` itself
+holds no `CLAUDE.md` or `.claude/` (`pnpm check` fails if one appears).
 
 - `plugin/` and `.claude-plugin/` stay at the root on purpose: `marketplace.json` points at
   `./plugin` and the plugin ships via git, not npm. `plugin/scripts/code-graph.cjs` is a

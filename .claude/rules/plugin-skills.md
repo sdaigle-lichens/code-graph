@@ -1,3 +1,8 @@
+---
+paths:
+  - "plugin/skills/**"
+---
+
 # plugin/skills
 
 Concept-skill flows shipped with the plugin. Each calls only
@@ -10,4 +15,5 @@ Concept-skill flows shipped with the plugin. Each calls only
   `.claude/concept-skills.json` uses `skills agents-set` (seeds the block, version untouched).
 - `scribe` is the only scribe skill (enrichment lives in it). Keep its gap-channel contract
   (`.claude/channels/scribe/<agent>.1.md` with `{ "skill_gaps": [{ "skill", "missing" }] }`) verbatim:
-  maestro depends on it.
+  maestro depends on it. The format is pinned by `plugin/contracts/skill-gaps.example.json` and a test.
+- Nothing developer-facing (`CLAUDE.md`, `.claude/`) may live under `plugin/`; `pnpm check` fails on it.

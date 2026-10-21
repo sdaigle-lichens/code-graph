@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scribe gap file body (.claude/channels/scribe/<agent>.1.md, one fenced json block)",
+  "type": "object",
+  "required": ["skill_gaps"],
+  "properties": {
+    "skill_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skill", "missing"],
+        "properties": {
+          "skill": { "type": "string" },
+          "missing": { "type": "string" }
+        }
+      }
+    }
+  }
+}

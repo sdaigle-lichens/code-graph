@@ -1,0 +1,3 @@
+{
+  "skill_gaps": [{ "skill": "<skill-id>", "missing": "<text>" }]
+}

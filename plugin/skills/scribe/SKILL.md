@@ -112,9 +112,10 @@ Never hand-edit a concept skill's `metadata.version` or `metadata.last-update`. 
 ## Reporting a gap
 
 Working agents write skill gaps to your own channel lane — `.claude/channels/scribe/` — rather than
-into a caller's report: the skill they loaded and what it failed to tell them. That arrives inlined
-in your context, labelled by sender, the next time you're invoked, whether or not this run's
-workflow wired a route to you at all. For a concept skill it is the signal to run
+into a caller's report: the skill they loaded and what it failed to tell them. Under maestro that
+arrives inlined in your context, labelled by sender, the next time you're invoked, whether or not this run's
+workflow wired a route to you at all. Without maestro nothing is inlined: at the start of a run read
+`.claude/channels/scribe/*.md`, handle each gap and say which files you handled. For a concept skill it is the signal to run
 `update-single-concept-skill` on it, and it is worth more than any audit you could run yourself: it
 names a gap someone actually hit.
 

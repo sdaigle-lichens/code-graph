@@ -53,6 +53,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - **Versions stay in lockstep**: `packages/code-graph/package.json`, `plugin/.claude-plugin/plugin.json`
   and `.claude-plugin/marketplace.json` must carry the same version. `scripts/check-versions.mjs`
   enforces it (in `pnpm check` and at the start of the bundle step); bump all three together.
+- **`plugin/` stays clean and the gap-file format is pinned.** `scripts/check-plugin-clean.mjs` (in
+  `pnpm check`) fails if `plugin/` holds a `CLAUDE.md` or `.claude/`. The skill-gap channel file
+  format lives in `plugin/contracts/skill-gaps.{schema,example}.json`; `src/skills/gap-contract.test.ts`
+  tests it, so change all three together.
 - **Layer 1 never loads the graph stack.** `skills *` must not load `node:sqlite`, `typescript` or
   `ts-morph`; `cli.ts` imports store/extract/query modules lazily inside each command. Keep new
   graph imports lazy and keep `skills/` free of them.
