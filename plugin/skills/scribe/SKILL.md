@@ -72,7 +72,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```
 
 Run each alone in its own Bash call. `apply` reports drift; enrichment (`enrichment.md`) is a separate,
-token-spending step you only run when asked or when `update-concept-skills` calls for it.
+token-spending step, run only when asked or when `update-concept-skills` calls for it.
 
 **No tsconfig, or no `concepts` in `scribe.config.json`** (Terraform, docs-only repos): there is no
 graph to feed. Skip extract + apply, and say so. Writing the SKILL.md and stamping it
@@ -102,12 +102,13 @@ deepening, you run the flows yourself:
    settles it and invokes you again with the approved list. That is a completed turn, not a failure.
 4. **Confirm.** Report which flow ran, which concept skills changed, and their new versions.
 
-These flows call `code-graph.cjs` with `Bash` and read widely with `Agent`. The `Bash` you were given
-is for that script and read-only `git` (`diff`, `log`, `show`, `rev-parse`) only; never a build, test
-run, install or anything that writes outside `.claude/` and `docs/`.
+These flows call `code-graph.cjs` with `Bash` and read widely with `Agent`. Your `Bash` is for that
+script and read-only `git` (`diff`, `log`, `show`, `rev-parse`) only; never a build, test run, install
+or a write outside `.claude/` and `docs/`.
 
-Never hand-edit a concept skill's `metadata.version` or `metadata.last-update`. The flows write them
-(`skills stamp`), and a hand-set version silently changes how much work the next pass does.
+Never hand-edit a concept skill's `metadata.version` or `metadata.last-update`; `skills stamp` writes
+them. Exception: on exit 9 (sandbox blocked the write) apply the printed lines with Edit, then re-run
+`skills status`.
 
 ## Reporting a gap
 
@@ -116,8 +117,7 @@ into a caller's report: the skill they loaded and what it failed to tell them. U
 arrives inlined in your context, labelled by sender, the next time you're invoked, whether or not this run's
 workflow wired a route to you at all. Without maestro nothing is inlined: at the start of a run read
 `.claude/channels/scribe/*.md`, handle each gap and say which files you handled. For a concept skill it is the signal to run
-`update-single-concept-skill` on it, and it is worth more than any audit you could run yourself: it
-names a gap someone actually hit.
+`update-single-concept-skill` on it, and it names a gap someone actually hit.
 
 The file a working agent writes is `.claude/channels/scribe/<agent>.1.md`, holding a fenced `json`
 block: `{ "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell you>" }] }`. It is

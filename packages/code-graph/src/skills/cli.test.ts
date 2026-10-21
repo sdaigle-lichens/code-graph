@@ -263,6 +263,120 @@ for (const cli of CLIS) {
       assert.ok(fs.readFileSync(p).equals(bytes));
     });
 
+    describe("stamp <skill> when the SKILL.md write is blocked", { skip: process.getuid?.() === 0 }, () => {
+      const skillRel = ".claude/skills/auth/SKILL.md";
+
+      function setup(content: (sha: string) => string): { p: string; sha: string; original: string } {
+        git("init", "-q");
+        write("scribe.config.json", JSON.stringify({ project: "p", concepts: { auth: { globs: ["src/auth/**"] } } }));
+        write("src/auth/a.ts", "1");
+        git("add", "-A");
+        git("commit", "-q", "-m", "base");
+        const sha = git("rev-parse", "HEAD");
+        const original = content(sha);
+        const p = write(skillRel, original);
+        return { p, sha, original };
+      }
+
+      // Apply the printed lines the way an agent would with Edit: a block replaces/appends the
+      // metadata map, bare `version` / `last-update` lines replace their existing lines.
+      function applyPrinted(original: string, lines: string[]): string {
+        if (lines[0].startsWith("metadata:")) {
+          const body = original.replace(/^metadata:[\s\S]*?(?=\n---)/m, "").replace(/\n(?=\n---)/, "");
+          return body.replace(/\n---\n/, `\n${lines.join("\n")}\n---\n`);
+        }
+        return original
+          .split("\n")
+          .map((l) => lines.find((x) => x.trim().split(":")[0] === l.trim().split(":")[0] && l.startsWith(" ")) ?? l)
+          .join("\n");
+      }
+
+      for (const kind of ["marked", "unmarked"] as const) {
+        it(`${kind}: exits 9 with the lines (text and --json); applying them equals a writable stamp`, () => {
+          const head = setup((sha) => (kind === "marked" ? marked("auth", "1.2", sha) : unmarked("auth")));
+          const { p, original } = head;
+          const bump = kind === "marked" ? ["--bump", "minor"] : [];
+          const args = ["skills", "stamp", "auth", ...bump, "--sha", head.sha, "--root", tmp];
+          fs.chmodSync(p, 0o444);
+          try {
+            const text = run(cli.path, args);
+            assert.equal(text.code, 9, text.stderr);
+            assert.ok(fs.readFileSync(p, "utf8") === original);
+            assert.match(text.stdout, new RegExp(`not written: ${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+            const expected =
+              kind === "marked"
+                ? [`  version: "1.3"`, `  last-update: ${head.sha}`]
+                : ["metadata:", "  type: concept-skill", `  version: "1.0"`, `  last-update: ${head.sha}`];
+            if (kind === "unmarked") assert.equal(head.sha.length, 40);
+            assert.ok(text.stdout.endsWith(expected.join("\n") + "\n"), text.stdout);
+
+            const j = run(cli.path, [...args, "--json"]);
+            assert.equal(j.code, 9);
+            const body = json(j);
+            assert.equal(body.written, false);
+            assert.equal(body.stamped, p);
+            assert.equal(body.lastUpdate, head.sha);
+            assert.deepEqual(body.blocked.lines, expected);
+            assert.equal(typeof body.blocked.reason, "string");
+
+            // --print: same lines, no write attempted, exit 0.
+            const printed = run(cli.path, [...args, "--print"]);
+            assert.equal(printed.code, 0);
+            assert.ok(printed.stdout.endsWith(expected.join("\n") + "\n"));
+            assert.equal(json(run(cli.path, [...args, "--print", "--json"])).written, false);
+
+            const applied = applyPrinted(original, body.blocked.lines);
+            fs.chmodSync(p, 0o644);
+            fs.writeFileSync(p, applied);
+            const afterApply = fs.readFileSync(p);
+            fs.writeFileSync(p, original);
+            const writable = run(cli.path, args);
+            assert.equal(writable.code, 0, writable.stderr);
+            assert.equal(json(writable).written, true);
+            assert.ok(fs.readFileSync(p).equals(afterApply), "applied lines differ from a writable stamp");
+
+            const status = json(run(cli.path, ["skills", "status", "--json", "--root", tmp]));
+            assert.equal(status.concepts[0].commitsSince, 0);
+          } finally {
+            fs.chmodSync(p, 0o644);
+          }
+        });
+      }
+
+      it("--print never writes a writable file; a read-only identical re-stamp is exit 0", () => {
+        const { p, sha, original } = setup((s) => marked("auth", "1.2", s));
+        assert.ok(original.includes("1.2"));
+        const printed = run(cli.path, [
+          "skills",
+          "stamp",
+          "auth",
+          "--bump",
+          "minor",
+          "--sha",
+          sha,
+          "--print",
+          "--root",
+          tmp,
+        ]);
+        assert.equal(printed.code, 0);
+        assert.equal(fs.readFileSync(p, "utf8"), original);
+        fs.chmodSync(p, 0o444);
+        try {
+          const differs = run(cli.path, ["skills", "stamp", "auth", "--bump", "initial", "--sha", sha, "--root", tmp]);
+          assert.equal(differs.code, 9);
+          // Same values as the file already holds: nothing to write, so nothing to block.
+          fs.chmodSync(p, 0o644);
+          fs.writeFileSync(p, marked("auth", "1.0", sha));
+          fs.chmodSync(p, 0o444);
+          const same = run(cli.path, ["skills", "stamp", "auth", "--bump", "initial", "--sha", sha, "--root", tmp]);
+          assert.equal(same.code, 0);
+          assert.equal(json(same).written, false);
+        } finally {
+          fs.chmodSync(p, 0o644);
+        }
+      });
+    });
+
     it("stamp <skill> of something that does not exist exits 1", () => {
       const r = run(cli.path, ["skills", "stamp", "nope", "--root", tmp]);
       assert.equal(r.code, 1);

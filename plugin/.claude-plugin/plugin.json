@@ -1,6 +1,6 @@
 {
   "name": "code-graph",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "description": "Code-concept graph — scribe + query for Claude Code. Surface: /graph; skills create-concept-skills, update-concept-skills, update-single-concept-skill, add-concept, scribe, cleanup-skill, load-concept-skills, explore-concept-skills, code-architecture-design, use-code-architecture-design-check, code-graph-retrieval, and the lifecycle trio code-graph-install, code-graph-update, code-graph-uninstall",
   "author": {
     "name": "Samuel Daigle",

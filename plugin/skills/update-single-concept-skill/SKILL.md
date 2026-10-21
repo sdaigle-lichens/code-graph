@@ -110,7 +110,9 @@ version reflects the file a session will load.
 cg skills stamp <concept-id> --bump major
 ```
 
-Alone in its own Bash call. The repo-level record is **not** touched: the list did not change, only
+Alone in its own Bash call. On exit 9 (sandbox blocked the write) the output says `set exactly these
+lines in its metadata block:` (unmarked skill: `replace the metadata block (or add it to the
+frontmatter) with exactly:`) and the lines; apply them with Edit, then re-run `cg skills status`. The repo-level record is **not** touched: the list did not change, only
 one skill's depth.
 
 ### 8. Refresh the graph (skip with no tsconfig / no graph)

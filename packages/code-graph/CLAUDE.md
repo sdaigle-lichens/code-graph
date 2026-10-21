@@ -156,3 +156,6 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` resets the version to **1.0**; pass
   `--bump minor|major` when migrating an existing list.
+- `skills stamp` exits **9** (`EXIT_STAMP_NOT_WRITTEN`) when the SKILL.md write hits EROFS/EPERM/EACCES
+  (`isWriteBlocked`): `planStamp` computes the result, the CLI prints the lines to apply by hand.
+  `--print` forces that path with exit 0.

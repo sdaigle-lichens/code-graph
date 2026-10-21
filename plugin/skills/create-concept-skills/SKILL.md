@@ -146,7 +146,10 @@ cg skills stamp --bump initial
 ```
 
 First once per skill written, then once for the repo-level `skills` block. Both default to `HEAD`.
-Never hand-edit `metadata.version` or `metadata.last-update`.
+Never hand-edit `metadata.version` or `metadata.last-update`, except on exit 9 (sandbox blocked the
+write): the output says `set exactly these lines in its metadata block:` (unmarked skill: `replace the
+metadata block (or add it to the frontmatter) with exactly:`) and the lines. Apply them with Edit, then
+re-run `cg skills status`.
 
 ### 8. Build the graph (skip with no tsconfig)
 

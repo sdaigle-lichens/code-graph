@@ -160,11 +160,18 @@
     "epic": "absorb-concept-skills"
   },
   "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   },
   "029-make-stamp-only-a-checked-decision-list-what-changed-and-warn-on-a-blind-stamp.md": {
+    "status": "ready",
+    "blockedBy": [
+      "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "030-make-a-repo-level-skills-stamp-without-bump-refuse-instead-of-resetting-to-1-0.md": {
     "status": "ready",
     "blockedBy": [
       "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"

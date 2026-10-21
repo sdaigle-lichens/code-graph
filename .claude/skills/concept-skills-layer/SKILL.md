@@ -16,7 +16,8 @@ and no node_modules: it works from SKILL.md frontmatter, `scribe.config.json` an
 
 A concept skill is an ordinary `.claude/skills/<id>/SKILL.md` whose `metadata:` map carries
 `type: concept-skill`, a `major.minor` version and the `last-update` commit sha. Stamping rewrites
-those lines in place and preserves the file's own line endings.
+those lines in place and preserves the file's own line endings. When the write is blocked (EROFS/EPERM/EACCES) `skills stamp`
+exits 9 and prints the lines to set by hand (`planStamp`, `isWriteBlocked`); `--print` does that on demand.
 
 ## Freshness
 

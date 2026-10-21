@@ -8,14 +8,17 @@
 //
 // Every command takes `--root <dir>`; see `resolveProjectRoot` for the fallback order.
 
+import { writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { Command } from "commander";
 import {
   discoverConceptSkills,
   findConceptSkill,
+  isWriteBlocked,
   nextVersion,
+  planStamp,
   resolveSkillPath,
-  stampConceptSkill,
+  type StampPlan,
 } from "./concept-skills.js";
 import { formatUnextracted } from "../scribe/unextracted.js";
 import { checkConceptSkills, conceptSkillsStatus, headSha, summarizeStatus } from "./report.js";
@@ -28,6 +31,10 @@ import {
   writeAgentsList,
   writeConceptSkillsState,
 } from "./state.js";
+
+/** `skills stamp <skill>`: the stamp was computed but the SKILL.md write was blocked (read-only or
+ *  sandboxed filesystem); the lines to apply by hand were printed. */
+export const EXIT_STAMP_NOT_WRITTEN = 9;
 
 interface RootOpts {
   root?: string;
@@ -96,39 +103,73 @@ export function registerSkillsCommands(program: Command): void {
     )
     .option("--bump <kind>", "minor | major | initial")
     .option("--sha <sha>", "commit to record (default: HEAD)")
+    .option("--print", "compute and print the lines to set without writing the SKILL.md (exit 0)")
+    .option("--json", "with a blocked write or --print: machine-readable output")
     .option(rootOption, rootHelp)
-    .action(async (target: string | undefined, opts: RootOpts & { bump?: string; sha?: string }) => {
-      const projectRoot = resolveProjectRoot(opts.root);
-      const lastUpdate = opts.sha || headSha(projectRoot);
+    .action(
+      async (
+        target: string | undefined,
+        opts: RootOpts & { bump?: string; sha?: string; print?: boolean; json?: boolean }
+      ) => {
+        const projectRoot = resolveProjectRoot(opts.root);
+        const lastUpdate = opts.sha || headSha(projectRoot);
 
-      if (!target) {
-        const current = readConceptSkillsState(projectRoot);
-        const version = nextVersion(current?.version, opts.bump ?? "initial");
+        if (!target) {
+          const current = readConceptSkillsState(projectRoot);
+          const version = nextVersion(current?.version, opts.bump ?? "initial");
+          if (!version) die("stamp needs --bump minor|major|initial");
+          let written: boolean;
+          try {
+            written = writeConceptSkillsState(projectRoot, { version, last_update: lastUpdate });
+          } catch (err) {
+            die((err as Error).message);
+          }
+          return json({ written, version, last_update: lastUpdate, path: configPath(projectRoot) });
+        }
+
+        const skill = await findConceptSkill(projectRoot, target);
+        // An unmarked skill has no version to bump — marking it IS the initial stamp.
+        const version = nextVersion(skill?.version, opts.bump ?? (skill ? null : "initial"));
         if (!version) die("stamp needs --bump minor|major|initial");
-        let written: boolean;
+        // A skill not marked YET is the create flow's normal case: fall back to a whole-tree lookup.
+        const skillPath = skill ? skill.skillPath : await resolveSkillPath(projectRoot, target);
+        if (!skillPath) die(`no skill "${target}" found under ${projectRoot}`);
+        let plan: StampPlan;
         try {
-          written = writeConceptSkillsState(projectRoot, { version, last_update: lastUpdate });
+          plan = planStamp(skillPath, { version, lastUpdate });
         } catch (err) {
           die((err as Error).message);
         }
-        return json({ written, version, last_update: lastUpdate, path: configPath(projectRoot) });
+        // Reports a stamp that was computed but not written: the lines to apply by hand with Edit.
+        const report = (reason: string, exitCode: number): never => {
+          const blocked = { reason, lines: plan.lines };
+          if (opts.json) json({ stamped: skillPath, version, lastUpdate, written: false, blocked });
+          else {
+            out(`stamp computed, not written: ${skillPath}`);
+            out(`reason: ${reason}`);
+            out(
+              plan.lines === plan.metadata
+                ? "replace the metadata block (or add it to the frontmatter) with exactly:"
+                : "set exactly these lines in its metadata block:"
+            );
+            for (const l of plan.lines) out(l);
+          }
+          process.exit(exitCode);
+        };
+        if (opts.print) return report("--print: write skipped", 0);
+        let written = false;
+        if (plan.changed) {
+          try {
+            writeFileSync(skillPath, plan.content);
+            written = true;
+          } catch (err) {
+            if (isWriteBlocked(err)) return report(err.message, EXIT_STAMP_NOT_WRITTEN);
+            die((err as Error).message);
+          }
+        }
+        json({ stamped: skillPath, version, lastUpdate, written });
       }
-
-      const skill = await findConceptSkill(projectRoot, target);
-      // An unmarked skill has no version to bump — marking it IS the initial stamp.
-      const version = nextVersion(skill?.version, opts.bump ?? (skill ? null : "initial"));
-      if (!version) die("stamp needs --bump minor|major|initial");
-      // A skill not marked YET is the create flow's normal case: fall back to a whole-tree lookup.
-      const skillPath = skill ? skill.skillPath : await resolveSkillPath(projectRoot, target);
-      if (!skillPath) die(`no skill "${target}" found under ${projectRoot}`);
-      let written: boolean;
-      try {
-        written = stampConceptSkill(skillPath, { version, lastUpdate });
-      } catch (err) {
-        die((err as Error).message);
-      }
-      json({ stamped: skillPath, version, lastUpdate, written });
-    });
+    );
 
   skills
     .command("check")

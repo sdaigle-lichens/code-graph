@@ -465,6 +465,19 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   refuses) when mapped files changed but SKILL.md didn't (committed or uncommitted), and `--reviewed`
   suppresses it; the flows need a one-line reason per stamp-only. Blocked by 028 (same stamp action,
   flow skills and usage.md); one worker can take both in sequence.
+  - 028 report r026 acked; worker maestro-6dfd54fc recorded. The worker built in the main tree (no
+    worktree). Delivered: `planStamp` (compute) and `isWriteBlocked`; stamp exits 9 with the exact lines
+    (`--json` gives `written:false, blocked`); `--print`; four flow skills; usage.md, CLAUDE.md and
+    concept-skills-layer docs; 0.3.21.
+  - My fix: `EXIT_STAMP_NOT_WRITTEN` was declared between imports; moved below them and rebuilt.
+  - Verified by me: build plus bundle, 446/446, `pnpm check` 6/6, `just eval` 7/7; skill diffs read.
+  - Open nits: the scribe SKILL.md is 9058 B (target ~8958, under the 9216 cap); exit 9 on a CRLF
+    SKILL.md is untested. `claude plugin validate` is for the user to run. No contract change.
+- 030 ticketed from a maestro bug report: a bare repo-level `skills stamp` wrote 1.0 over 1.30.
+  Verified: the repo-level branch falls back to `opts.bump ?? "initial"`, and `nextVersion(_, "initial")`
+  is always 1.0. The per-skill form is already safe: a marked skill dies without `--bump`, and an
+  unmarked one correctly gets 1.0. Fix: with an existing version, refuse instead of defaulting to minor.
+  Docs to update in five places. Blocked by 028 (same action, uncommitted). Maestro restored its file.
 - Contract rule (maestro request, user-approved here): `.claude/rules/plugin-skills.md` now requires
   any `plugin/contracts/` change to be called out in that version's release note to maestro, with the
   old and new shape. A breaking change keeps accepting the old shape for one version.

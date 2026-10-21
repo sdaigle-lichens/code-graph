@@ -144,6 +144,10 @@ deleted (a major is a wholesale re-derivation, `create-concept-skills`' job):
 cg skills stamp --bump minor
 ```
 
+Exit 9 means the sandbox blocked the SKILL.md write: the output says `set exactly these lines in its
+metadata block:` (or, for an unmarked skill, `replace the metadata block (or add it to the frontmatter)
+with exactly:`) and the lines. Apply them with Edit, then re-run `cg skills status`.
+
 Never call a bare `skills stamp` without `--bump`: at repo level it defaults to `initial` and resets
 the version to 1.0. Pass `--sha <session-start-commit>` if the session committed since it started.
 

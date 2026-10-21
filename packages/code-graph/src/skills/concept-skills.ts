@@ -250,6 +250,29 @@ function setIn(lines: string[], indent: string, key: string, value: string): str
  * silently prepending one would hide a wrong path.
  */
 export function stampConceptSkill(skillPath: string, next: { version: string; lastUpdate: string }): boolean {
+  const plan = planStamp(skillPath, next);
+  if (!plan.changed) return false;
+  writeFileSync(skillPath, plan.content);
+  return true;
+}
+
+/** A stamp computed but not yet written. */
+export interface StampPlan {
+  version: string;
+  lastUpdate: string;
+  /** The whole `metadata:` block exactly as it will appear in the file (indent, `type`, other keys). */
+  metadata: string[];
+  /** What to apply by hand with Edit: just the `version` / `last-update` lines when the skill already
+   *  carries all three markers, else the whole `metadata:` block. */
+  lines: string[];
+  /** The file's full new content. */
+  content: string;
+  /** False when the stamp would reproduce the file byte for byte (nothing to write). */
+  changed: boolean;
+}
+
+/** Compute a stamp without touching the file. `stampConceptSkill` is this plus the write. */
+export function planStamp(skillPath: string, next: { version: string; lastUpdate: string }): StampPlan {
   const raw = readFileSync(skillPath, "utf8");
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) throw new Error(`no frontmatter block in ${skillPath}`);
@@ -260,13 +283,23 @@ export function stampConceptSkill(skillPath: string, next: { version: string; la
   const lines = match[2].split(/\r?\n/);
   const found = locateMetadata(lines);
 
+  const versionValue = `"${next.version}"`;
   let rebuiltLines: string[];
+  let metadata: string[];
+  let applyLines: string[];
   if (found) {
-    let body = lines.slice(found.start + 1, found.end);
+    const original = lines.slice(found.start + 1, found.end);
+    const hasKey = (k: string) => original.some((l) => l.includes(":") && l.slice(0, l.indexOf(":")).trim() === k);
+    let body = original;
     body = setIn(body, found.indent, TYPE_KEY, CONCEPT_TYPE);
-    body = setIn(body, found.indent, VERSION_KEY, `"${next.version}"`);
+    body = setIn(body, found.indent, VERSION_KEY, versionValue);
     body = setIn(body, found.indent, LAST_UPDATE_KEY, next.lastUpdate);
     rebuiltLines = [...lines.slice(0, found.start + 1), ...body, ...lines.slice(found.end)];
+    metadata = [lines[found.start], ...body];
+    applyLines =
+      hasKey(TYPE_KEY) && hasKey(VERSION_KEY) && hasKey(LAST_UPDATE_KEY)
+        ? [`${found.indent}${VERSION_KEY}: ${versionValue}`, `${found.indent}${LAST_UPDATE_KEY}: ${next.lastUpdate}`]
+        : metadata;
   } else {
     // No block, or one written inline/as a scalar: drop any such line and append a fresh block,
     // carrying over whatever the inline form held so nothing the user wrote is lost.
@@ -278,12 +311,25 @@ export function stampConceptSkill(skillPath: string, next: { version: string; la
       [VERSION_KEY]: `"${next.version}"`,
       [LAST_UPDATE_KEY]: next.lastUpdate,
     };
-    rebuiltLines = [...kept, "metadata:", ...Object.entries(merged).map(([k, v]) => `${DEFAULT_INDENT}${k}: ${v}`)];
+    metadata = ["metadata:", ...Object.entries(merged).map(([k, v]) => `${DEFAULT_INDENT}${k}: ${v}`)];
+    applyLines = metadata;
+    rebuiltLines = [...kept, ...metadata];
   }
 
   const rebuilt = `${match[1]}${rebuiltLines.join(eol)}${match[3]}`;
-  const out = raw.slice(0, match.index) + rebuilt + raw.slice(match.index + match[0].length);
-  if (out === raw) return false;
-  writeFileSync(skillPath, out);
-  return true;
+  const content = raw.slice(0, match.index) + rebuilt + raw.slice(match.index + match[0].length);
+  return {
+    version: next.version,
+    lastUpdate: next.lastUpdate,
+    metadata,
+    lines: applyLines,
+    content,
+    changed: content !== raw,
+  };
+}
+
+/** True for the errno codes a read-only or sandboxed filesystem raises on write. */
+export function isWriteBlocked(err: unknown): err is NodeJS.ErrnoException {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return code === "EROFS" || code === "EPERM" || code === "EACCES";
 }
