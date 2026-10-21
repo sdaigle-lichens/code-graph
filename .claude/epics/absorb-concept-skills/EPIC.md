@@ -406,3 +406,14 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     to hold.
   - Lesson: a worker in a separate worktree branches from HEAD and misses uncommitted sibling work.
     Commit each finished task before the next one starts.
+  - Unblocked: 024 + bookkeeping committed as b12e082, then maestro runtime 0.12.2 as 824165f
+    (user-approved, two commits). Told maestro-27239325 to rebase task-025 onto the branch, keep
+    `unextracted` in `--summary`, regenerate the bundle at 0.3.18, re-run tests/check/eval and
+    report back without committing.
+  - Rebased onto 824165f (stash/reset/pop; stash@{0} "task-025-wip" kept). `summarizeStatus` carries
+    `unextracted` as counts only. Re-verified by me in the worktree: 396/396, `pnpm check` 6/6,
+    `just eval` 7/7, bundle reproducible (no diff after `pnpm bundle`), scribe 8 958 B.
+  - Landed (user-approved) as 90f7b24 on task-025, branch fast-forwarded. `git merge --ff-only` hit the
+    sandbox on `.claude/skills/*` (read-only), so the ref was moved with `update-ref` + `reset --mixed`
+    and the three skill files written with Edit; tree verified equal to task-025.
+  - Doc nit, not fixed: concept-skills-layer's `--summary` line omits the optional `unextracted` counts.
