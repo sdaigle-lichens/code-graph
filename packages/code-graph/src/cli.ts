@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { tryLoadConfig } from "./config.js";
 import { registerSkillsCommands } from "./skills/commands.js";
+import { ensureSqlite, STORE_COMMANDS } from "./sqlite-guard.js";
 import { packageRoot, packageVersion } from "./version.js";
 
 // Everything that touches the store (node:sqlite) or the TypeScript compiler (ts-morph) is imported
@@ -44,6 +45,14 @@ async function skippedForNoConcepts(command: string): Promise<boolean> {
 
 const program = new Command();
 program.name("code-graph").version(packageVersion());
+
+// The single catch for a Node without node:sqlite: any command that opens the store is checked here,
+// before its own lazy imports, so none of their catch blocks turns it into a bare exit 1.
+program.hook("preAction", (_program, action) => {
+  let top = action;
+  while (top.parent && top.parent !== program) top = top.parent;
+  if (STORE_COMMANDS.has(top.name())) ensureSqlite();
+});
 
 program
   .command("status")

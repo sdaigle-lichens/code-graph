@@ -91,12 +91,58 @@ describe("unreadable vs missing deps dir", () => {
     assert.doesNotMatch(err.message, /allowRead/);
   });
 
-  it("treats ENOENT as unreadable in a sandboxed session and names allowRead", () => {
+  it("says absent in a sandboxed session when the cache root is visible and the deps dir is missing", () => {
     process.env.SANDBOX_RUNTIME = "1";
     const dir = emptyCache();
+    mkdirSync(join(dir, "cache", "code-graph"), { recursive: true });
     process.chdir(dir);
-    assert.equal(probeDepsDir(cacheDepsDir()), "unreadable");
+    assert.equal(probeDepsDir(cacheDepsDir()), "absent");
     const out = statusOutput();
+    assert.match(out, /ts-morph: missing — run `code-graph deps install`/);
+    assert.doesNotMatch(out, /allowRead|not visible|unreadable/);
+  });
+
+  it("says absent in a sandboxed session when only the cache root's parent can be listed", () => {
+    process.env.SANDBOX_RUNTIME = "1";
+    const dir = emptyCache();
+    mkdirSync(join(dir, "cache"), { recursive: true });
+    assert.equal(probeDepsDir(cacheDepsDir()), "absent");
+  });
+
+  it("says not visible in a sandboxed session when the cache root cannot be seen, with both fixes", () => {
+    process.env.SANDBOX_RUNTIME = "1";
+    const dir = emptyCache();
+    process.env.XDG_CACHE_HOME = join(dir, "hidden", "cache");
+    process.chdir(dir);
+    assert.equal(probeDepsDir(cacheDepsDir()), "not-visible");
+    const out = statusOutput();
+    assert.match(out, /not visible from this sandboxed session: it may be absent or hidden/);
+    assert.match(out, /deps install/);
+    assert.match(out, /sandbox\.filesystem\.allowRead/);
+    assert.ok(out.includes(join(dir, "hidden", "cache", "code-graph")));
+    assert.throws(
+      () => requireFromProject("ts-morph"),
+      (e: Error) =>
+        e instanceof MissingProjectDependencyError &&
+        /not visible from this sandboxed session/.test(e.message) &&
+        /deps install/.test(e.message) &&
+        /allowRead/.test(e.message)
+    );
+  });
+
+  it("says unreadable on EACCES under the sandbox flag too, and names allowRead", (t) => {
+    if (process.getuid?.() === 0) return t.skip("root ignores directory modes");
+    process.env.SANDBOX_RUNTIME = "1";
+    const dir = emptyCache();
+    mkdirSync(join(cacheDepsDir(), "node_modules"), { recursive: true });
+    process.chdir(dir);
+    chmodSync(dir, 0o000);
+    const state = probeDepsDir(cacheDepsDir());
+    chmodSync(dir, 0o755);
+    assert.equal(state, "unreadable");
+    chmodSync(join(dir, "cache"), 0o000);
+    const out = statusOutput();
+    chmodSync(join(dir, "cache"), 0o755);
     assert.match(out, /unreadable/);
     assert.match(out, /sandbox\.filesystem\.allowRead/);
     assert.ok(out.includes(join(dir, "cache", "code-graph")));
@@ -117,12 +163,13 @@ describe("unreadable vs missing deps dir", () => {
         e instanceof MissingProjectDependencyError && /deps install/.test(e.message) && !/allowRead/.test(e.message)
     );
     process.env.SANDBOX_RUNTIME = "1";
+    process.env.XDG_CACHE_HOME = join(dir, "hidden", "cache");
     assert.throws(
       () => requireFromProject("ts-morph"),
       (e: Error) =>
         e instanceof MissingProjectDependencyError &&
         /sandbox\.filesystem\.allowRead/.test(e.message) &&
-        e.message.includes(join(dir, "cache", "code-graph"))
+        e.message.includes(join(dir, "hidden", "cache", "code-graph"))
     );
   });
 

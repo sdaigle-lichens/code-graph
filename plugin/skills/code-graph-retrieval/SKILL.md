@@ -55,6 +55,7 @@ graph tells you *where* and *why*; you still read the source for exact detail.
    | `5`  | No config | No graph here — fall back to Grep/Glob |
    | `6`  | Zero results | Rephrase once, else fall back to Grep/Glob |
    | `7`  | Low confidence (`search` only): results are printed, but the top cluster is a weak match or its concept is un-enriched. JSON has `low_confidence: true` plus `low_confidence_reason` | Do not treat the results as authoritative. Grep for the terms, or read the concept's SKILL.md (the `> Low confidence:` line names its path), then use the graph hits only as leads |
+   | `8`  | `node:sqlite` unavailable: this Node is older than 22.5 or runs with `--no-experimental-sqlite`; the one stderr line says so | Tell the user to run `node --version` and use Node >=22.5; meanwhile fall back to Grep/Glob. `skills *` still works |
 
 4. **Read the pointed-at slices** with `Read` (`offset`/`limit`) to confirm details before
    acting. The graph reflects the last `code-graph apply`, so treat it as a fast index, not

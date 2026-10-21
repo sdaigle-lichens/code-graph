@@ -146,7 +146,7 @@
     "epic": "absorb-concept-skills"
   },
   "026-name-the-fix-when-the-store-can-t-open-and-make-uninstall-list-what-install-added.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "023-keep-search-honest-while-most-concepts-are-un-enriched.md"
     ],

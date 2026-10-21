@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  blockedState,
   PINNED_DEPS,
   pluginDepsDirs,
   probeDepsDir,
@@ -24,17 +25,28 @@ export function depsStatus(): void {
       console.log(`  ${name}: ${found.source} (${found.path})`);
       continue;
     }
-    const unreadable = states.some((s) => s.state === "unreadable");
+    const blocked = blockedState(states.map((s) => s.state));
     console.log(
-      unreadable
+      blocked === "unreadable"
         ? `  ${name}: missing or unreadable from this session`
-        : `  ${name}: missing — run \`code-graph deps install\``
+        : blocked === "not-visible"
+          ? `  ${name}: not visible from this sandboxed session: it may be absent or hidden`
+          : `  ${name}: missing — run \`code-graph deps install\``
     );
   }
-  if (!states.some((s) => s.state === "unreadable")) return;
+  const blocked = blockedState(states.map((s) => s.state));
+  if (!blocked) return;
   for (const { dir, state } of states)
-    console.log(`  ${dir}: ${state === "unreadable" ? "unreadable (not absent)" : state}`);
-  console.log(sandboxReadAdvice());
+    console.log(
+      `  ${dir}: ${
+        state === "unreadable"
+          ? "unreadable (not absent)"
+          : state === "not-visible"
+            ? "not visible from this sandboxed session: it may be absent or hidden"
+            : state
+      }`
+    );
+  console.log(sandboxReadAdvice(blocked));
 }
 
 /** Install the pinned deps into the first plugin deps dir with npm. Returns the process exit code. */

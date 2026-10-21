@@ -417,3 +417,16 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     sandbox on `.claude/skills/*` (read-only), so the ref was moved with `update-ref` + `reset --mixed`
     and the three skill files written with Edit; tree verified equal to task-025.
   - Doc nit, not fixed: concept-skills-layer's `--summary` line omits the optional `unextracted` counts.
+  - maestro ack: 116 now requires 0.3.18 and drops the manual reindex (only on the lock/busy hint);
+    the enrichment move has no maestro impact. Waiting on 027's fixture path.
+- 026 (0.3.19): worker maestro-fef84d2f, report r024. Acked, worker recorded. Built uncommitted in the
+  main checkout.
+  - Built: `sqlite-guard.ts` + one commander preAction hook (`STORE_COMMANDS`) exit 8 with one line
+    naming Node >=22.5; `deps status` gains `not-visible` (sandboxed ENOENT where neither the cache root
+    nor its parent lists); uninstall skill lists each artefact, one consent per item, default no.
+  - Verified by me: 435/435, `pnpm check` 6/6, `just eval` 7/7, bundle a cache hit (reproducible).
+    `node --no-experimental-sqlite code-graph.cjs status` exits 8 with the fix line; `skills list`
+    still works without sqlite.
+  - Worker reports `claude plugin validate` and full `pnpm test` passed outside the sandbox (user-run).
+  - Overlap: 027 is in progress in `../code-graph-task-027` from e6c35b8 (already at 0.3.20) and lacks
+    026; it touches the version files and the bundle. Commit 026, then 027 rebases.

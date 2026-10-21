@@ -32,11 +32,19 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   its own compiler; keep in step with package.json); (b) the project's own install via
   `createRequire(<project>/package.json)`. Neither → `MissingProjectDependencyError` naming
   `deps install`. Never download inside a graph command. A deps dir is probed with `probeDepsDir`
-  (stat): EACCES/EPERM, or ENOENT while `SANDBOX_RUNTIME=1` (bubblewrap can hide a denied home path),
-  counts as `unreadable`, not `absent`; the error and `deps status` then name
-  `sandbox.filesystem.allowRead` and the absolute cache dir instead of only `deps install`.
+  (stat) into `present | absent | unreadable | not-visible`: EACCES/EPERM is `unreadable`; ENOENT is
+  `absent` outside a sandbox. Under `SANDBOX_RUNTIME=1` (bubblewrap can hide a denied home path) an
+  ENOENT is told apart by listing `cacheRootDir()` (or the plugin-data root), then its parent: listable
+  and the dir not in it = `absent` ("run deps install"); neither visible = `not-visible` ("may be absent
+  or hidden", both fixes). `unreadable` and `not-visible` (`blockedState`) make the error and `deps
+  status` name `sandbox.filesystem.allowRead` and the absolute cache dir as well as `deps install`.
   `deps install` stays on `~/.cache`: `CLAUDE_PLUGIN_DATA` is unset in the user's shell and Claude Code
   documents no way to locate it from there.
+- **No `node:sqlite`** (Node <22.5 or `--no-experimental-sqlite`): `sqlite-guard.ts` is the one catch.
+  A commander `preAction` hook in `cli.ts` checks `isBuiltin("node:sqlite")` (`node:module`), without
+  loading it, for the top-level commands in `STORE_COMMANDS` and exits `EXIT_NO_SQLITE` (8) with one
+  line naming Node >=22.5 and `node --version`.
+  Add any new store-opening command to that set; `skills`, `deps`, `extract`, `catalog` stay out.
 - `extract`/`apply`/`drift` with no `concepts` in the config exit 0 with a skip message before
   importing anything heavy (`skippedForNoConcepts` in `cli.ts`); keep new concept-iterating commands
   behind it.
