@@ -44,6 +44,7 @@ Version: next free patch in all three files, bundle regenerated.
 - [ ] Test: a stamp with no `--bump` never decreases an existing version (repo level and per skill)
 - [ ] Per-skill behaviour unchanged (marked skill without `--bump` dies; unmarked one gets 1.0)
 - [ ] The five docs updated
+- [ ] Follow-up from 028's review: a test that exit 9 (and `--print`) on a CRLF SKILL.md prints lines that, applied verbatim, give the same bytes as a writable stamp (CRLF preserved)
 - [ ] pnpm check, package tests and just eval (7/7) green; version bumped in all three files, bundle regenerated
 
 ## Blocked by

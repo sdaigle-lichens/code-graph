@@ -478,6 +478,16 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   is always 1.0. The per-skill form is already safe: a marked skill dies without `--bump`, and an
   unmarked one correctly gets 1.0. Fix: with an existing version, refuse instead of defaulting to minor.
   Docs to update in five places. Blocked by 028 (same action, uncommitted). Maestro restored its file.
+  - 028 landed (user-approved) as 55a23a7 (0.3.21); maestro notified. The CRLF exit-9 test from 028's
+    review was folded into 030. `claude plugin validate` is now excluded from the sandbox (the user
+    asked; edit in settings.local.json), so I run it myself. It passes; directory-only notes say the
+    LICENSE and icon are missing, user's call.
+  - 030 report r027 acked; worker maestro-8cdc5b46 recorded. Built in the main tree: a guard in the
+    repo-level stamp branch (exit 1 naming the current version and the `--bump` options), the five docs
+    now say "refuses", tests for both sources, the first stamp, the explicit reset, never-decrease at
+    both levels, and the CRLF exit-9/`--print` case. 0.3.22.
+  - Verified by me: build (bundle identical to the worker's), 458/458, `pnpm check` 6/6, `just eval`
+    7/7, `claude plugin validate` passed. Diff read: minimal, correct.
 - Contract rule (maestro request, user-approved here): `.claude/rules/plugin-skills.md` now requires
   any `plugin/contracts/` change to be called out in that version's release note to maestro, with the
   old and new shape. A breaking change keeps accepting the old shape for one version.

@@ -172,7 +172,7 @@
     "epic": "absorb-concept-skills"
   },
   "030-make-a-repo-level-skills-stamp-without-bump-refuse-instead-of-resetting-to-1-0.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
     ],
