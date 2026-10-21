@@ -18,8 +18,14 @@
 //       unacknowledged report and cross-epic note with its file path, and the cross-epic
 //       dependencies: blockedBy edges between this epic's tasks and tasks of another epic (or of
 //       none) whose blocker is not done yet. Task membership is read from the tracker.
-//   node maestro-epic.cjs set-manager <slug> <session name>
+//   node maestro-epic.cjs set-manager <slug> [<session name>]
 //   node maestro-epic.cjs add-worker <slug> <session name> [--task <NNN-task.md>]
+//       `113`: every name the caller records about ITSELF (create --manager, set-manager,
+//       report --from, note --from, ack --by) is filled in from the name the session-name hook
+//       stored for this session (`maestro-<id8>`, `maestro-mgr-<id8>`, or the user's custom title),
+//       in preference to a passed one; the passed name is only the fallback. add-worker, which a
+//       manager runs FOR a worker, prefers the name recorded on the --task claim instead (and the
+//       caller's own stored name only when the caller is a worker that is not the epic's manager).
 //   node maestro-epic.cjs remove-worker <slug> <session name>
 //   node maestro-epic.cjs of <NNN-task.md>
 //       Prints the slug of the epic the task belongs to, or nothing (exit 0) when it belongs to none.
@@ -48,8 +54,28 @@
 const fs = require("fs");
 const path = require("path");
 const epics = require("./lib/maestro-epic.cjs");
+const { resolveSessionId, storedSessionName } = require("./lib/maestro-session.cjs");
 
 const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+
+// `113`: the name the session-name hook stored for THIS session (`maestro-<id8>`,
+// `maestro-mgr-<id8>`, or the user's custom title), with the role that recorded it, or null. The
+// commands that record the caller's own name prefer it over the one passed in, so a name typed from
+// a stale agent listing can no longer be recorded.
+function ownName() {
+  try {
+    return storedSessionName(path.join(projectDir, ".claude"), resolveSessionId(null));
+  } catch {
+    return null;
+  }
+}
+
+/** The caller's stored name, else the passed one (trimmed), else undefined. */
+function preferOwn(passed) {
+  const own = ownName();
+  if (own) return own.name;
+  return typeof passed === "string" && passed.trim() ? passed.trim() : undefined;
+}
 const argv = process.argv.slice(2);
 const command = argv[0];
 
@@ -96,9 +122,12 @@ try {
   switch (command) {
     case "create": {
       const slug = need(positional[0], "create <slug> [--goal <text>] [--manager <name>]");
-      const { dir } = epics.createEpic(projectDir, slug, { goal: flags.goal, manager: flags.manager });
+      // The creating session is the manager: its stored name wins over --manager (`113`).
+      const manager = preferOwn(flags.manager);
+      const { dir } = epics.createEpic(projectDir, slug, { goal: flags.goal, manager });
       process.stdout.write(
-        `Maestro epic: created "${slug}" at ${dir}\n  edit ${path.join(dir, "EPIC.md")} for the goal, scope and decisions\n`
+        `Maestro epic: created "${slug}" at ${dir}\n  edit ${path.join(dir, "EPIC.md")} for the goal, scope and decisions\n` +
+          (manager ? `  manager: "${manager}"\n` : "")
       );
       break;
     }
@@ -135,22 +164,35 @@ try {
       break;
     }
     case "set-manager": {
-      epics.setManager(
-        projectDir,
-        need(positional[0], "set-manager <slug> <name>"),
-        need(positional[1], "set-manager <slug> <name>")
-      );
-      process.stdout.write(`Maestro epic: manager of "${positional[0]}" is now "${positional[1]}"\n`);
+      // The calling session is the manager: its stored name wins over the passed one (`113`), and
+      // with a stored name the <name> argument may be omitted.
+      const slug = need(positional[0], "set-manager <slug> [<name>]");
+      const name = need(preferOwn(positional[1]), "set-manager <slug> <name>");
+      epics.setManager(projectDir, slug, name);
+      process.stdout.write(`Maestro epic: manager of "${slug}" is now "${name}"\n`);
       break;
     }
     case "add-worker": {
-      epics.addWorker(
-        projectDir,
-        need(positional[0], "add-worker <slug> <name>"),
-        need(positional[1], "add-worker <slug> <name>"),
-        flags.task
+      // `113`: the manager usually runs this FOR a worker, so the caller's own stored name is used
+      // only when the caller is itself a worker that is not this epic's manager. Otherwise the
+      // name the worker's claim on --task recorded (filled in by that worker's own CLI) wins over
+      // the typed one.
+      const slug = need(positional[0], "add-worker <slug> <name> [--task <task.md>]");
+      const own = ownName();
+      const manager = epics.readEpicState(projectDir, slug)?.manager?.name ?? null;
+      const typed = typeof positional[1] === "string" && positional[1].trim() ? positional[1].trim() : null;
+      const name = need(
+        (own && own.role === "worker" && own.name !== manager ? own.name : null) ||
+          (flags.task ? epics.taskClaimName(projectDir, flags.task) : null) ||
+          typed,
+        "add-worker <slug> <name> [--task <task.md>]"
       );
-      process.stdout.write(`Maestro epic: recorded worker "${positional[1]}" on "${positional[0]}"\n`);
+      epics.addWorker(projectDir, slug, name, flags.task);
+      process.stdout.write(
+        `Maestro epic: recorded worker "${name}" on "${slug}"` +
+          (typed && typed !== name ? ` (the session's recorded name, not "${typed}")` : "") +
+          "\n"
+      );
       break;
     }
     case "remove-worker": {
@@ -174,7 +216,8 @@ try {
         process.stdout.write(`Maestro epic: "${path.basename(task)}" belongs to no epic — no report written\n`);
         break;
       }
-      const r = epics.writeReport(projectDir, task, readBody(flags.file), flags.from);
+      // The reporting session's stored name wins over --from (`113`).
+      const r = epics.writeReport(projectDir, task, readBody(flags.file), preferOwn(flags.from));
       process.stdout.write(
         `Maestro epic: report ${r.id} for "${path.basename(task)}" written to ${r.file}\n` +
           (r.manager
@@ -193,7 +236,7 @@ try {
       epics.checkNoteRoute(projectDir, to, fromEpic);
       const r = epics.writeNote(projectDir, to, readBody(file), {
         fromEpic,
-        from: flags.from,
+        from: preferOwn(flags.from),
         subject: flags.subject,
       });
       process.stdout.write(
@@ -219,7 +262,7 @@ try {
       const ids = positional.slice(1);
       need(ids[0], "ack <slug> <id>... [--by <name>]");
       for (const id of ids) {
-        const outcome = epics.acknowledgeReport(projectDir, slug, id, flags.by);
+        const outcome = epics.acknowledgeReport(projectDir, slug, id, preferOwn(flags.by));
         process.stdout.write(
           `Maestro epic: ${outcome === "already" ? `${id} was already acknowledged` : `acknowledged ${id}`}\n`
         );

@@ -40,9 +40,10 @@
 //       clean SessionEnd) is reaped automatically before the attempt, so a
 //       crashed session's claim never blocks a fresh one.
 //
-//       `--name <session name>` (`084`) records the claiming session's NAME beside its id, because
-//       cross-session messages are addressed by name and the id is all a hook can learn. The
-//       orchestrator reads its name from the agent listing. A claim without it works and shows as
+//       The claim records the claiming session's NAME beside its id (`084`), because cross-session
+//       messages are addressed by name. Since `113` the CLI fills it in from the name the
+//       session-name hook stored (`maestro-<id8>`, or the user's custom title); `--name <session
+//       name>` is only the fallback when none is stored. A claim with neither works and shows as
 //       unnamed. `maestro-epic.cjs show` lists each running task with that name.
 //
 //   node maestro-task-status.cjs release [filename]
@@ -100,6 +101,7 @@ const {
   isFreeformBranch,
   SESSION_WORKTREE_NAME,
   CLAIM_IDLE_CAP_MS,
+  storedName,
 } = require("./lib/maestro-session.cjs");
 
 // `074`: the QUEUE root is always the main checkout — even if this runs with a worktree as its
@@ -107,9 +109,10 @@ const {
 const projectDir = mainCheckoutRoot(process.env.CLAUDE_PROJECT_DIR || process.cwd());
 const [command, arg] = process.argv.slice(2);
 
-// `084`: `claim <filename> --name <session name>`. The orchestrator learns its session's name from
-// the agent listing (hooks never have it) and records it so a manager can message the session
-// running a task. Absent or empty means an unnamed claim, which works exactly as before.
+// `084`: `claim <filename> --name <session name>` records the session's name so a manager can
+// message the session running a task. `113`: the name the session-name hook stored in session.json
+// (`maestro-<id8>`, or the user's custom title) is recorded in preference, so `--name` is only a
+// fallback for a session with no stored name. Neither means an unnamed claim, which still works.
 function flagValue(flag) {
   const args = process.argv.slice(2);
   const i = args.indexOf(flag);
@@ -1025,7 +1028,8 @@ try {
       process.exit(1);
     }
     const filename = path.basename(target);
-    const sessionName = flagValue("--name");
+    // `113`: the session's stored name wins over a passed one; `--name` is only the fallback.
+    const sessionName = storedName(path.join(projectDir, ".claude"), sessionId) || flagValue("--name");
     const result = claimTask(filename, sessionId, Date.now(), sessionName);
     if (result.outcome === "claimed") {
       process.stdout.write(

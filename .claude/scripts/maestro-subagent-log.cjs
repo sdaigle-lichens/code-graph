@@ -55,6 +55,8 @@ const {
   ownerRunLeftovers,
   readLogLines,
   retireResumeDeliveries,
+  parseGapsHandled,
+  acknowledgeGaps,
 } = require("./lib/maestro-session.cjs");
 
 // Resolve the loaded/referenced skills the SubagentStart hook would offer this
@@ -276,6 +278,35 @@ function parseHandoff(msg) {
             }
           } catch {
             // Best-effort — an unretired file is still delivered to a later cold start.
+          }
+        }
+        // `112`: a scribe's skill-gap reports stay in its lane across deliveries until it names
+        // them on a `SKILL_GAPS_HANDLED:` line. Retire exactly those now (gap reports only — a
+        // non-scribe agent's line, or a name that is not a gap, retires nothing), logged as a
+        // `channel_delivery` with `via: "ack"`.
+        if (!inMeeting && !inOwnerRun && bareAgentName(agentType) === "scribe") {
+          try {
+            const names = parseGapsHandled(`${lastMsg || ""}\n${handoffMsg === lastMsg ? "" : handoffMsg || ""}`);
+            const acked = names.length > 0 ? acknowledgeGaps(cwd, names) : [];
+            for (const e of acked) {
+              appendSessionLog(
+                claudeDir,
+                {
+                  ts: new Date().toISOString(),
+                  origin: "main_session",
+                  kind: "channel_delivery",
+                  sender: e.sender,
+                  receiver: "scribe",
+                  agent_id: agentId,
+                  via: "ack",
+                  content: e.body.trim(),
+                  log: `channel: ${e.sender} → scribe (gap acknowledged: ${e.fileName})`,
+                },
+                p
+              );
+            }
+          } catch {
+            // Best-effort — an unacknowledged gap is delivered again to the next scribe.
           }
         }
         // `p.transcript_path` here is `SubagentStopHookInput`'s own field — the SAME file the main

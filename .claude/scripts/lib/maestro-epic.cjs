@@ -51,6 +51,7 @@ __export(maestro_epic_exports, {
   reportCommandFor: () => reportCommandFor,
   setManager: () => setManager,
   showEpic: () => showEpic,
+  taskClaimName: () => taskClaimName,
   unacknowledgedReports: () => unacknowledgedReports,
   unlinkTasks: () => unlinkTasks,
   writeNote: () => writeNote,
@@ -475,6 +476,9 @@ function linkTasks(projectRoot, slug, tasks) {
 function unlinkTasks(projectRoot, tasks) {
   return setTaskEpic(projectRoot, tasks, null);
 }
+function taskClaimName(projectRoot, task) {
+  return claimSessionName(tasksDirFor(mainCheckoutRoot(projectRoot)), import_node_path6.default.basename(task));
+}
 function epicOfTask(projectRoot, filename) {
   return readTaskTracker(projectRoot)[import_node_path6.default.basename(filename)]?.epic ?? null;
 }
@@ -665,6 +669,7 @@ function formatEpic(view) {
   reportCommandFor,
   setManager,
   showEpic,
+  taskClaimName,
   unacknowledgedReports,
   unlinkTasks,
   writeNote,

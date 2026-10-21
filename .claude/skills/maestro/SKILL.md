@@ -28,7 +28,7 @@ If the text below is missing, empty, or reads `[shell command execution disabled
 node .claude/scripts/maestro-set-session-workflow.cjs "<workflow name>" [--task "<NNN-filename.md>"]
 ```
 
-3. **If `active_task` was just recorded, claim it before anything else**, so a concurrent session can't take it: `node .claude/scripts/maestro-task-status.cjs claim "<NNN-filename.md>" --name "<your session name>"`. Your session name is this session's entry in `ListAgents` (a hook can't learn it); if you can't read it, drop `--name` and the claim shows as unnamed. Always pass it when you can, epic or not.
+3. **If `active_task` was just recorded, claim it before anything else**, so a concurrent session can't take it: `node .claude/scripts/maestro-task-status.cjs claim "<NNN-filename.md>"`. The CLI fills in this session's name (a hook set it to `maestro-<id8>` when `/maestro` started, or kept the name the user gave the session), and it survives a restart; don't look it up in `ListAgents` or pass `--name`.
 
    If the claim is lost, claim another `ready` task from `.claude/maestro-tasks/status.json` and re-run Step 2 from here; if every `ready` task is claimed, tell the user rather than working a claimed or `blocked` one. `node .claude/scripts/maestro-task-status.cjs release` if you abandon the task before Step 4.
 

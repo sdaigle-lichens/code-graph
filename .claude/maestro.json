@@ -1067,7 +1067,7 @@
     "backend",
     "frontend"
   ],
-  "runtimeVersion": "0.11.27",
+  "runtimeVersion": "0.12.2",
   "reports": {
     "backend": {
       "id": "backend",
@@ -1079,8 +1079,8 @@
     "scribe": {
       "id": "scribe",
       "syncedFrom": {
-        "version": 5,
-        "hash": "b0c6dd1fae4e0499e4cb2866a4d76e617db4d58bb4b7f3cadc44144c9cf08fc3"
+        "version": 6,
+        "hash": "10b957e0af37a2bbefc7442182e86abfc53188e24b18ac1e94b8bcc63d1b7c83"
       }
     },
     "test": {

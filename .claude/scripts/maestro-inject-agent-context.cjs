@@ -23,7 +23,8 @@
 //
 // A THIRD, INDEPENDENT branch (`036`) delivers whatever is waiting for this agent's BARE type in
 // `.claude/channels/<bareAgentType>/` — same-run files inlined and retired, everything else only
-// mentioned. See apps/maestro/src/core/handoff-channels.ts. Gated on nothing but the lane having
+// mentioned; except (`112`) a stamped scribe-lane skill-gap report, inlined whatever its run and
+// kept until a scribe acknowledges it. See apps/maestro/src/core/handoff-channels.ts. Gated on nothing but the lane having
 // files in it: a channel is a filesystem fact, not a workflow-routing one, which is what lets a
 // gap reach `@scribe` on a later run even when this run's workflow never wired a route to it.
 //
@@ -82,6 +83,7 @@ const {
   payloadRequirement,
   readLane,
   retire,
+  isGapReport,
   ensureSessionPaths,
   hasCompletedRun,
   meetingFor,
@@ -406,8 +408,53 @@ function collectReportContext(cfg, projectDir, agentType) {
       // answer a foreign-run file already gets, and the conservative one: an un-attributable
       // payload is exactly what must not be inlined verbatim.
       const runId = sess ? ensureSessionRunId(sess.state) : null;
-      const delivered = runId ? entries.filter((e) => e.runId === runId) : [];
-      const waiting = runId ? entries.filter((e) => e.runId !== runId) : entries;
+      // `112`: a STAMPED skill-gap report in the scribe lane is inlined to every scribe whatever
+      // run stamped it, and is never retired here — only the scribe's `SKILL_GAPS_HANDLED:` line
+      // (its SubagentStop, maestro-subagent-log.js) or sweep's age cap removes it. An unstamped
+      // one still falls through to `waiting`, mentioned like any unattributable file.
+      const gaps = entries.filter((e) => e.runId != null && isGapReport(e));
+      const rest = entries.filter((e) => !gaps.includes(e));
+      const delivered = runId ? rest.filter((e) => e.runId === runId) : [];
+      const waiting = runId ? rest.filter((e) => e.runId !== runId) : rest;
+      const gapAck =
+        `If you acted on a gap report, end your final message with one line naming every gap file you acted on, ` +
+        `just before your \`HANDOFF:\` line, which stays last:\n` +
+        `SKILL_GAPS_HANDLED: <file>, <file>, …\n` +
+        `Acting on it counts even when you only enriched (no SKILL.md edit, no stamp), left a remainder to enrich, ` +
+        `or found the concept has no graph. A gap file you do not name stays in your channel for the next scribe run.`;
+
+      if (gaps.length > 0 && isResume) {
+        const lines = gaps.map((e) => `- from \`${e.sender}\`: \`.claude/channels/${bareAgent}/${e.fileName}\``);
+        parts.push(
+          `Skill-gap reports in your channel — Read each file (kept until you acknowledge it):\n${lines.join("\n")}\n\n${gapAck}`
+        );
+      } else if (gaps.length > 0) {
+        const blocks = gaps.map((e) => `From \`${e.sender}\` (\`${e.fileName}\`):\n\n${e.body.trim()}`);
+        parts.push(
+          `Skill-gap reports in your channel (\`.claude/channels/${bareAgent}/\`) — inlined verbatim, kept until you ` +
+            `acknowledge them:\n\n${blocks.join("\n\n---\n\n")}\n\n${gapAck}`
+        );
+        for (const e of gaps) {
+          try {
+            appendSessionLog(
+              claudeDir,
+              {
+                ts: new Date().toISOString(),
+                origin: "main_session",
+                kind: "channel_delivery",
+                sender: e.sender,
+                receiver: bareAgent,
+                agent_id: payload.agent_id || "",
+                content: e.body.trim(),
+                log: `channel: ${e.sender} → ${bareAgent} (gap, kept)`,
+              },
+              payload
+            );
+          } catch {
+            // Best-effort — never fail the hook on a logging error.
+          }
+        }
+      }
 
       // `088`: a RESUME is never handed this hook's additionalContext (Claude Code runs the hook on
       // a SendMessage resume and drops its output — task 085's backend found its lane empty because
