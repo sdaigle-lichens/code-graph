@@ -447,3 +447,6 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Landed (user-approved) as 82a46ab, plus turbo.json `globalPassThroughEnv: ["TMPDIR"]` as its own
     commit 5b19298 (user chose a separate commit); branch fast-forwarded cleanly. Fixture path sent to
     manager-code-graph-merge. All tickets 003-027 done.
+  - maestro ack: R7 is maestro task 117. It vendors `skill-gaps.{example,schema}.json` (source path +
+    0.3.20 noted) into maestro's test fixtures, no cross-repo reads. **Standing obligation:** any change
+    to the gap-file contract must be sent to maestro's manager so the fixtures get re-copied.
