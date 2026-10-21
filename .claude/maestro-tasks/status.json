@@ -158,5 +158,17 @@
       "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md"
     ],
     "epic": "absorb-concept-skills"
+  },
+  "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "029-make-stamp-only-a-checked-decision-list-what-changed-and-warn-on-a-blind-stamp.md": {
+    "status": "ready",
+    "blockedBy": [
+      "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
+    ],
+    "epic": "absorb-concept-skills"
   }
 }

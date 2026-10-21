@@ -450,3 +450,18 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - maestro ack: R7 is maestro task 117. It vendors `skill-gaps.{example,schema}.json` (source path +
     0.3.20 noted) into maestro's test fixtures, no cross-repo reads. **Standing obligation:** any change
     to the gap-file contract must be sent to maestro's manager so the fixtures get re-copied.
+- 028 (0.3.21) ticketed from maestro's request (task 116 / maestro r010): sandboxed `skills stamp`
+  hit EROFS on `.claude/skills/**` and the scribe hand-set the markers. Verified: stamp is one skill
+  per call, and the write error goes to `die()` (exit 1), losing the computed values. Rescoped from
+  "stamp what it can": the batch form doesn't exist; per call, print the exact lines and exit 9. Adds
+  `--print`; the flow skills apply the lines with Edit and confirm with `skills status`. Not blocked.
+  - maestro ack: accepts the per-call design with exit 9. Maestro never runs `skills stamp` and never
+    maps its exit codes, so it needs no change. Notify when 0.3.21 ships.
+- 029 (0.3.22) ticketed from maestro's request (task 116 follow-up, user-approved per maestro): make
+  "stamp only" a checked decision. The scribe stamped 13 concepts without reading them against the
+  changed code. Verified: `gitWindow` already puts `filesChanged` (names only) in `status --json`;
+  the text view shows counts only; there is no `status <skill>` form and no per-file commit counts;
+  `stamp` checks nothing. Scope: `skills status <skill>` with per-file counts; `stamp` warns (never
+  refuses) when mapped files changed but SKILL.md didn't (committed or uncommitted), and `--reviewed`
+  suppresses it; the flows need a one-line reason per stamp-only. Blocked by 028 (same stamp action,
+  flow skills and usage.md); one worker can take both in sequence.
