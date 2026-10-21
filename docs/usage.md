@@ -318,6 +318,7 @@ the repo's history.
 | 4         | Ambiguous symbol        | Qualify with concept: `impact concept::name` |
 | 5         | No `scribe.config.json` | Create one at project root                   |
 | 6         | Zero search results     | Rephrase query or use Explore agent          |
+| 7         | `search` low confidence | Results are printed, but the top cluster is a weak match or its concept is un-enriched (`LOW_CONFIDENCE_MIN_SCORE`, `LOW_CONFIDENCE_MIN_ENRICHED` in `query/search.ts`). Verify with grep or the concept's SKILL.md. `--json` sets `low_confidence: true` and `low_confidence_reason`. An exact symbol-name hit and a docs-only concept are never low confidence |
 
 ## Zed editor LSP
 

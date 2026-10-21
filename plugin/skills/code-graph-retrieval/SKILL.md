@@ -54,6 +54,7 @@ graph tells you *where* and *why*; you still read the source for exact detail.
    | `4`  | Ambiguous symbol | Re-run with `concept::name` or `filepath:name` |
    | `5`  | No config | No graph here — fall back to Grep/Glob |
    | `6`  | Zero results | Rephrase once, else fall back to Grep/Glob |
+   | `7`  | Low confidence (`search` only): results are printed, but the top cluster is a weak match or its concept is un-enriched. JSON has `low_confidence: true` plus `low_confidence_reason` | Do not treat the results as authoritative. Grep for the terms, or read the concept's SKILL.md (the `> Low confidence:` line names its path), then use the graph hits only as leads |
 
 4. **Read the pointed-at slices** with `Read` (`offset`/`limit`) to confirm details before
    acting. The graph reflects the last `code-graph apply`, so treat it as a fast index, not
@@ -66,10 +67,12 @@ The CLI surfaces this; your job is to interpret it without over-reacting.
 
 **The completeness note (on a successful search).** A line like
 `> ⚠ graph 4/6 concepts enriched — results may be partial` only appears when results were
-*thin*. It is **status for the user, not a cue for you to act**. Treat the returned results
-as authoritative for what is in the graph. **Do not** fall back to grep, re-run, or
+*thin*. It is **status for the user, not a cue for you to act**. Treat a confident result
+(exit `0`) as authoritative for what is in the graph. **Do not** fall back to grep, re-run, or
 second-guess a good answer because of this line. Only act on it if the user asks to improve
-coverage.
+coverage. This rule covers exit `0` only: on exit `7` (low confidence) grep or the concept's
+SKILL.md is the fallback, because most concepts stay un-enriched and a plain-language query can
+rank the wrong concept first.
 
 **The gap diagnostic (on a whiff, exit 6).** When a search finds nothing, the CLI prints a
 `## Graph completeness` block listing: declared concepts not fully built, concepts with no
@@ -94,7 +97,7 @@ preserved across re-extract):
 ```sh
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" extract <concept>
 ```
-then run the `scribe` skill's whole-concept enrichment procedure for `<concept>` (it spins up the enrichment subagent), then:
+then enrich `<concept>` with the `scribe` skill's whole-concept enrichment procedure. Only the main session can do that. If you are a subagent you cannot spawn agents: report the need through the gap channel ([Reporting the gap](#reporting-the-gap-subagents)) or hand it off to the scribe. Then:
 ```sh
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```

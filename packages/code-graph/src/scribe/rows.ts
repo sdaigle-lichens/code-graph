@@ -115,6 +115,26 @@ const STOPWORDS = new Set([
   "your",
 ]);
 
+/** `parseGapsHandled` / `parse_gaps_handled` / `HTTPServer2` -> its words, lower-cased. */
+export function splitIdentifier(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((w) => w.toLowerCase());
+}
+
+/**
+ * What the FTS `name` column holds: the identifier itself (so an exact or whole-token query still
+ * hits) followed by its words, because `unicode61` does not split camelCase and a plain-language
+ * query ("gaps handled") would otherwise never reach `parseGapsHandled`.
+ */
+export function nameIndexText(name: string): string {
+  const words = splitIdentifier(name);
+  return words.length > 1 ? `${name} ${words.join(" ")}` : name;
+}
+
 /**
  * Builds an FTS5 MATCH expression from a free-text query.
  *
@@ -123,7 +143,13 @@ const STOPWORDS = new Set([
  * nothing survives tokenization, which callers treat as "no results" (exit 6).
  */
 export function toMatchExpr(query: string): string | null {
-  const tokens = (query.toLowerCase().match(/[a-z0-9_]+/g) ?? []).filter((t) => t.length > 1 && !STOPWORDS.has(t));
+  const raw = (query.toLowerCase().match(/[a-z0-9_]+/g) ?? []).filter((t) => t.length > 1 && !STOPWORDS.has(t));
+  // `unicode61` treats `_` as a separator, so a quoted SCREAMING_SNAKE token is a phrase that
+  // only matches the same words in the same order. Also offer its words alone: they reach a
+  // camelCase name whose indexed words (`nameIndexText`) are split the same way.
+  const tokens = raw.flatMap((t) =>
+    t.includes("_") ? [t, ...t.split("_").filter((p) => p.length > 1 && !STOPWORDS.has(p))] : [t]
+  );
   if (tokens.length === 0) return null;
   const seen = new Set<string>();
   const unique = tokens.filter((t) => (seen.has(t) ? false : (seen.add(t), true)));

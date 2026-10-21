@@ -63,6 +63,12 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - One FTS5 table `search_fts` over `vertices(name, purpose, tags)` + `docs(body_md)`, `porter
   unicode61` — one table because `bm25()` scores only compare within one index. Rebuilt wholesale
   at the end of every `apply`. Stopwords are stripped in JS (`toMatchExpr`, `scribe/rows.ts`).
+  The `name` column holds the identifier plus its camelCase/snake words (`nameIndexText`) so
+  un-enriched vertices match plain-language queries; changing that needs `code-graph reindex`.
+- `search` exits 7 (results still printed) when the top cluster is a weak match or its concept is
+  un-enriched: `assessConfidence` in `query/search.ts`, thresholds `LOW_CONFIDENCE_MIN_SCORE` /
+  `LOW_CONFIDENCE_MIN_ENRICHED`. Exact name hits and docs-only concepts are exempt. `--json` adds
+  `low_confidence` + `low_confidence_reason`.
 - `skills` block `{ version, last_update, agents[] }` in `scribe.config.json`: loose `z.record` in
   `config.ts`, validated in `skills/state.ts` from raw JSON (works without `concepts`/`tsconfig`).
   Legacy `.claude/concept-skills.json` is a read-only per-field fallback; the first write seeds

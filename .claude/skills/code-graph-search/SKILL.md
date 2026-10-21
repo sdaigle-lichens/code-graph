@@ -63,9 +63,14 @@ match long `body_md` far more often than short `name` — without the filter, sk
 above the vertices a natural-language query is actually about. Every token is also quoted,
 because a bare `AND` / `OR` / `NEAR` / `*` / `-` / `:` in user input is an FTS5 syntax error.
 
-`unicode61` does **not** split camelCase: `setWorkorderIndex` is one token, so a bare
-`workorder` reaches it only through purpose/tags/body. The `text_en` analyzer behaved the
-same way.
+`unicode61` does **not** split camelCase, so the `name` column is indexed as the identifier
+**plus its words** (`nameIndexText`, `rows.ts`: `parseGapsHandled parse gaps handled`, written by
+`rebuildSearchIndex`). A bare `gaps handled` therefore reaches an un-enriched vertex by name; an
+exact identifier query still matches the whole token. `toMatchExpr` also offers the words of a
+`SCREAMING_SNAKE` token alongside the phrase. Why: in a consumer where most concepts are
+un-enriched, only enriched purposes matched plain-language queries, so the two enriched concepts
+crowded out everything else (maestro eval 2/8 -> 7/8). An index built before 0.3.16 needs
+`code-graph reindex`.
 
 `LIMIT 10` — top 10 seeds only. No surviving tokens, or no matches → `SearchNoResultsError`
 (CLI exit 6).
@@ -162,6 +167,16 @@ iterates (max 3) until `~N tokens` equals the size of the text containing it, al
 `result.totals.tokens`. `applyTokenBudget` trims afterwards, so its `done()` calls `restateTokens`
 (regex `TOTALS_LINE_RE`) to re-state the figure for the trimmed output.
 
+## Low confidence (exit 7)
+
+`searchStore` sets `result.confidence` via `assessConfidence` for the top cluster: low when its best
+raw seed score is under `LOW_CONFIDENCE_MIN_SCORE` (4), or its concept is un-enriched / under
+`LOW_CONFIDENCE_MIN_ENRICHED` (0.5) of its core (`analyzeConceptGaps` ratio). Never low for an exact
+symbol-name hit or a docs-only concept (no live vertices). `formatSearch` prints a
+`> Low confidence: ...` line naming grep or the SKILL.md path; `cli.ts` sets exit code 7 (results
+still printed) and `--json` adds `low_confidence` + `low_confidence_reason` (as `extra`, so
+`budgetSearchJson` always keeps them). The `confidence` object itself is also in the JSON.
+
 ## Token budget (`applyTokenBudget`)
 
 Three-step degradation if markdown exceeds `maxTokens`:
@@ -221,6 +236,8 @@ cannot be honoured and returns the skeleton anyway.
 
 - `packages/code-graph/src/query/search.ts` — pipeline implementation; `search` (runs `preflight`) wraps exported `searchStore(db, query, opts)`, which tests call directly
 - `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint, not-enriched marker and budget cluster-keep tests
+- `packages/code-graph/src/query/confidence.test.ts` — `assessConfidence` thresholds and exact-hit / docs-only exemptions
+- `packages/code-graph/src/query/search-exit.test.ts` — exit code 7 and `low_confidence` JSON fields
 - `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
 - `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
 - `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)

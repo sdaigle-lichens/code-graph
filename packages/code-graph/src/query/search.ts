@@ -4,6 +4,7 @@ import type { Vertex, Edge } from "../schema.js";
 import { oneHop, twoHops, skillDoc, type DocVertex } from "./queries.js";
 import { toDocs, toMatchExpr, vertexId } from "../scribe/rows.js";
 import { FTS_WEIGHTS } from "../scribe/bootstrap.js";
+import { analyzeConceptGaps, fetchConceptCounts, type ConceptGap } from "./gaps.js";
 
 export class SearchNoResultsError extends Error {
   constructor(query: string) {
@@ -33,7 +34,58 @@ export type SearchResult = {
   totals: { concepts: number; vertices: number; docs: number; tokens: number };
   /** True when every hit came only through a skill doc (no vertex matched the query text). */
   docOnly?: boolean;
+  confidence?: SearchConfidence;
 };
+
+/** Below this raw BM25 seed score the best match in the top cluster is too weak to act on (doc-only matches score ~1). */
+export const LOW_CONFIDENCE_MIN_SCORE = 4;
+/** A top concept with a smaller enriched share of its core (all live vertices when the core is empty) counts as mostly un-enriched. */
+export const LOW_CONFIDENCE_MIN_ENRICHED = 0.5;
+
+export type SearchConfidence = {
+  low: boolean;
+  /** Why the result is unreliable; set only when `low`. */
+  reason?: string;
+  /** The top cluster's SKILL.md path, named as the fallback to grep. */
+  fallbackSkill?: string;
+};
+
+/**
+ * Whether the top cluster can be trusted. Low when its best seed scores under
+ * `LOW_CONFIDENCE_MIN_SCORE`, or its concept is un-enriched / under `LOW_CONFIDENCE_MIN_ENRICHED`
+ * enriched. A top hit whose name equals the query is exact and always trusted: it needs no purpose.
+ */
+export function assessConfidence(
+  top: { concept: string; skillPath: string | null; bestScore: number; exact: boolean } | null,
+  gap: Pick<ConceptGap, "status" | "ratio" | "coreVertices" | "liveVertices"> | null
+): SearchConfidence {
+  if (!top || top.exact) return { low: false };
+  // A concept with no live vertices is docs-only: its SKILL.md is the answer, there is nothing to enrich.
+  if (gap?.status === "un-applied") return { low: false };
+  const fallbackSkill = top.skillPath ?? undefined;
+  if (top.bestScore < LOW_CONFIDENCE_MIN_SCORE) {
+    return {
+      low: true,
+      reason: `weak match (best score ${top.bestScore.toFixed(1)} < ${LOW_CONFIDENCE_MIN_SCORE}) in concept ${top.concept}`,
+      fallbackSkill,
+    };
+  }
+  if (gap && (gap.status === "un-enriched" || gap.ratio < LOW_CONFIDENCE_MIN_ENRICHED)) {
+    const share = Math.round(gap.ratio * 100);
+    return {
+      low: true,
+      reason: `concept ${top.concept} is ${gap.status === "un-enriched" ? "un-enriched" : `mostly un-enriched (${share}% of ${gap.coreVertices > 0 ? "core " : ""}vertices have a purpose)`}, so ranking leans on names only`,
+      fallbackSkill,
+    };
+  }
+  return { low: false };
+}
+
+/** The one-line fallback printed under the totals when confidence is low. */
+export function lowConfidenceLine(c: SearchConfidence): string {
+  const skill = c.fallbackSkill ? `read the concept's SKILL.md (${c.fallbackSkill})` : "read the concept's SKILL.md";
+  return `> Low confidence: ${c.reason}. Do not rely on these results alone; grep, or ${skill}.`;
+}
 
 function estimateTokens(s: string): number {
   return Math.ceil(s.length / 4);
@@ -369,6 +421,23 @@ export async function searchStore(
     clusters.push({ concept, skill: skillDocs.get(concept) ?? null, hits: [] });
   }
 
+  const topCluster = clusters[0];
+  let confidence: SearchConfidence = { low: false };
+  if (topCluster) {
+    const counts = await fetchConceptCounts(store, { core: true });
+    const [gap] = analyzeConceptGaps([{ name: topCluster.concept, enrichable: true }], counts).concepts;
+    const lq = query.toLowerCase();
+    confidence = assessConfidence(
+      {
+        concept: topCluster.concept,
+        skillPath: topCluster.skill?.path ?? null,
+        bestScore: Math.max(0, ...topCluster.hits.map((h) => h.bm25)),
+        exact: topCluster.hits.some((h) => h.vertex?.name.toLowerCase() === lq),
+      },
+      gap ?? null
+    );
+  }
+
   const totalVertices = hits.filter((h) => h.vertex !== null).length;
   const totalDocs = Array.from(skillDocs.values()).filter((d) => d !== null).length;
 
@@ -378,6 +447,7 @@ export async function searchStore(
     clusters,
     totals: { concepts: clusters.length, vertices: totalVertices, docs: totalDocs, tokens: 0 },
     docOnly: vertexSeeds.length === 0,
+    confidence,
   };
   formatSearch(result, { skillMode: opts.skillMode }); // populates totals.tokens
   return result;
@@ -390,6 +460,7 @@ export function formatSearch(result: SearchResult, opts?: { skillMode?: SkillMod
 
   lines.push(`# Search: "${query}"`);
   lines.push("__TOTALS_PLACEHOLDER__");
+  if (result.confidence?.low) lines.push(lowConfidenceLine(result.confidence));
   if (result.docOnly) {
     lines.push(
       "> Hint: matched only through skill docs; enrich the concept with the `scribe` skill to make its vertices searchable by purpose and tags."

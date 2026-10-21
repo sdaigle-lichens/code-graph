@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { getStore } from "./db.js";
+import { nameIndexText } from "./rows.js";
 
 /**
  * Every table stores its payload in a JSON `doc` column, with VIRTUAL generated
@@ -96,15 +97,22 @@ export function applySchema(store: DatabaseSync): void {
  */
 export function rebuildSearchIndex(store: DatabaseSync): void {
   store.exec("DELETE FROM search_fts");
+  // Names are split into words in JS (`nameIndexText`): SQLite cannot split camelCase.
+  const vertexRows = store
+    .prepare(
+      `SELECT key,
+              coalesce(json_extract(doc, '$.name'), '') AS name,
+              coalesce(json_extract(doc, '$.purpose'), '') AS purpose,
+              coalesce((SELECT group_concat(value, ' ') FROM json_each(doc, '$.tags')), '') AS tags
+         FROM vertices`
+    )
+    .all() as Array<{ key: string; name: string; purpose: string; tags: string }>;
+  const insertVertex = store.prepare(
+    "INSERT INTO search_fts(ref_kind, ref_key, name, purpose, tags, body_md) VALUES ('vertex', ?, ?, ?, ?, '')"
+  );
+  for (const r of vertexRows) insertVertex.run(r.key, nameIndexText(r.name), r.purpose, r.tags);
   store.exec(`
     INSERT INTO search_fts(ref_kind, ref_key, name, purpose, tags, body_md)
-      SELECT 'vertex', key,
-             coalesce(json_extract(doc, '$.name'), ''),
-             coalesce(json_extract(doc, '$.purpose'), ''),
-             coalesce((SELECT group_concat(value, ' ') FROM json_each(doc, '$.tags')), ''),
-             ''
-        FROM vertices
-      UNION ALL
       SELECT 'doc', key, '', '', '',
              coalesce(json_extract(doc, '$.body_md'), '')
         FROM docs

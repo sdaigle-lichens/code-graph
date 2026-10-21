@@ -27,6 +27,9 @@ const lazy = {
   gaps: () => import("./query/gaps.js"),
 };
 
+/** `search` printed results but the top cluster is weak or un-enriched; the caller should verify (grep, SKILL.md). */
+const EXIT_LOW_CONFIDENCE = 7;
+
 /**
  * True (after printing why) when the config declares no concepts: graph commands that iterate
  * concepts then exit 0 without loading typescript, ts-morph or the store. A missing config still
@@ -274,7 +277,15 @@ program
         // Always include strength and gaps; trim the rest to --max-tokens (the eval harness calls search() directly).
         const { db, config } = await preflight();
         const gaps = await computeGapReport(db, config);
-        console.log(JSON.stringify(budgetSearchJson(result, { strength, gaps }, maxTokens), null, 2));
+        const low = result.confidence?.low === true;
+        const extra = {
+          strength,
+          gaps,
+          low_confidence: low,
+          ...(low ? { low_confidence_reason: result.confidence?.reason } : {}),
+        };
+        console.log(JSON.stringify(budgetSearchJson(result, extra, maxTokens), null, 2));
+        if (low) process.exitCode = EXIT_LOW_CONFIDENCE;
         return;
       }
 
@@ -287,6 +298,7 @@ program
         if (note) md += `\n\n${note}`;
       }
       console.log(md);
+      if (result.confidence?.low) process.exitCode = EXIT_LOW_CONFIDENCE;
     } catch (err) {
       if (err instanceof SearchNoResultsError) {
         // Whiff: surface what's missing before falling back. Best-effort.

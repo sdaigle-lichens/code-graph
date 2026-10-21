@@ -65,8 +65,10 @@ describe("searchStore — doc-only match", () => {
     const full = applyTokenBudget(r, 4000);
     assert.match(full, /Concept: tasks/);
     assert.match(full, /scribe/);
-    // Under the ~93-token full render, so the leaf-dropping step runs (old behaviour emptied the cluster).
-    const tight = applyTokenBudget(r, 100);
+    // Under the full render (~93 tokens + the low-confidence line this un-enriched fixture now
+    // prints), so the leaf-dropping step runs (old behaviour emptied the cluster).
+    assert.ok(Math.ceil(full.length / 4) > 150, `full render is ${Math.ceil(full.length / 4)} tokens`);
+    const tight = applyTokenBudget(r, 150);
     assert.match(tight, /Concept: tasks/);
     assert.match(tight, /fn0/);
     assert.match(tight, /\b1 concepts matched/);
