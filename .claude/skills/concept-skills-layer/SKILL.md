@@ -35,7 +35,9 @@ unknown sha sets `unknownFreshness` (reasons `malformed-sha`, `unknown-commit`).
 
 `skills status <skill>` (resolved like `stamp`) shows one concept with per-file commit counts
 (`filesChangedCounts`, from one `git log --name-only` pass in `gitWindow`) and the unchanged mapped files
-(`filesUnchanged`, `mappedFiles`). `skills stamp <skill>` runs `blindStampWarning` first: mapped files changed
+(`filesUnchanged`, `mappedFiles`). Those lists are git state since the stamp; the text view adds an
+`unextracted (working tree vs last extract)` section from `unextracted.files` (changed/new/removed, cap 10) and
+drops those paths from the `unchanged` list (JSON `filesUnchanged` stays raw). `skills stamp <skill>` runs `blindStampWarning` first: mapped files changed
 since the previous `last-update`, SKILL.md unchanged in that window and in the working tree. It warns on stderr
 (`warning` in the JSON), still writes, never refuses, and rides along with exit 9; `--reviewed` suppresses it.
 Skipped for unstamped, glob-less or unknown/malformed-sha skills.

@@ -298,13 +298,25 @@ export function registerSkillsCommands(program: Command): void {
         );
         const counts = c.filesChangedCounts ?? [];
         const show = unchangedFiles ? counts : counts.slice(0, MAX_LISTED_FILES);
+        // A file edited since the last extract is listed in the unextracted section, not as plain "unchanged".
+        const unextractedPaths = new Set((c.unextracted?.files ?? []).map((f) => f.path));
+        const unchanged = unchangedFiles?.filter((f) => !unextractedPaths.has(f)) ?? null;
+        if (c.lastUpdate && (show.length > 0 || (unchanged && unchanged.length > 0))) {
+          out(`    since stamp ${c.lastUpdate.slice(0, 8)} (git):`);
+        }
         for (const f of show) out(`    changed  ${f.path}  (${f.commits} commit${f.commits === 1 ? "" : "s"})`);
         if (show.length < counts.length) out(`    +${counts.length - show.length} more changed file(s)`);
-        if (unchangedFiles) {
-          for (const f of unchangedFiles.slice(0, MAX_LISTED_FILES)) out(`    unchanged  ${f}`);
-          if (unchangedFiles.length > MAX_LISTED_FILES) {
-            out(`    +${unchangedFiles.length - MAX_LISTED_FILES} more unchanged file(s)`);
+        if (unchanged) {
+          for (const f of unchanged.slice(0, MAX_LISTED_FILES)) out(`    unchanged  ${f}`);
+          if (unchanged.length > MAX_LISTED_FILES) {
+            out(`    +${unchanged.length - MAX_LISTED_FILES} more unchanged file(s)`);
           }
+        }
+        const ux = c.unextracted?.files ?? [];
+        if (ux.length > 0) {
+          out("    unextracted (working tree vs last extract):");
+          for (const f of ux.slice(0, MAX_LISTED_FILES)) out(`      ${f.kind.padEnd(7)}  ${f.path}`);
+          if (ux.length > MAX_LISTED_FILES) out(`      +${ux.length - MAX_LISTED_FILES} more unextracted file(s)`);
         }
       }
     });

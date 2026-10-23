@@ -234,7 +234,12 @@ written) when a version already exists** in `scribe.config.json` or the legacy `
 with none it stamps 1.0. Pass `--bump minor|major` explicitly, or `--bump initial` to reset to 1.0 on purpose.
 
 `skills status <skill>` (id, directory or SKILL.md path, resolved like `stamp`) shows that concept only: each
-changed file in `<last-update>..HEAD` with its commit count, then the unchanged mapped files (capped at 10).
+changed file in `<last-update>..HEAD` with its commit count, then the unchanged mapped files (capped at 10), under
+a `since stamp <sha8> (git):` label (printed only when a stamp exists and the changed or unchanged list is non-empty): that list is committed git state only. When an `.ast.json` with
+`meta.files` exists, a second section `unextracted (working tree vs last extract):` lists each file as
+`changed`, `new` or `removed` (capped at 10, `+N more`), so uncommitted edits and untracked files show up there.
+A file in that section is dropped from the `unchanged` text list (it is not unchanged since the extract);
+`--json` `filesUnchanged` stays the raw git list. With no usable `.ast.json` the section is absent.
 `--json` adds `filesChangedCounts: [{path, commits}]` per concept (`filesChanged` is unchanged) and, for the
 single-skill form, `filesUnchanged`. The full text view lists the first 10 changed files under each concept,
 then `+N more`. `--summary` stays counts-only.

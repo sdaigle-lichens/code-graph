@@ -520,6 +520,54 @@ for (const cli of CLIS) {
         assert.equal(run(cli.path, ["skills", "status", "nope", "--root", tmp]).code, 1);
       });
 
+      const recordExtract = (): void => {
+        const files: Record<string, string> = {};
+        for (const f of fs.readdirSync(path.join(tmp, "src/auth"))) {
+          const buf = fs.readFileSync(path.join(tmp, "src/auth", f));
+          files[`src/auth/${f}`] = "sha256:" + createHash("sha256").update(buf).digest("hex");
+        }
+        write("scribe-output/auth.ast.json", JSON.stringify({ meta: { files } }));
+      };
+
+      it("status <skill> lists uncommitted edits and new files under the unextracted section, not as unchanged", () => {
+        setup();
+        recordExtract();
+        write("src/auth/c.ts", "edited, uncommitted");
+        write("src/auth/d.ts", "new, untracked");
+        const text = run(cli.path, ["skills", "status", "auth", "--root", tmp]).stdout;
+        assert.match(text, /since stamp [0-9a-f]{8} \(git\):/);
+        assert.match(text, /unextracted \(working tree vs last extract\):/);
+        assert.match(text, /^ {6}changed {2}src\/auth\/c\.ts$/m);
+        assert.match(text, /^ {6}new {6}src\/auth\/d\.ts$/m);
+        assert.doesNotMatch(text, /unchanged {2}src\/auth\/c\.ts/);
+        const body = json(run(cli.path, ["skills", "status", "auth", "--json", "--root", tmp]));
+        assert.deepEqual(body.concepts[0].unextracted.files, [
+          { path: "src/auth/c.ts", kind: "changed" },
+          { path: "src/auth/d.ts", kind: "new" },
+        ]);
+        const full = json(run(cli.path, ["skills", "status", "--json", "--root", tmp]));
+        assert.equal(full.concepts[0].unextracted.files.length, 2);
+        const summary = json(run(cli.path, ["skills", "status", "--summary", "--root", tmp]));
+        assert.equal(summary.concepts[0].unextracted.files, undefined);
+      });
+
+      it("the unextracted section is capped at 10 with +N more", () => {
+        setup();
+        recordExtract();
+        for (let i = 0; i < 12; i++) write(`src/auth/n${String(i).padStart(2, "0")}.ts`, "new");
+        const text = run(cli.path, ["skills", "status", "--root", tmp]).stdout;
+        assert.equal(text.split("\n").filter((l) => /^ {6}new {6}/.test(l)).length, 10);
+        assert.match(text, /\+2 more unextracted file\(s\)/);
+      });
+
+      it("without an ast.json there is no unextracted section", () => {
+        setup();
+        write("src/auth/c.ts", "edited, uncommitted");
+        const text = run(cli.path, ["skills", "status", "auth", "--root", tmp]).stdout;
+        assert.doesNotMatch(text, /unextracted/);
+        assert.match(text, /unchanged {2}src\/auth\/c\.ts/);
+      });
+
       it("a changed body-level version: line counts as a prose edit; marker-only changes still warn", () => {
         const body = "\n```yaml\nversion: 1\n```\n";
         const { p } = setup(body);
