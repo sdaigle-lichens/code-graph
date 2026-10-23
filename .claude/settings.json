@@ -68,6 +68,15 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-log.cjs\""
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-channel-write-guard.cjs\""
+          }
+        ]
       }
     ],
     "SubagentStart": [
