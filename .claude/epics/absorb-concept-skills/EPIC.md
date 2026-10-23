@@ -540,3 +540,5 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Not tested: the text `removed` row (judged immaterial).
   - Verified by me: build (bundle stable), 480/480, `pnpm check` 6/6, `just eval` 7/7, `claude plugin
     validate` passed (with the known LICENSE/icon directory notes).
+  - Landed as 4197383 (0.3.24), bookkeeping b7b64d3. Maestro acked: nothing changes on its side (it
+    doesn't parse `skills status` output, and the contracts are untouched). All tickets 003-031 done.
