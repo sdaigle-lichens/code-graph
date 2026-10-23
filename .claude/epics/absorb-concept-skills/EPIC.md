@@ -528,3 +528,15 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     JSON.
   - maestro ack: 031 is fine as scoped and `--summary` stays as is. Maestro's manager is asking the user
     about a bundle size budget and will come back only if they want one.
+- r029 (maestro-a22a5a6e) → 031 done, uncommitted, 0.3.24:
+  - The text view of `skills status <skill>` and the full view label the git list
+    `since stamp <sha8> (git):`. They add an `unextracted (working tree vs last extract):` section with
+    changed/new/removed, capped at 10 with `+N more`.
+  - Decision: those paths are dropped from the text `unchanged` list, and the JSON `filesUnchanged`
+    stays the raw git list. `unextracted.files` was already emitted in the single-skill and full
+    `--json`, and `--summary` is unchanged.
+  - Three new tests: the reviewer's repro (including the json/full/summary forms), the cap of 10, and
+    the case with no ast.json. docs/usage.md and concept-skills-layer were updated.
+  - Not tested: the text `removed` row (judged immaterial).
+  - Verified by me: build (bundle stable), 480/480, `pnpm check` 6/6, `just eval` 7/7, `claude plugin
+    validate` passed (with the known LICENSE/icon directory notes).
