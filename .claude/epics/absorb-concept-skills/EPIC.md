@@ -516,3 +516,15 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     - usage.md states the first-re-stamp-after-creation limit.
     Verified by me: build, 474/474, `pnpm check` 6/6, `just eval` 7/7, `claude plugin validate` passed.
     Size left as is.
+  - Landed as bc86d8c (0.3.23); maestro notified. All tickets 003-030 done.
+- Maestro's second merge review (0.3.23): R1, R3-R5 and R7-R9 verified fixed. Search eval is 8/8,
+  scribe load 17.7 KB, `--max-tokens 400` = 835 B, vendored contract files byte-identical. R2 (bundle)
+  accepted but growing: 503 KB, 29 blobs, 14 MB raw in history.
+  - N2 → ticket 031. `skills status <skill>` contradicts itself: its list is git since the stamp, its
+    header is working tree vs. extract. `UnextractedChanges.files` already has the per-file kinds;
+    the list never reads it.
+  - N3 (`--summary` without `--json` prints JSON): not ticketed. Both `--help` ("implies --json") and
+    usage.md say so. Unlike `enrich targets --summary`, which has a text form, but the flows read the
+    JSON.
+  - maestro ack: 031 is fine as scoped and `--summary` stays as is. Maestro's manager is asking the user
+    about a bundle size budget and will come back only if they want one.

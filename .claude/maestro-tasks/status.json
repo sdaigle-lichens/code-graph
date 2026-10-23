@@ -177,5 +177,10 @@
       "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
     ],
     "epic": "absorb-concept-skills"
+  },
+  "031-make-skills-status-skill-file-list-agree-with-its-unextracted-header.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }
