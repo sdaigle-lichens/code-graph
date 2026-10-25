@@ -554,3 +554,16 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     `plugin/evals/**/scribe-output/graph.db*`.
   - Ticket 032: the eval suite as a worker, picking up at interview step 1. The user answers the
     interview's gates; I review against the code.
+  - 032 setup confirmed: `case.yaml` with `context.scaffold_script` (with `--scaffold`, 120 s, as the
+    user) beside `prompt.md` + `graders/*.md`. Runs need `--allow-tools Bash` in both arms.
+  - 032 pilot (2 runs, 7 cases, ~$1.86): all pass, Δ 0. The retrieval skill never fired: 0 Skill and 0
+    Bash calls in every with-plugin run.
+    - The fresh graph has no cross-concept edges, confirmed in code: `buildEdges` sets
+      `crosses_concept: false`, so `impact` misses callers in other concepts and `cross` exits 6.
+    - Every search exits 7 (fixture un-enriched).
+  - The user chose (b): 032 finishes as the harness, with the pilot as the before baseline.
+    - 033: make the skill trigger, measured with a 032 pilot. Blocked by 032.
+    - 034: record cross-concept calls at extract, then the user runs the full suite. Blocked by 033
+      (shared tree/version).
+    - The user agreed the 032 fixture ships `enriched.json`, made with real `enrich merge`. 034 checks
+      it with `enrich targets` after re-extracting.

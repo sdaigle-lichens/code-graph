@@ -135,6 +135,11 @@
     {
       "name": "maestro-a22a5a6e",
       "added_at": "2026-10-23T15:57:30.703Z"
+    },
+    {
+      "name": "absorb-concept-skills-032",
+      "task": "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
+      "added_at": "2026-10-25T19:38:39.851Z"
     }
   ],
   "log": [
