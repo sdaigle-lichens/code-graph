@@ -182,5 +182,10 @@
     "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
+  },
+  "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }

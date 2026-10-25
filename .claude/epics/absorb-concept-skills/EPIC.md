@@ -542,3 +542,15 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     validate` passed (with the known LICENSE/icon directory notes).
   - Landed as 4197383 (0.3.24), bookkeeping b7b64d3. Maestro acked: nothing changes on its side (it
     doesn't parse `skills status` output, and the contracts are untouched). All tickets 003-031 done.
+- Maestro's manager handed over a `claude plugin eval` suite for code-graph-retrieval, which the user
+  wants. A free-standing `plugin-eval` session did step 0 and was then closed. It had been started in
+  `plugin/`, which created `plugin/.claude/.cc-writes` and broke check-plugin-clean; I deleted it after
+  checking it held only that file.
+  - Answered from code: `apply` loads no ts-morph and needs no tsconfig, only node:sqlite; it
+    validates the .ast.json with `AstDocSchema.parse`. So the fixture commits .ast.json files made by a
+    real `extract`, and setup runs only `apply`.
+  - Pre-staged, uncommitted (user-approved): version 0.3.25 in all three files, bundle rebuilt;
+    `.gitignore` gains `**/evals/results/`, `!plugin/evals/**/scribe-output/` and
+    `plugin/evals/**/scribe-output/graph.db*`.
+  - Ticket 032: the eval suite as a worker, picking up at interview step 1. The user answers the
+    interview's gates; I review against the code.
