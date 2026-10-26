@@ -70,6 +70,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   change.
 - Edge dedup `eKey = sha1(from|to|type|line)`. Re-apply replaces all AST edges; agent-authored
   edges (`agent.authored_by != null`) are upserted separately.
+- Cross-concept edges are written by `extract` (`makeForeignResolver`): `crosses_concept: true` to the
+  owning concept's deterministic vertex key (owner = first in config order, extracting concept and
+  docs-only excluded). `apply` keeps the flag; queries hide edges whose far vertex is missing or
+  archived. First `extract` after 0.3.27 rewrites each ast.json once.
 - `concept.skill` is ingested as a `docs/<concept>::skill` vertex with `documented-by` edges to
   every live vertex in the concept.
 - One FTS5 table `search_fts` over `vertices(name, purpose, tags)` + `docs(body_md)`, `porter

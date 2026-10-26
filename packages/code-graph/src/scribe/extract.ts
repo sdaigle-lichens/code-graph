@@ -12,6 +12,7 @@ import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
 import { scanConceptFiles } from "./unextracted.js";
 import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
+import type { ScribeConfig } from "../config.js";
 import type { Edge, Vertex } from "../schema.js";
 
 // ─── Key helpers ─────────────────────────────────────────────────────────────
@@ -158,6 +159,24 @@ function classifyFunction(name: string, node: Node): "hook" | "component" | "fun
 
 type MakeVertex = (type: Vertex["type"], name: string, filepath: string, node: Node) => Vertex;
 
+function createVertex(concept: string, type: Vertex["type"], name: string, filepath: string, node: Node): Vertex {
+  return {
+    _key: vKey(concept, filepath, name, type),
+    displayKey: `${concept}::${type}::${name}`,
+    concept,
+    type,
+    name,
+    filepath,
+    start_line: node.getStartLineNumber(),
+    end_line: node.getEndLineNumber(),
+    signature: signatureFromNode(name, node),
+    contentHash: sha256hex(node.getText()),
+    status: "live",
+    ast: {},
+    agent: { authored_by: null, stale: false },
+  };
+}
+
 function walkSourceFile(
   sf: SourceFile,
   fp: string,
@@ -253,16 +272,81 @@ function walkSourceFile(
 
 // ─── Build edges ──────────────────────────────────────────────────────────────
 
+/**
+ * Resolves a declaration outside the concept being extracted to the vertex another concept would
+ * emit for it. Returns undefined when no other concept owns the declaration's file.
+ */
+type ForeignResolver = (decl: Node) => Vertex | undefined;
+
+/**
+ * Cross-concept resolver. A declaration in a file matched by another concept's globs resolves to that
+ * concept's vertex; the key is deterministic (`vKey`), so the other concept's ast.json is never read.
+ *
+ * Rule for a file matched by several concepts: the first in `scribe.config.json` order wins, the concept
+ * being extracted excluded (a file it matches itself resolves locally before this runs). Docs-only
+ * concepts own no code and are skipped. Whether the target concept is applied yet, or its vertex later
+ * archived, is not known here: the edge is written anyway with `crosses_concept: true` and queries
+ * ignore an edge whose far end is missing or not live.
+ */
+function makeForeignResolver(
+  config: ScribeConfig,
+  conceptName: string,
+  relPathOf: (abs: string) => string
+): ForeignResolver {
+  const owners = Object.entries(config.concepts).filter(([name]) => name !== conceptName && !isDocsOnly(config, name));
+  const ownerByFile = new Map<string, string | null>();
+  const walked = new Map<string, Map<Node, string>>(); // `${concept}::${file}` → node→key
+  const byKey = new Map<string, Vertex>();
+
+  function ownerOf(relPath: string, absPath: string): string | null {
+    const hit = ownerByFile.get(absPath);
+    if (hit !== undefined) return hit;
+    const found =
+      owners.find(([, c]) =>
+        c.globs.some((g) => minimatch(relPath, g, { dot: true }) || minimatch(absPath, g, { dot: true }))
+      )?.[0] ?? null;
+    ownerByFile.set(absPath, found);
+    return found;
+  }
+
+  return (decl) => {
+    const sf = decl.getSourceFile();
+    const abs = sf.getFilePath();
+    const rel = relPathOf(abs);
+    const owner = ownerOf(rel, abs);
+    if (!owner) return undefined;
+    const id = `${owner}::${abs}`;
+    let nodes = walked.get(id);
+    if (!nodes) {
+      nodes = new Map<Node, string>();
+      const scratch: Vertex[] = [];
+      walkSourceFile(sf, rel, owner, scratch, nodes, new Map(), (type, name, filepath, node) => {
+        const v = createVertex(owner, type, name, filepath, node);
+        nodes!.set(node, v._key);
+        byKey.set(v._key, v);
+        return v;
+      });
+      walked.set(id, nodes);
+    }
+    const key = nodes.get(decl);
+    return key ? byKey.get(key) : undefined;
+  };
+}
+
 function buildEdges(
   vertices: Vertex[],
   keyToNode: Map<string, Node>,
   nodeToKey: Map<Node, string>,
   vertexToStore: Map<string, string>,
-  conceptName: string
+  conceptName: string,
+  resolveForeign?: ForeignResolver
 ): Edge[] {
   const edges: Edge[] = [];
   const emitted = new Set<string>();
   const keyToVertex = new Map(vertices.map((v) => [v._key, v] as const));
+  // Other concepts' vertices met while resolving; kept apart so local-only lookups (has-type, store
+  // state) never see them.
+  const foreignByKey = new Map<string, Vertex>();
 
   function tryEmit(fromKey: string, toKey: string, type: Edge["type"], line: number): void {
     if (fromKey === toKey) return;
@@ -275,7 +359,7 @@ function buildEdges(
       _to: `vertices/${toKey}`,
       type,
       concept: conceptName,
-      crosses_concept: false,
+      crosses_concept: foreignByKey.has(toKey),
       line,
       ast: {},
       agent: { authored_by: null },
@@ -305,6 +389,12 @@ function buildEdges(
     for (const decl of sym.getDeclarations()) {
       const k = nodeToKey.get(decl);
       if (k) return k;
+
+      const fv = resolveForeign?.(decl);
+      if (fv) {
+        foreignByKey.set(fv._key, fv);
+        return fv._key;
+      }
 
       // Destructured binding: `const { foo } = useStore()`
       if (Node.isBindingElement(decl)) {
@@ -361,7 +451,7 @@ function buildEdges(
         const ident = Node.isPropertyAccessExpression(callee) ? callee.getNameNode() : callee;
         const toKey = resolveToVertexKey(ident);
         if (!toKey) continue;
-        const toVertex = keyToVertex.get(toKey);
+        const toVertex = keyToVertex.get(toKey) ?? foreignByKey.get(toKey);
         if (!toVertex) continue;
         const line = call.getStartLineNumber();
         if (toVertex.type === "hook") {
@@ -509,25 +599,9 @@ export async function extract(conceptName: string): Promise<void> {
   }
 
   const makeVertex: MakeVertex = (type, name, filepath, node) => {
-    const key = vKey(conceptName, filepath, name, type);
-    const text = node.getText();
-    const v: Vertex = {
-      _key: key,
-      displayKey: `${conceptName}::${type}::${name}`,
-      concept: conceptName,
-      type,
-      name,
-      filepath,
-      start_line: node.getStartLineNumber(),
-      end_line: node.getEndLineNumber(),
-      signature: signatureFromNode(name, node),
-      contentHash: sha256hex(text),
-      status: "live",
-      ast: {},
-      agent: { authored_by: null, stale: false },
-    };
-    nodeToKey.set(node, key);
-    keyToNode.set(key, node);
+    const v = createVertex(conceptName, type, name, filepath, node);
+    nodeToKey.set(node, v._key);
+    keyToNode.set(v._key, node);
     return v;
   };
 
@@ -536,7 +610,14 @@ export async function extract(conceptName: string): Promise<void> {
     walkSourceFile(sf, fp, conceptName, vertices, nodeToKey, vertexToStore, makeVertex);
   }
 
-  const edges = buildEdges(vertices, keyToNode, nodeToKey, vertexToStore, conceptName);
+  const edges = buildEdges(
+    vertices,
+    keyToNode,
+    nodeToKey,
+    vertexToStore,
+    conceptName,
+    makeForeignResolver(config, conceptName, relPathOf)
+  );
 
   // Skill
   const skillField = await readConceptSkill(config, conceptName);

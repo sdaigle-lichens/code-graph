@@ -94,6 +94,19 @@
   ],
   "edges": [
     {
+      "_key": "23fde1e1500e33cee46ec3a0b4ec5228",
+      "_from": "vertices/f83f8d2cb3af368219247e5671f0f6bb",
+      "_to": "vertices/b43b61e0d570c1526b5dce761d80d2af",
+      "type": "calls",
+      "concept": "board-ui",
+      "crosses_concept": true,
+      "line": 10,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
       "_key": "43a6c1d47b0bf26e0c72ab39759df9ab",
       "_from": "vertices/f83f8d2cb3af368219247e5671f0f6bb",
       "_to": "vertices/b33ad80947e4213a8e364c73bdf1bcaa",
@@ -114,6 +127,19 @@
       "concept": "board-ui",
       "crosses_concept": false,
       "line": 12,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "8e721209204ea9080f7d14a533551187",
+      "_from": "vertices/b33ad80947e4213a8e364c73bdf1bcaa",
+      "_to": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "type": "calls",
+      "concept": "board-ui",
+      "crosses_concept": true,
+      "line": 13,
       "ast": {},
       "agent": {
         "authored_by": null
@@ -152,8 +178,8 @@
     "contentHash": "sha256:94cf6ea1cdefd0c31b4c2382d594efec8a3608be1b0f1c21e376396e800dd77a"
   },
   "meta": {
-    "extractor_version": "code-graph@0.3.25",
-    "extracted_at": "2026-10-25T19:50:57.555Z",
+    "extractor_version": "code-graph@0.3.27",
+    "extracted_at": "2026-10-26T00:39:01.357Z",
     "files": {
       "src/board/Board.tsx": "sha256:852b0ac6f123f8d43488bb17b47e72ffdecc776c966f5cab393272cd01fa5463",
       "src/board/Column.tsx": "sha256:2a5ce192043a7a81a3eba39024207a28cfa53ed156178d6172c15d07c79d879c",

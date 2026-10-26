@@ -309,6 +309,19 @@
       }
     },
     {
+      "_key": "5a3ebdf9c710a36c8fc8a6053bdc3aaa",
+      "_from": "vertices/36697903f6bf5ab780c41e4b96daf6ec",
+      "_to": "vertices/6c454277f033f43d4d7a56b14e5d31b0",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": true,
+      "line": 39,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
       "_key": "60488483e74b6216644b3a76be53bdb5",
       "_from": "vertices/36697903f6bf5ab780c41e4b96daf6ec",
       "_to": "vertices/e5cc513aa5df208405550841fa987a04",
@@ -387,6 +400,19 @@
       }
     },
     {
+      "_key": "e6f574f438219eaac2142cafc69c188e",
+      "_from": "vertices/5c10636c474e9b5338837f2880ef9afd",
+      "_to": "vertices/64b7b046208da2ee7576e115f3fc498f",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": true,
+      "line": 15,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
       "_key": "e9c1e73842a4ef314d888c4138089be6",
       "_from": "vertices/b43b61e0d570c1526b5dce761d80d2af",
       "_to": "vertices/9849e8ba5d913da3743957c61670684c",
@@ -406,8 +432,8 @@
     "contentHash": "sha256:8d68e52a76a7dc5d66e82312f6dab49a3ef9e721280d1021a2bed274e200d5b2"
   },
   "meta": {
-    "extractor_version": "code-graph@0.3.25",
-    "extracted_at": "2026-10-25T19:50:56.352Z",
+    "extractor_version": "code-graph@0.3.27",
+    "extracted_at": "2026-10-26T00:38:59.933Z",
     "files": {
       "src/store/actions.ts": "sha256:b44ce59a023764e3f94b647c06a454c9b94ca5cd515e6bff0b5f236e089ec1dc",
       "src/store/taskStore.ts": "sha256:87e4254485ef76af9b17d09d54beaf073608799d045c9c98dd93e2f5e4b6752c",

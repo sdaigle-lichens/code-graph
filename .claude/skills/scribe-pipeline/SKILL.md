@@ -55,6 +55,14 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   are unchanged, feeding unextracted-change detection; the first `extract` after 0.3.17 rewrites each
   file once. There is no per-vertex `extractor_version` in the file, `apply` fills
   the store's `ast.extractor_version` from `meta` (a legacy per-vertex value still wins).
+- Cross-concept edges are emitted at extract time (`makeForeignResolver` in `extract.ts`): a call into a
+  file owned by another concept gets an edge with `crosses_concept: true` to that concept's deterministic
+  `vKey`, no enrichment needed. Owner = first concept in config order, the extracting concept and
+  docs-only concepts excluded; a file the extracting concept matches resolves locally first. `apply`
+  keeps `crosses_concept === true`. The target may be unapplied or later archived: the edge stays and the
+  queries (`oneHop`, `twoHops`, `oneHopAnyTable`, `queryConcept`, `queryCross`) hide edges whose far
+  vertex is missing or archived. No `SCHEMA_VERSION`/`FTS_FORMAT` bump; the first `extract` after 0.3.27
+  rewrites each ast.json once. Guarded by `scribe/cross-concept-edges.test.ts`.
 - Re-apply replaces all AST edges; agent-authored edges are upserted separately.
 - The concept SKILL.md becomes a `docs/<concept>::skill` vertex with `documented-by` edges to every
   live vertex. A docs-only concept (no code vertices) still gets the doc vertex, which is what makes

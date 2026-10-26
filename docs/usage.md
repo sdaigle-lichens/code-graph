@@ -172,7 +172,20 @@ the last real change.
 no per-vertex `extractor_version`; `apply` stamps the store's per-vertex `ast.extractor_version` from
 `meta`. Older files that still carry per-vertex values keep applying (the per-vertex value wins).
 The first `extract` after 0.3.5 rewrites each committed `.ast.json` once (dropping the per-vertex
-values); commit that rewrite.
+values); commit that rewrite. The first `extract` after 0.3.27 rewrites each `.ast.json` once more
+(cross-concept edges, below); commit that too.
+
+### Cross-concept edges
+
+`extract` records a call into a file owned by another concept as an edge with `crosses_concept: true`,
+so `query cross`, `impact` and `concept` see it with no enrichment (since 0.3.27).
+
+- **Owner rule.** A file matched by several concepts' globs belongs to the first one in
+  `scribe.config.json` order, the concept being extracted and docs-only concepts excluded. A file the
+  extracting concept matches itself resolves locally: the local match wins.
+- **Target not applied yet, or archived.** The edge is kept in the `.ast.json` and the store; the target
+  key is deterministic, so the other concept's `.ast.json` is never read. Queries hide an edge whose far
+  vertex is missing or archived, and show it once that concept is applied and the vertex is live.
 
 ## Plugin surface
 

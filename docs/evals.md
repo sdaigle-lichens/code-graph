@@ -87,11 +87,48 @@ User-run, 2 runs per arm, 7 cases, $4.09, 755s. All cases score 1.00 in both arm
 
 Baseline was 0 Skill and 0 Bash in every positive case. The without-plugin arm has no Skill or Bash grading. Both negatives still pass without the skill firing. Bash worked in 8 runs, so the seccomp failures did not block the CLI path here.
 
-Open: cross-store-reminders fires the skill but never runs the CLI (likely the cross-concept gap, ticket 034). The `says-no-graph` grader in 06-neg-no-config gets FAIL from all judge votes in both runs although the agent behaves correctly; it is not scored. The full 3-run suite comes after 034.
+Open: cross-store-reminders fires the skill but never runs the CLI (likely the cross-concept gap, ticket 034). The `says-no-graph` grader in 06-neg-no-config gets FAIL from all judge votes in both runs although the agent behaves correctly; it is not scored.
+
+## Pilot after 0.3.27 (ticket 034)
+
+0.3.27 records cross-concept calls at extract time. On the fixture, `impact moveTask --direction in` now lists `notifyOverdue` and `useDragReorder`, and `query cross` exits 0 for task-store/board-ui and task-store/reminders.
+
+Two user-run pilots, same suite and flags, 7 cases. Per-case figures are the mean over runs; turns and `costUsd` come from `aggregate-result.json`.
+
+| Case | Pass (with / without) | Skill and Bash, with plugin | Turns with / without | Cost per run with / without |
+|---|---|---|---|---|
+| smoke | 1.00 / 1.00 | 1 / 1 | 10.3 / 8.7 | $0.209 / $0.151 |
+| impact-movetask | 1.00 / 1.00 | 1 / 1 | 8.3 / 7.0 | $0.178 / $0.142 |
+| cross-store-reminders | 1.00 / 1.00 | 1 / 0 (`chose-cross` fails) | 10.7 / 9.7 | $0.192 / $0.157 |
+| locate-overdue | 1.00 / 1.00 | 1 / 1 | 6.0 / 3.0 | $0.158 / $0.107 |
+| not-in-graph | 1.00 / 1.00 | not graded / 1, then Grep | 8.3 / 7.3 | $0.166 / $0.118 |
+| neg-no-config | 1.00 / 1.00 | 0 / 0 | 9.0 / 8.7 | $0.163 / $0.144 |
+| neg-literal | 1.00 / 1.00 | 0 / 0 (Grep used) | 2.0 / 3.3 | $0.086 / $0.094 |
+
+Enriched fixture, 3 runs per arm: $6.19, 1137s, mean delta 0.00. Compared with earlier pilots:
+
+| Pilot | Runs per arm | Delta | Skill and Bash in positive cases | Total cost |
+|---|---|---|---|---|
+| 032 baseline (0.3.25) | 1 | +0.21 (noise) | 0 / 0 | about $1.9 each |
+| 0.3.26 (033) | 2 | 0.00 | Skill 2/2; Bash 1 each, 0 in cross-store-reminders | $4.09 |
+| 0.3.27 (034, enriched) | 3 | 0.00 | Skill 3/3; Bash 1 each, 0 in cross-store-reminders | $6.19 |
+
+The 032 with-plugin arm never used the skill or the CLI in a positive case, so it measured plain Grep and Read. 0.3.26 and 0.3.27 are the first runs that exercise the graph.
+
+Un-enriched fixture (`<concept>.enriched.json` left out of the workspace by a temporary scaffold switch, since removed), 2 runs per arm: $4.05, 861s, mean delta 0.00. Pass rate, Skill use and Bash use are identical to the enriched run in every case, and turns and cost per run are within noise (at most $0.014 apart per case).
+
+What the pilots do and do not show:
+
+- **Cost:** with the plugin, runs cost about 27% more overall (about $3.48 against $2.73 for the 3-run pilot) and about 35% more in the positive cases. Answers score the same in both arms, so on this fixture the plugin costs more and gains nothing measurable. The overhead is the Skill load, the SessionStart context line (`neg-no-config` costs more with the plugin although the skill never fires) and the Bash round trip.
+- **Fixture size:** the fixture has three concepts and a handful of files, so Grep finds everything in one or two calls. These pilots cannot show whether the graph saves cost on a repo where Grep is expensive.
+- **Cross-store-reminders:** the skill fires but the CLI is never run, in both pilots, even though `cross` now returns results. The graph fix did not change the agent's behaviour there.
+- **Enrichment:** no measurable effect on this suite. Whether the scaffold switch took effect is not confirmed (its output line is not shown by `claude plugin eval`); identical results are consistent with it working but would look the same if it had not.
+- **Search exit codes (0/6/7):** not captured. The traces live in temporary `/tmp/claude-eval-*` directories that are deleted after the run, and `aggregate-result.json` keeps only turns, cost and grader results. A rerun needs `--keep-temp`, and the CLI exit codes should be read from the saved traces.
 
 ## Known findings
 
-Not fixed here; they are the inputs to tickets 033 and 034.
+Not fixed here; they are the inputs to tickets 033 and 034 and to the follow-up benchmark.
 
 - The skill's description does not trigger on natural phrasing. 0.3.26 rewrites it to lead with the question shapes and the `scribe.config.json` signal, and adds a SessionStart hook (`plugin/hooks/graph-context.cjs`) that adds one context line naming the skill, only when `scribe.config.json` is in the cwd. Why it did not fire (from the pilot traces): the first tool call of every with-plugin run was a Grep on a symbol from the question, or `git ls-files`; no run consulted the skill list. Runs that saw `scribe.config.json` in the listing read `skills/<concept>/SKILL.md` directly instead of invoking the skill. Separately, some Bash calls in the eval session failed with `apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted...)`, so the CLI path may be flaky there regardless of the description.
-- The graph records edges only within a concept, so `impact` and `cross` cannot see cross-concept callers.
+- Fixed in 0.3.27: the graph recorded edges only within a concept, so `impact` and `cross` could not see cross-concept callers.
+- Open: the suite grades only the final answer. It does not measure turns, tokens or file reads per case, and its fixture is too small for Grep to be expensive, so it cannot show whether code-graph saves cost.

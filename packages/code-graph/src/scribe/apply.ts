@@ -549,7 +549,9 @@ export async function apply(
       const reason = enrichedEdgeReasons.get(edge._key);
       putRecord(store, "edges", edge._key, {
         ...edge,
-        crosses_concept: crossesConceptForEdge(edge._from, edge._to),
+        // extract already marks an edge into another concept's file; the target may not be applied yet
+        // (unknown to keyToConcept), so keep that flag rather than recomputing it down to false.
+        crosses_concept: edge.crosses_concept === true || crossesConceptForEdge(edge._from, edge._to),
         ...(reason !== undefined ? { reason } : {}),
       });
     }

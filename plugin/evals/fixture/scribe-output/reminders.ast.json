@@ -118,6 +118,32 @@
       "agent": {
         "authored_by": null
       }
+    },
+    {
+      "_key": "a533d6360ca4e2fd18e2f6bf646d32dc",
+      "_from": "vertices/417167cab18b143983689eb2a910105a",
+      "_to": "vertices/b43b61e0d570c1526b5dce761d80d2af",
+      "type": "calls",
+      "concept": "reminders",
+      "crosses_concept": true,
+      "line": 18,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "f2cefe94c6d260ce3c7c0896637d89e8",
+      "_from": "vertices/417167cab18b143983689eb2a910105a",
+      "_to": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "type": "calls",
+      "concept": "reminders",
+      "crosses_concept": true,
+      "line": 20,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
     }
   ],
   "skill": {
@@ -126,8 +152,8 @@
     "contentHash": "sha256:174af3d6b858a3c0e5dffa93871e9624ccff40a392b032640b4d1e23d98e6a79"
   },
   "meta": {
-    "extractor_version": "code-graph@0.3.25",
-    "extracted_at": "2026-10-25T19:50:58.725Z",
+    "extractor_version": "code-graph@0.3.27",
+    "extracted_at": "2026-10-26T00:39:02.836Z",
     "files": {
       "src/reminders/notifications.ts": "sha256:918c9115f29905ddc7b0bddcd2c77421be723bd885f04de6242a20b26299d6e6",
       "src/reminders/overdue.ts": "sha256:3d7f8155981561953a0bfbf02d97fd11769bf778b2c18ccf561cf31d59e4d688"
