@@ -1,0 +1,417 @@
+{
+  "concept": "task-store",
+  "vertices": [
+    {
+      "_key": "36697903f6bf5ab780c41e4b96daf6ec",
+      "displayKey": "task-store::function::completeTask",
+      "concept": "task-store",
+      "type": "function",
+      "name": "completeTask",
+      "filepath": "src/store/actions.ts",
+      "start_line": 33,
+      "end_line": 41,
+      "signature": "function completeTask(id: string): Task",
+      "contentHash": "9ff490e57479bb1741935eee2c7750b9d68a68f0227ed2dc265554539b745914",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "5c10636c474e9b5338837f2880ef9afd",
+      "displayKey": "task-store::function::addTask",
+      "concept": "task-store",
+      "type": "function",
+      "name": "addTask",
+      "filepath": "src/store/actions.ts",
+      "start_line": 5,
+      "end_line": 17,
+      "signature": "function addTask(title: string, dueAt: number | null = null): Task",
+      "contentHash": "4385150b85c38321a27d7467ef37403000f6aafeab6fc7becfcf07abfc3ad66d",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "765f9d2183ee44e1f5cd9d3a9b9e2dc0",
+      "displayKey": "task-store::function::getTask",
+      "concept": "task-store",
+      "type": "function",
+      "name": "getTask",
+      "filepath": "src/store/taskStore.ts",
+      "start_line": 9,
+      "end_line": 11,
+      "signature": "function getTask(id: string): Task | undefined",
+      "contentHash": "b2898bb37c2874657b2e416835a1847ec8c6023543db3c006aad66bd44c5d1bd",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "7cef0ee46a0d6283d154a2e284ba6db4",
+      "displayKey": "task-store::type-def::ColumnId",
+      "concept": "task-store",
+      "type": "type-def",
+      "name": "ColumnId",
+      "filepath": "src/store/types.ts",
+      "start_line": 1,
+      "end_line": 1,
+      "signature": "export type ColumnId = \"backlog\" | \"doing\" | \"done\";",
+      "contentHash": "8dcbaf7f8600ea518a8b12d96e42ad04715f006f535143c164b07dc8506e08ef",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "9849e8ba5d913da3743957c61670684c",
+      "displayKey": "task-store::type-def::Task",
+      "concept": "task-store",
+      "type": "type-def",
+      "name": "Task",
+      "filepath": "src/store/types.ts",
+      "start_line": 3,
+      "end_line": 10,
+      "signature": "export interface Task {",
+      "contentHash": "88901dc35924a1f9fd8ef3d63a7cb8f4948bf5c409330e758d9728128d075a99",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "b43b61e0d570c1526b5dce761d80d2af",
+      "displayKey": "task-store::function::getTasks",
+      "concept": "task-store",
+      "type": "function",
+      "name": "getTasks",
+      "filepath": "src/store/taskStore.ts",
+      "start_line": 5,
+      "end_line": 7,
+      "signature": "function getTasks(): Task[]",
+      "contentHash": "0159f3af5bc5808cb5d16efc9805f64c3ab98626d262fa8bb3d85401ddcf1135",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "e16ce4bca0151852dd62bde2823474b5",
+      "displayKey": "task-store::function::removeTask",
+      "concept": "task-store",
+      "type": "function",
+      "name": "removeTask",
+      "filepath": "src/store/taskStore.ts",
+      "start_line": 17,
+      "end_line": 19,
+      "signature": "function removeTask(id: string): void",
+      "contentHash": "b8e4bf0e4a48990d84ba68ed2fe7f110f5f447fb412447b6bff8fd1fb3ded8fd",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "e5cc513aa5df208405550841fa987a04",
+      "displayKey": "task-store::function::saveTask",
+      "concept": "task-store",
+      "type": "function",
+      "name": "saveTask",
+      "filepath": "src/store/taskStore.ts",
+      "start_line": 13,
+      "end_line": 15,
+      "signature": "function saveTask(task: Task): void",
+      "contentHash": "2f5900576d90bbb9237f59121e3e01f25b1966854195ef8e34403ec356787488",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "f522e8b7ef987f0c9b44ffed42b29bb2",
+      "displayKey": "task-store::function::moveTask",
+      "concept": "task-store",
+      "type": "function",
+      "name": "moveTask",
+      "filepath": "src/store/actions.ts",
+      "start_line": 19,
+      "end_line": 31,
+      "signature": "function moveTask(id: string, column: ColumnId, position: number): Task",
+      "contentHash": "735dfcb2b31e3444881cff04b8a468f471071b0a795bacbeeba7d02621071077",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "_key": "05ecb70bcc999f6de06460d6aab2a720",
+      "_from": "vertices/5c10636c474e9b5338837f2880ef9afd",
+      "_to": "vertices/b43b61e0d570c1526b5dce761d80d2af",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 7,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "0a91964fa37fed3bcb231aeb8ee7908d",
+      "_from": "vertices/e5cc513aa5df208405550841fa987a04",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 13,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "0fb4ceb9af3b4f1e243c0d37a0d520f3",
+      "_from": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "_to": "vertices/7cef0ee46a0d6283d154a2e284ba6db4",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 19,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "1ac7a586419de0fb376511b17c329c60",
+      "_from": "vertices/36697903f6bf5ab780c41e4b96daf6ec",
+      "_to": "vertices/7cef0ee46a0d6283d154a2e284ba6db4",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 36,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "2d33fa54d777ff83e2386cd8fe66a37a",
+      "_from": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "_to": "vertices/e5cc513aa5df208405550841fa987a04",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 29,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "32593a03cf03f3a078f3ab83d12bc206",
+      "_from": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "_to": "vertices/b43b61e0d570c1526b5dce761d80d2af",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 23,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "34b9adad181047977a602cc4e01581f2",
+      "_from": "vertices/5c10636c474e9b5338837f2880ef9afd",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 6,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "374066c6dc9ad71f51759ed320989c3d",
+      "_from": "vertices/5c10636c474e9b5338837f2880ef9afd",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 5,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "3b88280a5282876eec9e1cd590fda3f0",
+      "_from": "vertices/36697903f6bf5ab780c41e4b96daf6ec",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 33,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "45ce0f4d252bd52783c4a09e1537a7a8",
+      "_from": "vertices/5c10636c474e9b5338837f2880ef9afd",
+      "_to": "vertices/b43b61e0d570c1526b5dce761d80d2af",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 10,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "4da40aacdcda567c83ed96436e77bed1",
+      "_from": "vertices/765f9d2183ee44e1f5cd9d3a9b9e2dc0",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 9,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "60488483e74b6216644b3a76be53bdb5",
+      "_from": "vertices/36697903f6bf5ab780c41e4b96daf6ec",
+      "_to": "vertices/e5cc513aa5df208405550841fa987a04",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 37,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "65bf026e84fe5230af3f6208c531cbff",
+      "_from": "vertices/36697903f6bf5ab780c41e4b96daf6ec",
+      "_to": "vertices/765f9d2183ee44e1f5cd9d3a9b9e2dc0",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 34,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "81dcb685a333e15770540150cc683724",
+      "_from": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "_to": "vertices/765f9d2183ee44e1f5cd9d3a9b9e2dc0",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 20,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "8f03bb81fd8854646ac45cc2e374f6c3",
+      "_from": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "_to": "vertices/e5cc513aa5df208405550841fa987a04",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 25,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "939bf852bb397abef97c23f895b27c31",
+      "_from": "vertices/5c10636c474e9b5338837f2880ef9afd",
+      "_to": "vertices/e5cc513aa5df208405550841fa987a04",
+      "type": "calls",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 14,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "acece09a0f52eae6c69d06030754c506",
+      "_from": "vertices/f522e8b7ef987f0c9b44ffed42b29bb2",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 19,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "e9c1e73842a4ef314d888c4138089be6",
+      "_from": "vertices/b43b61e0d570c1526b5dce761d80d2af",
+      "_to": "vertices/9849e8ba5d913da3743957c61670684c",
+      "type": "has-type",
+      "concept": "task-store",
+      "crosses_concept": false,
+      "line": 5,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    }
+  ],
+  "skill": {
+    "path": "skills/task-store/SKILL.md",
+    "body": "---\nname: task-store\ndescription: Task state and the actions that change it (add, move, complete). Read before changing src/store.\nallowed-tools: Read\nmetadata:\n  type: concept-skill\n  version: \"1.0\"\n---\n\n## When to use\n\nRead this before changing how tasks are stored, ordered or moved between columns.\n\n## Overview\n\n`src/store/taskStore.ts` holds the in-memory task map. `src/store/actions.ts` holds the mutations:\n`addTask`, `moveTask` (changes column and position, shifting later tasks in the target column down)\nand `completeTask`. Actions call into the reminders concept to schedule and cancel reminders.\n",
+    "contentHash": "sha256:8d68e52a76a7dc5d66e82312f6dab49a3ef9e721280d1021a2bed274e200d5b2"
+  },
+  "meta": {
+    "extractor_version": "code-graph@0.3.25",
+    "extracted_at": "2026-10-25T19:50:56.352Z",
+    "files": {
+      "src/store/actions.ts": "sha256:b44ce59a023764e3f94b647c06a454c9b94ca5cd515e6bff0b5f236e089ec1dc",
+      "src/store/taskStore.ts": "sha256:87e4254485ef76af9b17d09d54beaf073608799d045c9c98dd93e2f5e4b6752c",
+      "src/store/types.ts": "sha256:930f494ef4a37822f7e695b136e5d9189c636fa8f04b37fed866afd8d797b178"
+    }
+  }
+}

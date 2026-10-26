@@ -1,0 +1,163 @@
+{
+  "concept": "board-ui",
+  "vertices": [
+    {
+      "_key": "14d0bacfb9208bb79bbe3ce92c17c726",
+      "displayKey": "board-ui::type-def::DragState",
+      "concept": "board-ui",
+      "type": "type-def",
+      "name": "DragState",
+      "filepath": "src/board/useDragReorder.ts",
+      "start_line": 4,
+      "end_line": 8,
+      "signature": "export interface DragState {",
+      "contentHash": "b0f1c36e48bdd76418194eacc81a9c31d505a5468502bb1537e4e63cf4820598",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "472a5c8762d40f4fd262ec20cdb50f1a",
+      "displayKey": "board-ui::type-def::ColumnProps",
+      "concept": "board-ui",
+      "type": "type-def",
+      "name": "ColumnProps",
+      "filepath": "src/board/Column.tsx",
+      "start_line": 4,
+      "end_line": 8,
+      "signature": "interface ColumnProps {",
+      "contentHash": "531bb7f1c99ca64922c29087e2387a9cd2912b95882bad9b066c8f6ab41d8118",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "8d36d646e0a77038f7fff78c3ae95337",
+      "displayKey": "board-ui::component::Column",
+      "concept": "board-ui",
+      "type": "component",
+      "name": "Column",
+      "filepath": "src/board/Column.tsx",
+      "start_line": 10,
+      "end_line": 25,
+      "signature": "function Column({ id, tasks, onDrop }: ColumnProps): any",
+      "contentHash": "4192e73fd8ae32d44c64c09fbfc1b9783b72b9a94b340e9547521d5b78f4d699",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "b33ad80947e4213a8e364c73bdf1bcaa",
+      "displayKey": "board-ui::hook::useDragReorder",
+      "concept": "board-ui",
+      "type": "hook",
+      "name": "useDragReorder",
+      "filepath": "src/board/useDragReorder.ts",
+      "start_line": 11,
+      "end_line": 16,
+      "signature": "function useDragReorder(onChange: () => void): (drag: DragState) => void",
+      "contentHash": "cda1858899092b346460ac5f4bba711a51eb43a0e6014c63df656daa8c661863",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "f83f8d2cb3af368219247e5671f0f6bb",
+      "displayKey": "board-ui::component::Board",
+      "concept": "board-ui",
+      "type": "component",
+      "name": "Board",
+      "filepath": "src/board/Board.tsx",
+      "start_line": 8,
+      "end_line": 18,
+      "signature": "function Board({ refresh }: { refresh: () => void }): any",
+      "contentHash": "fdfbd4d1e4dd700c53316d4ebcdf36c2abd42215b563cfb662ac51110e953291",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "_key": "43a6c1d47b0bf26e0c72ab39759df9ab",
+      "_from": "vertices/f83f8d2cb3af368219247e5671f0f6bb",
+      "_to": "vertices/b33ad80947e4213a8e364c73bdf1bcaa",
+      "type": "uses-hook",
+      "concept": "board-ui",
+      "crosses_concept": false,
+      "line": 9,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "446d932375633e12dd67c5f6387c457e",
+      "_from": "vertices/b33ad80947e4213a8e364c73bdf1bcaa",
+      "_to": "vertices/14d0bacfb9208bb79bbe3ce92c17c726",
+      "type": "has-type",
+      "concept": "board-ui",
+      "crosses_concept": false,
+      "line": 12,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "b851af78e84a2ef4d5d0a389cd51e8f6",
+      "_from": "vertices/8d36d646e0a77038f7fff78c3ae95337",
+      "_to": "vertices/472a5c8762d40f4fd262ec20cdb50f1a",
+      "type": "has-type",
+      "concept": "board-ui",
+      "crosses_concept": false,
+      "line": 10,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "c0115ce97c3a84efb9f71ee422cda361",
+      "_from": "vertices/f83f8d2cb3af368219247e5671f0f6bb",
+      "_to": "vertices/8d36d646e0a77038f7fff78c3ae95337",
+      "type": "mounts",
+      "concept": "board-ui",
+      "crosses_concept": false,
+      "line": 14,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    }
+  ],
+  "skill": {
+    "path": "skills/board-ui/SKILL.md",
+    "body": "---\nname: board-ui\ndescription: Board and column components plus the drag-and-reorder hook. Read before changing src/board.\nallowed-tools: Read\nmetadata:\n  type: concept-skill\n  version: \"1.0\"\n---\n\n## When to use\n\nRead this before changing how the board renders or how a dropped card is persisted.\n\n## Overview\n\n`Board` renders three `Column` components. Dropping a card calls the `useDragReorder` handler,\nwhich persists the move through the task store's `moveTask` action.\n",
+    "contentHash": "sha256:94cf6ea1cdefd0c31b4c2382d594efec8a3608be1b0f1c21e376396e800dd77a"
+  },
+  "meta": {
+    "extractor_version": "code-graph@0.3.25",
+    "extracted_at": "2026-10-25T19:50:57.555Z",
+    "files": {
+      "src/board/Board.tsx": "sha256:852b0ac6f123f8d43488bb17b47e72ffdecc776c966f5cab393272cd01fa5463",
+      "src/board/Column.tsx": "sha256:2a5ce192043a7a81a3eba39024207a28cfa53ed156178d6172c15d07c79d879c",
+      "src/board/useDragReorder.ts": "sha256:02761fe6e7d80ceb8b1e262b7cf8274ed9c6997c0e0790aec55f4968ec67dc1c"
+    }
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "concept": "reminders",
+  "vertices": [
+    {
+      "_key": "417167cab18b143983689eb2a910105a",
+      "displayKey": "reminders::function::notifyOverdue",
+      "concept": "reminders",
+      "type": "function",
+      "name": "notifyOverdue",
+      "filepath": "src/reminders/notifications.ts",
+      "start_line": 17,
+      "end_line": 25,
+      "signature": "function notifyOverdue(now: number, send: (message: string) => void): number",
+      "contentHash": "6a02231a0bdb5fef704006f0f54acc40548cc3155c456d1f9b40a0830210cf88",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "64b7b046208da2ee7576e115f3fc498f",
+      "displayKey": "reminders::function::scheduleReminder",
+      "concept": "reminders",
+      "type": "function",
+      "name": "scheduleReminder",
+      "filepath": "src/reminders/notifications.ts",
+      "start_line": 8,
+      "end_line": 10,
+      "signature": "function scheduleReminder(task: Task): void",
+      "contentHash": "e30c3f1e749f538425dc71164913d9ffb896e603cb8f270a208cb34f33037bbd",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "6c454277f033f43d4d7a56b14e5d31b0",
+      "displayKey": "reminders::function::cancelReminder",
+      "concept": "reminders",
+      "type": "function",
+      "name": "cancelReminder",
+      "filepath": "src/reminders/notifications.ts",
+      "start_line": 12,
+      "end_line": 14,
+      "signature": "function cancelReminder(id: string): void",
+      "contentHash": "d376e3ae7555ebcf076e87fb3b728846b94a171f18e75f7b6f0b08995c0ac95f",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "7c2cbb33ea45bf3aa1b3f0f24b97fc4d",
+      "displayKey": "reminders::function::findOverdue",
+      "concept": "reminders",
+      "type": "function",
+      "name": "findOverdue",
+      "filepath": "src/reminders/overdue.ts",
+      "start_line": 9,
+      "end_line": 12,
+      "signature": "function findOverdue(tasks: Task[], now: number): Task[]",
+      "contentHash": "1a051a57aab3c984c4299c256697e664e234a66e7a37866166bd6c37e5bfc439",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    },
+    {
+      "_key": "f4e39813135313ba4d5659950a23e4ff",
+      "displayKey": "reminders::function::isOverdue",
+      "concept": "reminders",
+      "type": "function",
+      "name": "isOverdue",
+      "filepath": "src/reminders/overdue.ts",
+      "start_line": 4,
+      "end_line": 7,
+      "signature": "function isOverdue(task: Task, now: number): boolean",
+      "contentHash": "7b50a8ce54f512fc0fa7f1cc46f452e52ff2a3ac678932e62f44190871083b5b",
+      "status": "live",
+      "ast": {},
+      "agent": {
+        "authored_by": null,
+        "stale": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "_key": "7c906040ece5b9a211c428b463d9c86c",
+      "_from": "vertices/7c2cbb33ea45bf3aa1b3f0f24b97fc4d",
+      "_to": "vertices/f4e39813135313ba4d5659950a23e4ff",
+      "type": "calls",
+      "concept": "reminders",
+      "crosses_concept": false,
+      "line": 11,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    },
+    {
+      "_key": "95e5221acc556b4c036fb31b1ffe231d",
+      "_from": "vertices/417167cab18b143983689eb2a910105a",
+      "_to": "vertices/7c2cbb33ea45bf3aa1b3f0f24b97fc4d",
+      "type": "calls",
+      "concept": "reminders",
+      "crosses_concept": false,
+      "line": 18,
+      "ast": {},
+      "agent": {
+        "authored_by": null
+      }
+    }
+  ],
+  "skill": {
+    "path": "skills/reminders/SKILL.md",
+    "body": "---\nname: reminders\ndescription: Overdue detection and reminder notifications. Read before changing src/reminders.\nallowed-tools: Read\nmetadata:\n  type: concept-skill\n  version: \"1.0\"\n---\n\n## When to use\n\nRead this before changing what counts as overdue or how users are notified.\n\n## Overview\n\n`src/reminders/overdue.ts` decides overdue-ness. `src/reminders/notifications.ts` tracks scheduled\nreminders and, for overdue tasks, moves them in the task store and sends a message.\n",
+    "contentHash": "sha256:174af3d6b858a3c0e5dffa93871e9624ccff40a392b032640b4d1e23d98e6a79"
+  },
+  "meta": {
+    "extractor_version": "code-graph@0.3.25",
+    "extracted_at": "2026-10-25T19:50:58.725Z",
+    "files": {
+      "src/reminders/notifications.ts": "sha256:918c9115f29905ddc7b0bddcd2c77421be723bd885f04de6242a20b26299d6e6",
+      "src/reminders/overdue.ts": "sha256:3d7f8155981561953a0bfbf02d97fd11769bf778b2c18ccf561cf31d59e4d688"
+    }
+  }
+}

@@ -27,6 +27,7 @@ claude plugin install code-graph@code-graph
 - [Installation](docs/installation.md) — prerequisites, dev install (`pnpm link --global`), Claude Code plugin registration.
 - [Usage](docs/usage.md) — `scribe.config.json`, bootstrap → extract → enrich → apply → search.
 - [Development](docs/development.md) — repo layout, build, link, test loop.
+- [Plugin evals](docs/evals.md) — `claude plugin eval` suite for the retrieval skill: run command, cases, fixture refresh, pilot baseline.
 - [Implementation phases](docs/implementation/) — phase-by-phase build plan ([plan.md](docs/implementation/plan.md), [phase-1](docs/implementation/phase-1.md) … [phase-11](docs/implementation/phase-11.md)).
 
 ## Eval harness

@@ -1,0 +1,19 @@
+{
+  "project": "taskboard",
+  "tsconfig": "tsconfig.json",
+  "skillsDir": "skills",
+  "concepts": {
+    "task-store": {
+      "globs": ["src/store/**/*.ts"],
+      "skill": "skills/task-store/SKILL.md"
+    },
+    "board-ui": {
+      "globs": ["src/board/**/*.ts", "src/board/**/*.tsx"],
+      "skill": "skills/board-ui/SKILL.md"
+    },
+    "reminders": {
+      "globs": ["src/reminders/**/*.ts"],
+      "skill": "skills/reminders/SKILL.md"
+    }
+  }
+}

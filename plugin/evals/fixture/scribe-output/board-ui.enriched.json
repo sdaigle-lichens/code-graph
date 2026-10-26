@@ -1,0 +1,61 @@
+{
+  "concept": "board-ui",
+  "vertices": [
+    {
+      "_key": "14d0bacfb9208bb79bbe3ce92c17c726",
+      "purpose": "What a drop carries: the dragged task id, the column it was dropped over and the index within it.",
+      "tags": [
+        "type",
+        "drag"
+      ],
+      "sig_seen": "export interface DragState {",
+      "hash_seen": "b0f1c36e48bdd76418194eacc81a9c31d505a5468502bb1537e4e63cf4820598"
+    },
+    {
+      "_key": "472a5c8762d40f4fd262ec20cdb50f1a",
+      "purpose": "Props of a column: its id, its tasks and the drop callback.",
+      "tags": [
+        "type",
+        "props"
+      ],
+      "sig_seen": "interface ColumnProps {",
+      "hash_seen": "531bb7f1c99ca64922c29087e2387a9cd2912b95882bad9b066c8f6ab41d8118"
+    },
+    {
+      "_key": "8d36d646e0a77038f7fff78c3ae95337",
+      "purpose": "Renders one column with draggable task cards; when a card drag ends it reports the drop with the task id, column and index.",
+      "tags": [
+        "column",
+        "render",
+        "drag",
+        "component"
+      ],
+      "sig_seen": "function Column({ id, tasks, onDrop }: ColumnProps): any",
+      "hash_seen": "4192e73fd8ae32d44c64c09fbfc1b9783b72b9a94b340e9547521d5b78f4d699"
+    },
+    {
+      "_key": "b33ad80947e4213a8e364c73bdf1bcaa",
+      "purpose": "Returns the drop handler that persists a reorder: it calls moveTask with the dropped task, column and index, then notifies the board to refresh.",
+      "tags": [
+        "hook",
+        "drag",
+        "reorder",
+        "drop"
+      ],
+      "sig_seen": "function useDragReorder(onChange: () => void): (drag: DragState) => void",
+      "hash_seen": "cda1858899092b346460ac5f4bba711a51eb43a0e6014c63df656daa8c661863"
+    },
+    {
+      "_key": "f83f8d2cb3af368219247e5671f0f6bb",
+      "purpose": "Renders the board: reads the tasks, splits them into the backlog, doing and done columns, and wires the drag-reorder drop handler into each column.",
+      "tags": [
+        "board",
+        "render",
+        "component"
+      ],
+      "sig_seen": "function Board({ refresh }: { refresh: () => void }): any",
+      "hash_seen": "fdfbd4d1e4dd700c53316d4ebcdf36c2abd42215b563cfb662ac51110e953291"
+    }
+  ],
+  "edges": []
+}

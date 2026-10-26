@@ -1,0 +1,58 @@
+{
+  "concept": "reminders",
+  "vertices": [
+    {
+      "_key": "417167cab18b143983689eb2a910105a",
+      "purpose": "Finds overdue tasks that have a scheduled reminder, moves each to the top of the doing column through moveTask and sends a notification message; returns how many it handled.",
+      "tags": [
+        "notification",
+        "overdue",
+        "reminder"
+      ],
+      "sig_seen": "function notifyOverdue(now: number, send: (message: string) => void): number",
+      "hash_seen": "6a02231a0bdb5fef704006f0f54acc40548cc3155c456d1f9b40a0830210cf88"
+    },
+    {
+      "_key": "64b7b046208da2ee7576e115f3fc498f",
+      "purpose": "Registers a task id as having a scheduled reminder.",
+      "tags": [
+        "reminder",
+        "schedule"
+      ],
+      "sig_seen": "function scheduleReminder(task: Task): void",
+      "hash_seen": "e30c3f1e749f538425dc71164913d9ffb896e603cb8f270a208cb34f33037bbd"
+    },
+    {
+      "_key": "6c454277f033f43d4d7a56b14e5d31b0",
+      "purpose": "Removes a task id from the scheduled reminders.",
+      "tags": [
+        "reminder",
+        "cancel"
+      ],
+      "sig_seen": "function cancelReminder(id: string): void",
+      "hash_seen": "d376e3ae7555ebcf076e87fb3b728846b94a171f18e75f7b6f0b08995c0ac95f"
+    },
+    {
+      "_key": "7c2cbb33ea45bf3aa1b3f0f24b97fc4d",
+      "purpose": "Filters a task list down to the overdue tasks by applying isOverdue.",
+      "tags": [
+        "overdue",
+        "filter"
+      ],
+      "sig_seen": "function findOverdue(tasks: Task[], now: number): Task[]",
+      "hash_seen": "1a051a57aab3c984c4299c256697e664e234a66e7a37866166bd6c37e5bfc439"
+    },
+    {
+      "_key": "f4e39813135313ba4d5659950a23e4ff",
+      "purpose": "The overdue decision: a task is overdue when it has a due date earlier than now and is not completed.",
+      "tags": [
+        "overdue",
+        "decision",
+        "due-date"
+      ],
+      "sig_seen": "function isOverdue(task: Task, now: number): boolean",
+      "hash_seen": "7b50a8ce54f512fc0fa7f1cc46f452e52ff2a3ac678932e62f44190871083b5b"
+    }
+  ],
+  "edges": []
+}

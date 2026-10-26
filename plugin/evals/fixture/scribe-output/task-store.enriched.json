@@ -1,0 +1,104 @@
+{
+  "concept": "task-store",
+  "vertices": [
+    {
+      "_key": "36697903f6bf5ab780c41e4b96daf6ec",
+      "purpose": "Marks a task completed, puts it in the done column, saves it and cancels its reminder.",
+      "tags": [
+        "task",
+        "complete",
+        "reminder"
+      ],
+      "sig_seen": "function completeTask(id: string): Task",
+      "hash_seen": "9ff490e57479bb1741935eee2c7750b9d68a68f0227ed2dc265554539b745914"
+    },
+    {
+      "_key": "5c10636c474e9b5338837f2880ef9afd",
+      "purpose": "Creates a task in the backlog column at the end of the board, saves it, and schedules a reminder when it has a due date.",
+      "tags": [
+        "task",
+        "create",
+        "reminder"
+      ],
+      "sig_seen": "function addTask(title: string, dueAt: number | null = null): Task",
+      "hash_seen": "4385150b85c38321a27d7467ef37403000f6aafeab6fc7becfcf07abfc3ad66d"
+    },
+    {
+      "_key": "765f9d2183ee44e1f5cd9d3a9b9e2dc0",
+      "purpose": "Looks up one task by id in the in-memory store.",
+      "tags": [
+        "task",
+        "read",
+        "lookup"
+      ],
+      "sig_seen": "function getTask(id: string): Task | undefined",
+      "hash_seen": "b2898bb37c2874657b2e416835a1847ec8c6023543db3c006aad66bd44c5d1bd"
+    },
+    {
+      "_key": "7cef0ee46a0d6283d154a2e284ba6db4",
+      "purpose": "The three board columns a task can sit in: backlog, doing, done.",
+      "tags": [
+        "type",
+        "column"
+      ],
+      "sig_seen": "export type ColumnId = \"backlog\" | \"doing\" | \"done\";",
+      "hash_seen": "8dcbaf7f8600ea518a8b12d96e42ad04715f006f535143c164b07dc8506e08ef"
+    },
+    {
+      "_key": "9849e8ba5d913da3743957c61670684c",
+      "purpose": "A task: id, title, column, position within the column, optional due date and completed flag.",
+      "tags": [
+        "type",
+        "task"
+      ],
+      "sig_seen": "export interface Task {",
+      "hash_seen": "88901dc35924a1f9fd8ef3d63a7cb8f4948bf5c409330e758d9728128d075a99"
+    },
+    {
+      "_key": "b43b61e0d570c1526b5dce761d80d2af",
+      "purpose": "Returns all tasks sorted by position.",
+      "tags": [
+        "task",
+        "read",
+        "list"
+      ],
+      "sig_seen": "function getTasks(): Task[]",
+      "hash_seen": "0159f3af5bc5808cb5d16efc9805f64c3ab98626d262fa8bb3d85401ddcf1135"
+    },
+    {
+      "_key": "e16ce4bca0151852dd62bde2823474b5",
+      "purpose": "Deletes a task from the in-memory store by id.",
+      "tags": [
+        "task",
+        "delete"
+      ],
+      "sig_seen": "function removeTask(id: string): void",
+      "hash_seen": "b8e4bf0e4a48990d84ba68ed2fe7f110f5f447fb412447b6bff8fd1fb3ded8fd"
+    },
+    {
+      "_key": "e5cc513aa5df208405550841fa987a04",
+      "purpose": "Writes a task into the in-memory store, replacing any task with the same id.",
+      "tags": [
+        "task",
+        "write",
+        "persist"
+      ],
+      "sig_seen": "function saveTask(task: Task): void",
+      "hash_seen": "2f5900576d90bbb9237f59121e3e01f25b1966854195ef8e34403ec356787488"
+    },
+    {
+      "_key": "f522e8b7ef987f0c9b44ffed42b29bb2",
+      "purpose": "Moves a task to a column and position: shifts the tasks at or after the target slot in that column down by one, then saves the moved task. This is the reorder primitive used when a card is dropped.",
+      "tags": [
+        "task",
+        "move",
+        "reorder",
+        "position",
+        "column"
+      ],
+      "sig_seen": "function moveTask(id: string, column: ColumnId, position: number): Task",
+      "hash_seen": "735dfcb2b31e3444881cff04b8a468f471071b0a795bacbeeba7d02621071077"
+    }
+  ],
+  "edges": []
+}
