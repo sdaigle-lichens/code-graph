@@ -567,3 +567,19 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
       (shared tree/version).
     - The user agreed the 032 fixture ships `enriched.json`, made with real `enrich merge`. 034 checks
       it with `enrich targets` after re-extracting.
+    - Decision: no automatic enrichment at query time. It would turn a read-only question into
+      scribe work and file writes; exit 7 already falls back to grep or SKILL.md, and gaps are reported.
+      034 adds an enriched vs un-enriched pilot, to decide whether setup-time enrichment is worth a ticket.
+- r030 (absorb-concept-skills-032) → 032 done as the harness, uncommitted, 0.3.25:
+  - The suite is `plugin/evals/`: 7 cases, a 3-concept task-board fixture, `.ast.json` from a real
+    `extract` and `.enriched.json` from a real `enrich merge`.
+  - `scaffold-lib.sh` copies the fixture and runs only `apply`, failing fast without node:sqlite. The plugin
+    root is derived from the script's path, because `CLAUDE_PLUGIN_ROOT` is empty in the scaffold.
+  - New `docs/evals.md` and a README index line.
+  - Pilot command: `claude plugin eval . --eval-dir plugin/evals --scaffold --allow-tools Bash
+    --judge-model sonnet --ablation with-without --no-publish --trust-plugin --runs 1 --max-cost-usd 5`
+  - Baseline (enriched, 1 run): 7/7 pass, Δ +0.21 (noise). Skill fired only in neg-no-config, the case
+    where it shouldn't; 0 Bash calls anywhere. That goes to 033.
+  - Verified by me: `pnpm check`, typecheck, `just eval` 7/7, `claude plugin validate` passed. The
+    fixture `.ast.json` is current (`skills status --summary`: 0 unextracted). This repo's concept
+    globs don't reach `plugin/evals/`, and `plugin/evals/results/` is ignored.

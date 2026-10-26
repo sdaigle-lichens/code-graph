@@ -20,7 +20,8 @@ an eval workspace (no project CLAUDE.md or `.claude/` loads) tells the agent the
   what breaks if I change Y", "where is X") and the signal (a `scribe.config.json` at the root).
 - A plugin hook (e.g. SessionStart) that, when `scribe.config.json` exists in the cwd, adds one line of
   context saying the project has a code graph and naming the skill. It must stay silent otherwise, and cost
-  no more than one short line.
+  no more than one short line. It only adds context: it never blocks and never writes files (maestro
+  arbitrates its own hooks and needs this one to be inert).
 - Anything else the plugin can ship. No project CLAUDE.md: the eval never loads one, and consumers
   shouldn't need one.
 
@@ -39,7 +40,7 @@ cases or graders (report problems with them as findings).
 - [ ] The report states why the skill didn't fire, with evidence (e.g. a transcript showing what the agent considered), not only the fix
 - [ ] In a user-run pilot of the 032 suite, the skill (or the CLI via Bash) is used in most with-plugin positive runs; the report gives Skill and Bash call counts per case for both arms, against the 032 baseline (0/7)
 - [ ] The negative no-config case still passes, and the skill does not fire there (or falls back as its "When NOT to use" says)
-- [ ] Any hook does nothing when `scribe.config.json` is absent; it is tested
+- [ ] Any hook does nothing when `scribe.config.json` is absent, and otherwise only adds context (never blocks, never writes files); tested
 - [ ] pnpm check, package tests and just eval (7/7) green; version bumped in all three files, bundle regenerated; `claude plugin validate` passes
 
 ## Blocked by

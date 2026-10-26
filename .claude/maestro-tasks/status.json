@@ -184,12 +184,12 @@
     "epic": "absorb-concept-skills"
   },
   "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   },
   "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md": {
-    "status": "blocked",
+    "status": "ready",
     "blockedBy": [
       "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md"
     ],

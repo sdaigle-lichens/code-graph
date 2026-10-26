@@ -49,6 +49,16 @@ regraph` if this repo's graph needs it.
 Then the user runs the full 032 suite (3 runs, `--scaffold`, `--allow-tools Bash`) as the after
 measurement against the 032 pilot baseline.
 
+**Enrichment on/off comparison:** after the full run, the user runs one more 2-run pilot of the same
+suite, with the fixture's `<concept>.enriched.json` files left out.
+- Use a temporary switch in the scaffold (e.g. an env var or a second scaffold script) that skips copying
+  them. Don't delete them from the repo.
+- Report per case: pass rate, the search exit codes (0/6/7), and Skill/Bash use, enriched vs un-enriched.
+- This decides whether a later ticket should make enrichment at setup (`create-concept-skills`) cheap and
+  reliable. Enrichment at query time stays out: retrieval keeps `allowed-tools: Bash, Read` and reports
+  gaps instead.
+- Remove the temporary switch afterwards, unless it is a documented scaffold option.
+
 Version: next free patch in all three files, bundle regenerated.
 
 Out of scope: an enrichment-free `purpose` text; changing search ranking or the exit-7 rule (a
@@ -63,6 +73,7 @@ needed, stop and report).
 - [ ] In-concept `impact` output is unchanged (an existing test or a new golden), and an unchanged-code re-extract is byte-stable after the one-time rewrite
 - [ ] The 032 fixture `.ast.json` files and this repo's own concepts are re-extracted and committed; the 032 suite's impact and cross cases pass on the new graph
 - [ ] The user ran the full 032 suite (3 runs); the report compares it with the 032 pilot and 033's pilot (pass rate, Δ, Skill and Bash use per case, `costUsd`)
+- [ ] A user-run 2-run pilot without the fixture's enrichment files is compared with the enriched full run, per case: pass rate, search exit codes, Skill/Bash use. The report gives a recommendation on investing in setup-time enrichment
 - [ ] docs/usage.md and the scribe-pipeline skill describe cross-concept edges and the one-time rewrite
 - [ ] pnpm check, package tests and just eval (7/7) green; version bumped in all three files, bundle regenerated; `claude plugin validate` passes
 

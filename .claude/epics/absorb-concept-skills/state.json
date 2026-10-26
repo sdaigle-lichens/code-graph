@@ -541,6 +541,20 @@
       "id": "r029",
       "at": "2026-10-23T15:57:30.176Z",
       "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r030",
+      "task": "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
+      "file": "inbox/r030-032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
+      "at": "2026-10-25T23:38:05.028Z",
+      "from": "absorb-concept-skills-032"
+    },
+    {
+      "kind": "ack",
+      "id": "r030",
+      "at": "2026-10-25T23:38:13.523Z",
+      "by": "manager-concept-skills-merge"
     }
   ]
 }
