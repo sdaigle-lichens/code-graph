@@ -94,6 +94,9 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
   plugin/                   the Claude Code plugin (--plugin-dir target)
     commands/
       graph.md              /graph slash command
+    hooks/
+      hooks.json            registers the SessionStart hook
+      graph-context.cjs     inert hint: one context line naming code-graph-retrieval, only if scribe.config.json is in the cwd
     skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
       create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
       scribe                placement rule, extract+apply rule, gap channel, enrichment procedure

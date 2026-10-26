@@ -71,9 +71,27 @@ Three user-run pilots, 1 run per arm, about $1.9 and 6 minutes each. In the late
 
 An earlier note said "every search exits 7". That was checked by running the CLI directly in a scaffolded workspace, not observed inside an agent run: the reorder question exits 0 after enrichment; the overdue, interaction and PDF questions exit 7; `query cross` exits 0 but finds no cross-concept edges; `query impact moveTask` lists only callees.
 
+## Pilot after 0.3.26
+
+User-run, 2 runs per arm, 7 cases, $4.09, 755s. All cases score 1.00 in both arms (mean delta 0.00), so the cases do not separate the arms on answer quality; this pilot shows the skill fires, not that it helps. With-plugin runs cost about $0.15-0.20 against $0.11-0.15 without.
+
+| Case | Skill calls (2 runs) | Bash calls (2 runs) |
+|---|---|---|
+| smoke | 2/2 | 1 each |
+| impact-movetask | 2/2 | 1 each |
+| cross-store-reminders | 2/2 | 0 (`chose-cross` fails) |
+| locate-overdue | 2/2 | 1 each |
+| not-in-graph | not graded | 1 each, then Grep |
+| neg-no-config | 0 | 0 |
+| neg-literal | 0 | 0 (Grep used) |
+
+Baseline was 0 Skill and 0 Bash in every positive case. The without-plugin arm has no Skill or Bash grading. Both negatives still pass without the skill firing. Bash worked in 8 runs, so the seccomp failures did not block the CLI path here.
+
+Open: cross-store-reminders fires the skill but never runs the CLI (likely the cross-concept gap, ticket 034). The `says-no-graph` grader in 06-neg-no-config gets FAIL from all judge votes in both runs although the agent behaves correctly; it is not scored. The full 3-run suite comes after 034.
+
 ## Known findings
 
 Not fixed here; they are the inputs to tickets 033 and 034.
 
-- The skill's description does not trigger on natural phrasing.
+- The skill's description does not trigger on natural phrasing. 0.3.26 rewrites it to lead with the question shapes and the `scribe.config.json` signal, and adds a SessionStart hook (`plugin/hooks/graph-context.cjs`) that adds one context line naming the skill, only when `scribe.config.json` is in the cwd. Why it did not fire (from the pilot traces): the first tool call of every with-plugin run was a Grep on a symbol from the question, or `git ls-files`; no run consulted the skill list. Runs that saw `scribe.config.json` in the listing read `skills/<concept>/SKILL.md` directly instead of invoking the skill. Separately, some Bash calls in the eval session failed with `apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted...)`, so the CLI path may be flaky there regardless of the description.
 - The graph records edges only within a concept, so `impact` and `cross` cannot see cross-concept callers.

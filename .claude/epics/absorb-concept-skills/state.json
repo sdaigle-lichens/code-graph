@@ -555,6 +555,34 @@
       "id": "r030",
       "at": "2026-10-25T23:38:13.523Z",
       "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r031",
+      "task": "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "file": "inbox/r031-033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "at": "2026-10-26T00:14:36.985Z",
+      "from": "absorb-concept-skills-033"
+    },
+    {
+      "kind": "ack",
+      "id": "r031",
+      "at": "2026-10-26T00:14:43.730Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r032",
+      "task": "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "file": "inbox/r032-033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "at": "2026-10-26T00:24:50.206Z",
+      "from": "absorb-concept-skills-033"
+    },
+    {
+      "kind": "ack",
+      "id": "r032",
+      "at": "2026-10-26T00:24:56.930Z",
+      "by": "manager-concept-skills-merge"
     }
   ]
 }

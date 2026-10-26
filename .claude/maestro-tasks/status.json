@@ -189,14 +189,14 @@
     "epic": "absorb-concept-skills"
   },
   "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md"
     ],
     "epic": "absorb-concept-skills"
   },
   "034-record-cross-concept-calls-at-extract-time.md": {
-    "status": "blocked",
+    "status": "ready",
     "blockedBy": [
       "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md"
     ],

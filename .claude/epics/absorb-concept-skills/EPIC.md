@@ -583,3 +583,28 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Verified by me: `pnpm check`, typecheck, `just eval` 7/7, `claude plugin validate` passed. The
     fixture `.ast.json` is current (`skills status --summary`: 0 unextracted). This repo's concept
     globs don't reach `plugin/evals/`, and `plugin/evals/results/` is ignored.
+- r031 (absorb-concept-skills-033) → 033 implemented, uncommitted, 0.3.26; the pilot criterion is still open:
+  - Cause, from the 032 traces: the agent's first call is Grep or `git ls-files`, and it never checks the
+    skill list. Runs that saw `scribe.config.json` read `skills/<concept>/SKILL.md` directly.
+  - Fix: the retrieval description now leads with the question shapes and the config signal. A new
+    SessionStart hook, `plugin/hooks/graph-context.cjs`, adds one `additionalContext` line only when
+    `scribe.config.json` is in the cwd. It always exits 0, writes nothing and never calls the CLI.
+    `graph-context-hook.test.ts` guards that, and `.claude/rules/plugin-skills.md` records the rule.
+  - Verified by me: `pnpm check`, 483/483 tests, `just eval` 7/7, `claude plugin validate` passed
+    (still only the LICENSE and icon notes).
+  - Not met: the user-run 2-run pilot (Skill and Bash counts per case vs the 0/7 baseline, and
+    06-neg-no-config) hasn't been run.
+  - Finding: some Bash calls inside eval sessions fail with
+    `apply-seccomp: write /proc/self/setgroups (nested userns ...)`. The eval sandbox can't run the
+    CLI, so Bash counts may stay at 0 whatever the wording says. 034's measurements depend on that too.
+- r032 (absorb-concept-skills-033) → 033's pilot criterion met (user-run, 2 runs per arm, $4.09, 755 s):
+  - Skill: 2/2 in smoke, impact, cross-store and locate (baseline 0). Bash CLI: 1 per run, except
+    cross-store with 0 (the 034 gap). Both negatives pass without the skill firing.
+  - The seccomp errors didn't block Bash.
+  - Every case scores 1.00 in both arms (Δ 0.00), so the suite shows the skill fires, not that it helps.
+    034's full run needs cases that separate the arms (impact and cross after the edge fix). A case
+    or grader change would need its own ticket.
+  - 06's `says-no-graph` grader fails every judge vote despite correct behaviour. It isn't scored;
+    left as a finding.
+  - I checked the result file (`plugin/evals/results/2026-10-26T00-10-42-208Z`): $4.09, 755 s, 7 cases,
+    not partial. The table is in `docs/evals.md`.

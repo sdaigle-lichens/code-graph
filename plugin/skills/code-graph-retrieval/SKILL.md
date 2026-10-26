@@ -1,6 +1,6 @@
 ---
 name: code-graph-retrieval
-description: Query the code-graph database to understand a TypeScript/React codebase before reading files. Use when you need to learn how a feature works, find what calls or is impacted by a function/hook/store, locate where functionality lives, or trace cross-concept relationships. Prefer this over raw Grep/Glob for "how does X work" / "what breaks if I change Y" questions in a project that has a scribe.config.json.
+description: Use first, before Grep or Read, for questions like "how does X work", "what calls X / what would break if I change Y", "where is X handled / defined", or "how do A and B interact" in a project with a scribe.config.json at its root (or a scribe-output/ directory). Queries the project's code graph (TypeScript/React) and returns @file:line pointers with purpose and callers, so you read the right slices instead of searching blind. Not for literal string or regex searches, and not when there is no scribe.config.json.
 allowed-tools: Bash, Read
 ---
 
