@@ -140,6 +140,16 @@
       "name": "absorb-concept-skills-032",
       "task": "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
       "added_at": "2026-10-25T19:38:39.851Z"
+    },
+    {
+      "name": "absorb-concept-skills-034",
+      "task": ".claude/maestro-tasks/034-record-cross-concept-calls-at-extract-time.md",
+      "added_at": "2026-10-26T00:36:06.661Z"
+    },
+    {
+      "name": "absorb-concept-skills-035",
+      "task": ".claude/maestro-tasks/035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
+      "added_at": "2026-10-26T18:44:12.689Z"
     }
   ],
   "log": [
@@ -582,6 +592,34 @@
       "kind": "ack",
       "id": "r032",
       "at": "2026-10-26T00:24:56.930Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r033",
+      "task": "034-record-cross-concept-calls-at-extract-time.md",
+      "file": "inbox/r033-034-record-cross-concept-calls-at-extract-time.md",
+      "at": "2026-10-26T13:41:40.801Z",
+      "from": "absorb-concept-skills-034"
+    },
+    {
+      "kind": "ack",
+      "id": "r033",
+      "at": "2026-10-26T13:41:53.924Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r034",
+      "task": "035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
+      "file": "inbox/r034-035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
+      "at": "2026-10-26T19:06:53.278Z",
+      "from": "absorb-concept-skills-035"
+    },
+    {
+      "kind": "ack",
+      "id": "r034",
+      "at": "2026-10-26T19:07:01.341Z",
       "by": "manager-concept-skills-merge"
     }
   ]

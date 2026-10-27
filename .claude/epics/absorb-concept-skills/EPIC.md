@@ -608,3 +608,94 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     left as a finding.
   - I checked the result file (`plugin/evals/results/2026-10-26T00-10-42-208Z`): $4.09, 755 s, 7 cases,
     not partial. The table is in `docs/evals.md`.
+- 0.3.26 committed (ec90f21). Maestro's manager acked it and checked the hook against its constraint.
+  Their limit: SessionStart context reaches only the main session, so subagents (maestro's builders) get
+  only the skill description. A future pilot run through a subagent is the case to check.
+- r033 (absorb-concept-skills-034) → 034 done, uncommitted, 0.3.27:
+  - `extract` emits edges into other concepts' vertices (`makeForeignResolver`, deterministic `vKey`,
+    no read of their ast.json) with `crosses_concept: true`. `apply` keeps that flag.
+  - A file matched by several concepts belongs to the first in config order, excluding the concept
+    being extracted. Docs-only concepts are skipped.
+  - Behaviour change: `oneHop`, `twoHops`, `oneHopAnyTable`, `queryCross` and `queryConcept` now require
+    the far vertex to be live, so edges to archived or not-yet-applied vertices are hidden everywhere.
+  - Fixture `.ast.json` x3 re-extracted. `.enriched.json` unchanged (`enrich targets`: 0 stale).
+  - Verified by me: `pnpm check`, 492/492 tests, `just eval` 7/7, `claude plugin validate` passed. On a
+    temp copy of the fixture with board-ui applied alone, `query cross board-ui task-store` exits 6
+    with a "not built" note, without crashing. After all three concepts are applied,
+    `impact moveTask --direction in` lists notifyOverdue and useDragReorder, and both crosses exit 0
+    (2 and 4 edges).
+  - Pilot (user-run): enriched, 3 runs, $6.19; un-enriched, 2 runs, $4.05. Every case 1.00 in both arms
+    of both pilots. cross-store-reminders fires the skill but never runs the CLI, even with the edges.
+    The plugin costs about 27% more overall (about 35% more in positive cases) with no accuracy gain.
+  - Partly met: the on/off comparison lacks search exit codes (traces deleted), and nothing
+    confirms the no-enrichment switch took effect. The worker's recommendation (don't prioritize
+    setup-time enrichment) therefore rests on weak evidence. The switch has been removed.
+  - Open question: the suite can't show whether code-graph saves cost (fixture too small, only final
+    answers graded). The worker proposes a benchmark ticket on a realistic repo, with
+    cost/turns/tokens/reads metrics, `--keep-temp` traces, exit codes and an enrichment on/off arm.
+- 0.3.27 committed by the user (9aa13af); maestro's manager told about the one-time `.ast.json` rewrite.
+- Ticket 035, benchmark whether code-graph saves cost on maestro. Decisions with the user:
+  - Target: maestro at a pinned sha (read only), not this repo. It is bigger, already graphed, and the
+    consumer this epic serves. Bench files live in `evals/bench-maestro/`, outside `plugin/`.
+  - Staged to keep cost down. Stage 0 is an offline proxy (graph output vs scripted Grep, $0).
+    Stage 1 is a user-run 2-run pilot capped at $8, on the questions that survive stage 0.
+  - Stage 1 arms: concept skills alone vs concept skills plus graph; no plain-Grep arm.
+  - Deterministic graders; the agent model is checked. Enrichment and extra runs go to stage 2, which
+    the user decides after stage 1.
+  - Also in 035: fix the `says-no-graph` grader, and document that subagents don't get the SessionStart line.
+- Maestro re-extracted its 16 concepts with 0.3.27 (uncommitted there, awaiting the user): every file
+  gained cross-concept edges, no vertex contentHash changed, and apply shows 0 new/changed/missing.
+- Maestro's manager's input to 035, forwarded to the worker:
+  - Model: benchmark Opus 5.5 first (builders and reviewer inherit it). Haiku 5.5 (test, scribe) is an
+    optional second arm.
+  - Seven real lookup questions from maestro tasks 121–124.
+  - The worker may pin maestro's re-extract commit instead of b323aa7, if the user commits it first.
+- r034 (absorb-concept-skills-035) → 035 built up to the user-run Stage 1, uncommitted, 0.3.28:
+  - Stage 0 (b323aa7, un-enriched, tokens = chars/4): Grep reached the full answer on all 8 questions,
+    graph output alone on none. Search exits 7 almost everywhere (nothing enriched). The graph was
+    cheaper only on q5 (205 vs 2887 tokens) and covered 1/4 of that answer.
+  - The user kept q2, q5 and q6 as graph candidates and q3 and q8 as Grep-wins controls. Dropped q1, q4
+    and q7 (no graph hits, or outside every concept). Snapshot stays at b323aa7.
+  - The skills arm ships maestro's 16 concept skills as a generated bench plugin
+    (`evals/bench-maestro`), since eval workspaces don't load project `.claude/skills`.
+  - Also done: the `says-no-graph` grader is a regex check now, the subagent limit is in `docs/evals.md`,
+    and the version is bumped. Worker ran `pnpm check`, 492/492 package tests and `just eval` 7/7.
+  - Verified by me: `claude plugin validate plugin` passes, and `projectOwnsHook` exists at b323aa7
+    (`hook-arbitration.ts:126`), so maestro's manager's correction was wrong and q2 stays.
+  - Blocker found by me: `claude plugin validate evals/bench-maestro` fails. Maestro's own
+    `apps/maestro/.claude/skills/agents-view/SKILL.md` at b323aa7 has invalid YAML frontmatter (an
+    unescaped `"Copy into the project"` inside a double-quoted description). `make-suite.mjs` copies it
+    byte for byte, so that skill would load without a description and skew the skills arm. Stage 1
+    waits until the generator repairs it and the bench plugin validates. The bug is maestro's too.
+  - Regression from 034, missed by me (I ran only the package tests):
+    `apps/desktop/test/graph-canvas-real-store.test.ts` expects 1 skipped edge and gets 23, because the
+    local store now holds cross-concept edges. Proposed as ticket 036.
+  - Maestro's dirty tree (16 `.ast.json`, graph.db, its EPIC.md) is its manager's 0.3.27 re-extract, as expected.
+  - Open: `metrics.mjs` is untested on a real trace, and the eval frontmatter keys come from the docs.
+- Maestro's manager confirmed both findings. They fixed agents-view on their side (escaped quotes, stamped
+  1.16, uncommitted) and withdrew the `projectOwnsHook` correction. The bench still reads b323aa7, so
+  the generator repair is still needed.
+- 035 worker repaired it: `make-suite.mjs` `repairFrontmatter()` re-emits a broken one-line quoted value
+  as a `>-` block scalar. Only agents-view changed; the other 15 skills are byte-identical, and a rerun
+  gives the same output. I ran `claude plugin validate evals/bench-maestro` and it passes (warnings
+  only: author, license, icon). Stage 1 is unblocked and up to the user.
+- Stage 1 ran (user-run, $4.96, Opus 5.5, 2 runs): correctness 1.00 in both arms, graph arm +10% cost.
+  The worker's verdict was "no saving", with five ranked levers in `docs/evals.md`.
+  **Invalid, found by me:** the `1,1` exits are failures. Every Bash call in the traces I checked
+  failed on `apply-seccomp: ... nested userns is capability-restricted`, so the graph arm never got
+  any code-graph output and the run measured only the retrieval skill's overhead. Still valid: q3 and
+  q6 show the skill fires even when concept skills already locate the answer (lever 1). The worker is
+  rewriting the verdict, flagging seccomp failures in `metrics.mjs`, and finding a way to run eval Bash
+  without the nested sandbox before any rerun.
+- The user set 035 aside ("I don't like where the session of 035 went"). Its 0.3.28 changes stay
+  uncommitted in the tree, and the worker session is gone. No rerun is planned.
+- Ticket 036: fix the desktop canvas test, taking the expected skipped count from the store (describes
+  plus cross-concept and non-live endpoints). Test only, no canvas change and no version bump. Drawing
+  cross-concept edges on the canvas is out of scope. Linked to the epic.
+- 035 cleanup, with the user: kept its findings (a "Maestro benchmark findings" section in
+  `docs/evals.md`) and the `says-no-graph` regex grader. Dropped `evals/bench-maestro/`, the 0.3.28 bump
+  and its bundle (reverted to 0.3.27, bundle regenerated, identical), and the README/.gitignore lines.
+  The 0.3.28 version number is free again.
+- Ticket 037: stop `code-graph-retrieval` loading when a loaded concept skill already locates the answer
+  (the one valid 035 result), and measure the plugin's fixed per-session size offline. It includes a
+  new eval case and a user pilot capped at $5, with a seccomp check. 0.3.28. Blocked by 036.

@@ -51,10 +51,12 @@ Run from the repo root, never from `plugin/`: a session started there creates `p
 | `03-cross-store-reminders` | How do the task store and the reminders feature interact? | Both directions, store to reminders and back, with correct files. |
 | `04-locate-overdue` | Where is the logic that decides a task is overdue? | `isOverdue` in `src/reminders/overdue.ts`. |
 | `05-not-in-graph` | Where do we export the board to PDF? | Says plainly there is no PDF export; no invented location. |
-| `06-neg-no-config` | Reordering question, no `scribe.config.json` | Correct answer from source, says no graph exists, never runs `init`/`extract`/`apply`. |
+| `06-neg-no-config` | Reordering question, no `scribe.config.json` | Correct answer from source, never claims to have used the graph, never runs `init`/`extract`/`apply`. |
 | `07-neg-literal` | Find every place the string TODO appears. | Exactly the three real TODOs; grep, not the graph. |
 
 Scored: the `llm` outcome graders on the final answer, plus a few regex graders. The `tool_used` graders (skill fired, command chosen, CLI used) are display-only indicators (the runner never scores a `Skill` check; the others are `arm: with-only`). The one exception is `06-neg-no-config`'s `did-not-build-graph`, which is scored in both arms.
+
+`06-neg-no-config`'s `says-no-graph` grader used to be an LLM grader demanding that the answer mention the missing graph. A correct run never does, so every judge vote failed. It is now a regex `not_contains` check that the answer does not claim to have used the graph. It is weaker, and negated phrasing ("did not rely on the code graph") can still false-fail.
 
 ## Refreshing the fixture
 
@@ -87,7 +89,7 @@ User-run, 2 runs per arm, 7 cases, $4.09, 755s. All cases score 1.00 in both arm
 
 Baseline was 0 Skill and 0 Bash in every positive case. The without-plugin arm has no Skill or Bash grading. Both negatives still pass without the skill firing. Bash worked in 8 runs, so the seccomp failures did not block the CLI path here.
 
-Open: cross-store-reminders fires the skill but never runs the CLI (likely the cross-concept gap, ticket 034). The `says-no-graph` grader in 06-neg-no-config gets FAIL from all judge votes in both runs although the agent behaves correctly; it is not scored.
+Open: cross-store-reminders fires the skill but never runs the CLI (likely the cross-concept gap, ticket 034).
 
 ## Pilot after 0.3.27 (ticket 034)
 
@@ -132,3 +134,13 @@ Not fixed here; they are the inputs to tickets 033 and 034 and to the follow-up 
 - The skill's description does not trigger on natural phrasing. 0.3.26 rewrites it to lead with the question shapes and the `scribe.config.json` signal, and adds a SessionStart hook (`plugin/hooks/graph-context.cjs`) that adds one context line naming the skill, only when `scribe.config.json` is in the cwd. Why it did not fire (from the pilot traces): the first tool call of every with-plugin run was a Grep on a symbol from the question, or `git ls-files`; no run consulted the skill list. Runs that saw `scribe.config.json` in the listing read `skills/<concept>/SKILL.md` directly instead of invoking the skill. Separately, some Bash calls in the eval session failed with `apply-seccomp: write /proc/self/setgroups (nested userns is capability-restricted...)`, so the CLI path may be flaky there regardless of the description.
 - Fixed in 0.3.27: the graph recorded edges only within a concept, so `impact` and `cross` could not see cross-concept callers.
 - Open: the suite grades only the final answer. It does not measure turns, tokens or file reads per case, and its fixture is too small for Grep to be expensive, so it cannot show whether code-graph saves cost.
+
+## Maestro benchmark findings (ticket 035, set aside)
+
+Ticket 035 tried to measure whether the graph saves cost on maestro (a bigger repo, pinned at `b323aa7`, 16 concepts, nothing enriched), with concept skills alone against concept skills plus the graph. The harness was dropped; what it learned:
+
+- **Offline proxy (graph output vs a scripted Grep, 8 questions):** Grep reached the full answer on all 8, the graph output alone on none. `search` exited 7 almost everywhere because no concept was enriched. The graph was cheaper only on one impact question (205 vs 2887 tokens), and covered a quarter of that answer. On an un-enriched repo, the graph is not yet a substitute for Grep.
+- **Paid run (Opus 5.5, 2 runs, 5 questions, $4.96): no graph-vs-Grep result.** Every Bash call in the run failed with `apply-seccomp: write /proc/self/setgroups ... Permission denied`, in both arms, so no code-graph call ever returned output. Bash worked in the 0.3.26 pilot, so whether it works depends on the host and how the eval is started. Before trusting any paid run that uses `--allow-tools Bash`, check one kept trace (`--keep-temp`) for `apply-seccomp`.
+- **What the paid run did show:** the retrieval skill loads even when a loaded concept skill already names the files. On the two questions where that happened, the graph arm cost 34% and 51% more (about +60-70k input and cache tokens per run) for the same answer. Ticket 037 targets this.
+- **Eval workspaces don't load project `.claude/skills`** (per the `claude plugin eval` docs): only plugins under test supply skills. A project's concept skills have to be shipped as a plugin to be part of an eval.
+- **Main session only:** the eval drives a main session. In real maestro runs the work happens in subagents, which don't receive the SessionStart context line; no eval here covers that case.

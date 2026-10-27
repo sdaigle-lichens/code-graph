@@ -196,9 +196,30 @@
     "epic": "absorb-concept-skills"
   },
   "034-record-cross-concept-calls-at-extract-time.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "035-benchmark-whether-code-graph-saves-cost-on-maestro.md": {
+    "status": "done",
+    "blockedBy": [
+      "034-record-cross-concept-calls-at-extract-time.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md": {
+    "status": "ready",
+    "blockedBy": [
+      "034-record-cross-concept-calls-at-extract-time.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md": {
+    "status": "blocked",
+    "blockedBy": [
+      "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md"
     ],
     "epic": "absorb-concept-skills"
   }
