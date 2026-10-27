@@ -833,3 +833,55 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
       SessionStart hook output, never in a tool call.
   - No ticket changes. Stage 2 is the user's choice: an enrichment arm, a Haiku 5.5 arm, or stop
     investing in retrieval.
+- 039 committed by me at the user's request (c40eb3e).
+- Retrieval direction. The user's intent is "grep on steroids". My diagnosis: the delivery causes
+  friction (choose a skill, load its body, call a Bash CLI, read exit codes), and on one-level
+  impact questions Grep has little left for the graph to save.
+  - Delivery options, held until the measurements are in:
+    - a PostToolUse hook on Grep that appends the enclosing function and callers;
+    - native tools through an MCP server (out of scope in `CLAUDE.md` unless the user asks);
+    - a slimmer skill.
+  - Tickets written and linked:
+    - **041:** an oracle arm (graph output pasted into the prompt) to find the best-case saving, plus
+      2–3 deep-impact questions. Cap $7, 20% decision rule.
+    - **042:** concept skills vs no concept skills. Cap $7. Blocked by 041: both edit the bench, and
+      the paid runs must not overlap on the usage limit.
+- The user started 041 (`absorb-concept-skills-041`).
+- 041 incident: the agent ran `bench/maestro-setup.sh` with the repo root as cwd.
+  - What happened: maestro's tree was extracted over the repo. The script's
+    `rm .claude/settings.json` was blocked by the sandbox (the file is write-denied).
+  - The agent's cleanup reset `.claude/maestro-tasks/status.json` and `.claude/maestro.json` to HEAD.
+  - Checked by me:
+    - no maestro files are left, tracked or ignored (`.mcp.json` and `.claude/agents` are sandbox
+      device nodes, not overwritten);
+    - this repo's `scribe-output` is intact, with no maestro concept in the store.
+  - Restored by me: task status re-synced, 041/042 re-linked, `runtimeVersion` back to 0.12.11.
+  - 041 now shows `ready` in `status.json` while it runs. The claim's status write was lost; its
+    end-of-task write sets it.
+  - Asked 041 to add a guard to `maestro-setup.sh`: refuse unless the cwd is an empty directory
+    outside any git work tree. With a test.
+  - 041 confirmed: the guard is being added (exit 2, one stderr line, unit test). It reports the user
+    approved the question set m1–m7 and the run plan.
+  - Next steps: test, review, scribe, then the user's paid run.
+- r040 acked: 041 is done.
+  - Scope was cut by the user: the full plan didn't fit the $7 cap, so only the deep questions m6 and
+    m7 ran, in three arms (nograph, oracle, graph). m1–m5 have no oracle verdict.
+  - 12 of 12 runs valid, $2.467 spent, no usage limit hit.
+  - **Deep group: oracle vs nograph, +3% ($0.861 vs $0.836).**
+    - The decision rule needed at least 20% cheaper, so the ceiling is too low to justify a delivery
+      rework.
+    - Even with the answer in its prompt, Opus still grepped to check it (13 Greps over 4 runs). The
+      larger prompt raised cache-create tokens: fewer turns (21 vs 28), the same cost.
+  - The "Grep is expensive" questions weren't: nograph took 6–8 turns at about $0.20 a run.
+  - The graph arm never used the CLI or the skill (I confirmed 0 hits in the transcripts), so
+    graph vs oracle (-11%) measures nothing.
+  - Verified by me:
+    - bench tests 43/43 and `pnpm check` green;
+    - the guard is at the top of `maestro-setup.sh`;
+    - the report matches.
+  - Suggestions from 041, held:
+    - the m1–m5 oracle run (about $4);
+    - a `packages/` ticket to remove duplicate caller lines in the impact output.
+  - Conclusion for the retrieval direction: with Opus on a maestro-sized repo, even a free graph
+    answer doesn't cut cost. Delivery rework isn't justified on this evidence. 042 goes ahead
+    unchanged.

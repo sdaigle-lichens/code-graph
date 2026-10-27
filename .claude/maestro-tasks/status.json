@@ -242,5 +242,17 @@
     "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
+  },
+  "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "042-measure-whether-concept-skills-save-cost-on-their-own.md": {
+    "status": "ready",
+    "blockedBy": [
+      "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md"
+    ],
+    "epic": "absorb-concept-skills"
   }
 }
