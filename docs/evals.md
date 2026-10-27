@@ -173,6 +173,7 @@ Run on 0.3.28, 8 cases, 2 runs per arm: $4.47, 824s, mean delta -0.09. Results i
   - impact-movetask with-plugin run 2 named both real callers. The judge failed it, probably for the extra "docs and generated files" list (`scribe-output/*` names).
   - neg-literal with-plugin run 1 reworded two TODO texts, and the grader treats that as invented text. That run loaded no skill and ran no CLI.
   - n=2 noise, but both graders are stricter than the cases need.
+  - Ticket 040 loosened both `graders/answer.md` files (eval files only, no version bump): impact-movetask now allows extra real stale-doc or generated-file mentions and fails only on a missing caller or one that does not exist; neg-literal accepts paraphrased TODO text at the three right locations and fails only on a missing location or a nonexistent or different TODO. Not re-run with a paid eval; checked by reading the kept answers.
 
 ## Known findings
 
