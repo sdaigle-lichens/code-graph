@@ -747,3 +747,41 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - The plugin arm still costs about 28% more overall.
   - The two failures (impact run 2, neg-literal run 1) come from strict graders and a reworded answer,
     not from the plugin.
+- 037 committed by me at the user's request (c4267f6), together with tickets 038 and 039 and the
+  bookkeeping. The maestro runtime files stay out of the commit. `manager-code-graph-merge` was told
+  about 0.3.28.
+- Ticket 040, with the user: loosen two answer graders.
+  - impact: extra real stale-doc mentions are allowed.
+  - literal: paraphrased TODO text at the right locations is allowed.
+  - Reasoned against the kept pilot answers; no paid run. Eval files only, no version bump. Not
+    blocked.
+- Workers `absorb-concept-skills-038` and `absorb-concept-skills-040` were started by the user and
+  recorded. The user removed the leftover `evals/`.
+- r037 (absorb-concept-skills-040) → 040 done in worktree `code-graph-task-040` (branch task-040),
+  uncommitted and unmerged:
+  - Both `graders/answer.md` files were changed as the ticket asked, plus a `docs/evals.md` note.
+  - By reasoning, the two failing pilot answers would now pass and a passing one still passes.
+  - Verified by me: the diff matches the ticket. `/plugin/` and `docs/` are in `.prettierignore`, so
+    `pnpm check` doesn't format these files. A bare prettier call would turn the impact grader's
+    `skills/*/SKILL.md` into italics, which is harmless because the judge reads the raw text.
+  - The worker couldn't run `pnpm check` (no node_modules in the worktree); run it after the merge.
+- 040 merged by the user (151aa7b, merge ffa0a82), and the user ran `pnpm check` after the merge.
+  The 040 ticket file, the r037 report and this bookkeeping are still uncommitted, waiting for the
+  next commit together with 038's work.
+- r038 (absorb-concept-skills-038) → 038 done in the main tree, uncommitted:
+  - `bench/` holds `run.mjs`, `lib.mjs`, `lib.test.mjs`, `cases.json` and `README.md`.
+  - `bench/results/` is gitignored, linked from `docs/evals.md`, plus one CLAUDE.md bullet.
+  - Flags checked against the user's `claude -p --help`.
+  - The user-run fixture check (02-impact-movetask, Sonnet by default, $0.113) passed. Bash worked:
+    the first paid run with a code-graph call that returned output (exit 0, 197 chars). Both arms
+    scored 2/2.
+  - On this question no-graph was cheaper: $0.048 against $0.066, with 72k cache read against 44k.
+  - Verified by me: the 16 bench unit tests pass, `pnpm check` is green, and I reviewed the report
+    and the code.
+  - `bench/lib.test.mjs` isn't in `pnpm test`; it runs with `node --test bench/lib.test.mjs`.
+  - Ticket 039 amended (it isn't running yet): first tighten `isCg` and pass Opus explicitly. Whether
+    maestro's project skills load under `--setting-sources local` remains its init check.
+  - 039 is now unblocked and needs the pinned maestro sha from the user.
+- 038 committed from its own session as e2c8927: `bench/`, `.gitignore`, CLAUDE.md and
+  `docs/evals.md`. Still uncommitted: the 040 ticket, the 039 amendment, reports r037 and r038, and
+  this bookkeeping.

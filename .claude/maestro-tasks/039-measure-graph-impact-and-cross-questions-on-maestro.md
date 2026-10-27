@@ -16,7 +16,15 @@ Evidence so far (`docs/evals.md`):
 - The one case where the graph was cheaper was an impact question (205 vs 2887 tokens, offline).
 - No paid run has had working Bash.
 
-Use the 038 runner (`bench/`) on maestro:
+Use the 038 runner (`bench/`) on maestro. Before the paid run, fix two runner gaps from 038's report:
+- `bench/lib.mjs`'s `isCg` matches any Bash command that mentions `code-graph`, so a `grep code-graph`
+  would be graded as a CLI call. Match the CLI invocation only.
+- The runner defaults to `--model sonnet`; pass Opus 5.5 explicitly.
+
+Note that the runner uses `--setting-sources local`. Whether maestro's project `.claude/skills` still
+load under it is exactly the init check below; it is not known yet.
+
+On maestro:
 - **Snapshot:** maestro read-only, pinned at a commit that has its 0.3.27 `.ast.json` files committed.
   Ask the user which sha. Never write to `~/gits/maestro`: workspaces come from `git archive` into
   `$TMPDIR`.

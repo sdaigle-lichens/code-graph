@@ -150,6 +150,16 @@
       "name": "absorb-concept-skills-035",
       "task": ".claude/maestro-tasks/035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
       "added_at": "2026-10-26T18:44:12.689Z"
+    },
+    {
+      "name": "absorb-concept-skills-038",
+      "task": "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "added_at": "2026-10-27T14:28:15.677Z"
+    },
+    {
+      "name": "absorb-concept-skills-040",
+      "task": "040-loosen-the-impact-and-literal-eval-graders.md",
+      "added_at": "2026-10-27T14:28:16.137Z"
     }
   ],
   "log": [
@@ -648,6 +658,34 @@
       "kind": "ack",
       "id": "r036",
       "at": "2026-10-27T02:31:42.642Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r037",
+      "task": "040-loosen-the-impact-and-literal-eval-graders.md",
+      "file": "inbox/r037-040-loosen-the-impact-and-literal-eval-graders.md",
+      "at": "2026-10-27T14:29:38.926Z",
+      "from": "absorb-concept-skills-040"
+    },
+    {
+      "kind": "ack",
+      "id": "r037",
+      "at": "2026-10-27T14:29:49.311Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r038",
+      "task": "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "file": "inbox/r038-038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "at": "2026-10-27T14:54:52.099Z",
+      "from": "absorb-concept-skills-038"
+    },
+    {
+      "kind": "ack",
+      "id": "r038",
+      "at": "2026-10-27T14:54:59.443Z",
       "by": "manager-concept-skills-merge"
     }
   ]
