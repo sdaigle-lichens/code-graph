@@ -12,6 +12,7 @@ scribe-output/
 eval/results-*.json
 # claude plugin eval output; the suite's fixture .ast.json files are committed on purpose
 **/evals/results/
+bench/results/
 !plugin/evals/**/scribe-output/
 plugin/evals/**/scribe-output/graph.db*
 # Maestro ephemeral session state — recreated as needed, never committed

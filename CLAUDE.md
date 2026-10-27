@@ -16,6 +16,8 @@ holds no `CLAUDE.md` or `.claude/` (`pnpm check` fails if one appears).
   `./plugin` and the plugin ships via git, not npm. `plugin/scripts/code-graph.cjs` is a
   **generated, committed** bundle — never edit it; regenerate with `pnpm bundle` and check
   `git diff plugin/scripts/`.
+- `bench/` is a user-run `claude -p` graph vs no-graph benchmark (`node bench/run.mjs` from a plain
+  terminal; see `bench/README.md`); `bench/results/` is gitignored.
 - `docs/implementation/plan.md` is the master spec. CLI usage and exit codes: `docs/usage.md`.
 
 The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `dbPath`).

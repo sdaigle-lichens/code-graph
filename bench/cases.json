@@ -1,0 +1,10 @@
+{
+  "cases": [
+    {
+      "id": "02-impact-movetask",
+      "question": "What would break if I change the signature of `moveTask`?",
+      "setup": "bash {REPO}/plugin/evals/02-impact-movetask/scaffold.sh",
+      "must": ["useDragReorder", "notifyOverdue"]
+    }
+  ]
+}
