@@ -699,3 +699,13 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
 - Ticket 037: stop `code-graph-retrieval` loading when a loaded concept skill already locates the answer
   (the one valid 035 result), and measure the plugin's fixed per-session size offline. It includes a
   new eval case and a user pilot capped at $5, with a seccomp check. 0.3.28. Blocked by 036.
+- Committed by me at the user's request: 696789c (035 cleanup, tickets 036 and 037, bookkeeping).
+- r035 (absorb-concept-skills-036) → 036 done, uncommitted, test only (no version bump):
+  - `truth()` now counts skipped edges from the store: endpoints that are neither a live vertex of the
+    concept nor its doc, plus how many of them cross concepts.
+  - `l.skipped` is asserted against that count, and the `describes` assertions are kept.
+  - A new test needs at least one skipped cross-concept edge and points to `just regraph` if the store
+    has none.
+  - Verified by me: the desktop file passes uncached (7/7), and `pnpm test --force` from the root is
+    green.
+  - Note: the test depends on the local gitignored graph.db, as before.

@@ -210,14 +210,14 @@
     "epic": "absorb-concept-skills"
   },
   "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "034-record-cross-concept-calls-at-extract-time.md"
     ],
     "epic": "absorb-concept-skills"
   },
   "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md": {
-    "status": "blocked",
+    "status": "ready",
     "blockedBy": [
       "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md"
     ],

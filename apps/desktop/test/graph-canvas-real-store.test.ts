@@ -34,9 +34,24 @@ function truth(concept: string) {
     type: string;
     c: number;
   }[];
+  // Layout nodes are the concept's live vertices plus its skill doc; an edge with any other endpoint is skipped.
+  const nodeKeys = new Set([
+    ...(db.prepare("SELECT key FROM vertices WHERE concept=? AND status='live'").all(concept) as { key: string }[]).map(
+      (r) => r.key
+    ),
+    ...(db.prepare("SELECT key FROM docs WHERE concept=?").all(concept) as { key: string }[]).map((r) => r.key),
+  ]);
+  const ends = db.prepare("SELECT from_key, to_key, crosses_concept AS x FROM edges WHERE concept=?").all(concept) as {
+    from_key: string;
+    to_key: string;
+    x: number;
+  }[];
+  const outside = ends.filter((e) => !nodeKeys.has(e.from_key) || !nodeKeys.has(e.to_key));
+  const skipped = outside.length;
+  const skippedCross = outside.filter((e) => e.x === 1).length;
   db.close();
   const edges = Object.fromEntries(rows.map((r) => [r.type, r.c]));
-  return { live, hasDoc, edges, count: (t: string) => edges[t] ?? 0 };
+  return { live, hasDoc, edges, skipped, skippedCross, count: (t: string) => edges[t] ?? 0 };
 }
 
 afterAll(() => {
@@ -87,8 +102,21 @@ describe("canvas model over the real store", () => {
     const l = layoutGraph(g, all);
     const d = g.edges.find((e) => e.type === "describes")!;
     expect(d.toKey).toBe("code-graph-search");
-    expect(l.skipped).toBe(1);
+    expect(l.skipped).toBe(truth("code-graph-search").skipped);
     expect(l.edges.some((e) => e.type === "describes")).toBe(false);
+  });
+
+  it("cross-concept edges are among the skipped ones, and the store must hold some", async () => {
+    const t = truth("code-graph-search");
+    expect(
+      t.skippedCross,
+      "the local store has no crosses_concept=1 edge outside code-graph-search; run `just regraph` (extract >= 0.3.27)"
+    ).toBeGreaterThan(0);
+    const g = await conceptGraph(projectCopy(), { concept: "code-graph-search" });
+    const l = layoutGraph(g, new Set(g.edges.map((e) => e.type)));
+    // every skipped edge is the describes edge or a cross-concept/non-live one; cross ones are counted in the total
+    expect(l.skipped).toBeGreaterThanOrEqual(t.skippedCross);
+    expect(l.skipped).toBe(t.skipped);
   });
 
   it("documented-by on: the skill doc is the sink of every live vertex; off restores the layout exactly", async () => {

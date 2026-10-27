@@ -621,6 +621,20 @@
       "id": "r034",
       "at": "2026-10-26T19:07:01.341Z",
       "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r035",
+      "task": "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md",
+      "file": "inbox/r035-036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md",
+      "at": "2026-10-27T01:49:21.702Z",
+      "from": "absorb-concept-skills-036"
+    },
+    {
+      "kind": "ack",
+      "id": "r035",
+      "at": "2026-10-27T01:49:29.668Z",
+      "by": "manager-concept-skills-merge"
     }
   ]
 }
