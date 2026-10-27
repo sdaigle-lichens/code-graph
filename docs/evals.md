@@ -188,8 +188,70 @@ Not fixed here; they are the inputs to tickets 033 and 034 and to the follow-up 
 Ticket 035 tried to measure whether the graph saves cost on maestro (a bigger repo, pinned at `b323aa7`, 16 concepts, nothing enriched), with concept skills alone against concept skills plus the graph. The harness was dropped; what it learned:
 
 - **Offline proxy (graph output vs a scripted Grep, 8 questions):** Grep reached the full answer on all 8, the graph output alone on none. `search` exited 7 almost everywhere because no concept was enriched. The graph was cheaper only on one impact question (205 vs 2887 tokens), and covered a quarter of that answer. On an un-enriched repo, the graph is not yet a substitute for Grep.
-- **Paid run (Opus 5.5, 2 runs, 5 questions, $4.96): no graph-vs-Grep result.** Every Bash call in the run failed with `apply-seccomp: write /proc/self/setgroups ... Permission denied`, in both arms, so no code-graph call ever returned output. Bash worked in the 0.3.26 pilot, so whether it works depends on the host and how the eval is started. Before trusting any paid run that uses `--allow-tools Bash`, check one kept trace (`--keep-temp`) for `apply-seccomp`.
+- **Paid run (Opus 5.5, 2 runs, 5 questions, $4.96): no graph-vs-Grep result.** Every Bash call in the run failed with `apply-seccomp: write /proc/self/setgroups ... Permission denied`, in both arms, so no code-graph call ever returned output. Superseded by the working-Bash `claude -p` run in "Ticket 039" below. Before trusting any paid `claude plugin eval` run that uses `--allow-tools Bash`, check one kept trace (`--keep-temp`) for `apply-seccomp`.
 - **What the paid run did show:** the retrieval skill loads even when a loaded concept skill already names the files. On the two questions where that happened, the graph arm cost 34% and 51% more (about +60-70k input and cache tokens per run) for the same answer. Ticket 037 targets this.
 - **Eval workspaces don't load project `.claude/skills`** (per the `claude plugin eval` docs): only plugins under test supply skills. A project's concept skills have to be shipped as a plugin to be part of an eval.
-- **Follow-up:** `bench/` (ticket 038) runs graph vs no-graph on `claude -p` from a plain terminal, so Bash works and invalid runs are flagged; see [bench/README.md](../bench/README.md).
+- **Follow-up:** `bench/` (ticket 038) runs graph vs no-graph on `claude -p` from a plain terminal, so Bash works and invalid runs are flagged; see [bench/README.md](../bench/README.md). Its first paid use is "Ticket 039" below.
 - **Main session only:** the eval drives a main session. In real maestro runs the work happens in subagents, which don't receive the SessionStart context line; no eval here covers that case.
+
+## Ticket 039: graph impact and cross questions on maestro (bench/, 2026-10-27)
+
+Question: does code-graph save cost where it should be strongest, "what breaks if I change Y" (`query impact`) and "how do A and B interact" (`query cross`)? Setup: `bench/` runner (`claude -p`, working Bash), Opus 5.5, maestro pinned at `3814a30` (workspaces from `git archive`, `apply` from the committed 0.3.27 `.ast.json`, nothing extracted, nothing enriched). Both arms have maestro's own concept skills; the graph arm adds the code-graph plugin (checked in the init events). Results are in `bench/results/` (gitignored): `2026-10-27T16-28-06-917Z` and `2026-10-27T19-03-18-336Z`.
+
+### Runs
+
+- **First invocation** (`16-28-06-917Z`): 20 runs, $4.302. m1 to m3 have two valid runs per arm. m4 and m5 have one valid run per arm.
+- **The four m4/m5 run-2 runs are invalid and not counted.** Cause: `api_error` `usage_limit_reached` (HTTP 429, an account usage limit), not a Bash failure. m4 nograph run 2 had got partway in ($0.221); the other three never started a turn.
+- **Second invocation** (`19-03-18-336Z`, `--only -cross- --runs 1`): a separate invocation that reran only m4 and m5, 4 runs, all valid, $1.076. In the tables, m4 and m5 "run 2" is this rerun.
+- Total spend $5.378 of the $6 cap. Every counted run passes the Bash validity check.
+- Questions: m1 `readAllProjectTags` callers, m2 duplicate agent types, m3 `readAllAgentTypes` callers (impact); m4 install/config, m5 IPC/config (cross). They were kept because an offline proxy showed the graph covers the answer (selection bias, below).
+
+### Per question and arm
+
+Sums over n=2 valid runs. Cost in $; tokens are the input, output, cache-read and cache-create counts summed; tool counts are Read/Grep/Bash/Skill; `cg` = code-graph CLI calls (all exit 0) and their total output chars; pass = graded `must` regexes matched.
+
+| Question | Arm | Cost | Turns | In / out tok | Cache read / create | Read/Grep/Bash/Skill | cg calls (chars) | Pass |
+|---|---|---|---|---|---|---|---|---|
+| m1 impact | nograph | 0.388 | 13 | 26 / 169 | 269,389 / 28,795 | 0/4/7/0 | - | 12/12 |
+| m1 impact | graph | 0.440 | 13 | 24 / 138 | 272,021 / 36,331 | 0/3/6/1 | 1 (798) | 11/12 |
+| m2 impact | nograph | 0.539 | 15 | 30 / 236 | 362,138 / 41,633 | 0/3/10/0 | - | 8/10 |
+| m2 impact | graph | 0.596 | 20 | 34 / 185 | 435,577 / 49,005 | 0/5/9/2 | 6 (2,159) | 10/10 |
+| m3 impact | nograph | 0.482 | 18 | 32 / 191 | 365,108 / 35,885 | 0/7/9/0 | - | 12/14 |
+| m3 impact | graph | 0.469 | 15 | 26 / 145 | 311,626 / 40,348 | 0/4/5/2 | 3 (1,314) | 14/14 |
+| m4 cross | nograph | 0.566 | 14 | 20 / 98 | 223,117 / 53,423 | 6/6/0/0 | - | 18/18 |
+| m4 cross | graph | 0.475 | 10 | 16 / 68 | 187,166 / 45,031 | 0/0/4/2 | 0 | 18/18 |
+| m5 cross | nograph | 0.605 | 16 | 24 / 131 | 286,733 / 56,873 | 5/9/0/0 | - | 16/18 |
+| m5 cross | graph | 0.597 | 18 | 30 / 220 | 361,606 / 51,868 | 3/8/5/0 | 0 | 14/18 |
+
+Per question, graph against nograph: m1 +13%, m2 +11%, m3 -3%, m4 -16%, m5 -1%. Impact questions (m1 to m3) +7% ($1.505 against $1.409); cross questions (m4, m5) -8% ($1.072 against $1.171); all five $2.577 against $2.580, flat. Turns total 76 against 76. Pass rate 67/72 (93%) graph, 66/72 (92%) nograph.
+
+### Did the graph arm really not call the CLI?
+
+Checked in the transcripts, not only the report.
+
+- **m4 and m5 graph, all four valid runs (both invocations): the agent never invoked code-graph.** No tool_use input mentions `code-graph` or `code-graph.cjs`; the only transcript hits are the plugin name in the init event. `isCg` in `bench/lib.mjs` (the CLI binary or `node <path>code-graph[.cjs]` as a command word) did not miss a form; there was nothing to match.
+- m4 graph's `Skill` call is the project concept skill `installing-maestro`, not `code-graph:code-graph-retrieval`; its `Bash` calls are `grep`/`awk`/`sed` over the source. m5 graph never called `Skill` and used Grep/Read/Bash `sed`.
+- **m1 graph run 2 made no CLI call either:** it never loaded the retrieval skill and used Grep plus Bash `grep`/`sed`. In m1 graph, only run 1 used the CLI (1 call, 798 chars).
+- Across the 10 graph runs, the retrieval skill fired in 5 (m1 run 1, m2 both, m3 both) and the CLI was used in those same 5. On cross questions it fired 0 of 4.
+- So the m4 saving (-16%) is not a graph result. The graph arm loaded the concept skill and went straight to the files; the nograph arm had the same skill available, never loaded it, and spent 6 Reads and 6 Greps instead. It shows a concept skill saving cost, with the graph idle.
+
+### Verdict
+
+**On these questions the graph does not save cost.** Over all five it is flat ($2.577 against $2.580, 0%). Where the CLI was actually used (m1 to m3), the graph arm is 7% dearer overall: the Skill load and an extra round trip or two cost about what the CLI output (300 to 800 chars per call) saves. m3 is the only question where the CLI-using arm is slightly cheaper (-3%), which is inside run-to-run noise (single runs differ by 10 to 30% in the same arm). The only clear difference, m4 at -16%, comes from a concept skill, not from the graph. Accuracy is a wash: the graph arm scores 67/72 against 66/72, and its misses (m1 run 2, m5) came on runs with no CLI call.
+
+Confidence is low. n=2 per arm, one model, five questions, no variance estimate; a 10% gap is not distinguishable from noise. The direction (no saving, at best a wash) is the supported claim; the exact percentages are not.
+
+Caveats:
+
+- **Selection bias favours the graph.** Questions were kept because the offline proxy showed the graph covers the answer. Even so the graph did not win, so a random question set would likely look no better.
+- **Grep stayed cheap on m1 to m3.** A single Grep for the symbol found the callers in 2 to 4 calls, so there was little for the graph to save. These questions did not make Grep expensive.
+- **Nothing is enriched,** so `search` was not exercised and graph vertices carry no `purpose`; this measures `impact`/`cross` on structure alone.
+- **Retrieval is rarely chosen on cross questions:** the skill never fired on m4 and m5, so `cross` was not measured at all.
+- Four runs were lost to a usage limit (429), and m4/m5 run 2 comes from a separate invocation; same model and pin, but not the same session.
+- Main session only; real maestro work happens in subagents.
+
+### Stage 2: for the user to decide
+
+1. **Enrichment arm:** enrich only the concepts these questions touch and rerun m1 to m5. Tests whether `purpose` and edge reasons change the agent's choice or the answer cost; costs enrichment tokens plus another paid run.
+2. **Haiku 5.5 arm:** rerun the same set on Haiku 5.5. Tests whether a cheaper model leans on the graph more or loses accuracy without it.
+3. **Stop investing in the retrieval side:** these results, together with the fixture pilots, show no cost saving to date.

@@ -231,7 +231,7 @@
     "epic": "absorb-concept-skills"
   },
   "039-measure-graph-impact-and-cross-questions-on-maestro.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
       "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md"

@@ -5,6 +5,66 @@
       "question": "What would break if I change the signature of `moveTask`?",
       "setup": "bash {REPO}/plugin/evals/02-impact-movetask/scaffold.sh",
       "must": ["useDragReorder", "notifyOverdue"]
+    },
+    {
+      "id": "m1-impact-readallprojecttags",
+      "group": "maestro@3814a30",
+      "kind": "impact",
+      "question": "I'm about to change `readAllProjectTags` so it returns a Set<string> instead of a string[]. Which functions call it directly, and which functions call those in turn? Give names and files.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["buildUpdateSkillTags", "applyUpdateSkillTagsIfAny", "installRuntime", "registerIpc", "refreshStaleRuntime", "openSession"],
+      "expected": "Direct callers: registerIpc (main/ipc.ts, the templateProjectTagsList handler), buildUpdateSkillTags (core/claude-preview.ts), applyUpdateSkillTagsIfAny (main/claude-session.ts), installRuntime (core/install.ts). One level up: build (claude-preview.ts) calls buildUpdateSkillTags, openSession (claude-session.ts) calls applyUpdateSkillTagsIfAny, refreshStaleRuntime (install.ts) calls installRuntime. Callers sit in electron-shell-invariants, installing-maestro, updating-maestro, claude-session-bridge and create-skills-architecture; the function itself is in global-stores.",
+      "why_grep_expensive": "The name is easy to grep, but the answer is the enclosing function of each hit and then that function's callers. Each hit lands in a large file (ipc.ts 1289 lines, claude-session.ts 1056, install.ts 970, claude-preview.ts 545), so Grep needs a Read per hit to name the enclosing function and another Grep per caller for the second level. Other hits are re-exports (index.ts, plugin-entries) and tests that must be filtered out.",
+      "proxy": "code-graph query impact readAllProjectTags --direction in (829 chars, complete: same output with --max 100)"
+    },
+    {
+      "id": "m2-impact-duplicateagenttypes",
+      "group": "maestro@3814a30",
+      "kind": "impact",
+      "question": "If I change what `duplicateAgentTypes` in config-validate.ts returns, what breaks? List the direct callers and the callers one level up.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["validateConfig", "applyWorkflowSpec", "registerIpc", "installRuntime", "refreshStaleRuntime"],
+      "expected": "Direct callers: validateConfig (core/config-validate.ts), applyWorkflowSpec (core/workflow-spec.ts), registerIpc (main/ipc.ts, the config-load handler that returns configIssues), installRuntime (core/install.ts, which reports the issues). One level up: refreshStaleRuntime calls installRuntime. validateConfig has no TypeScript caller besides the plugin-entries re-export. The name also appears in comments (workflow-spec.ts, contracts.ts, ipc.ts) and re-exports (index.ts, plugin-entries/maestro-session.ts) that are not calls.",
+      "why_grep_expensive": "Nine files mention the name, but most hits are doc comments or re-exports; only four are calls. Grep has to read around each hit to tell calls from comments and to name the enclosing function, then search again for callers of installRuntime and applyWorkflowSpec. The name is also defined in two concepts (maestro-config-model and plugin-libs-parity), which the graph disambiguates with exit 4 and one retry.",
+      "proxy": "code-graph query impact maestro-config-model::duplicateAgentTypes --direction in (635 chars, complete); the unqualified name exits 4 with two candidates"
+    },
+    {
+      "id": "m3-impact-readallagenttypes",
+      "group": "maestro@3814a30",
+      "kind": "impact",
+      "question": "What breaks if I change the signature of `readAllAgentTypes`? Name the direct callers and who calls those.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["seededAgentAttrs", "copyAgentAttributeRows", "installRuntime", "registerIpc", "skillMapForSeed", "forkAgent", "refreshStaleRuntime"],
+      "expected": "Direct callers: seededAgentAttrs and registerIpc (main/ipc.ts), copyAgentAttributeRows (core/agent-fork.ts), installRuntime (core/install.ts). One level up: skillMapForSeed (ipc.ts) calls seededAgentAttrs, forkAgent (agent-fork.ts) calls copyAgentAttributeRows, refreshStaleRuntime calls installRuntime. Callers span electron-shell-invariants, agent-fork-sync and installing-maestro; the function lives in global-stores.",
+      "why_grep_expensive": "Callers are in three different layers (main process, fork logic, installer) and the name also appears in re-exports and comments. Naming the second level needs three more Greps (seededAgentAttrs, copyAgentAttributeRows, installRuntime) plus Reads of 1000-line files to find enclosing functions.",
+      "proxy": "code-graph query impact readAllAgentTypes --direction in (665 chars, complete)"
+    },
+    {
+      "id": "m4-cross-install-config",
+      "group": "maestro@3814a30",
+      "kind": "cross",
+      "question": "How do the install/uninstall code and the maestro.json config model interact? Which config functions do the install and uninstall functions call, and which functions make those calls?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["installRuntime", "installStatus", "uninstallRuntime", "refreshStaleRuntime", "maestroJsonPath", "writeConfig", "readJsonSafe", "writeRuntimeVersion", "maestroConfigRefusal"],
+      "expected": "installing-maestro (install.ts, uninstall.ts) calls into maestro-config-model (config.ts) in 19 edges: installRuntime calls readConfig, writeConfig (twice), readJsonSafe, writeRuntimeVersion, maestroConfigRefusal, duplicateAgentTypes and maestroJsonPath; installStatus calls maestroJsonPath and readJsonSafe; refreshStaleRuntime calls maestroJsonPath and readJsonSafe; uninstallPlan, purgeTargets and uninstallRuntime call maestroJsonPath.",
+      "why_grep_expensive": "Grep must scan install.ts (about 1000 lines) and uninstall.ts for every import from config.js, then map each call site to its enclosing function across two files. The imports alone do not say which function calls what. The installing-maestro skill names only some of these (readConfig, maestroConfigRefusal), not the per-function map.",
+      "proxy": "code-graph query cross installing-maestro maestro-config-model (1758 chars, 19 edges, complete)"
+    },
+    {
+      "id": "m5-cross-ipc-config",
+      "group": "maestro@3814a30",
+      "kind": "cross",
+      "question": "How does the Electron main-process IPC layer use the maestro.json config model? Which config functions are called, and from which handlers or functions?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["registerIpc", "applyProjectTagsSet", "saveConfig", "readConfig", "blankConfig", "readAgentsAvailable", "resolveUseMaestroTasks", "watchConfigFile", "restartConfigWatch"],
+      "expected": "electron-shell-invariants calls into maestro-config-model in 22 edges: registerIpc calls readConfig, saveConfig, blankConfig, readAgentsAvailable, resolveUseMaestroTasks and duplicateAgentTypes; applyProjectTagsSet calls readConfig and saveConfig; restartConfigWatch calls watchConfigFile; the renderer RootLayout mounts ConfigWatchProvider.",
+      "why_grep_expensive": "registerIpc is one very large function in main/ipc.ts (over 1000 lines) holding dozens of handlers; Grep can list the config.js imports but not which handler uses which function without reading most of the file. The renderer mount (RootLayout) is in a different part of the tree.",
+      "proxy": "code-graph query cross electron-shell-invariants maestro-config-model (2117 chars, 22 edges, complete)"
     }
   ]
 }

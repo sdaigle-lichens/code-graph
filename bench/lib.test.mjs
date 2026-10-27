@@ -1,7 +1,7 @@
 // node --test bench/lib.test.mjs : validity, metrics and report logic on synthetic stream-json transcripts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStream, validity, report, checkVerdict, score, claudeArgs } from './lib.mjs';
+import { parseStream, validity, report, checkVerdict, score, claudeArgs, isCg, selectCases } from './lib.mjs';
 
 const J = (...evs) => evs.map((e) => JSON.stringify(e)).join('\n') + '\n';
 const init = (plugins = [], skills = []) => ({ type: 'system', subtype: 'init', plugins, skills, slash_commands: [], agents: [] });
@@ -101,6 +101,97 @@ test('claudeArgs: graph arm has --plugin-dir, nograph does not; isolation flags 
   assert.ok(g.includes('--plugin-dir') && !n.includes('--plugin-dir'));
   for (const a of [g, n]) for (const f of ['--setting-sources', '--strict-mcp-config', '--no-session-persistence', '--max-budget-usd', '--allowedTools']) assert.ok(a.includes(f), f);
   assert.match(g[g.indexOf('--allowedTools') + 1], /Bash/);
+  for (const a of [g, n]) assert.equal(a[a.indexOf('--setting-sources') + 1], 'project,local');
+});
+
+test('validity: code-graph only in the graph arm, concept skills in both', () => {
+  const skills = ['task-queue'];
+  const ng = parseStream(J(init([], ['task-queue']), done()));
+  const g = parseStream(J(init(CG, ['task-queue']), done()));
+  assert.deepEqual(validity('nograph', ng, skills), []);
+  assert.deepEqual(validity('graph', g, skills), []);
+  assert.ok(validity('nograph', g, skills).some((p) => /config leak/.test(p)));
+  assert.ok(validity('graph', parseStream(J(init(CG, []), done())), skills).some((p) => /task-queue/.test(p)));
+  assert.ok(validity('graph', parseStream(J(init([], ['task-queue']), done())), skills).some((p) => /graph arm/.test(p)));
+});
+
+test('report carries the selection-bias note when asked', () => {
+  const r = [row('graph', 1, good('graph'))];
+  assert.match(report(r, { model: 'm', spent: 0, budget: 1, biasNote: true }), /selection bias/);
+  assert.doesNotMatch(report(r, { model: 'm', spent: 0, budget: 1 }), /selection bias/);
+});
+
+test('maestro-setup.sh drops settings.json in both arms and scribe-output in the no-graph arm', async () => {
+  const { readFileSync } = await import('node:fs');
+  const s = readFileSync(new URL('./maestro-setup.sh', import.meta.url), 'utf8');
+  assert.match(s, /rm -f \.claude\/settings\.json/);
+  assert.match(s, /rm -rf scribe-output/);
+});
+
+test('selectCases: --group by substring on the group field, composes with --only', async () => {
+  const { readFileSync } = await import('node:fs');
+  const all = JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')).cases;
+  const ids = (o) => selectCases(all, o).map((c) => c.id);
+  assert.equal(ids({}).length, all.length);
+  const g = ids({ group: 'maestro' });
+  assert.deepEqual(g.map((i) => i.split('-')[0]), ['m1', 'm2', 'm3', 'm4', 'm5']);
+  assert.ok(!g.includes('02-impact-movetask'));
+  assert.deepEqual(ids({ group: 'maestro', only: 'm4' }), ['m4-cross-install-config']);
+  assert.deepEqual(ids({ group: 'maestro', only: 'movetask' }), []);
+  assert.deepEqual(ids({ group: 'nomatch' }), []);
+});
+
+test('run-budget default is 0.75', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync(new URL('./run.mjs', import.meta.url), 'utf8'), /'run-budget': '0\.75'/);
+});
+
+test('isCg: real CLI invocations only', () => {
+  for (const c of [
+    'node plugin/scripts/code-graph.cjs impact moveTask',
+    'node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query cross a b',
+    'code-graph query impact x',
+    'cd src && node ./code-graph.cjs search "q"',
+    'CLAUDE_PROJECT_DIR=/w node /p/scripts/code-graph.cjs status',
+    'node --no-warnings /p/code-graph.cjs status 2>&1 | head',
+  ]) assert.equal(isCg(c), true, c);
+  for (const c of [
+    'grep -rn code-graph .',
+    'grep "code-graph.cjs" docs/usage.md',
+    'echo code-graph',
+    'cat plugin/scripts/code-graph.cjs',
+    'ls ~/.claude/plugins/code-graph',
+    'node build.js code-graph',
+    'git log -- code-graph.cjs',
+  ]) assert.equal(isCg(c), false, c);
+});
+
+test('isCg: empty input, lookalike names, later segments', () => {
+  for (const c of ['', undefined, null, '   ', 'my-code-graph query x', 'node code-graph.cjs.bak', 'node -e "1" other.js', 'FOO=1']) {
+    assert.equal(isCg(c), false, String(c));
+  }
+  for (const c of ['echo hi | code-graph status', 'true || node /p/code-graph.cjs status', 'echo a\ncode-graph status', "node '/p/scripts/code-graph.cjs' status"]) {
+    assert.equal(isCg(c), true, c);
+  }
+});
+
+test('a grep mentioning code-graph is not graded as a CLI call', () => {
+  const m = parseStream(J(init(CG), bash('e', 'grep -rn code-graph .'), res('e', 'Exit code 1\n', true), done()));
+  assert.deepEqual(m.graphCalls, []);
+  assert.ok(validity('graph', m).some((p) => /Bash failure/.test(p)));
+});
+
+test('validity: expected project skills must load in both arms', () => {
+  const m = parseStream(J(init([], ['task-queue', 'global-stores']), done()));
+  assert.deepEqual(validity('nograph', m, ['task-queue', 'global-stores']), []);
+  assert.ok(validity('nograph', m, ['task-queue', 'log-view']).some((p) => /log-view/.test(p)));
+  const g = parseStream(J(init(CG, ['maestro:task-queue']), done()));
+  assert.deepEqual(validity('graph', g, ['task-queue']), []);
+});
+
+test('runner defaults to Opus 5.5 explicitly', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync(new URL('./run.mjs', import.meta.url), 'utf8'), /model: 'claude-opus-5-5'/);
 });
 
 const row = (arm, run, m, problems = []) => ({ case: 'c', arm, run, m, problems, sc: { hits: 1, of: 2 } });

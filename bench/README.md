@@ -15,9 +15,11 @@ node bench/run.mjs --dry           # scaffold + print the claude commands, spend
 | --- | --- | --- |
 | `--runs` | 1 | Runs per case and arm. |
 | `--budget` | 1 | Total USD cap; the runner stops when it is reached. |
-| `--run-budget` | 0.45 | Per run, passed as `--max-budget-usd`. |
-| `--model` | sonnet | Same model for both arms. |
+| `--run-budget` | 0.75 | Per run, passed as `--max-budget-usd`. |
+| `--model` | claude-opus-5-5 | Same model for both arms (always passed explicitly). |
+| `--init-check` | off | $0 preflight: runs `claude` against a dead API endpoint and checks each arm's init event (project skills in both arms, code-graph only in the graph arm). |
 | `--only` | all | Substring filter on case id. |
+| `--group` | all | Substring filter on the case's `group` field (the maestro cases have `maestro@3814a30`, so `--group maestro` skips the fixture case). Combined with `--only`, a case must match both; no match exits 2. `--init-check` uses the first selected case that has `skills`. |
 | `--keep-ws` | off | Keep the fresh workspaces under `$TMPDIR`. |
 
 Cases live in `bench/cases.json`: `question`, `setup` (shell command run in the fresh workspace;
@@ -26,16 +28,30 @@ Both arms get the same prompt, a fresh workspace from the same setup, and the sa
 graph arm gets `--plugin-dir plugin`. The first case reuses `plugin/evals/scaffold-lib.sh` through the
 `02-impact-movetask` scaffold.
 
+Cases may also carry `skills` (project skill names the init event must list in both arms) and, for
+the maestro cases, `expected`, `why_grep_expensive` and `proxy` notes. `setup` also gets `{ARM}` and
+`{MAESTRO}` (`$MAESTRO_DIR`, default `~/gits/maestro`, only ever read through `git archive`).
+`bench/maestro-setup.sh` builds the maestro workspace from a pinned sha: graph arm = `apply` of each
+concept from the committed `.ast.json` (no extract, no ts-morph); no-graph arm = same tree with no
+`scribe-output/` directory at all. Both arms keep maestro's own `.claude/skills` and both lose
+`.claude/settings.json` (it enables `code-graph@code-graph` and maestro's hooks).
+
+**Selection bias.** The maestro questions were kept because an offline proxy showed the graph covers
+the answer; questions it missed were dropped. Results therefore favour the graph and overstate its
+advantage on questions in general. The report repeats this note.
+
 ## Flags
 
 All claude flag names are in the `FLAGS` object in `bench/lib.mjs`. Per run:
 `-p <question> --model --output-format stream-json --verbose --max-budget-usd --no-session-persistence
---allowedTools Bash,Read,Grep,Glob,Skill --permission-mode dontAsk --setting-sources local
+--allowedTools Bash,Read,Grep,Glob,Skill --permission-mode dontAsk --setting-sources project,local
 --strict-mcp-config` (+ `--plugin-dir <repo>/plugin` in the graph arm). It uses your normal login.
-`--setting-sources local` is what keeps your installed plugins out of the no-graph arm. Check the names
-against `claude -p --help`: every flag above, and `dontAsk` as a `--permission-mode` choice, was
-confirmed on the author's machine. Whether `--setting-sources local` really hides installed plugins is
-not settled by `--help`; the init-event check is what proves it on each run.
+`--setting-sources local` alone loaded no project skills, so the runner uses `project,local`: that
+loads the workspace's `.claude/skills` and skips your user settings (installed plugins). Project
+settings would still apply, which is why `maestro-setup.sh` deletes `.claude/settings.json`. Check
+the names against `claude -p --help`. The init-event check proves on each run that code-graph is in
+the graph arm only and the concept skills are in both. `--init-check` streams progress and stops
+as soon as the init event arrives.
 
 ## Validity checks
 

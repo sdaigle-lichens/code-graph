@@ -11,7 +11,7 @@ export const FLAGS = {
   noSessionPersistence: '--no-session-persistence',
   allowedTools: '--allowedTools',
   permissionMode: '--permission-mode', // value: dontAsk (a listed choice in `claude -p --help`; keeps -p from prompting)
-  settingSources: '--setting-sources', // value: local (drops user + project settings, so no installed plugins)
+  settingSources: '--setting-sources', // value: project,local (drops user settings, so no installed plugins; loads the workspace's .claude/skills. A workspace .claude/settings.json would still apply, so maestro-setup.sh deletes it)
   strictMcpConfig: '--strict-mcp-config',
   pluginDir: '--plugin-dir',
 };
@@ -28,14 +28,33 @@ export function claudeArgs(arm, prompt, { model, runBudget, pluginDir }) {
     FLAGS.noSessionPersistence,
     FLAGS.allowedTools, ALLOWED_TOOLS,
     FLAGS.permissionMode, 'dontAsk',
-    FLAGS.settingSources, 'local',
+    FLAGS.settingSources, 'project,local',
     FLAGS.strictMcpConfig,
   ];
   if (arm === 'graph') a.push(FLAGS.pluginDir, pluginDir);
   return a;
 }
 
-const textOf = (c) => (typeof c === 'string' ? c : (c || []).map((x) => x.text || '').join(''));
+// True only when a command segment runs the code-graph CLI: `code-graph ...`, `<path>/code-graph ...`,
+// or `node [flags] <path>/code-graph.cjs ...` (optionally behind VAR=x prefixes). A grep, cat or echo
+// that merely mentions code-graph does not count.
+export function isCg(cmd) {
+  const unq = (s) => s.replace(/^["']|["']$/g, '');
+  const isBin = (s) => /(^|\/)code-graph(\.cjs)?$/.test(unq(s));
+  for (const seg of String(cmd).split(/&&|\|\||[;|&\n]/)) {
+    const t = seg.trim().split(/\s+/).filter(Boolean);
+    while (t.length && /^\w+=/.test(t[0])) t.shift();
+    if (!t.length) continue;
+    if (isBin(t[0])) return true;
+    if (/^(.*\/)?(node|nodejs)$/.test(t[0])) {
+      const script = t.slice(1).find((x) => !x.startsWith('-'));
+      if (script && isBin(script)) return true;
+    }
+  }
+  return false;
+}
+
+const textOf =(c) => (typeof c === 'string' ? c : (c || []).map((x) => x.text || '').join(''));
 
 // Parse one stream-json transcript into metrics.
 export function parseStream(text) {
@@ -87,10 +106,10 @@ export function parseStream(text) {
         const e = /^Exit code (\d+)/m.exec(out);
         const exit = e ? Number(e[1]) : (b.is_error ? 1 : 0);
         const seccomp = /apply-seccomp/.test(out);
-        const isCg = /code-graph(\.cjs)?\b/.test(cmd);
+        const cg = isCg(cmd);
         if (seccomp) m.seccomp++;
-        if (isCg) m.graphCalls.push({ exit, chars: out.length });
-        const okCg = isCg && OK_CG_EXITS.has(exit);
+        if (cg) m.graphCalls.push({ exit, chars: out.length });
+        const okCg = cg && OK_CG_EXITS.has(exit);
         if (seccomp || ((exit !== 0 || b.is_error) && !okCg)) {
           m.bashFailures.push(`${cmd.replace(/\s+/g, ' ').slice(0, 80)} -> ${out.replace(/\s+/g, ' ').slice(0, 100)}`);
         }
@@ -102,7 +121,9 @@ export function parseStream(text) {
 }
 
 // Problems that make a run invalid (not counted). Empty list = valid.
-export function validity(arm, m) {
+// `expectSkills` (optional, per case): project skill names the init event must list in BOTH arms
+// (e.g. maestro's concept skills), so a dropped .claude/skills cannot go unnoticed.
+export function validity(arm, m, expectSkills = []) {
   const p = [];
   if (m.seccomp) p.push(`apply-seccomp in ${m.seccomp} Bash call(s): nested sandbox, the CLI never ran`);
   for (const f of m.bashFailures) if (!/apply-seccomp/.test(f)) p.push(`Bash failure: ${f}`);
@@ -112,6 +133,8 @@ export function validity(arm, m) {
     const names = (x) => (Array.isArray(x) ? x.map((e) => (typeof e === 'string' ? e : e && (e.name || e.path || JSON.stringify(e)))) : []);
     const seen = [...names(m.init.plugins), ...names(m.init.skills), ...names(m.init.slash_commands), ...names(m.init.agents)];
     const hasCg = seen.some((s) => /code-graph/.test(String(s)));
+    const missing = expectSkills.filter((s) => !seen.some((x) => String(x) === s || String(x).endsWith(`:${s}`)));
+    if (missing.length) p.push(`init does not load project skill(s): ${missing.join(', ')}`);
     if (arm === 'nograph' && hasCg) p.push('init shows code-graph in the no-graph arm (config leak)');
     if (arm === 'graph' && !hasCg) p.push('init does not show the code-graph plugin in the graph arm');
   }
@@ -127,10 +150,13 @@ export function score(answer, must) {
 
 const f = (x, d = 0) => (x == null ? 'n/a' : x.toFixed(d));
 
+export const SELECTION_BIAS_NOTE = 'the maestro questions were kept only because an offline proxy showed the graph covers the answer (questions it missed were dropped), so these results favour the graph and overstate its advantage on questions in general.';
+
 export function report(rows, meta) {
   const L = [];
   const invalid = rows.filter((r) => r.problems.length);
   L.push(`# bench report (${meta.model}, spent $${meta.spent.toFixed(3)} of $${meta.budget})`, '');
+  if (meta.biasNote) L.push(`NOTE (selection bias): ${SELECTION_BIAS_NOTE}`, '');
   if (meta.stop) L.push(`STOPPED: ${meta.stop}`, '');
   if (invalid.length) {
     L.push(`## INVALID RUNS (${invalid.length}, not counted)`, '');
@@ -150,6 +176,12 @@ export function report(rows, meta) {
 
 // Pass rule for the fixture check: graph arm has a code-graph call exiting 0 with output, no run
 // has a Bash failure, no-graph init shows no code-graph plugin (all covered by validity()).
+// Case selection: --only matches the id, --group matches the case's `group` field (cases without one
+// never match a --group); both given = both must match. An empty filter does not filter.
+export function selectCases(cases, { only = '', group = '' } = {}) {
+  return cases.filter((c) => (!only || c.id.includes(only)) && (!group || (c.group || '').includes(group)));
+}
+
 export function checkVerdict(rows) {
   const graph = rows.filter((r) => r.arm === 'graph');
   const realCall = graph.some((r) => r.m.graphCalls.some((c) => c.exit === 0 && c.chars > 0));

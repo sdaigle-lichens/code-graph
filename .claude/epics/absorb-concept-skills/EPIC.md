@@ -785,3 +785,51 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
 - 038 committed from its own session as e2c8927: `bench/`, `.gitignore`, CLAUDE.md and
   `docs/evals.md`. Still uncommitted: the 040 ticket, the 039 amendment, reports r037 and r038, and
   this bookkeeping.
+- Bookkeeping committed by me at the user's request (238bce0). The user started 039, and I recorded
+  `absorb-concept-skills-039`.
+- 039 pin: maestro's committed HEAD (b323aa7) has no `crosses_concept: true` edges, so its graph is
+  from before 0.3.27. Maestro's working tree has the 0.3.27 re-extract, with true edges in 15 of 16
+  `.ast.json` files. The user chose option 1 and will commit that re-extract in maestro. 039 then
+  pins the new sha.
+- Maestro's manager made the commits, with the user's approval: 32add96 (14 concepts) and 3814a30
+  (agents-view graph file plus its SKILL.md fix). 163f4ac after them is only maestro's epic log.
+  Verified by me: at 3814a30, all 15 changed `.ast.json` files have `crosses_concept: true` edges.
+  `global-stores` has none and is byte-identical. **039 pins 3814a30.**
+- 039, my review of the backend's proposal before the user approves the question set (m1–m5: three
+  impact, two cross):
+  - Run the $0 init preflight first; whether the project skills load is still unverified.
+  - The no-graph arm must have no `scribe-output/` at all. Its committed `.ast.json` files would show
+    up in Grep results and inflate the baseline.
+  - Raise `--run-budget` (about $0.75) so no run is cut off mid-answer. The user picks the total cap.
+  - The report must state the selection bias: 7 candidate questions were dropped for graph coverage
+    gaps (callers in files outside any concept, `--max 20` truncation). Those gaps are a finding too.
+  - Keep m2 (the exit-4 retry is realistic) and m4 (the skill names the functions but not their
+    callers).
+- 039 init preflight (user-run): maestro's project skills load in neither arm under
+  `--setting-sources local`. That's the ticket's stop condition. The plugin isolation itself is fine:
+  code-graph shows only in the graph arm.
+  - Fix proposed to the user: add `project` to the setting sources, and delete the workspace's
+    `.claude/settings.json` in both arms.
+  - Deleting it matters. Maestro's settings at 3814a30 enable `code-graph@code-graph` (a leak into the
+    no-graph arm, and a version other than ours), plus about a dozen maestro hooks on every tool call.
+  - Then rerun the preflight.
+- 039 preflight rerun passed: the concept skills load in both arms, and code-graph loads only in the
+  graph arm. The user approved m1–m5 and asked 039 to add a `--group` filter, so the fixture case
+  stays out of the paid run.
+- r039 acked: 039 is done. 20 valid counted runs on Opus 5.5, $5.378 of the $6 cap. The m4/m5 run-2
+  runs hit a 429 usage limit and were rerun with `--only -cross-`.
+  - **Verdict: the graph doesn't save cost.**
+    - All five questions: $2.577 graph vs $2.580 no-graph.
+    - Impact m1–m3: the graph arm costs 7% more.
+    - Cross m4/m5: the graph arm costs 8% less, but no code-graph CLI call was made in any of the 4
+      graph runs. The saving is a concept-skill effect.
+    - The retrieval skill fired in 5 of 10 graph runs.
+    - Pass rate: 67/72 graph vs 66/72 no-graph.
+    - Confidence is low: n=2, and selection bias favours the graph.
+  - Verified by me:
+    - bench tests 26/26 pass;
+    - per-run costs in the transcripts add up to $5.378;
+    - in the m4/m5 graph transcripts, `code-graph` appears only in the init event and the
+      SessionStart hook output, never in a tool call.
+  - No ticket changes. Stage 2 is the user's choice: an enrichment arm, a Haiku 5.5 arm, or stop
+    investing in retrieval.
