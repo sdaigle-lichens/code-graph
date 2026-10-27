@@ -217,9 +217,24 @@
     "epic": "absorb-concept-skills"
   },
   "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md": {
+    "status": "done",
+    "blockedBy": [
+      "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md": {
     "status": "ready",
     "blockedBy": [
       "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "039-measure-graph-impact-and-cross-questions-on-maestro.md": {
+    "status": "blocked",
+    "blockedBy": [
+      "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md"
     ],
     "epic": "absorb-concept-skills"
   }

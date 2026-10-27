@@ -10,8 +10,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const LINE =
-  "This project has a code graph (scribe.config.json): for \"how does X work\", \"what calls or breaks if I change Y\" and " +
-  "\"where is X\" questions, load the code-graph:code-graph-retrieval skill before grepping.";
+  "This project has a code graph (scribe.config.json): for \"how does X work\", \"what calls or breaks if I change Y\", \"how do A and B interact\" and " +
+  "\"where is X\" questions that no loaded concept skill answers, load code-graph:code-graph-retrieval before grepping.";
 
 try {
   if (fs.existsSync(path.join(process.cwd(), "scribe.config.json"))) {

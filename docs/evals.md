@@ -53,6 +53,9 @@ Run from the repo root, never from `plugin/`: a session started there creates `p
 | `05-not-in-graph` | Where do we export the board to PDF? | Says plainly there is no PDF export; no invented location. |
 | `06-neg-no-config` | Reordering question, no `scribe.config.json` | Correct answer from source, never claims to have used the graph, never runs `init`/`extract`/`apply`. |
 | `07-neg-literal` | Find every place the string TODO appears. | Exactly the three real TODOs; grep, not the graph. |
+| `08-skill-has-answer` | Which function decides a task is overdue, and in which file? (ticket 037) | A concept skill quoted in the prompt already names `isOverdue` in `src/reminders/overdue.ts`; correct answer, and the retrieval skill should NOT load. |
+
+`08-skill-has-answer` ships its concept skill by quoting it in `prompt.md` ("already loaded in this session"), because eval workspaces do not load project `.claude/skills`. That is the simplest route that needs no extra plugin and no change to the shared fixture. Its `skill-fired` grader is display-only like the others, but here the expected value is 0 Skill calls; read it from the trace, not as a pass/fail.
 
 Scored: the `llm` outcome graders on the final answer, plus a few regex graders. The `tool_used` graders (skill fired, command chosen, CLI used) are display-only indicators (the runner never scores a `Skill` check; the others are `arm: with-only`). The one exception is `06-neg-no-config`'s `did-not-build-graph`, which is scored in both arms.
 
@@ -126,6 +129,50 @@ What the pilots do and do not show:
 - **Cross-store-reminders:** the skill fires but the CLI is never run, in both pilots, even though `cross` now returns results. The graph fix did not change the agent's behaviour there.
 - **Enrichment:** no measurable effect on this suite. Whether the scaffold switch took effect is not confirmed (its output line is not shown by `claude plugin eval`); identical results are consistent with it working but would look the same if it had not.
 - **Search exit codes (0/6/7):** not captured. The traces live in temporary `/tmp/claude-eval-*` directories that are deleted after the run, and `aggregate-result.json` keeps only turns, cost and grader results. A rerun needs `--keep-temp`, and the CLI exit codes should be read from the saved traces.
+
+## Ticket 037: skip the retrieval skill when a concept skill has the answer
+
+0.3.28 narrows the trigger: the skill description, its "When NOT to use" section and the SessionStart line now say to skip the skill when a loaded concept skill already names the file or symbol, and to keep it for impact, cross and unknown-location questions.
+
+Fixed per-session cost of the plugin, counted offline as chars/4 (rounded up), not from a paid run:
+
+| Item | Before (0.3.27) | After (0.3.28) |
+|---|---|---|
+| Skill description (always in context) | 517 chars, 130 tokens | 507 chars, 127 tokens |
+| SKILL.md body, loaded when the skill fires | 9686 chars, 2422 tokens | 9938 chars, 2485 tokens |
+| Full SKILL.md file | 10277 chars, 2570 tokens | 10519 chars, 2630 tokens |
+| SessionStart line | 203 chars, 51 tokens | 257 chars, 65 tokens |
+
+The qualifier costs about 14 tokens in the hook line and about 63 in the body; the description got slightly shorter. Follow-up proposal (out of scope here): the body is about 2.5k tokens, of which the gap-reporting and enrichment sections are roughly half; moving them into a second file read only on exit 6/7 would cut the load by about 1k tokens.
+
+### Pilot (user-run, to fill in)
+
+Command: the "Running" command with `--runs 2 --max-cost-usd 5 --keep-temp`.
+
+Before reading any number, grep one kept trace for `apply-seccomp`. If Bash failed, the CLI columns are invalid and no conclusion may be drawn from them; Skill-loading results stay valid either way.
+
+Run on 0.3.28, 8 cases, 2 runs per arm: $4.47, 824s, mean delta -0.09. Results in `plugin/evals/results/2026-10-27T14-02-39-590Z/`.
+
+- **Bash worked (seccomp check): no.** The kept traces of smoke, locate-overdue and not-in-graph all contain `apply-seccomp`, and several answers say the CLI was blocked. Running `claude plugin eval` from a plain terminal does not avoid it: the harness nests the sandbox itself. The CLI and cost columns are invalid, and the earlier pilots (0.3.26, 0.3.27) were never checked for this, so their Bash columns are suspect too. Ticket 038 (`claude -p`) exists for this.
+- **Skill calls per case: as expected.** `08-skill-has-answer` loaded the skill 0/2 times. Smoke, impact-movetask, cross-store-reminders and locate-overdue still loaded it 2/2, so dropping "first" did not lose them. neg-literal 0/2. neg-no-config 1/2 (no `scribe.config.json` there; the skill exits early).
+- **Cost per run, with / without** (Skill load valid; Bash part invalid):
+
+| Case | With | Without | Turns with / without |
+|---|---|---|---|
+| smoke | $0.220 | $0.138 | 11 / 8 |
+| impact-movetask | $0.178 | $0.136 | 8 / 6 |
+| cross-store-reminders | $0.191 | $0.168 | 10.5 / 10.5 |
+| locate-overdue | $0.162 | $0.107 | 6 / 3 |
+| not-in-graph | $0.167 | $0.123 | 9 / 7 |
+| neg-no-config | $0.172 | $0.146 | 9.5 / 8.5 |
+| neg-literal | $0.084 | $0.088 | 2 / 2.5 |
+| skill-has-answer | $0.081 | $0.077 | 1 / 1 |
+
+- **The 037 target is met:** with a concept skill that has the answer, the plugin now costs about 4% more ($0.081 against $0.077), down from +34–51% in 035's offline estimate. Overall the plugin arm still costs about 28% more ($1.26 against $0.98 per pass over the 8 cases), the same overhead as 0.3.27.
+- **The two failures are not caused by the plugin:**
+  - impact-movetask with-plugin run 2 named both real callers. The judge failed it, probably for the extra "docs and generated files" list (`scribe-output/*` names).
+  - neg-literal with-plugin run 1 reworded two TODO texts, and the grader treats that as invented text. That run loaded no skill and ran no CLI.
+  - n=2 noise, but both graders are stricter than the cases need.
 
 ## Known findings
 

@@ -709,3 +709,41 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Verified by me: the desktop file passes uncached (7/7), and `pnpm test --force` from the root is
     green.
   - Note: the test depends on the local gitignored graph.db, as before.
+- 036 committed by me at the user's request (f35d141). 037 is running.
+- Diagnosis given to the user: there's no evidence yet that the graph saves cost. There is a consistent
+  fixed overhead, and the graph's possible strength (impact and cross on a big repo, with working Bash)
+  was never measured.
+- Tickets 038 and 039, with the user (who chose `claude -p` over the eval harness for step 2):
+  - 038 is a small `bench/` runner on `claude -p`. The user starts it from a plain terminal, so the
+    sandbox isn't nested. It uses the user's normal login, checks plugin isolation from the init event,
+    and marks runs with a Bash failure invalid. The check costs under $1, on the fixture's impact
+    question. No plugin change and no version bump. Blocked by 036 (done), so it can run beside 037.
+  - 039 measures 4 or 5 impact and cross questions on maestro at a pinned sha. Both arms use maestro's
+    real `.claude/skills`; the graph arm adds code-graph. The question set goes through an offline proxy
+    and the user's approval, then a paid run of 2 runs per arm, capped at $6. A plain verdict follows;
+    the user decides whether to add enrichment or Haiku. Blocked by 037 and 038.
+- r036 (absorb-concept-skills-037) → 037 done, uncommitted, 0.3.28:
+  - The retrieval skill's description and "When NOT to use" now skip the skill when a loaded concept
+    skill already names the file or symbol. It stays for impact, cross and unknown-location questions.
+    The SessionStart line has the same qualifier, and the hook stays inert.
+  - New eval case `plugin/evals/08-skill-has-answer`: prompt.md quotes the reminders concept skill, and
+    an LLM grader checks the answer is `isOverdue` in `src/reminders/overdue.ts`. A display-only
+    `skill-fired` grader is included, so whether the skill stayed out is read from the trace.
+  - Offline sizes (chars/4): description 130 → 127, body 2422 → 2485, SessionStart line 51 → 65.
+  - Verified by me: `pnpm check` green (versions in lockstep at 0.3.28), `pnpm test --force` green,
+    `just eval` 7/7, `claude plugin validate plugin` passes. Its only directory-profile findings are
+    the missing LICENSE and icon, which predate this ticket.
+  - Not done: the user-run pilot (2 runs, cap $5). `docs/evals.md` has a PENDING block for it.
+  - Risk: "Use before Grep or Read" (with "first" dropped) may make smoke and locate load the skill
+    less often; the pilot must confirm.
+  - Possible follow-up: split the SKILL.md body (about 1k tokens, unmeasured).
+- 037 pilot (user-run, 2 runs per arm, $4.47), written into `docs/evals.md`:
+  - Bash failed with seccomp again, even from a plain terminal: `claude plugin eval` nests the sandbox
+    itself. CLI and cost columns are invalid. The 0.3.26 and 0.3.27 Bash columns are suspect too.
+    This confirms 038 is needed.
+  - Skill loading came out as intended: case 08 loaded it 0/2 times ($0.081 against $0.077, about +4%,
+    down from +34–51%). The four positive cases still loaded it 2/2, so the risk from dropping "first"
+    did not show.
+  - The plugin arm still costs about 28% more overall.
+  - The two failures (impact run 2, neg-literal run 1) come from strict graders and a reworded answer,
+    not from the plugin.

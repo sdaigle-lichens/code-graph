@@ -1,6 +1,6 @@
 ---
 name: code-graph-retrieval
-description: Use first, before Grep or Read, for questions like "how does X work", "what calls X / what would break if I change Y", "where is X handled / defined", or "how do A and B interact" in a project with a scribe.config.json at its root (or a scribe-output/ directory). Queries the project's code graph (TypeScript/React) and returns @file:line pointers with purpose and callers, so you read the right slices instead of searching blind. Not for literal string or regex searches, and not when there is no scribe.config.json.
+description: Use before Grep or Read for "how does X work", "what calls X / what would break if I change Y", "how do A and B interact", or "where is X handled" when no loaded concept skill names it, in a project with a scribe.config.json (or scribe-output/). Queries the code graph (TypeScript/React) for @file:line pointers with purpose and callers. Skip it when a loaded concept skill already names the file or symbol (read that directly), for literal string or regex searches, and when there is no scribe.config.json.
 allowed-tools: Bash, Read
 ---
 
@@ -21,6 +21,9 @@ graph tells you *where* and *why*; you still read the source for exact detail.
 
 ## When NOT to use
 
+- A concept skill already in your context names the file or symbol the question is about → read
+  that file directly. Keep the graph for callers across concepts (`impact`), how two concepts
+  interact (`cross`), or a location no loaded skill mentions.
 - The project has no `scribe.config.json` → fall back to Grep/Glob/Read and surface:
   *"This project isn't initialized — run `create-concept-skills` to set up the graph."*
   (Do NOT run init yourself — it is user-triggered.)

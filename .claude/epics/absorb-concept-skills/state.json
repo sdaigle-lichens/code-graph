@@ -635,6 +635,20 @@
       "id": "r035",
       "at": "2026-10-27T01:49:29.668Z",
       "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r036",
+      "task": "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md",
+      "file": "inbox/r036-037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md",
+      "at": "2026-10-27T02:31:30.407Z",
+      "from": "absorb-concept-skills-037"
+    },
+    {
+      "kind": "ack",
+      "id": "r036",
+      "at": "2026-10-27T02:31:42.642Z",
+      "by": "manager-concept-skills-merge"
     }
   ]
 }
