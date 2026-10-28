@@ -33,6 +33,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/core/plugin-entries/maestro-epic.ts
 var maestro_epic_exports = {};
 __export(maestro_epic_exports, {
+  DEFAULT_SPAWN_CAP: () => DEFAULT_SPAWN_CAP,
   EPICS_DIR: () => EPICS_DIR,
   acknowledgeReport: () => acknowledgeReport,
   addWorker: () => addWorker,
@@ -42,11 +43,14 @@ __export(maestro_epic_exports, {
   epicOfTask: () => epicOfTask,
   formatEpic: () => formatEpic,
   formatInboxEntry: () => formatInboxEntry,
+  formatReady: () => formatReady,
   isValidEpicSlug: () => isValidEpicSlug,
+  launchCommandFor: () => launchCommandFor,
   linkTasks: () => linkTasks,
   listEpicSummaries: () => listEpicSummaries,
   listEpics: () => listEpics,
   readEpicState: () => readEpicState,
+  readyTasks: () => readyTasks,
   removeWorker: () => removeWorker,
   reportCommandFor: () => reportCommandFor,
   setManager: () => setManager,
@@ -54,6 +58,7 @@ __export(maestro_epic_exports, {
   taskClaimName: () => taskClaimName,
   unacknowledgedReports: () => unacknowledgedReports,
   unlinkTasks: () => unlinkTasks,
+  workerNameFor: () => workerNameFor,
   writeNote: () => writeNote,
   writeReport: () => writeReport
 });
@@ -622,6 +627,69 @@ function showEpic(projectRoot, slug) {
     crossEpic: crossEpicEdges(tracker, slug)
   };
 }
+var DEFAULT_SPAWN_CAP = 5;
+function workerNameFor(slug, filename) {
+  const base = import_node_path6.default.basename(filename).replace(/\.md$/, "");
+  const num = /^(\d+)-/.exec(base);
+  return `${slug}-${num ? num[1] : base}`;
+}
+function shellQuote(value) {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+function launchCommandFor(name, filename) {
+  const rel = import_node_path6.default.posix.join(".claude", "maestro-tasks", import_node_path6.default.basename(filename));
+  return `claude -n ${shellQuote(name)} ${shellQuote(`/maestro ${rel}`)}`;
+}
+function readyTasks(projectRoot, slug, cap = DEFAULT_SPAWN_CAP) {
+  const state = readEpicState(projectRoot, slug);
+  if (!state) throw new Error(`no epic "${slug}"`);
+  if (!Number.isInteger(cap) || cap < 1) throw new Error(`the cap must be a whole number of at least 1, not "${cap}"`);
+  const root = mainCheckoutRoot(projectRoot);
+  const tracker = readTaskTracker(root);
+  const claims = readClaims(root, tasksDirFor(root));
+  const workerOf = /* @__PURE__ */ new Map();
+  for (const w of state.workers) if (w.task) workerOf.set(import_node_path6.default.basename(w.task), w.name);
+  const view = { slug, cwd: root, cap, running: [], pending: [], ready: [], slots: 0 };
+  const own = Object.keys(tracker).filter((f) => tracker[f].epic === slug && tracker[f].status !== "done").sort((a, b) => a.localeCompare(b));
+  for (const filename of own) {
+    const claim = claims.get(filename);
+    if (claim?.live) {
+      view.running.push({ filename, sessionName: claim.sessionName ?? null });
+      continue;
+    }
+    const worker = workerOf.get(filename);
+    if (worker) {
+      view.pending.push({ filename, worker });
+      continue;
+    }
+    const entry = tracker[filename];
+    const unblocked = entry.blockedBy.every((b) => !tracker[b] || tracker[b].status === "done");
+    if (entry.status !== "ready" || !unblocked) continue;
+    const name = workerNameFor(slug, filename);
+    view.ready.push({
+      filename,
+      relativePath: import_node_path6.default.posix.join(".claude", "maestro-tasks", filename),
+      worker: name,
+      command: launchCommandFor(name, filename)
+    });
+  }
+  view.slots = Math.max(0, cap - view.running.length - view.pending.length);
+  return view;
+}
+function formatReady(view) {
+  const lines = [
+    `Epic ${view.slug}: ${view.ready.length} ready, unclaimed task(s); ${view.running.length} running, ${view.pending.length} spawned but not claimed yet; cap ${view.cap}, ${view.slots} slot(s) free`,
+    `  launch from: ${view.cwd}`
+  ];
+  view.ready.forEach((t, i) => {
+    const tag = i < view.slots ? "spawn" : "waits for a slot";
+    lines.push(`  ${t.filename}  worker "${t.worker}"  [${tag}]`, `    ${t.command}`);
+  });
+  for (const r of view.running)
+    lines.push(`  ${r.filename}  running in session ${r.sessionName ? `"${r.sessionName}"` : "(unnamed)"}`);
+  for (const p of view.pending) lines.push(`  ${p.filename}  spawned as "${p.worker}", not claimed yet`);
+  return lines.join("\n");
+}
 function formatInboxEntry(entry) {
   if (entry.kind === "note")
     return `${entry.id}  from epic ${entry.from_epic}${entry.from ? ` (${entry.from})` : ""}  ${entry.path}`;
@@ -651,6 +719,7 @@ function formatEpic(view) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  DEFAULT_SPAWN_CAP,
   EPICS_DIR,
   acknowledgeReport,
   addWorker,
@@ -660,11 +729,14 @@ function formatEpic(view) {
   epicOfTask,
   formatEpic,
   formatInboxEntry,
+  formatReady,
   isValidEpicSlug,
+  launchCommandFor,
   linkTasks,
   listEpicSummaries,
   listEpics,
   readEpicState,
+  readyTasks,
   removeWorker,
   reportCommandFor,
   setManager,
@@ -672,6 +744,7 @@ function formatEpic(view) {
   taskClaimName,
   unacknowledgedReports,
   unlinkTasks,
+  workerNameFor,
   writeNote,
   writeReport
 });

@@ -110,6 +110,23 @@ function readSpecFile(specFilePath) {
   return spec;
 }
 
+// The config is already written by the time this runs, so a render the sandbox refuses (it always
+// protects .claude/skills/) is reported as the command to re-run, never a stack trace that reads as
+// "nothing was written". The command text matches maestro-sandbox-allow.cjs's exclusion entry.
+const RENDER_COMMAND = "node .claude/scripts/maestro-render-orchestrator.cjs .";
+function renderReport() {
+  let r;
+  try {
+    r = render(projectDir);
+  } catch (err) {
+    if (["EPERM", "EROFS", "EACCES"].includes(err && err.code)) {
+      return { ok: false, reason: "sandbox-blocked", command: RENDER_COMMAND };
+    }
+    throw err;
+  }
+  return r.ok ? { ok: true, issues: r.issues } : { ok: false, reason: r.reason };
+}
+
 function runApply(mode) {
   const spec = readSpecFile(flag("spec-file"));
 
@@ -140,8 +157,6 @@ function runApply(mode) {
   fs.writeFileSync(tmp, text);
   fs.renameSync(tmp, maestroJsonPath);
 
-  const renderResult = render(projectDir);
-
   process.stdout.write(
     JSON.stringify({
       ok: true,
@@ -149,7 +164,7 @@ function runApply(mode) {
       workflow: spec.name,
       createdInstances: result.createdInstances,
       issues: result.issues,
-      render: renderResult.ok ? { ok: true, issues: renderResult.issues } : { ok: false, reason: renderResult.reason },
+      render: renderReport(),
     }) + "\n"
   );
 }
@@ -188,14 +203,13 @@ function runDelete() {
   fs.writeFileSync(tmp, text);
   fs.renameSync(tmp, maestroJsonPath);
 
-  const renderResult = render(projectDir);
   process.stdout.write(
     JSON.stringify({
       ok: true,
       mode: "delete",
       workflow: name,
       unplacedInstances: result.unplacedInstances,
-      render: renderResult.ok ? { ok: true, issues: renderResult.issues } : { ok: false, reason: renderResult.reason },
+      render: renderReport(),
     }) + "\n"
   );
 }

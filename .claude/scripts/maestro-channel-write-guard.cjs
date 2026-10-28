@@ -7,10 +7,18 @@
 //
 // Registered from the plugin's hooks.json AND, since `121`, from a project-local install (a
 // project can run a forked or user-tier `reviewer` with the plugin disabled, and this hook is the
-// only thing confining it). When the project registers its own copy, the plugin's copy stands down
-// (projectOwnsHook below). Deliberately NOT gated on maestro.json: the agents'
+// only thing confining it). EXEMPT from the plugin-copy stand-down the other dual-registered hooks
+// use (`122`): standing down on the project's registration alone fails open when the project copy
+// can't run (its script or lib/ missing exits 1, which Claude Code treats as non-blocking). This
+// guard only ever denies, so both copies running is the stricter outcome; an older plugin copy
+// denying what a newer project copy allows is acceptable for a confinement hook.
+// Deliberately NOT gated on maestro.json: the agents'
 // frontmatter no longer carries `disallowedTools`, so this hook is the only thing standing between
 // them and a write anywhere. Logic: apps/maestro/src/core/channel-write-guard.ts.
+//
+// Known gap: the matcher covers file-write tools only. reviewer/refactor have no `tools:` line, so
+// they keep Bash, and a Bash redirect or `tee` is NOT confined. They don't normally write that way;
+// a post-mortem finding one doing it is the trigger for a stronger guard.
 
 //
 // Team meetings: while this session's session.json carries a `meeting` naming this agent type as a
@@ -28,7 +36,6 @@ const {
   meetingFor,
   meetingDirFor,
   checkWorktreeWrite,
-  projectOwnsHook,
 } = require("./lib/maestro-session.cjs");
 
 (async () => {
@@ -38,10 +45,6 @@ const {
   } catch {
     process.exit(0);
   }
-
-  // The plugin's copy stands down when the project registers its own (no-op in the project's copy).
-  // See src/core/hook-arbitration.ts. Before any fail-closed path: a stood-down copy decides nothing.
-  if (p.cwd && projectOwnsHook(__filename, p.cwd, p.hook_event_name)) process.exit(0);
 
   let verdict;
   let participant = false;

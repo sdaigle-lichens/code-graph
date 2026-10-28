@@ -40,7 +40,7 @@ const {
   writeStamp,
   meetingLeftovers,
   ensureSessionPaths,
-  handbackHandoff,
+  awaitHandback,
   meetingFor,
   checkHandoff,
   checkRoute,
@@ -208,9 +208,21 @@ function parseHandoff(msg) {
         // that includes `SubagentHandback`, the hand-back tool current Claude Code tells every
         // subagent to end with — matching `SendMessage` alone is what flagged every agent of task
         // 084 as `missing` while each had ended `HANDOFF: success`.
+        // `124`: SubagentStop fires BEFORE Claude Code has flushed the agent's final hand-back
+        // tool_use to that transcript, so a single read missed it and every hand-back agent was
+        // flagged `missing`. awaitHandback re-reads until the call lands (bounded).
         if (!inMeeting && !inOwnerRun && status === "unknown" && p.agent_transcript_path) {
           try {
-            const viaSend = handbackHandoff(fs.readFileSync(p.agent_transcript_path, "utf8"));
+            const viaSend = await awaitHandback(
+              () => {
+                try {
+                  return fs.readFileSync(p.agent_transcript_path, "utf8");
+                } catch {
+                  return null;
+                }
+              },
+              (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+            );
             if (viaSend) {
               handoffMsg = viaSend;
               ({ status, label } = parseHandoff(viaSend));

@@ -37,7 +37,9 @@ __export(maestro_session_exports, {
   CHANNEL_ONLY_AGENTS: () => CHANNEL_ONLY_AGENTS,
   CLAIM_IDLE_CAP_MS: () => CLAIM_IDLE_CAP_MS,
   DEFAULT_RECENT_RUNS: () => DEFAULT_RECENT_RUNS,
+  HANDBACK_POLL_MS: () => HANDBACK_POLL_MS,
   HANDBACK_TOOLS: () => HANDBACK_TOOLS,
+  HANDBACK_WAIT_MS: () => HANDBACK_WAIT_MS,
   LEGACY_SESSION_FILES: () => LEGACY_SESSION_FILES,
   MAIN_CHECKOUT_SHARED_DIRS: () => MAIN_CHECKOUT_SHARED_DIRS,
   MEETING_DIR_NAME: () => MEETING_DIR_NAME,
@@ -60,6 +62,7 @@ __export(maestro_session_exports, {
   agentRunsFromLog: () => agentRunsFromLog,
   appendHandoffIssue: () => appendHandoffIssue,
   appendSessionLog: () => appendSessionLog,
+  awaitHandback: () => awaitHandback,
   bareAgentName: () => bareAgentName,
   buildRunRecord: () => buildRunRecord,
   channelDir: () => channelDir,
@@ -92,6 +95,7 @@ __export(maestro_session_exports, {
   handoffPairs: () => handoffPairs,
   handoffRoutes: () => handoffRoutes,
   hasCompletedRun: () => hasCompletedRun,
+  hasHandbackCall: () => hasHandbackCall,
   isChannelOnlyAgent: () => isChannelOnlyAgent,
   isFreeformBranch: () => isFreeformBranch,
   isGapReport: () => isGapReport,
@@ -1344,7 +1348,14 @@ function messageText(input) {
   return "";
 }
 function handbackHandoff(transcript) {
+  return scanHandbacks(transcript).text;
+}
+function hasHandbackCall(transcript) {
+  return scanHandbacks(transcript).sawCall;
+}
+function scanHandbacks(transcript) {
   let found = null;
+  let sawCall = false;
   for (const line of transcript.split("\n")) {
     if (!HANDBACK_TOOLS.some((t) => line.includes(t))) continue;
     let entry;
@@ -1358,12 +1369,26 @@ function handbackHandoff(transcript) {
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block && block.type === "tool_use" && HANDBACK_TOOLS.includes(block.name)) {
+        sawCall = true;
         const text = messageText(block.input);
         if (text) found = text;
       }
     }
   }
-  return found;
+  return { text: found, sawCall };
+}
+var HANDBACK_WAIT_MS = 3e3;
+var HANDBACK_POLL_MS = 100;
+async function awaitHandback(read, sleep, waitMs = HANDBACK_WAIT_MS, pollMs = HANDBACK_POLL_MS) {
+  const attempts = Math.max(1, Math.ceil(waitMs / pollMs) + 1);
+  for (let i = 0; i < attempts; i++) {
+    const transcript = read();
+    if (transcript === null) return null;
+    const scan = scanHandbacks(transcript);
+    if (scan.sawCall) return scan.text;
+    if (i < attempts - 1) await sleep(pollMs);
+  }
+  return null;
 }
 var sendMessageHandoff = handbackHandoff;
 
@@ -2380,7 +2405,9 @@ function meetingNotice(meeting, agentType) {
   CHANNEL_ONLY_AGENTS,
   CLAIM_IDLE_CAP_MS,
   DEFAULT_RECENT_RUNS,
+  HANDBACK_POLL_MS,
   HANDBACK_TOOLS,
+  HANDBACK_WAIT_MS,
   LEGACY_SESSION_FILES,
   MAIN_CHECKOUT_SHARED_DIRS,
   MEETING_DIR_NAME,
@@ -2403,6 +2430,7 @@ function meetingNotice(meeting, agentType) {
   agentRunsFromLog,
   appendHandoffIssue,
   appendSessionLog,
+  awaitHandback,
   bareAgentName,
   buildRunRecord,
   channelDir,
@@ -2435,6 +2463,7 @@ function meetingNotice(meeting, agentType) {
   handoffPairs,
   handoffRoutes,
   hasCompletedRun,
+  hasHandbackCall,
   isChannelOnlyAgent,
   isFreeformBranch,
   isGapReport,

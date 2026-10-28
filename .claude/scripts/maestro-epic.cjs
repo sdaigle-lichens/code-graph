@@ -18,6 +18,13 @@
 //       unacknowledged report and cross-epic note with its file path, and the cross-epic
 //       dependencies: blockedBy edges between this epic's tasks and tasks of another epic (or of
 //       none) whose blocker is not done yet. Task membership is read from the tracker.
+//   node maestro-epic.cjs ready <slug> [--cap <n>] [--json]
+//       `125`: the manager's spawn list. The epic's tasks that are ready (tracker `ready`, every
+//       blocker done) and that no live session has claimed, oldest first, each with the worker
+//       session name to give it and the exact `claude -n <name> '/maestro <task.md>'` command, run
+//       from the main checkout it prints. Also the running tasks (live claim) and the pending ones (a
+//       worker is recorded for the task with add-worker but has not claimed it yet), which are never
+//       listed as ready, and how many slots the cap (default 5) leaves free.
 //   node maestro-epic.cjs set-manager <slug> [<session name>]
 //   node maestro-epic.cjs add-worker <slug> <session name> [--task <NNN-task.md>]
 //       `113`: every name the caller records about ITSELF (create --manager, set-manager,
@@ -163,6 +170,18 @@ try {
       process.stdout.write(flags.json ? `${JSON.stringify(view)}\n` : `${epics.formatEpic(view)}\n`);
       break;
     }
+    case "ready": {
+      const usage = "ready <slug> [--cap <n>] [--json]";
+      const slug = need(positional[0], usage);
+      let cap = epics.DEFAULT_SPAWN_CAP;
+      if (flags.cap !== undefined) {
+        cap = /^\d+$/.test(flags.cap) ? Number(flags.cap) : NaN;
+        if (!(cap >= 1)) fail(`--cap must be a whole number of at least 1, not "${flags.cap}". Usage: ${usage}`);
+      }
+      const view = epics.readyTasks(projectDir, slug, cap);
+      process.stdout.write(flags.json ? `${JSON.stringify(view)}\n` : `${epics.formatReady(view)}\n`);
+      break;
+    }
     case "set-manager": {
       // The calling session is the manager: its stored name wins over the passed one (`113`), and
       // with a stored name the <name> argument may be omitted.
@@ -271,7 +290,7 @@ try {
     }
     default:
       fail(
-        "unknown command. Usage:\n  create <slug>\n  list [--json]\n  link <slug> <task.md>...\n  unlink <task.md>...\n  show <slug> [--json]\n" +
+        "unknown command. Usage:\n  create <slug>\n  list [--json]\n  link <slug> <task.md>...\n  unlink <task.md>...\n  show <slug> [--json]\n  ready <slug> [--cap <n>] [--json]\n" +
           "  set-manager <slug> <name>\n  add-worker <slug> <name>\n  remove-worker <slug> <name>\n  report --task <task.md> [--file <path>|-]\n" +
           "  note <to-slug> --from-epic <slug> [--from <name>] [--subject <text>] --file <path>|-\n  reports <slug>\n  ack <slug> <id>..."
       );
