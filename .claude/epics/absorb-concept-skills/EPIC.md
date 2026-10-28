@@ -7,6 +7,24 @@ concept SKILL.md files; create/update/scribe flows; install lifecycle; design sk
 can drop concept-skills and point its scribe and subagents at `code-graph:*` skills. Source plan:
 `plan.md` at the repo root.
 
+## Status: closed (2026-10-28)
+
+Closed after 043 (committed in 6d685fa). Follow-up epic: `haiku-subagents-with-graph`, which
+takes these findings as its starting point.
+
+Findings from the measurement tickets (039, 041, 042, 043; details in `docs/evals.md`):
+- **Opus 5.5, read-only questions on maestro:** neither the graph nor concept skills cut cost.
+  Opus scores about 94% with Grep alone and re-checks a pasted graph answer (oracle +3%).
+- **Haiku 5.5, same questions:**
+  - nograph 91/108 (84%), oracle 108/108, graph plugin 107/108;
+  - about 3% of Opus's cost;
+  - Haiku loaded the retrieval skill and called the CLI in 14 of 14 runs.
+- **What's left between the plugin and the oracle is cost, not accuracy:** +24% overall, +62% on
+  cross-concept questions, where the CLI output is 10–15k chars.
+- **Keep** the retrieval skill and its SessionStart hint; on Haiku they're the part that works.
+- **Not yet measured:** edit-style work (tests, docs). maestro already runs scribe and test on
+  Haiku.
+
 ## Scope
 
 In: tasks 003–006 — layer-1 skills CLI + bundled `plugin/scripts/code-graph.cjs`, graph-layer
@@ -907,3 +925,32 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Combined conclusion (039 + 041 + 042): on read-only questions with Opus on maestro, neither the
     graph nor concept skills cut cost. Any value they have is untested: answer quality on
     unwritten rules, edit tasks, subagents, weaker models.
+- The user committed 041 (086cc2d) and 042 (111f37f).
+- New direction from the user: graph context given at the start to a **Haiku** subagent, with some
+  retrieval, so it can do work otherwise given to Opus. The value would show as accuracy, not as
+  Opus cost.
+- Ticket 043 written and linked: Haiku 5.5 on m1–m7, arms nograph, oracle and graph, 2 runs, cap $4.
+  - First it relaxes the Bash validity rule: read-only `grep`/`sed`/... failures stop invalidating
+    runs.
+  - The Opus reference comes from the existing 039 and 041 runs.
+  - Decision rule:
+    - oracle at least 3 `must` hits above nograph, with no question reversed in both runs;
+    - and within 10% of Opus's pass rate at under half of Opus's cost.
+  - A realistic primer (built from the task text at subagent start) follows only on a positive
+    verdict.
+- r042 (043) acked. Haiku 5.5, 42/42 runs valid, $0.335 of $4, no 429s.
+  - Pass: nograph 91/108 (84%), oracle 108/108, graph 107/108. Cost per run: nograph $0.0092,
+    oracle $0.0066, graph $0.0081.
+  - **Verdict: positive on both parts of the rule.** Oracle is 17 hits above nograph and never
+    below it in any of the 14 run pairs. It beats Opus's 94% at 2.7% of Opus's cost.
+  - Caveats: Opus is a reference from separate invocations, not paired; Opus is near ceiling; most
+    of the cost gap is the model price; n=2; selection bias favours the graph.
+  - **The plugin as shipped already delivers most of it on Haiku.** The graph arm (no primer)
+    scored 107/108 at 12% under nograph. Haiku loaded the retrieval skill and called the CLI in
+    14 of 14 runs, against 5 of 10 on Opus.
+  - Graph costs 24% more than oracle, almost all on cross questions (+62%): those CLI calls return
+    10–15k chars.
+  - Verified by me: bench tests 60/60, `pnpm check` green, `report.md` sums match `docs/evals.md`.
+  - `stash@{0}` is a stray from 043's backend agent. Left for the user.
+  - This revises the earlier idea of removing the retrieval skill and hook: on Haiku they are the
+    part that works.

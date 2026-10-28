@@ -254,5 +254,15 @@
       "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md"
     ],
     "epic": "absorb-concept-skills"
+  },
+  "043-measure-whether-graph-context-lets-haiku-match-opus.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "044-measure-whether-the-graph-improves-haiku-test-and-scribe-work-against-sonnet.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
   }
 }
