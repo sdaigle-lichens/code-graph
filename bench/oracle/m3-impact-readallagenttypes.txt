@@ -1,0 +1,17 @@
+# Impact (in, depth 2): readAllAgentTypes
+
+## Direct callers
+
+- @apps/maestro/src/main/ipc.ts:404 — `seededAgentAttrs`
+- @apps/maestro/src/main/ipc.ts:854 — `registerIpc`
+- @apps/maestro/src/core/agent-fork.ts:81 — `copyAgentAttributeRows`
+- @apps/maestro/src/core/install.ts:795 — `installRuntime`
+- @apps/maestro/src/core/install.ts:795 — `installRuntime`
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/main/ipc.ts:418 — `skillMapForSeed`
+- @apps/maestro/src/core/agent-fork.ts:100 — `forkAgent`
+- @apps/maestro/src/core/install.ts:946 — `refreshStaleRuntime`
+- @apps/maestro/src/core/install.ts:946 — `refreshStaleRuntime`
+
