@@ -175,13 +175,22 @@ as soon as the init event arrives.
 A run is marked INVALID, listed first in the report and not counted, when:
 
 - any Bash result contains `apply-seccomp`;
-- any Bash call fails other than a code-graph call exiting 0, 4, 6 or 7;
+- any Bash call fails other than a code-graph call exiting 0, 4, 6 or 7, except (043) a non-zero
+  exit of a read-only `grep`, `egrep`, `fgrep`, `sed` (without `-i`), `rg`, `cat`, `head`, `tail`,
+  `ls` or `find` (without `-delete`/`-exec`), alone or chained only with each other (`&&`, `||`,
+  `;`, `|`, redirects to `/dev/null` or a file descriptor): those are recorded in
+  `readOnlyFailures` and do not invalidate. Seccomp, a chain with any other command, a write
+  redirect and `$(...)` still do;
 - the init event shows code-graph (plugins, skills, slash commands, agents) in the no-graph,
   oracle, skills or noskills arm, or does not show it in the graph arm;
 - the init event lacks a case's `skills` (every arm except `noskills`), lists any of them in
   `noskills`, or lacks a `keep_skills` entry in `skills`/`noskills`;
 - a `noskills` run calls a concept skill through the Skill tool;
 - the result event is an error or missing.
+
+Known limitation: the read-only check (`isReadOnly`) is token-based, so `sed` `w`/`e` commands and
+`rg --pre` count as read-only. The only effect is that a failing one is recorded in
+`readOnlyFailures` instead of invalidating the run.
 
 If seccomp is seen the runner aborts so nothing more is spent. Metrics per run: cost, turns,
 input/output/cache tokens, Read/Grep/Glob/Bash/Skill counts, and each code-graph call's exit code and

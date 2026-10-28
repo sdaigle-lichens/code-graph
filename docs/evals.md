@@ -397,3 +397,120 @@ The covering skill was loaded in all 4 `skills` runs. This is the actual test of
 The answer gain is two `must` items out of 60, one per arm-run, neither on the fact the skill was chosen for. That is not distinguishable from run-to-run variance.
 
 Confidence is low. n=2 per arm (n=1 for m2 noskills), one model, five questions; single runs vary up to about 30% within an arm (m4 noskills $0.253 against $0.189). Only s3 points the same way in both runs (+14%, +17%). The supported claim is the direction: **no cost saving from concept skills on Opus 5.5 in a main session**, even on questions picked to favour them. This does not contradict the 039 m4 hint (-16%), which compared an arm that loaded the skill against one that had it and didn't. It does mean that hint did not reproduce as a skills-vs-noskills effect. Not measured here: subagents, cheaper models, and whether skills prevent wrong edits rather than save tokens on questions.
+
+## Ticket 043: can graph context let Haiku match Opus (bench/, rule written before the paid run)
+
+Question: tickets 039, 041 and 042 found that on Opus 5.5 neither the graph nor concept skills cut cost on maestro questions (Opus scores near full marks with Grep alone; even the pasted graph answer cost 3% more). Does graph context let a cheaper Haiku 5.5 reach Opus-level answers? If it does, the gain shows as accuracy and the saving is the price gap between the models.
+
+### Bash rule change
+
+Before this ticket any non-zero Bash exit invalidated a run (042 lost m2 noskills run 1 to a `sed` that exited 1 inside a chain). Now a non-zero exit from a read-only `grep`, `sed`, `rg`, `cat`, `head`, `tail`, `ls` or `find`, alone or chained only with each other, is recorded (`readOnlyFailures`) and does not invalidate. Seccomp, a code-graph exit outside 0/4/6/7, and any other failing command still invalidate. See [bench/README.md](../bench/README.md), "Validity checks".
+
+### Decision rule (fixed before any result)
+
+- **Graph context helps Haiku** if `oracle` scores clearly above `nograph` on pass rate: at least 3 more `must` hits over the whole set (m1-m7, both runs), with no question going the other way in both runs.
+- **It matters** only if Haiku `oracle` comes within 10% of Opus's pass rate at less than half of Opus's cost per question.
+- If `oracle` does not beat `nograph`, no starting context will: say so, and say there is no reason to build a primer.
+- The `graph` arm is reported separately: does Haiku pick the retrieval skill and call the CLI on its own? It does not enter the rule.
+- If the verdict is positive, the user decides on the follow-up (a realistic primer built from the task text at subagent start, measured the same way). Not part of this ticket.
+
+### Run plan
+
+- Model `claude-haiku-5-5`; arms `nograph` (maestro's concept skills plus Grep, the baseline), `oracle` (stored graph output pasted after the question, the best possible starting context) and `graph` (the code-graph plugin).
+- Questions m1-m7 (maestro pinned at `3814a30`), unchanged, with their `must` regexes and stored oracle output; selected with `--set 043`. s1-s3 are out (no oracle output). No new questions or graders.
+- 3 arms x 7 questions x 2 runs = 42 runs, total cap $4 (`--budget 4`, $0.75 per run). User-run from a plain terminal; `--init-check` first.
+- Commands, from a plain terminal at the repo root. Preflight ($0, stops at the init event):
+
+  ```
+  node bench/run.mjs --set 043 --arms nograph,oracle,graph --runs 2 --budget 4 --run-budget 0.75 --model claude-haiku-5-5 --init-check
+  ```
+
+  Paid run (same command without `--init-check`):
+
+  ```
+  node bench/run.mjs --set 043 --arms nograph,oracle,graph --runs 2 --budget 4 --run-budget 0.75 --model claude-haiku-5-5
+  ```
+
+- Usage-limit (429) runs are not counted; rerun them once the limit resets with `node bench/run.mjs --rerun bench/results/<timestamp>` (same model, cap and plan as that invocation).
+- If more than two runs are invalid for any other reason, stop and report.
+- Opus reference: pass rate and cost per question from the 039 and 041 runs in `bench/results/`. m1-m5 have no Opus oracle run, so only its `nograph` and `graph` arms are used there. It is a reference from separate invocations, not a paired comparison.
+- Report per question and arm: cost, turns, tokens, tool counts, pass rate; whether the graph arm loaded the retrieval skill and called the CLI; the Opus reference beside it; a plain verdict against the rule, with confidence at n=2.
+
+### Results
+
+Haiku 5.5, user-run, `bench/results/2026-10-28T14-34-17-686Z` (gitignored). **42/42 runs valid, $0.335 spent of the $4 cap, no 429s, `--init-check` PASS.** Selection bias applies as before: m1-m7 were kept because an offline proxy showed the graph covers the answer.
+
+#### Per question and arm (Haiku 5.5)
+
+Sums over n=2 valid runs. Cost in $; tool counts are Read/Grep/Glob/Bash/Skill; pass = graded `must` regexes matched.
+
+| Question | Arm | Cost | Turns | In / out tok | Cache read / create | Read/Grep/Glob/Bash/Skill | Pass |
+|---|---|---|---|---|---|---|---|
+| m1 impact | nograph | 0.021 | 22 | 36 / 135 | 447,042 / 50,984 | 0/15/0/5/0 | 11/12 |
+| m1 impact | oracle | 0.013 | 11 | 14 / 40 | 161,785 / 42,392 | 5/4/0/0/0 | 12/12 |
+| m1 impact | graph | 0.013 | 12 | 20 / 89 | 232,038 / 39,152 | 0/3/0/3/2 | 12/12 |
+| m2 impact | nograph | 0.017 | 13 | 20 / 89 | 242,266 / 51,684 | 1/4/2/4/0 | 6/10 |
+| m2 impact | oracle | 0.013 | 7 | 10 / 26 | 105,135 / 41,780 | 1/4/0/0/0 | 10/10 |
+| m2 impact | graph | 0.016 | 16 | 28 / 113 | 347,195 / 41,675 | 0/5/0/5/2 | 10/10 |
+| m3 impact | nograph | 0.016 | 12 | 22 / 81 | 257,673 / 44,219 | 0/4/0/6/0 | 8/14 |
+| m3 impact | oracle | 0.012 | 5 | 10 / 26 | 94,950 / 39,756 | 0/3/0/0/0 | 14/14 |
+| m3 impact | graph | 0.012 | 10 | 16 / 57 | 174,038 / 37,659 | 0/2/0/2/2 | 14/14 |
+| m4 cross | nograph | 0.020 | 21 | 22 / 74 | 281,919 / 68,258 | 4/8/3/4/0 | 18/18 |
+| m4 cross | oracle | 0.012 | 8 | 12 / 26 | 113,628 / 41,905 | 2/4/0/0/0 | 18/18 |
+| m4 cross | graph | 0.022 | 17 | 20 / 70 | 269,215 / 77,683 | 4/3/0/2/3 | 18/18 |
+| m5 cross | nograph | 0.019 | 19 | 28 / 115 | 358,245 / 58,655 | 2/6/1/8/0 | 16/18 |
+| m5 cross | oracle | 0.016 | 11 | 16 / 57 | 186,931 / 57,374 | 5/3/0/1/0 | 18/18 |
+| m5 cross | graph | 0.025 | 23 | 24 / 77 | 341,147 / 82,097 | 10/5/0/2/2 | 17/18 |
+| m6 deep | nograph | 0.020 | 20 | 20 / 98 | 233,098 / 57,853 | 9/8/0/1/0 | 22/26 |
+| m6 deep | oracle | 0.013 | 6 | 10 / 24 | 103,831 / 43,458 | 0/4/0/0/0 | 26/26 |
+| m6 deep | graph | 0.013 | 12 | 20 / 83 | 232,348 / 38,249 | 0/4/0/2/2 | 26/26 |
+| m7 deep | nograph | 0.016 | 18 | 32 / 140 | 377,881 / 37,421 | 0/7/0/9/0 | 10/10 |
+| m7 deep | oracle | 0.013 | 8 | 14 / 35 | 162,091 / 42,487 | 0/4/0/2/0 | 10/10 |
+| m7 deep | graph | 0.013 | 13 | 18 / 62 | 204,457 / 45,999 | 1/4/0/2/2 | 10/10 |
+| **all** | nograph | **0.129** | 125 | - | - | - | **91/108** (84%) |
+| **all** | oracle | **0.092** | 56 | - | - | - | **108/108** (100%) |
+| **all** | graph | **0.114** | 103 | - | - | - | **107/108** (99%) |
+
+Cost per run (14 runs per arm): nograph $0.0092, oracle $0.0066, graph $0.0081. Oracle is 29% cheaper than nograph and graph 12% cheaper. Per-question costs are rounded to $0.001, so single-question percentages are coarse.
+
+Per group, oracle against nograph (cost): impact -31%, cross -27%, deep -27%. Graph against oracle: impact +9%, cross +62%, deep +2%.
+
+#### Did the graph arm load the retrieval skill and call the CLI?
+
+Checked per run in `report.md`. **Yes, in all 14 graph runs.** Every run made exactly one `Skill` call that loaded `code-graph:code-graph-retrieval`, except m4 run 1, which also loaded the project skill `installing-maestro` (2 Skill calls). Every run then called `code-graph`, all with exit 0. m1, m3, m4, m5, m6, m7 made one call each; m2 made 3 calls in run 1 and 2 in run 2.
+
+Output size differs by group: impact and deep calls returned 266 to 1,313 chars, the cross calls (m4, m5) 9,920 to 15,390 chars. That is the cost story for cross (+62% over oracle; cache-create 159,780 against 99,279 for the group). On Opus (039) the retrieval skill fired in 5 of 10 graph runs and never on cross; Haiku used it every time, including on cross.
+
+Graph arm accuracy: 107/108, one miss (m5 run 1, 8/9).
+
+#### Opus reference (separate invocations, not a paired comparison)
+
+From 039 (`2026-10-27T16-28-06-917Z`, plus the m4/m5 rerun `2026-10-27T19-03-18-336Z`) and 041 (`2026-10-27T20-22-02-156Z`), as tabulated in those sections. Opus has no oracle run for m1-m5, so its `nograph` and `graph` arms are shown; m6 and m7 have all three. Same questions, same maestro pin, different date, session and model. Sums over n=2.
+
+| Question | Opus nograph cost / pass | Opus graph cost / pass | Opus oracle cost / pass | Haiku oracle cost / pass | Haiku oracle cost as % of Opus nograph |
+|---|---|---|---|---|---|
+| m1 | 0.388 / 12/12 | 0.440 / 11/12 | - | 0.013 / 12/12 | 3.4% |
+| m2 | 0.539 / 8/10 | 0.596 / 10/10 | - | 0.013 / 10/10 | 2.4% |
+| m3 | 0.482 / 12/14 | 0.469 / 14/14 | - | 0.012 / 14/14 | 2.5% |
+| m4 | 0.566 / 18/18 | 0.475 / 18/18 | - | 0.012 / 18/18 | 2.1% |
+| m5 | 0.605 / 16/18 | 0.597 / 14/18 | - | 0.016 / 18/18 | 2.6% |
+| m6 | 0.399 / 26/26 | 0.397 / 24/26 | 0.475 / 26/26 | 0.013 / 26/26 | 3.3% |
+| m7 | 0.437 / 10/10 | 0.373 / 10/10 | 0.386 / 10/10 | 0.013 / 10/10 | 3.0% |
+| **all** | **3.416 / 102/108 (94%)** | **3.347 / 101/108 (94%)** | - | **0.092 / 108/108 (100%)** | **2.7%** |
+
+For scale, Haiku `nograph` costs $0.129 against Opus `nograph` $3.416 (3.8%): nearly all of the cost gap is the model price, not the context.
+
+#### Verdict
+
+**Graph context helps Haiku: yes.** Oracle scores 108/108 against 91/108 for nograph, 17 more `must` hits (rule: at least 3). No question goes the other way: checked per run, oracle is at or above nograph in all 14 run pairs (above in 9, equal in 5). The gain by question: m1 +1, m2 +4, m3 +6, m5 +2, m6 +4; m4 and m7 were 100% in both arms. Oracle was also cheaper per run ($0.0066 against $0.0092, -29%) with less than half the turns (56 against 125), so on Haiku the pasted graph answer improves accuracy and cuts cost together.
+
+**It matters: yes, by the rule as written.** Haiku oracle's pass rate (100%) is above Opus's (94% nograph, 94% graph), so it is within 10% on the overall set and on every question individually, and its cost is 2.1% to 3.4% of Opus nograph per question (2.7% overall), far under half. Two caveats on how to read that:
+
+- **Not like for like.** Haiku oracle has the graph answer pasted in; Opus nograph (m1-m5) does not. Only m6 and m7 have an Opus oracle arm (26/26 and 10/10, the same as Haiku oracle), and there Haiku oracle is 2.7% to 3.4% of Opus oracle's cost.
+- **Ceiling.** Opus nograph already scores 94% on these questions, so there was little accuracy to gain. The result shows Haiku with the answer in hand matching Opus, not Haiku overtaking Opus on hard questions. Haiku nograph (84%) is 10 points under Opus's 94%, just outside "within 10%" if read as points, at 3.8% of the cost.
+
+**Graph arm (reported separately, not in the rule):** Haiku loaded the retrieval skill and ran the CLI on its own in 14 of 14 runs, scored 107/108, and cost 12% less than nograph but 24% more than oracle ($0.114 against $0.092). The friction is small on impact (+9%) and deep (+2%) and large on cross (+62%), where CLI output is 10k to 15k chars.
+
+**Confidence: low to moderate.** n=2 per cell, one model pair, seven questions; single runs differ widely within an arm (for example m6 nograph 10/13 and 12/13, m3 nograph 5/7 and 3/7). The direction (oracle >= nograph, at about 30% lower cost) is consistent across five of seven questions and never reversed, which is why it is supported; the exact percentages are not. **Selection bias favours the graph and the oracle:** questions were kept only where the proxy showed the graph covers the answer, so this overstates the advantage on questions in general. The Opus numbers come from earlier invocations, so model, date and session differ. Main session only.
+
+Follow-up (a realistic primer built from the task text at subagent start) is the user's decision and is not part of this ticket.

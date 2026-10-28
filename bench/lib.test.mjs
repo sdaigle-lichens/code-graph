@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   parseStream, validity, report, checkVerdict, score, claudeArgs, isCg, selectCases, parseArms, oraclePrompt, promptFor,
   planRuns, budgetStop, runStatus, rerunPlan, setupArm, oracleFile, sums, costDelta, ORACLE_HEADER,
-  isConceptSkillMd, skillNameOf, coveringLoads, proposals, SKILLS_BIAS_NOTE,
+  isConceptSkillMd, skillNameOf, coveringLoads, proposals, SKILLS_BIAS_NOTE, isReadOnly,
 } from './lib.mjs';
 import { listSkills, stripConceptSkills } from './strip-concept-skills.mjs';
 
@@ -56,9 +56,62 @@ test('undocumented code-graph exit (1, 2, 3, 5) invalidates', () => {
 
 test('non-code-graph Bash failure invalidates, in both arms', () => {
   for (const arm of ['graph', 'nograph']) {
-    const m = parseStream(J(init(arm === 'graph' ? CG : []), bash('e', 'ls /nope'), res('e', 'Exit code 2\nls: cannot access', true), done()));
+    const m = parseStream(J(init(arm === 'graph' ? CG : []), bash('e', 'pnpm build'), res('e', 'Exit code 2\nbuild failed', true), done()));
     assert.ok(validity(arm, m).some((p) => /Bash failure/.test(p)), arm);
   }
+});
+
+test('043: failing read-only grep/sed/rg/cat/head/tail/ls/find is recorded, not invalidating, alone or chained', () => {
+  const cmds = [
+    ['grep -rn foo src', 1], ['rg foo', 1], ['sed -n "5,9p" a.ts', 1], ['cat nope.ts', 1], ['head -5 nope', 1],
+    ['tail -5 nope', 1], ['ls /nope', 2], ['find . -name x.ts -type f', 1],
+    ['grep -n a f && sed -n "1p" f | head -3', 1], ['ls src; grep x src 2>/dev/null', 1], ['grep a f 2>&1 | tail -5', 1],
+    ['/usr/bin/grep "a && b" f', 1], ["grep 'a;b' f || cat f", 1],
+  ];
+  for (const [cmd, code] of cmds) {
+    for (const arm of ['graph', 'nograph']) {
+      const m = parseStream(J(init(arm === 'graph' ? CG : []), bash('e', cmd), res('e', `Exit code ${code}\nout`, true), done()));
+      assert.deepEqual(validity(arm, m), [], cmd);
+      assert.equal(m.readOnlyFailures.length, 1, cmd);
+      assert.equal(m.bashFailures.length, 0, cmd);
+    }
+  }
+});
+
+test('043: seccomp, other commands, writes, and code-graph exits outside 0/4/6/7 still invalidate', () => {
+  const bad = [
+    ['grep a f', 'Exit code 1\napply-seccomp: boom'],
+    ['pnpm build', 'Exit code 1\nx'],
+    ['grep a f && pnpm build', 'Exit code 1\nx'],
+    ['grep a f || echo none', 'Exit code 1\nx'],
+    ['cd src && grep a f', 'Exit code 1\nx'],
+    ['grep a f > out.txt', 'Exit code 1\nx'],
+    ['sed -i s/a/b/ f', 'Exit code 1\nx'],
+    ['find . -delete', 'Exit code 1\nx'],
+    ['cat $(echo f)', 'Exit code 1\nx'],
+    [`grep a f | ${CMD}`, 'Exit code 1\nx'],
+    [`${CMD} | head -3`, 'Exit code 1\nx'],
+    [CMD, 'Exit code 2\nx'],
+  ];
+  for (const [cmd, out] of bad) {
+    const m = parseStream(J(init(CG), bash('e', cmd), res('e', out, true), done()));
+    assert.ok(validity('graph', m).length > 0, cmd);
+    assert.equal(m.readOnlyFailures.length, 0, cmd);
+  }
+});
+
+test('043: isReadOnly edge cases: quoted separators, redirects, sed -i variants, find actions, env prefix', () => {
+  const yes = [
+    "grep 'a;b' f", 'grep "a|b" f', 'grep a f 2>&1', 'grep a f 2>/dev/null', 'sed -n 1p f', 'find . -name x',
+    '/usr/bin/grep a f', 'grep a f && ls', 'grep a f 2>&1 | head',
+  ];
+  const no = [
+    'grep a f >> out', 'cat f | tee x', 'sed -ni p f', 'sed -E -i p f', 'sed -n p -i f', 'sed -ibak p f',
+    'sed --in-place p f', 'find . -exec rm {} ;', 'find . -execdir rm {} +', 'find . -fprint o', 'cat <f',
+    'grep "$(x)" f', 'grep a f; rm x', 'FOO=1 grep a f', 'ls | xargs rm', '',
+  ];
+  for (const c of yes) assert.equal(isReadOnly(c), true, c);
+  for (const c of no) assert.equal(isReadOnly(c), false, c);
 });
 
 test('non-code-graph Bash success is fine', () => {
@@ -243,7 +296,10 @@ test('isCg: empty input, lookalike names, later segments', () => {
 test('a grep mentioning code-graph is not graded as a CLI call', () => {
   const m = parseStream(J(init(CG), bash('e', 'grep -rn code-graph .'), res('e', 'Exit code 1\n', true), done()));
   assert.deepEqual(m.graphCalls, []);
-  assert.ok(validity('graph', m).some((p) => /Bash failure/.test(p)));
+  assert.equal(m.readOnlyFailures.length, 1); // a read-only grep miss (043): recorded, not invalidating
+  const m2 = parseStream(J(init(CG), bash('e', 'echo code-graph'), res('e', 'Exit code 1\n', true), done()));
+  assert.deepEqual(m2.graphCalls, []);
+  assert.ok(validity('graph', m2).some((p) => /Bash failure/.test(p)));
 });
 
 test('validity: expected project skills must load in both arms', () => {
@@ -331,7 +387,7 @@ test('validity: oracle init must show no code-graph plugin; concept skills still
   assert.ok(validity('oracle', parseStream(J(init(CG, ['task-queue']), done())), skills).some((p) => /oracle arm \(config leak\)/.test(p)));
   assert.ok(validity('oracle', parseStream(J(init([], ['code-graph:code-graph-retrieval', 'task-queue']), done())), skills).some((p) => /config leak/.test(p)));
   assert.ok(validity('oracle', parseStream(J(init([], []), done())), skills).some((p) => /task-queue/.test(p)));
-  const bad = parseStream(J(init([]), bash('e', 'ls /nope'), res('e', 'Exit code 2\nno', true), done()));
+  const bad = parseStream(J(init([]), bash('e', 'pnpm build'), res('e', 'Exit code 2\nno', true), done()));
   assert.ok(validity('oracle', bad).some((p) => /Bash failure/.test(p)));
 });
 

@@ -153,6 +153,62 @@ export function isCg(cmd) {
   return false;
 }
 
+// 043: a non-zero exit from these read-only commands (alone or chained only with each other) is recorded
+// but does not invalidate a run: grep with no match exits 1, a sed address past the end of a file too.
+const READ_ONLY_CMDS = new Set(['grep', 'egrep', 'fgrep', 'sed', 'rg', 'cat', 'head', 'tail', 'ls', 'find']);
+
+// Split on unquoted && || ; | & and newlines. Returns null when the command has unquoted command
+// substitution, backticks, or a redirection other than to /dev/null or a file descriptor (it may write).
+function splitSegments(cmd) {
+  const segs = [];
+  let cur = '';
+  let q = '';
+  const s = String(cmd);
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      if (c === q) q = '';
+      else if (q === '"' && (c === '`' || (c === '$' && s[i + 1] === '('))) return null;
+      else if (c === '\\' && q === '"') { cur += c + (s[i + 1] || ''); i++; continue; }
+      cur += c;
+      continue;
+    }
+    if (c === '\\') { cur += c + (s[i + 1] || ''); i++; continue; }
+    if (c === '"' || c === "'") { q = c; cur += c; continue; }
+    if (c === '`' || (c === '$' && s[i + 1] === '(') || c === '(' || c === '<') return null;
+    if (c === '>') {
+      const rest = s.slice(i).replace(/^>>?\s*/, '');
+      if (/^&\d/.test(s.slice(i + 1)) && !/^>>/.test(s.slice(i))) { i += 1; while (/[\d&-]/.test(s[i + 1] || '')) i++; continue; }
+      if (!/^\/dev\/null(\s|$|[;&|])/.test(rest)) return null;
+      i += s.slice(i).length - rest.length + '/dev/null'.length - 1;
+      continue;
+    }
+    if (c === '&' || c === '|' || c === ';' || c === '\n') {
+      segs.push(cur);
+      cur = '';
+      if ((c === '&' || c === '|') && s[i + 1] === c) i++;
+      continue;
+    }
+    cur += c;
+  }
+  segs.push(cur);
+  return q ? null : segs.map((x) => x.trim()).filter(Boolean);
+}
+
+// True when every segment of the command runs one of READ_ONLY_CMDS (sed only without -i).
+export function isReadOnly(cmd) {
+  const segs = splitSegments(cmd);
+  if (!segs || !segs.length) return false;
+  return segs.every((seg) => {
+    const t = seg.split(/\s+/);
+    const name = t[0].replace(/^.*\//, '');
+    if (!READ_ONLY_CMDS.has(name)) return false;
+    if (name === 'sed' && t.slice(1).some((a) => /^-[a-zA-Z]*i|^--in-place/.test(a))) return false;
+    if (name === 'find' && t.some((a) => /^-(delete|exec|execdir|ok|okdir|fprint\w*|fls)$/.test(a))) return false;
+    return true;
+  });
+}
+
 const textOf =(c) => (typeof c === 'string' ? c : (c || []).map((x) => x.text || '').join(''));
 
 // Parse one stream-json transcript into metrics.
@@ -162,6 +218,7 @@ export function parseStream(text) {
     input: 0, output: 0, cacheRead: 0, cacheCreate: 0,
     counts: { Read: 0, Grep: 0, Glob: 0, Bash: 0, Skill: 0 },
     bashFailures: [], // non-code-graph failures or seccomp: these invalidate the run
+    readOnlyFailures: [], // non-zero exits of read-only grep/sed/rg/cat/head/tail/ls/find: recorded, not invalidating
     graphCalls: [], // { exit, chars }
     seccomp: 0,
     usageLimit: false, // result event reports an account usage limit (429)
@@ -217,7 +274,9 @@ export function parseStream(text) {
         if (cg) m.graphCalls.push({ exit, chars: out.length });
         const okCg = cg && OK_CG_EXITS.has(exit);
         if (seccomp || ((exit !== 0 || b.is_error) && !okCg)) {
-          m.bashFailures.push(`${cmd.replace(/\s+/g, ' ').slice(0, 80)} -> ${out.replace(/\s+/g, ' ').slice(0, 100)}`);
+          const entry = `${cmd.replace(/\s+/g, ' ').slice(0, 80)} -> ${out.replace(/\s+/g, ' ').slice(0, 100)}`;
+          if (!seccomp && !cg && isReadOnly(cmd)) m.readOnlyFailures.push(entry);
+          else m.bashFailures.push(entry);
         }
       }
     }
