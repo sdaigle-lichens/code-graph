@@ -255,3 +255,145 @@ Caveats:
 1. **Enrichment arm:** enrich only the concepts these questions touch and rerun m1 to m5. Tests whether `purpose` and edge reasons change the agent's choice or the answer cost; costs enrichment tokens plus another paid run.
 2. **Haiku 5.5 arm:** rerun the same set on Haiku 5.5. Tests whether a cheaper model leans on the graph more or loses accuracy without it.
 3. **Stop investing in the retrieval side:** these results, together with the fixture pilots, show no cost saving to date.
+
+## Ticket 041: best-case saving if graph answers were free (bench/, 2026-10-27)
+
+Question: before reworking how the graph is delivered (a Grep hook, native tools), how much cheaper does an answer get when the graph's output costs nothing to obtain? If even that ceiling isn't clearly cheaper than Grep, no delivery rework will pay off.
+
+### Decision rule (fixed before the run)
+
+For a question group (m1 to m3 impact, m4 and m5 cross, m6 and m7 deep), the oracle is **clearly cheaper** only if:
+
+- `oracle` is at least 20% cheaper than `nograph` on the group total; **and**
+- both runs of each question point the same way (oracle cheaper in each run).
+
+Otherwise the ceiling is too low for that group to justify a delivery rework.
+
+### Setup
+
+- **Oracle arm** (`bench/`, see [bench/README.md](../bench/README.md)): same workspace as `nograph` (maestro's concept skills, no plugin, no `scribe-output/`). The prompt is the question followed by the stored output of the case's `proxy_cmd` (`bench/oracle/<case>.txt`, captured once with `bench/capture-oracle.mjs`), framed as context from a code index. The `graph` arm is unchanged from 039.
+- **New deep questions** (maestro pinned at `3814a30`), each with an expected answer, `must` regexes, an offline proxy and a `why_grep_expensive` note:
+  - **m6** `listSessionIds` callers two levels deep (13 `must`). Grep cost: six direct callers in four files, then seven second-level callers across six files; each hit needs a Read to name its enclosing function, and the name also hits tests, re-exports, compiled `.cjs` copies and concept skills. Proxy: `query impact listSessionIds --direction in`, 1307 chars, complete.
+  - **m7** `decideSync` callers two levels deep (5 `must`). Grep cost: a common name, `grep -rw decideSync` returns 85 lines in 31 files and only 3 are TypeScript calls; `buildEntry` is a private helper whose caller needs another Grep and a Read. Proxy: `query impact decideSync --direction in`, 598 chars, complete.
+- **Scope change (user decision):** the full 32-run plan (m1 to m7, about $7 to $8) did not fit the $7 cap. The user chose the deep questions only: m6 and m7, arms `nograph`, `oracle` and `graph`, 2 runs each, 12 runs in one invocation (`--only deep --arms nograph,oracle,graph --runs 2 --budget 5 --run-budget 0.75`). **m1 to m5 were not run.**
+- Opus 5.5, user-run from a plain terminal. Results: `bench/results/2026-10-27T20-22-02-156Z` (gitignored).
+- **Runs:** 12/12 valid, $2.467 spent of the $5 cap, no usage-limit failures, no Bash failures. The `--init-check` preflight passed: `nograph` and `oracle` listed 25 skills and plugins, none from code-graph; `graph` listed 37 including code-graph.
+- **Selection bias:** m6 and m7 were kept because the offline proxy showed the graph output covers the answer, so these results favour the graph and the oracle.
+
+### Per question and arm
+
+Sums over n=2 valid runs. Cost in $; tool counts are Read/Grep/Bash/Skill (Glob was 0 everywhere); pass = graded `must` regexes matched.
+
+| Question | Arm | Cost | Turns | In / out tok | Cache read / create | Read/Grep/Bash/Skill | Pass |
+|---|---|---|---|---|---|---|---|
+| m6 deep | nograph | 0.399 | 13 | 26 / 230 | 269,865 / 30,299 | 0/3/8/0 | 26/26 |
+| m6 deep | oracle | 0.475 | 13 | 20 / 75 | 256,002 / 42,296 | 2/8/1/0 | 26/26 |
+| m6 deep | graph | 0.397 | 11 | 22 / 203 | 237,537 / 32,521 | 0/3/6/0 | 24/26 |
+| m7 deep | nograph | 0.437 | 15 | 30 / 206 | 328,740 / 35,747 | 1/6/6/0 | 10/10 |
+| m7 deep | oracle | 0.386 | 8 | 14 / 47 | 155,403 / 38,727 | 1/5/0/0 | 10/10 |
+| m7 deep | graph | 0.373 | 12 | 24 / 227 | 266,076 / 31,215 | 0/4/6/0 | 10/10 |
+| **deep total** | nograph | **0.836** | 28 | 56 / 436 | 598,605 / 66,046 | 1/9/14/0 | 36/36 |
+| **deep total** | oracle | **0.861** | 21 | 34 / 122 | 411,405 / 81,023 | 3/13/1/0 | 36/36 |
+| **deep total** | graph | **0.770** | 23 | 46 / 430 | 503,613 / 63,736 | 0/7/12/0 | 34/36 |
+
+Single runs, cost in $ (nograph / oracle / graph): m6 run 1 0.201 / 0.217 / 0.188, run 2 0.198 / 0.258 / 0.209; m7 run 1 0.195 / 0.205 / 0.211, run 2 0.242 / 0.181 / 0.162.
+
+### Oracle vs nograph (the ceiling)
+
+- **Group total: oracle $0.861 against nograph $0.836, +3% (dearer).**
+- m6: +19% ($0.475 against $0.399). Oracle is dearer in **both** runs (0.217 vs 0.201, 0.258 vs 0.198).
+- m7: -12% ($0.386 against $0.437). The runs **disagree**: run 1 oracle is dearer (0.205 vs 0.195), run 2 cheaper (0.181 vs 0.242).
+- Accuracy is equal: 36/36 both.
+
+### Graph vs oracle (meant as the friction cost)
+
+- Group total: graph $0.770 against oracle $0.861, -11%; m6 -16%, m7 -3%. Graph against nograph: -8%.
+- **The graph arm made no code-graph CLI call in any of its 4 runs** (`graphCalls` empty in `runs.json`, the report's code-graph column is `-`, real code-graph call exit 0: false) and no `Skill` call: the retrieval skill never loaded. It answered with Grep and Bash `grep`/`sed`, like `nograph`.
+- So graph vs oracle here compares a graph arm that didn't use the graph with the oracle; it does not measure friction. The graph arm's -8% against nograph is the same arm doing the same Grep work, within run-to-run noise.
+- Graph scored 24/26 on m6: run 1 missed `registerIpc` (named the `sessionsDeletable` handler without its function), run 2 missed `createWorktreeTabs`.
+
+### Observations
+
+- **The oracle still grepped.** It ran 13 Greps (plus 3 Reads, 1 Bash) over its 4 runs to check the index output rather than trust it, against 9 Greps and 14 Bash calls for nograph.
+- **Bigger prompt, more cache-create tokens.** Oracle cache-create was 81,023 against 66,046 for nograph: the index text is in the prompt from turn one.
+- **Fewer turns, similar cost.** Oracle took 21 turns against 28 and wrote far less output (122 against 436 tokens), but the saving in turns and cache reads (411k against 599k) was eaten by the extra cache-create and verification calls.
+
+### Verdict
+
+**Deep group: the ceiling is too low to justify a delivery rework.** Applying the rule literally: oracle is +3% against nograph on the group total, not at least 20% cheaper, and m7's two runs point opposite ways. Even with the graph's answer handed over for free, the model spent about what Grep costs.
+
+Confidence is low to moderate. n=2 per arm, one model, two questions; single runs vary 10 to 30% within an arm, so the per-question percentages are noise-sized. The supported claim is the direction: no clear saving at the ceiling, on the questions picked to favour the graph (selection bias).
+
+**m1 to m3 (impact) and m4 and m5 (cross) were not measured, so there is no verdict for those groups.**
+
+## Ticket 042: do concept skills save cost on their own (bench/, 2026-10-27)
+
+Question: every earlier paid run had concept skills in both arms. With no graph in either arm, do maestro's concept skills make answers cheaper or better than the same workspace without them?
+
+### Setup
+
+- **Arms** (`bench/`, see [bench/README.md](../bench/README.md), "Skills and noskills arms"): `skills` is the `nograph` workspace (maestro's concept skills, no plugin, no `scribe-output/`). `noskills` is the same workspace after `bench/strip-concept-skills.mjs` removed every skill with `metadata.type: concept-skill`, at any depth. Other skills (`maestro`, `test-maestro`) stay in both arms.
+- **Questions** (maestro pinned at `3814a30`, approved by the user): m2 (`duplicateAgentTypes` callers, impact) and m4 (install/config, cross) from 039, and three new `concept` questions, each with an expected answer, `must` regexes and a `skill_note` naming the covering skill:
+  - **s1** session state on disk and session-id resolution (7 `must`). Covering skill: `maestro-architecture`.
+  - **s2** what uninstall and purge remove and what survives, app and terminal (9 `must`). Covering skill: `installing-maestro`.
+  - **s3** where the task-ready cascade lives and what to change so app and orchestrator agree (5 `must`). Covering skill: `task-queue`.
+- Opus 5.5, 2 runs per arm, $7 cap, user-run from a plain terminal. Results (gitignored): `bench/results/2026-10-27T21-09-20-941Z` (first invocation) and `2026-10-28T00-10-53-507Z` (rerun; its report merges both).
+
+### Runs
+
+- **First invocation** (`21-09-20-941Z`): stopped on a usage limit (429) at s2 skills run 2 ($0.206 spent on that run, not counted). s2 noskills run 2 and both s3 run 2s never started.
+- **Rerun** (`00-10-53-507Z`, `--rerun`): only those 4 runs, all valid. In the tables, s2 and s3 run 2 come from this rerun.
+- Total spend $5.363 of the $7 cap.
+- **One invalid run, m2 noskills run 1:** one `sed` in a Bash chain exited non-zero. It still scored 4/5. It is the only invalid run that is not a 429, so the stop rule (more than one invalid) did not fire. m2 therefore has 2 valid `skills` runs against 1 valid `noskills` run.
+- Every counted run passed the in-run init-event checks: the concept skills listed in `skills` only, code-graph in neither arm, `maestro` kept in both. No `noskills` run called a concept skill.
+
+### Per question and arm
+
+Sums over valid runs (n=2 except m2 noskills, n=1). Cost in $; tool counts are Read/Grep/Glob/Bash/Skill; pass = graded `must` regexes matched; "skill loaded" = `skills` runs that called the covering skill through the Skill tool.
+
+| Question | Arm | Runs | Cost | Turns | In / out tok | Cache read / create | Read/Grep/Glob/Bash/Skill | Pass | Skill loaded |
+|---|---|---|---|---|---|---|---|---|---|
+| m2 impact | skills | 2 | 0.500 | 14 | 28 / 143 | 324,766 / 38,618 | 0/2/0/10/0 | 8/10 | 0/2 |
+| m2 impact | noskills | 1 | 0.241 | 8 | 16 / 110 | 179,900 / 18,093 | 0/1/0/6/0 | 4/5 | - |
+| m4 cross | skills | 2 | 0.489 | 11 | 20 / 111 | 210,670 / 43,868 | 2/3/0/4/0 | 18/18 | 0/2 |
+| m4 cross | noskills | 2 | 0.442 | 14 | 22 / 170 | 218,244 / 37,790 | 5/2/0/5/0 | 17/18 | - |
+| s1 concept | skills | 2 | 0.470 | 7 | 12 / 57 | 103,230 / 49,666 | 3/2/0/0/0 | 14/14 | 0/2 |
+| s1 concept | noskills | 2 | 0.471 | 11 | 16 / 95 | 146,421 / 47,860 | 4/3/2/0/0 | 14/14 | - |
+| s2 concept | skills | 2 | 0.673 | 15 | 20 / 95 | 255,738 / 65,192 | 5/4/0/0/2 | 18/18 | 2/2 |
+| s2 concept | noskills | 2 | 0.625 | 13 | 20 / 89 | 247,906 / 60,401 | 6/5/0/0/0 | 18/18 | - |
+| s3 concept | skills | 2 | 0.525 | 18 | 20 / 69 | 220,373 / 49,658 | 3/9/0/0/2 | 10/10 | 2/2 |
+| s3 concept | noskills | 2 | 0.454 | 19 | 24 / 95 | 251,610 / 36,949 | 5/11/0/1/0 | 9/10 | - |
+
+Single runs, cost in $ (skills / noskills): m2 run 1 0.253 / (0.267 invalid), run 2 0.247 / 0.241; m4 run 1 0.254 / 0.253, run 2 0.236 / 0.189; s1 run 1 0.257 / 0.216, run 2 0.213 / 0.255; s2 run 1 0.359 / 0.308, run 2 0.314 / 0.317; s3 run 1 0.248 / 0.218, run 2 0.277 / 0.237.
+
+- **m2, per run:** the report's +107% is a sum artefact (2 runs against 1). Per run, skills averages $0.250 against $0.241 for the one valid noskills run (+4%); the invalid noskills run cost $0.267. Every m2 run in both arms scored 4/5 and missed `registerIpc`.
+- **m4, s1, s2, s3 (balanced, n=2):** skills $2.157 against noskills $1.992, +8%. m4 +11%, s1 0%, s2 +8%, s3 +16%.
+- **Accuracy:** on the balanced four, skills 60/60 against noskills 58/60. The two misses are single `must` items on one run each: m4 noskills run 1 (`maestroConfigRefusal`) and s3 noskills run 1 (`status.json`).
+
+### Skill never loaded: m2, m4, s1
+
+The covering skill was not loaded in any of the 6 `skills` runs (no Skill call at all). These questions mostly measure the concept skills **sitting in the context** (their names and descriptions in the init skill list), not their content. On m4 and s1 that gives +5% together ($0.959 against $0.913), with fewer turns (18 against 25) and more cache-create tokens. The runs point both ways (s1 run 1 dearer, run 2 cheaper; m4 run 1 equal, run 2 dearer). s1's `maestro-architecture` description already names the session directory, files and resolution order, so the listing alone may carry part of that answer; nothing here separates that effect from noise.
+
+### Skill loaded: s2 and s3
+
+The covering skill was loaded in all 4 `skills` runs. This is the actual test of skill content.
+
+- **s2: +8%** ($0.673 against $0.625), 18/18 both arms. The runs disagree (run 1 +17%, run 2 -1%). The skill saved about one Read and one Grep over two runs, and the model still read the source files after loading it.
+- **s3: +16%** ($0.525 against $0.454), 10/10 against 9/10. **Both runs are dearer** (+14%, +17%). The skill saved 2 Reads, 2 Greps and 1 Bash over two runs, but the Skill calls and the loaded text added about 13k cache-create tokens (49,658 against 36,949), which cost more than the calls saved. The one noskills miss is `status.json`, not the generation fact the skill was chosen for (see confounds).
+
+### Confounds
+
+- **Selection bias favours the skills arm.** The new questions were chosen where a concept skill should help, and m4 was kept because of the 039 hint. Even so the skills arm was not cheaper, so a random question set would likely look no better.
+- **Auto-loaded memory reaches both arms.** maestro's `CLAUDE.md` and `.claude/rules/*.md`, including `plugin-publishing.md`, are not skills and are not stripped. `plugin-publishing.md` says `maestro-tasks.cjs` is the exception to plugin-lib generation, so s3's key fact is in the `noskills` context too.
+- **The m2 invalid run** leaves m2 unbalanced (2 against 1); compare it per run, not by sums.
+- **The s3 generation grader is still loose on keywords.** After the fix in this ticket it accepts many phrasings (pinned by a paraphrase test in `bench/lib.test.mjs`), including an "except ... generated" pattern within 80 characters. Every s3 run in both arms passed it, so it does not separate the arms, and a vaguely worded answer could pass it.
+- **Nested skills** (e.g. `maestro-config-model` in `apps/maestro/.claude/skills`, a covering skill for m2) are not in the init list; the strip removes them on disk, but in the `skills` arm they are only reachable if the model finds them.
+- 4 runs came from a separate invocation after a 429; same model and pin, not the same session. Main session only.
+
+### Verdict
+
+**On these questions, concept skills do not save cost, and they barely change answers.** Over the four balanced questions the skills arm is 8% dearer ($2.157 against $1.992) for 60/60 against 58/60. Where the covering skill was actually loaded (s2, s3), it is 11% dearer ($1.198 against $1.079): loading a skill saves a Read or a Grep or two, but the model still reads the source to confirm, and the skill text costs more in cache-create tokens than the saved calls. Where the skill was never loaded (m2, m4, s1), the arms are within noise of each other.
+
+The answer gain is two `must` items out of 60, one per arm-run, neither on the fact the skill was chosen for. That is not distinguishable from run-to-run variance.
+
+Confidence is low. n=2 per arm (n=1 for m2 noskills), one model, five questions; single runs vary up to about 30% within an arm (m4 noskills $0.253 against $0.189). Only s3 points the same way in both runs (+14%, +17%). The supported claim is the direction: **no cost saving from concept skills on Opus 5.5 in a main session**, even on questions picked to favour them. This does not contradict the 039 m4 hint (-16%), which compared an arm that loaded the skill against one that had it and didn't. It does mean that hint did not reproduce as a skills-vs-noskills effect. Not measured here: subagents, cheaper models, and whether skills prevent wrong edits rather than save tokens on questions.

@@ -64,3 +64,10 @@ Out of scope:
 ## Blocked by
 
 - `041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md` (both change the bench arms and cases; the paid runs also run one after the other, so they don't share a usage limit)
+
+## Post-Mortem
+
+- **Problem:** @reviewer FAILed the first pass: the s3 `must[4]` regex copied the task-queue skill's own wording ("not generated", "hand-maintained"), so it rejected correct paraphrases ("not auto-generated", "except") that the noskills arm was likely to write, which skewed grading toward `skills` before any paid run. Fixed by widening the regex and adding a paraphrase test.
+  **Fix:** none
+- **Problem:** the $0 `--init-check` preflight couldn't run in the sandbox (`claude` is not on PATH), so @test and @reviewer could only confirm the init events from code; they were first observed in the user's paid run.
+  **Fix:** none

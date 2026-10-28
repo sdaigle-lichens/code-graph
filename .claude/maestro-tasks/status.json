@@ -249,7 +249,7 @@
     "epic": "absorb-concept-skills"
   },
   "042-measure-whether-concept-skills-save-cost-on-their-own.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md"
     ],

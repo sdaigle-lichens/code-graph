@@ -16,7 +16,8 @@
       "must": ["buildUpdateSkillTags", "applyUpdateSkillTagsIfAny", "installRuntime", "registerIpc", "refreshStaleRuntime", "openSession"],
       "expected": "Direct callers: registerIpc (main/ipc.ts, the templateProjectTagsList handler), buildUpdateSkillTags (core/claude-preview.ts), applyUpdateSkillTagsIfAny (main/claude-session.ts), installRuntime (core/install.ts). One level up: build (claude-preview.ts) calls buildUpdateSkillTags, openSession (claude-session.ts) calls applyUpdateSkillTagsIfAny, refreshStaleRuntime (install.ts) calls installRuntime. Callers sit in electron-shell-invariants, installing-maestro, updating-maestro, claude-session-bridge and create-skills-architecture; the function itself is in global-stores.",
       "why_grep_expensive": "The name is easy to grep, but the answer is the enclosing function of each hit and then that function's callers. Each hit lands in a large file (ipc.ts 1289 lines, claude-session.ts 1056, install.ts 970, claude-preview.ts 545), so Grep needs a Read per hit to name the enclosing function and another Grep per caller for the second level. Other hits are re-exports (index.ts, plugin-entries) and tests that must be filtered out.",
-      "proxy": "code-graph query impact readAllProjectTags --direction in (829 chars, complete: same output with --max 100)"
+      "proxy": "code-graph query impact readAllProjectTags --direction in (792 chars, complete: same output with --max 100)",
+      "proxy_cmd": ["query", "impact", "readAllProjectTags", "--direction", "in"]
     },
     {
       "id": "m2-impact-duplicateagenttypes",
@@ -28,7 +29,12 @@
       "must": ["validateConfig", "applyWorkflowSpec", "registerIpc", "installRuntime", "refreshStaleRuntime"],
       "expected": "Direct callers: validateConfig (core/config-validate.ts), applyWorkflowSpec (core/workflow-spec.ts), registerIpc (main/ipc.ts, the config-load handler that returns configIssues), installRuntime (core/install.ts, which reports the issues). One level up: refreshStaleRuntime calls installRuntime. validateConfig has no TypeScript caller besides the plugin-entries re-export. The name also appears in comments (workflow-spec.ts, contracts.ts, ipc.ts) and re-exports (index.ts, plugin-entries/maestro-session.ts) that are not calls.",
       "why_grep_expensive": "Nine files mention the name, but most hits are doc comments or re-exports; only four are calls. Grep has to read around each hit to tell calls from comments and to name the enclosing function, then search again for callers of installRuntime and applyWorkflowSpec. The name is also defined in two concepts (maestro-config-model and plugin-libs-parity), which the graph disambiguates with exit 4 and one retry.",
-      "proxy": "code-graph query impact maestro-config-model::duplicateAgentTypes --direction in (635 chars, complete); the unqualified name exits 4 with two candidates"
+      "proxy": "code-graph query impact maestro-config-model::duplicateAgentTypes --direction in (635 chars, complete); the unqualified name exits 4 with two candidates",
+      "proxy_cmd": ["query", "impact", "maestro-config-model::duplicateAgentTypes", "--direction", "in"],
+      "sets": ["042"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["maestro-architecture", "maestro-config-model"],
+      "skill_note": "maestro-architecture (root, listed at init) names duplicateAgentTypes in its description and its Q&A table says it runs from three call sites: the app's config load, /maestro-update and install.ts. maestro-config-model (apps/maestro/.claude/skills, nested, not in the init list) says where each call site computes it. It gives the model the three non-comment callers up front, so it can skip sorting calls from doc comments and re-exports."
     },
     {
       "id": "m3-impact-readallagenttypes",
@@ -40,7 +46,8 @@
       "must": ["seededAgentAttrs", "copyAgentAttributeRows", "installRuntime", "registerIpc", "skillMapForSeed", "forkAgent", "refreshStaleRuntime"],
       "expected": "Direct callers: seededAgentAttrs and registerIpc (main/ipc.ts), copyAgentAttributeRows (core/agent-fork.ts), installRuntime (core/install.ts). One level up: skillMapForSeed (ipc.ts) calls seededAgentAttrs, forkAgent (agent-fork.ts) calls copyAgentAttributeRows, refreshStaleRuntime calls installRuntime. Callers span electron-shell-invariants, agent-fork-sync and installing-maestro; the function lives in global-stores.",
       "why_grep_expensive": "Callers are in three different layers (main process, fork logic, installer) and the name also appears in re-exports and comments. Naming the second level needs three more Greps (seededAgentAttrs, copyAgentAttributeRows, installRuntime) plus Reads of 1000-line files to find enclosing functions.",
-      "proxy": "code-graph query impact readAllAgentTypes --direction in (665 chars, complete)"
+      "proxy": "code-graph query impact readAllAgentTypes --direction in (632 chars, complete)",
+      "proxy_cmd": ["query", "impact", "readAllAgentTypes", "--direction", "in"]
     },
     {
       "id": "m4-cross-install-config",
@@ -52,7 +59,12 @@
       "must": ["installRuntime", "installStatus", "uninstallRuntime", "refreshStaleRuntime", "maestroJsonPath", "writeConfig", "readJsonSafe", "writeRuntimeVersion", "maestroConfigRefusal"],
       "expected": "installing-maestro (install.ts, uninstall.ts) calls into maestro-config-model (config.ts) in 19 edges: installRuntime calls readConfig, writeConfig (twice), readJsonSafe, writeRuntimeVersion, maestroConfigRefusal, duplicateAgentTypes and maestroJsonPath; installStatus calls maestroJsonPath and readJsonSafe; refreshStaleRuntime calls maestroJsonPath and readJsonSafe; uninstallPlan, purgeTargets and uninstallRuntime call maestroJsonPath.",
       "why_grep_expensive": "Grep must scan install.ts (about 1000 lines) and uninstall.ts for every import from config.js, then map each call site to its enclosing function across two files. The imports alone do not say which function calls what. The installing-maestro skill names only some of these (readConfig, maestroConfigRefusal), not the per-function map.",
-      "proxy": "code-graph query cross installing-maestro maestro-config-model (1758 chars, 19 edges, complete)"
+      "proxy": "code-graph query cross installing-maestro maestro-config-model (1758 chars, 19 edges, complete)",
+      "proxy_cmd": ["query", "cross", "installing-maestro", "maestro-config-model"],
+      "sets": ["042"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["installing-maestro"],
+      "skill_note": "installing-maestro (root, listed at init): its Files table maps install.ts (installStatus, installRuntime, refreshStaleRuntime) and uninstall.ts (uninstallPlan, purgeTargets, uninstallRuntime) and names readConfig, maestroConfigRefusal and maestroJsonPath. It does not give the per-function call map, so the model still reads the two files. In 039 the graph arm that loaded it was 16% cheaper than the arm that did not."
     },
     {
       "id": "m5-cross-ipc-config",
@@ -64,7 +76,76 @@
       "must": ["registerIpc", "applyProjectTagsSet", "saveConfig", "readConfig", "blankConfig", "readAgentsAvailable", "resolveUseMaestroTasks", "watchConfigFile", "restartConfigWatch"],
       "expected": "electron-shell-invariants calls into maestro-config-model in 22 edges: registerIpc calls readConfig, saveConfig, blankConfig, readAgentsAvailable, resolveUseMaestroTasks and duplicateAgentTypes; applyProjectTagsSet calls readConfig and saveConfig; restartConfigWatch calls watchConfigFile; the renderer RootLayout mounts ConfigWatchProvider.",
       "why_grep_expensive": "registerIpc is one very large function in main/ipc.ts (over 1000 lines) holding dozens of handlers; Grep can list the config.js imports but not which handler uses which function without reading most of the file. The renderer mount (RootLayout) is in a different part of the tree.",
-      "proxy": "code-graph query cross electron-shell-invariants maestro-config-model (2117 chars, 22 edges, complete)"
+      "proxy": "code-graph query cross electron-shell-invariants maestro-config-model (2117 chars, 22 edges, complete)",
+      "proxy_cmd": ["query", "cross", "electron-shell-invariants", "maestro-config-model"]
+    },
+    {
+      "id": "m6-deep-listsessionids",
+      "group": "maestro@3814a30",
+      "kind": "deep",
+      "question": "I'm about to change what `listSessionIds` (apps/maestro/src/core/session-paths.ts) returns. Which functions call it directly, and which functions call those in turn? Give names and files.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["newestSessionLog", "tailSessionLogs", "worktreeHasLog", "sweepStaleSessions", "listDeletableSessions", "liveRunIds", "sessionLogFileFor", "startTail", "createWorktreeTabs", "describeWorktrees", "sweepAndRetarget", "registerIpc", "pendingLanes"],
+      "expected": "Direct callers (6): newestSessionLog and tailSessionLogs (core/session-log.ts), worktreeHasLog (core/worktree-tabs.ts), sweepStaleSessions and listDeletableSessions (core/session-sweep.ts), liveRunIds (core/handoff-channels.ts). One level up (7): sessionLogFileFor (session-log.ts) calls newestSessionLog; startTail (main/ipc.ts) and createWorktreeTabs (worktree-tabs.ts) call tailSessionLogs; describeWorktrees (worktree-tabs.ts) calls worktreeHasLog; sweepAndRetarget (core/session-ipc.ts) calls sweepStaleSessions; registerIpc (main/ipc.ts, the sessionsDeletable handler) calls listDeletableSessions; pendingLanes (handoff-channels.ts) calls liveRunIds. Checked against Grep of every call site in apps/maestro/src (tests, re-exports and the .cjs copies excluded).",
+      "why_grep_expensive": "Six direct callers in four files, then six more names to chase for the second level, across six files (seven distinct callers). Each hit needs a Read to name its enclosing function (tailSessionLogs is called inside startTail in the 1289-line ipc.ts and inside a closure of createWorktreeTabs). The name also hits two tests, two re-exports (index.ts, plugin-entries/maestro-session.ts), the compiled .claude/scripts/lib/maestro-session.cjs and plugins/maestro/scripts copies, and two nested concept skills. Twice as wide as m1-m3 at both levels.",
+      "proxy": "code-graph query impact listSessionIds --direction in (1307 chars, complete: same output with --max 100; every direct and depth-2 caller matches the Grep check)",
+      "proxy_cmd": ["query", "impact", "listSessionIds", "--direction", "in"]
+    },
+    {
+      "id": "m7-deep-decidesync",
+      "group": "maestro@3814a30",
+      "kind": "deep",
+      "question": "Which TypeScript functions call `decideSync` (apps/maestro/src/core/sync-decision.ts) directly, and which functions call those in turn? Ignore tests and the compiled .cjs/.js copies under plugins/ and .claude/scripts/. Give names and files.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["buildEntry", "syncProjectReports", "syncProjectHandoffs", "computeAgentSync", "installRuntime"],
+      "expected": "Direct callers (3): buildEntry (core/agent-sync.ts), syncProjectReports (core/report-sync.ts), syncProjectHandoffs (core/handoff-sync.ts). One level up: computeAgentSync (agent-sync.ts) calls buildEntry; installRuntime (core/install.ts) calls both syncProjectReports and syncProjectHandoffs. Checked against Grep of every call site in apps/maestro/src.",
+      "why_grep_expensive": "A common name with many non-call hits: `grep -rw decideSync` returns 85 lines in 31 files, and only 3 are TypeScript calls. The rest are doc comments (contracts.ts, types.ts, shared/ipc.ts, agent-fork-record.ts, the sync files themselves), re-exports (index.ts, plugin-entries), 12 lines of sync-decision.test.ts, compiled .cjs/.js copies with their own callers (maestro-install.js, maestro-agent-sync.cjs) and concept-skill and task prose. buildEntry is a private helper, so its caller needs a second Grep and a Read of agent-sync.ts.",
+      "proxy": "code-graph query impact decideSync --direction in (598 chars, complete: same output with --max 100; the 3 direct and 2 depth-2 callers match the Grep check)",
+      "proxy_cmd": ["query", "impact", "decideSync", "--direction", "in"]
+    },
+    {
+      "id": "s1-concept-session-state",
+      "group": "maestro@3814a30",
+      "kind": "concept",
+      "sets": ["042"],
+      "question": "Where does Maestro keep a Claude Code session's ephemeral state on disk, which files are in it, and how does a hook or CLI script work out which session it belongs to? What happens when it cannot tell?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["maestro-architecture"],
+      "must": ["maestro_sessions", "log\\.jsonl", "session\\.json", "tasks\\.json", "CLAUDE_CODE_SESSION_ID", "session-paths", "resolveSessionId"],
+      "expected": "One directory per session: <project>/.claude/maestro_sessions/<session_id>/ holding log.jsonl (append-only session log), session.json ({workflow, generated_instances, run_id}, plus meeting/worktree/session-name keys) and tasks.json (success-path steps that already have a TaskCreate); maestro_sessions/ gets a .gitignore containing `*`. apps/maestro/src/core/session-paths.ts owns the question: resolveSessionId takes payload.session_id when the caller is a hook with a stdin payload, else the CLAUDE_CODE_SESSION_ID env var (the !-injected gate scripts and CLIs with no stdin), else null. The id is validated against ^[A-Za-z0-9_-]{1,128}$, never sanitised, and an invalid id from either source is null without falling through to the other. With no session the caller writes nothing and exits 0, which looks like Maestro not being installed. A subagent's hook payload carries the main session's session_id, so one workflow run is one directory.",
+      "skill_note": "maestro-architecture (root, listed at init): its description already names the directory, the three files and the resolution order (payload session_id -> CLAUDE_CODE_SESSION_ID -> null); its session-state sub-concept names session-paths.ts, the validation rule and the silent exit-0 degradation. The model can answer from the skill and open one file to confirm instead of searching for where session files are written."
+    },
+    {
+      "id": "s2-concept-uninstall-purge",
+      "group": "maestro@3814a30",
+      "kind": "concept",
+      "sets": ["042"],
+      "question": "What does uninstalling Maestro from a project remove by default, what does a purge remove on top of that, and what is still on disk after a purge? Cover both the desktop app's uninstall and the terminal uninstaller.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["installing-maestro"],
+      "must": ["maestro\\.json", "settings\\.json", "maestro_sessions", "claims", "\\.claude/scripts", "SKILL\\.md|orchestrator skill", "handoffs", "reports", "delete-maestro-tasks|deleteMaestroTasks"],
+      "expected": "Default (apps/maestro/src/core/uninstall.ts uninstallRuntime, plugins/maestro/scripts/maestro-uninstall.js): removes only Maestro's own hook registrations from .claude/settings.json (a command that points into .claude/scripts/ and names a script the install registers; other hooks and keys stay; the settings file is parsed before the first deletion), the whole .claude/maestro_sessions/ directory plus the three legacy flat session files, .claude/maestro-tasks/claims/ and a legacy agent: \"maestro\" key. It keeps maestro.json. Purge adds the orchestrator skill (.claude/skills/maestro/SKILL.md and its .bak), the copied runtime scripts under .claude/scripts/ (manifest plus a sweep of maestro-* names and RETIRED_HOOK_SCRIPTS), the legacy .claude/templates/handoffs/, and maestro.json (purgeTargets lists the most consequential first, so maestro.json leads the confirmation); the terminal purge also removes the marked .claude/ line from .git/info/exclude. After a purge these stay: .claude/maestro-tasks/ (needs its own opt-in on top of purge: deleteMaestroTasks in the app, --delete-maestro-tasks in the terminal), .claude/handoffs/ and .claude/reports/ (the user's tracked overrides; never touched by the app, deletable only through the terminal's --delete-materialized-handoffs/--delete-materialized-reports, each requiring --purge), the .gitignore # Maestro block, and the user's own hooks and settings keys. On a machine with the maestro plugin, a plain uninstall hands the hooks back to the plugin's copies, which keep firing.",
+      "skill_note": "installing-maestro (root, listed at init): its uninstall-and-purge sub-concept is this answer in one place: the two levels, the SESSION_FILES and claims/ removal at every level, what purge adds, the three directories that survive and their separate opt-in flags (terminal only for reports/ and handoffs/), and the git-exclude line. Without it the model has to read uninstall.ts (465 lines) and maestro-uninstall.js (351 lines) and reconcile the two."
+    },
+    {
+      "id": "s3-concept-task-cascade",
+      "group": "maestro@3814a30",
+      "kind": "concept",
+      "sets": ["042"],
+      "question": "I want to change the rule that decides when a task in `.claude/maestro-tasks/` becomes ready once its blockers are closed. Where is that rule implemented, and what do I have to change so a close from the desktop app and a close from the orchestrator never disagree about which tasks are ready?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["task-queue"],
+      "must": ["tasks\\.ts", "maestro-tasks\\.cjs", "buildStatusMap", "status\\.json", "(not|never|isn[’']t)[\\s*_]+(auto[- ]?)?generated|hand[- ]?(maintained|written|edited)|by hand|manually|no (plugin-entries |tasks\\.ts )?source|(except(ion|ed)?|excluded|exempt)(?:(?!\\.\\s)[^\\n]){0,80}?(generat|plugin-entries|plugin-libs|lib build)|(generat|plugin-entries|plugin-libs|lib build)(?:(?!\\.\\s)[^\\n]){0,80}?(except(ion|ed)?|excluded|exempt)"],
+      "expected": "The rule is implemented twice and the two must agree: apps/maestro/src/core/tasks.ts (buildStatusMap, also applied in tasksFromFiles; parseBlockedBy reads the task file's ## Blocked by section; listTasks, closeTask) for the desktop app, and plugins/maestro/scripts/lib/maestro-tasks.cjs (buildStatusMap, behind sync and markDone) for the orchestrator via maestro-task-status.cjs (also used by maestro-write-tasks.cjs). Today a non-done task is ready when every blockedBy entry is done or no longer exists as a file, else blocked; only done is stored as a decision, the rest is recomputed into .claude/maestro-tasks/status.json ({status, blockedBy}). maestro-tasks.cjs is the one plugin lib that is NOT generated from apps/maestro/src/core/plugin-entries (it has no source there), so build:plugin-libs will not carry a tasks.ts change into it: edit both by hand in the same way. It is also a STATIC_ASSET with a tracked mirror at .claude/scripts/lib/maestro-tasks.cjs (copy it over, run parity.test.ts), and a change under plugins/maestro bumps plugin.json's version.",
+      "skill_note": "task-queue (root, listed at init): its first section says the cascade lives in tasks.ts and maestro-tasks.cjs, that maestro-tasks.cjs is the one lib file NOT generated (no plugin-entries source, hand-maintained) and why (a UI close and an orchestrator close must not disagree). The code says only that the two are kept in sync; the root rule plugin-publishing.md also says maestro-tasks.cjs is the exception to generation, so that part reaches both arms."
     }
   ]
 }

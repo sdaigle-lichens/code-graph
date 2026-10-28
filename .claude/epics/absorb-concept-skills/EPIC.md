@@ -885,3 +885,25 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - Conclusion for the retrieval direction: with Opus on a maestro-sized repo, even a free graph
     answer doesn't cut cost. Delivery rework isn't justified on this evidence. 042 goes ahead
     unchanged.
+- Tickets 041/042 and the bookkeeping committed by me at the user's request (84a9bf2). 041's bench
+  work was left uncommitted.
+- r041 acked: 042 is done.
+  - Run: m2, m4, s1, s2, s3 on Opus 5.5; 19 of 20 runs valid; $5.363 of $7. A 429 was rerun with
+    `--rerun`.
+  - The invalid run is m2 noskills run 1, where a Bash chain with `sed` exited 1. That leaves m2
+    unbalanced.
+  - **Verdict: concept skills don't save cost on Q&A.**
+    - The 4 balanced questions: skills $2.157 vs noskills $1.992 (+8%). Pass 60/60 vs 58/60.
+    - Where the covering skill loaded (s2, s3, 4 of 4 runs): +11%. The model still reads the
+      source, and the skill adds cache-create tokens.
+    - On m2, m4 and s1 the covering skill never loaded.
+    - The 039 m4 hint (-16%) didn't reproduce: +11% here.
+    - Selection bias favours skills.
+  - Verified by me: bench tests 57/57; the totals recomputed from both reports match.
+  - Suggestions from 042, held:
+    - measure answer quality on conventions and invariants the code doesn't show (`plugin-publishing.md`
+      leaked s3's key fact to both arms);
+    - relax the "any Bash failure invalidates" rule for a `sed`/`grep` in a chain.
+  - Combined conclusion (039 + 041 + 042): on read-only questions with Opus on maestro, neither the
+    graph nor concept skills cut cost. Any value they have is untested: answer quality on
+    unwritten rules, edit tasks, subagents, weaker models.
