@@ -2,15 +2,54 @@
   "slug": "haiku-subagents-with-graph",
   "created_at": "2026-10-28T16:07:30.278Z",
   "manager": {
-    "name": "maestro-mgr-78985bd6",
-    "set_at": "2026-10-28T16:55:47.427Z"
+    "name": "code-graph-manager-haiku-epic",
+    "set_at": "2026-10-29T22:16:29.597Z"
   },
   "workers": [
     {
       "name": "haiku-subagents-with-graph-044",
       "task": "044-measure-whether-the-graph-improves-haiku-test-and-scribe-work-against-sonnet.md",
-      "added_at": "2026-10-28T16:56:43.337Z"
+      "added_at": "2026-10-29T21:52:18.466Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-046",
+      "task": "046-make-regraph-and-eval-refuse-or-rebuild-a-stale-cli-build.md",
+      "added_at": "2026-10-29T21:52:23.572Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-047",
+      "task": "047-make-check-versions-run-directly-check-symlink-safe.md",
+      "added_at": "2026-10-29T22:16:13.636Z"
     }
   ],
-  "log": []
+  "log": [
+    {
+      "kind": "report",
+      "id": "r001",
+      "task": "046-make-regraph-and-eval-refuse-or-rebuild-a-stale-cli-build.md",
+      "file": "inbox/r001-046-make-regraph-and-eval-refuse-or-rebuild-a-stale-cli-build.md",
+      "at": "2026-10-29T22:13:41.856Z",
+      "from": "haiku-subagents-with-graph-046"
+    },
+    {
+      "kind": "ack",
+      "id": "r001",
+      "at": "2026-10-29T22:13:49.517Z",
+      "by": "maestro-mgr-3dcf0ab0"
+    },
+    {
+      "kind": "report",
+      "id": "r002",
+      "task": "047-make-check-versions-run-directly-check-symlink-safe.md",
+      "file": "inbox/r002-047-make-check-versions-run-directly-check-symlink-safe.md",
+      "at": "2026-10-29T22:34:11.762Z",
+      "from": "haiku-subagents-with-graph-047"
+    },
+    {
+      "kind": "ack",
+      "id": "r002",
+      "at": "2026-10-29T22:34:18.980Z",
+      "by": "code-graph-manager-haiku-epic"
+    }
+  ]
 }

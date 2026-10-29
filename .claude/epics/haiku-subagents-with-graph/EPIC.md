@@ -38,3 +38,6 @@ embedding ranking; an MCP server.
 - Paid bench runs are user-run from a plain terminal, each with a cap and a decision rule written
   into `docs/evals.md` before the run.
 - Ticket 044 first: no friction work until edit-style tasks show a gain.
+- Tickets that change `packages/code-graph/src/` must say the plugin bundle is regenerated
+  (`pnpm bundle`) even when the bundle is otherwise out of scope (046, report r001).
+- `just eval` and `just regraph` rebuild a stale `dist/` themselves (046).

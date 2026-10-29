@@ -270,7 +270,12 @@
     "blockedBy": []
   },
   "046-make-regraph-and-eval-refuse-or-rebuild-a-stale-cli-build.md": {
-    "status": "ready",
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "047-make-check-versions-run-directly-check-symlink-safe.md": {
+    "status": "done",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
   }
