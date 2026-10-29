@@ -3,7 +3,7 @@
 // (baked into the bundle as the CLI version and every vertex's extractor_version), the plugin's
 // plugin.json and the root marketplace.json. Run by `pnpm check` and by the bundle step.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +33,17 @@ export function assertVersionsAligned() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** True when run directly. Real paths on both sides: import.meta.url has symlinks resolved (/tmp -> /private/tmp on macOS), argv[1] does not. */
+function isEntrypoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntrypoint()) {
   try {
     assertVersionsAligned();
   } catch (err) {

@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.resolve(here, "../..");
@@ -351,5 +351,25 @@ describe("check-versions: published version strings must match", () => {
       assert.match(r.stderr, /plugin\.json/);
       assert.match(r.stderr, /marketplace\.json/);
     }
+  });
+
+  it("still runs when invoked through a symlinked path", () => {
+    const file = fakeRepo({ pkg: "9.9.9", plugin: "1.2.3", market: "1.2.3" });
+    const link = path.join(tmp, "link");
+    fs.symlinkSync(path.join(tmp, "repo"), link, "dir");
+    const r = check(path.join(link, path.relative(path.join(tmp, "repo"), file)));
+    assert.equal(r.code, 1, r.stderr);
+    assert.match(r.stderr, /version drift/);
+  });
+
+  it("does nothing when imported", () => {
+    const file = fakeRepo({ pkg: "9.9.9", plugin: "1.2.3", market: "1.2.3" });
+    const r = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(file).href)});`],
+      { encoding: "utf8" }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stderr, "");
   });
 });

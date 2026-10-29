@@ -3,7 +3,7 @@
 // .claude/ directory under plugin/ (the plugin's own .claude-plugin/ is fine). Developer rules
 // live in the repo's .claude/rules/. Run by `pnpm check`.
 
-import { readdirSync } from "node:fs";
+import { readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,7 +22,17 @@ export function findForbidden(dir, rel = "plugin") {
   return found;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** True when run directly. Real paths on both sides: import.meta.url has symlinks resolved, argv[1] does not. */
+function isEntrypoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntrypoint()) {
   const found = findForbidden(path.join(repoRoot, "plugin"));
   if (found.length > 0) {
     console.error(

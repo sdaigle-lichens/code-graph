@@ -57,6 +57,9 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   `pnpm check`) fails if `plugin/` holds a `CLAUDE.md` or `.claude/`. The skill-gap channel file
   format lives in `plugin/contracts/skill-gaps.{schema,example}.json`; `src/skills/gap-contract.test.ts`
   tests it, so change all three together.
+- **Scripts' run-directly check compares realpaths.** `.mjs` scripts (and `bench/strip-concept-skills.mjs`)
+  use a local `isEntrypoint` helper (realpath of `argv[1]` vs `import.meta.url`) so a symlinked checkout
+  still runs; `scribe/script-symlink.test.ts` covers it. Copy the helper into new scripts.
 - **Layer 1 never loads the graph stack.** `skills *` must not load `node:sqlite`, `typescript` or
   `ts-morph`; `cli.ts` imports store/extract/query modules lazily inside each command. Keep new
   graph imports lazy and keep `skills/` free of them.

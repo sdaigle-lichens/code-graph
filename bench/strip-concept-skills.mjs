@@ -6,7 +6,7 @@
 // Prints the removed skills as JSON. Exits 1 when the workspace has no concept skill (the arm would
 // measure nothing), 2 when the workspace is not a directory or sits inside a git work tree (this
 // deletes files, so it only ever runs on a fresh bench workspace; maestro-setup.sh calls it).
-import { readdirSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, existsSync, statSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +46,17 @@ export function stripConceptSkills(root) {
   return { removed: all.filter((s) => s.concept).map(pick), kept: all.filter((s) => !s.concept).map(pick) };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Real paths on both sides: import.meta.url has symlinks resolved, argv[1] does not.
+const isEntrypoint = () => {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (isEntrypoint()) {
   const root = resolve(process.argv[2] || '');
   const die = (code, msg) => { console.error(`strip-concept-skills: ${msg}`); process.exit(code); };
   if (!process.argv[2] || !existsSync(root) || !statSync(root).isDirectory()) die(2, `not a directory: ${process.argv[2] || '(none given)'}`);

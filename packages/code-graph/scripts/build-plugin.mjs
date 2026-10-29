@@ -17,7 +17,7 @@
 // `git diff plugin/scripts/`.
 
 import { build } from "esbuild";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertVersionsAligned } from "./check-versions.mjs";
@@ -75,7 +75,17 @@ export async function buildPlugin(outfile = defaultOutfile) {
   return outfile;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** True when run directly. argv[1] goes through realpath: import.meta.url has symlinks resolved. */
+function isEntrypoint() {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isEntrypoint()) {
   const outfile = await buildPlugin();
   const kib = (statSync(outfile).size / 1024).toFixed(0);
   process.stdout.write(`built ${path.relative(process.cwd(), outfile)} (${kib} KiB)\n`);
