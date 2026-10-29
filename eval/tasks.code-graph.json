@@ -28,8 +28,8 @@
   },
   {
     "id": "task-2-traversal-expansion",
-    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate.",
-    "prompt": "graph traversal expansion",
+    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate. Prompt reworded in 0.3.28 (was \"graph traversal expansion\") so it passes on an un-enriched store: porter stems \"expansion\" and \"expand\" differently, and queryImpact is only reachable through \"impact\".",
+    "prompt": "expand graph traversal impact",
     "mode": "search",
     "expected": {
       "concepts_in_top_clusters": [
