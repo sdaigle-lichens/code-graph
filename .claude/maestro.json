@@ -1067,7 +1067,7 @@
     "backend",
     "frontend"
   ],
-  "runtimeVersion": "0.13.0",
+  "runtimeVersion": "0.13.8",
   "reports": {
     "backend": {
       "id": "backend",
@@ -1195,8 +1195,7 @@
   "start_skills": {
     "maestro": [],
     "to_maestro_tasks": [
-      "confidence-check",
-      "concept-skills:use-code-architecture-design-check"
+      "confidence-check"
     ]
   },
   "end_skills": {

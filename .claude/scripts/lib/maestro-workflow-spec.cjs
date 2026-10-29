@@ -52,7 +52,7 @@ function padY(b, pad) {
 }
 function nodeBox(n, skillCount) {
   const { x, y } = n.position ?? { x: 0, y: 0 };
-  if (n.type === "human_review") return { x, y, w: HUMAN_W, h: HUMAN_H };
+  if (n.type === "human_review" || n.type === "manager_review") return { x, y, w: HUMAN_W, h: HUMAN_H };
   const skills = n.type === "agent" ? skillCount(n.instance ?? n.id) : 0;
   return { x, y, w: NODE_W, h: NODE_H + skills * SKILL_CHIP_H };
 }
@@ -211,8 +211,10 @@ function duplicateAgentTypes(cfg) {
 
 // src/core/workflow-spec.ts
 var SIDE_COLUMN_X = 360;
+var MANAGER_REVIEW_ID = /^manager_review-\d+$/;
 function parseStep(step) {
   if (step === "human_review-1") return { id: step, type: "human_review" };
+  if (MANAGER_REVIEW_ID.test(step)) return { id: step, type: "manager_review" };
   if (step.startsWith("skill:")) {
     const skill = step.slice("skill:".length);
     return { id: skill, type: "skill", skill };
@@ -274,8 +276,8 @@ function applyWorkflowSpec(cfg, spec, mode) {
     const parsed = parseStep(token);
     const already = nodeById.get(parsed.id);
     if (already) return already;
-    if (parsed.type === "human_review" || parsed.type === "skill") {
-      const node2 = parsed.type === "human_review" ? { id: parsed.id, type: "human_review", position: existingPositions.get(parsed.id) ?? { x, y } } : {
+    if (parsed.type === "human_review" || parsed.type === "manager_review" || parsed.type === "skill") {
+      const node2 = parsed.type === "human_review" || parsed.type === "manager_review" ? { id: parsed.id, type: parsed.type, position: existingPositions.get(parsed.id) ?? { x, y } } : {
         id: parsed.id,
         type: "skill",
         skill: parsed.skill,
@@ -368,7 +370,7 @@ function workflowToSpec(wf, _instances) {
   function tokenFor(nodeId) {
     const node = nodeById.get(nodeId);
     if (!node) return nodeId;
-    if (node.type === "human_review") return node.id;
+    if (node.type === "human_review" || node.type === "manager_review") return node.id;
     if (node.type === "skill") return `skill:${node.skill ?? node.id}`;
     return node.instance ?? node.id;
   }

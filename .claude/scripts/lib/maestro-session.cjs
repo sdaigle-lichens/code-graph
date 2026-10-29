@@ -40,9 +40,13 @@ __export(maestro_session_exports, {
   HANDBACK_POLL_MS: () => HANDBACK_POLL_MS,
   HANDBACK_TOOLS: () => HANDBACK_TOOLS,
   HANDBACK_WAIT_MS: () => HANDBACK_WAIT_MS,
+  HEARTBEAT_INTERVAL_ENV: () => HEARTBEAT_INTERVAL_ENV,
+  HEARTBEAT_INTERVAL_MS: () => HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_STALE_MS: () => HEARTBEAT_STALE_MS,
   HUMAN_REVIEW_LABEL: () => HUMAN_REVIEW_LABEL,
   LEGACY_SESSION_FILES: () => LEGACY_SESSION_FILES,
   MAIN_CHECKOUT_SHARED_DIRS: () => MAIN_CHECKOUT_SHARED_DIRS,
+  MANAGER_REVIEW_LABEL: () => MANAGER_REVIEW_LABEL,
   MEETING_DIR_NAME: () => MEETING_DIR_NAME,
   MEETING_LEFTOVERS_KEY: () => MEETING_LEFTOVERS_KEY,
   METRICS_DIR_NAME: () => METRICS_DIR_NAME,
@@ -53,6 +57,8 @@ __export(maestro_session_exports, {
   RESUMABLE_END_REASONS: () => RESUMABLE_END_REASONS,
   SEED_HANDOFFS: () => SEED_HANDOFFS,
   SESSIONS_DIR_NAME: () => SESSIONS_DIR_NAME,
+  SESSION_HEARTBEAT_NAME: () => SESSION_HEARTBEAT_NAME,
+  SESSION_HEARTBEAT_PID_NAME: () => SESSION_HEARTBEAT_PID_NAME,
   SESSION_ID_ENV: () => SESSION_ID_ENV,
   SESSION_LOG_FILE: () => SESSION_LOG_FILE,
   SESSION_LOG_NAME: () => SESSION_LOG_NAME,
@@ -79,6 +85,9 @@ __export(maestro_session_exports, {
   compactMetrics: () => compact,
   compareRuntimeVersions: () => compareRuntimeVersions,
   currentReviewRound: () => currentReviewRound,
+  currentReviewStop: () => currentReviewStop,
+  dependencyStatus: () => dependencyStatus,
+  detectPackageManager: () => detectPackageManager,
   dropResolvedMissingPayloads: () => dropResolvedMissingPayloads,
   duplicateAgentTypes: () => duplicateAgentTypes,
   endMeeting: () => endMeeting,
@@ -99,10 +108,16 @@ __export(maestro_session_exports, {
   handoffRoutes: () => handoffRoutes,
   hasCompletedRun: () => hasCompletedRun,
   hasHandbackCall: () => hasHandbackCall,
+  heartbeatIntervalMs: () => heartbeatIntervalMs,
+  heartbeatTargets: () => heartbeatTargets,
+  heartbeatTick: () => heartbeatTick,
+  heartbeatVerdict: () => heartbeatVerdict,
+  installCommand: () => installCommand,
   isChannelOnlyAgent: () => isChannelOnlyAgent,
   isFreeformBranch: () => isFreeformBranch,
   isGapReport: () => isGapReport,
   isLinkedWorktree: () => isLinkedWorktree,
+  isProcessAlive: () => isProcessAlive,
   isResumableEnd: () => isResumableEnd,
   isReviewFile: () => isReviewFile,
   isRootSkillPath: () => isRootSkillPath,
@@ -120,18 +135,22 @@ __export(maestro_session_exports, {
   meetingNotice: () => meetingNotice,
   metricsDirFor: () => metricsDirFor,
   metricsFileFor: () => metricsFileFor,
+  missingDependenciesNotice: () => missingDependenciesNotice,
   missingLoopbackPayload: () => missingLoopbackPayload,
   nodeLabel: () => nodeLabel,
   noteEntrance: () => noteEntrance,
   ownerRunFor: () => ownerRunFor,
   ownerRunLeftovers: () => ownerRunLeftovers,
   ownerRunNotice: () => ownerRunNotice,
+  parentProbe: () => parentProbe,
   parseGapsHandled: () => parseGapsHandled,
+  parsePsLine: () => parsePsLine,
   parseStampedContent: () => parseStampedContent,
   payloadRequirement: () => payloadRequirement,
   payloadRoutes: () => payloadRoutes,
   payloadWrittenSince: () => payloadWrittenSince,
   pendingResumeDeliveries: () => pendingResumeDeliveries,
+  processInfo: () => processInfo,
   projectOwnsHook: () => projectOwnsHook,
   promptEntranceRole: () => promptEntranceRole,
   readJson: () => readJson,
@@ -183,10 +202,12 @@ __export(maestro_session_exports, {
   unstampedFilesOf: () => unstampedFilesOf,
   validateConfig: () => validateConfig,
   walkProjectSkillIds: () => walkProjectSkillIds,
+  watchedPid: () => watchedPid,
   withoutMeeting: () => withoutMeeting,
   workflowNodeLabels: () => workflowNodeLabels,
   worktreeBranchFor: () => worktreeBranchFor,
   worktreePathFor: () => worktreePathFor,
+  writeHeartbeatPid: () => writeHeartbeatPid,
   writeSession: () => writeSession,
   writeStamp: () => writeStamp
 });
@@ -254,6 +275,7 @@ function nodeLabel(id, wf, instances) {
     return "@" + (inst?.name || n.instance || n.id);
   }
   if (n.type === "skill") return "/" + (n.skill || n.id);
+  if (n.type === "manager_review") return "manager review";
   return "human review";
 }
 function successPathSteps(wf, instances) {
@@ -397,6 +419,8 @@ var SESSION_LOG_NAME = "log.jsonl";
 var SESSION_STATE_NAME = "session.json";
 var SESSION_TASKS_NAME = "tasks.json";
 var SESSION_WORKTREE_NAME = "worktree.json";
+var SESSION_HEARTBEAT_NAME = "heartbeat";
+var SESSION_HEARTBEAT_PID_NAME = "heartbeat.pid";
 var SESSION_ID_ENV = "CLAUDE_CODE_SESSION_ID";
 var LEGACY_SESSION_FILES = [
   "maestro_session.json",
@@ -578,11 +602,18 @@ function appendSessionLog(claudeDir, entry, payload) {
   import_node_fs4.default.appendFileSync(paths.log, JSON.stringify(stamped) + "\n");
 }
 
+// src/core/session-heartbeat.ts
+var import_node_fs6 = __toESM(require("node:fs"), 1);
+var import_node_path4 = __toESM(require("node:path"), 1);
+
 // src/core/handoff-channels.ts
 var import_node_fs5 = __toESM(require("node:fs"), 1);
 var import_node_path3 = __toESM(require("node:path"), 1);
 var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;
 var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;
+var HEARTBEAT_INTERVAL_MS = 60 * 1e3;
+var HEARTBEAT_STALE_MS = 3 * 60 * 1e3;
+var HEARTBEAT_INTERVAL_ENV = "MAESTRO_HEARTBEAT_INTERVAL_MS";
 var CHANNELS_DIR_NAME = "channels";
 var CONSUMED_DIR_NAME = ".consumed";
 var SCRIBE_LANE = "scribe";
@@ -790,6 +821,116 @@ function sweep(projectDir, opts = {}) {
     }
   }
   return { removed };
+}
+
+// src/core/session-heartbeat.ts
+function heartbeatVerdict(dir, now = Date.now()) {
+  let mtimeMs;
+  try {
+    mtimeMs = import_node_fs6.default.statSync(import_node_path4.default.join(dir, SESSION_HEARTBEAT_NAME)).mtimeMs;
+  } catch {
+    return null;
+  }
+  return now - mtimeMs <= HEARTBEAT_STALE_MS;
+}
+function heartbeatIntervalMs(env = process.env) {
+  const raw = Number(env[HEARTBEAT_INTERVAL_ENV]);
+  return Number.isFinite(raw) && raw > 0 ? raw : HEARTBEAT_INTERVAL_MS;
+}
+function heartbeatTargets(claudeDir, sessionId) {
+  const paths = sessionPathsFor(claudeDir, sessionId);
+  return {
+    pidFile: paths ? import_node_path4.default.join(paths.dir, SESSION_HEARTBEAT_PID_NAME) : null,
+    sessionDirs: sessionDirsFor(claudeDir, sessionId)
+  };
+}
+function writeHeartbeatPid(pidFile, pid) {
+  try {
+    import_node_fs6.default.writeFileSync(pidFile, `${pid}
+`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isDir(p) {
+  try {
+    return import_node_fs6.default.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function stamp(dir, atMs) {
+  const file = import_node_path4.default.join(dir, SESSION_HEARTBEAT_NAME);
+  try {
+    import_node_fs6.default.closeSync(import_node_fs6.default.openSync(file, "a"));
+    const t = new Date(atMs);
+    import_node_fs6.default.utimesSync(file, t, t);
+  } catch {
+  }
+}
+function heartbeatTick(input) {
+  const dirs = input.sessionDirs.filter(isDir);
+  if (dirs.length === 0) return "stop";
+  if (input.pidFile) {
+    let owner = null;
+    try {
+      owner = Number.parseInt(import_node_fs6.default.readFileSync(input.pidFile, "utf8").trim(), 10);
+    } catch {
+      owner = null;
+    }
+    if (owner !== null && Number.isFinite(owner) && owner !== input.ownPid) return "stop";
+  }
+  if (!input.parentAlive) {
+    for (const dir of dirs) stamp(dir, 0);
+    return "stop";
+  }
+  for (const dir of dirs) stamp(dir, input.now);
+  return "continue";
+}
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === "EPERM";
+  }
+}
+function processInfo(pid) {
+  try {
+    const stat = import_node_fs6.default.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const open = stat.indexOf("(");
+    const close = stat.lastIndexOf(")");
+    if (open < 0 || close < open) return null;
+    const rest = stat.slice(close + 2).trim().split(" ");
+    return { ppid: Number(rest[1]), name: stat.slice(open + 1, close), startTime: rest[19] ?? null };
+  } catch {
+    return null;
+  }
+}
+function parsePsLine(out) {
+  const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(out);
+  return m ? { ppid: Number(m[1]), name: import_node_path4.default.basename(m[2]), startTime: null } : null;
+}
+var SHELLS = /* @__PURE__ */ new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish", "busybox"]);
+function watchedPid(startPid, infoOf = processInfo) {
+  let pid = startPid;
+  for (let i = 0; i < 4; i++) {
+    const info = infoOf(pid);
+    if (!info || !SHELLS.has(info.name) || !Number.isInteger(info.ppid) || info.ppid <= 1) return pid;
+    pid = info.ppid;
+  }
+  return pid;
+}
+function parentProbe(pid, infoOf = processInfo) {
+  const startTime = infoOf(pid)?.startTime ?? null;
+  return () => {
+    if (!isProcessAlive(pid)) return false;
+    if (startTime === null) return true;
+    const now = infoOf(pid);
+    return now === null || now.startTime === null || now.startTime === startTime;
+  };
 }
 
 // src/core/handoff-routes.ts
@@ -1105,12 +1246,12 @@ function resumeTarget(lines, cfg, session, agentType) {
 }
 
 // src/core/skill-resolve.ts
-var import_node_fs7 = __toESM(require("node:fs"), 1);
-var import_node_path5 = __toESM(require("node:path"), 1);
+var import_node_fs8 = __toESM(require("node:fs"), 1);
+var import_node_path6 = __toESM(require("node:path"), 1);
 
 // src/core/fs-scan.ts
-var import_node_fs6 = __toESM(require("node:fs"), 1);
-var import_node_path4 = __toESM(require("node:path"), 1);
+var import_node_fs7 = __toESM(require("node:fs"), 1);
+var import_node_path5 = __toESM(require("node:path"), 1);
 var IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".next", ".turbo", ".output"];
 var MAX_DEPTH = 4;
 function* walkDirs(root, opts = {}) {
@@ -1120,7 +1261,7 @@ function* walkDirs(root, opts = {}) {
     if (depth > maxDepth) return;
     let entries;
     try {
-      entries = import_node_fs6.default.readdirSync(dir, { withFileTypes: true });
+      entries = import_node_fs7.default.readdirSync(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -1128,8 +1269,8 @@ function* walkDirs(root, opts = {}) {
       if (!entry.isDirectory()) continue;
       if (ignore.includes(entry.name)) continue;
       if (opts.skipClaudeDir && entry.name === ".claude") continue;
-      const absolute = import_node_path4.default.join(dir, entry.name);
-      yield { absolute, relative: import_node_path4.default.relative(root, absolute), name: entry.name, depth };
+      const absolute = import_node_path5.default.join(dir, entry.name);
+      yield { absolute, relative: import_node_path5.default.relative(root, absolute), name: entry.name, depth };
       yield* rec(absolute, depth + 1);
     }
   }
@@ -1139,9 +1280,9 @@ function ruleSearchDirs(root) {
   return [root, ...Array.from(walkDirs(root, { skipClaudeDir: true }), (d) => d.absolute)];
 }
 function skillsDirIn(dir) {
-  const skillsDir = import_node_path4.default.join(dir, ".claude", "skills");
+  const skillsDir = import_node_path5.default.join(dir, ".claude", "skills");
   try {
-    return import_node_fs6.default.statSync(skillsDir).isDirectory() ? skillsDir : null;
+    return import_node_fs7.default.statSync(skillsDir).isDirectory() ? skillsDir : null;
   } catch {
     return null;
   }
@@ -1157,7 +1298,7 @@ function walkProjectSkillIds(root) {
   for (const skillsDir of skillSearchDirs(root)) {
     let entries;
     try {
-      entries = import_node_fs7.default.readdirSync(skillsDir, { withFileTypes: true });
+      entries = import_node_fs8.default.readdirSync(skillsDir, { withFileTypes: true });
     } catch {
       continue;
     }
@@ -1165,12 +1306,12 @@ function walkProjectSkillIds(root) {
       if (!entry.isDirectory()) continue;
       let id = entry.name;
       try {
-        const text = import_node_fs7.default.readFileSync(import_node_path5.default.join(skillsDir, entry.name, "SKILL.md"), "utf8");
+        const text = import_node_fs8.default.readFileSync(import_node_path6.default.join(skillsDir, entry.name, "SKILL.md"), "utf8");
         const match = text.match(FRONTMATTER_NAME_RE);
         if (match) id = match[1];
       } catch {
       }
-      const relDir = import_node_path5.default.relative(root, import_node_path5.default.join(skillsDir, entry.name));
+      const relDir = import_node_path6.default.relative(root, import_node_path6.default.join(skillsDir, entry.name));
       const dirs = byId.get(id);
       if (dirs) dirs.push(relDir);
       else byId.set(id, [relDir]);
@@ -1182,19 +1323,19 @@ function resolveProjectSkillPath(root, id) {
   if (!root || !id) return null;
   const entry = walkProjectSkillIds(root).find((e) => e.id === id);
   if (!entry) return null;
-  return import_node_path5.default.join(root, entry.dirs[0], "SKILL.md");
+  return import_node_path6.default.join(root, entry.dirs[0], "SKILL.md");
 }
 function isRootSkillPath(root, skillPath) {
-  const skillDir = import_node_path5.default.dirname(skillPath);
-  const rootSkillsDir = import_node_path5.default.join(root, ".claude", "skills");
-  return import_node_path5.default.dirname(skillDir) === rootSkillsDir;
+  const skillDir = import_node_path6.default.dirname(skillPath);
+  const rootSkillsDir = import_node_path6.default.join(root, ".claude", "skills");
+  return import_node_path6.default.dirname(skillDir) === rootSkillsDir;
 }
 
 // src/core/worktree.ts
-var import_node_fs8 = __toESM(require("node:fs"), 1);
-var import_node_path6 = __toESM(require("node:path"), 1);
+var import_node_fs9 = __toESM(require("node:fs"), 1);
+var import_node_path7 = __toESM(require("node:path"), 1);
 function taskNumber(filename) {
-  const m = /^(\d+)-/.exec(import_node_path6.default.basename(filename));
+  const m = /^(\d+)-/.exec(import_node_path7.default.basename(filename));
   return m ? m[1] : null;
 }
 function worktreeBranchFor(filename) {
@@ -1204,7 +1345,7 @@ function worktreeBranchFor(filename) {
 function worktreePathFor(mainRoot, filename) {
   const n = taskNumber(filename);
   if (!n) return null;
-  return import_node_path6.default.join(import_node_path6.default.dirname(mainRoot), `${import_node_path6.default.basename(mainRoot)}-task-${n}`);
+  return import_node_path7.default.join(import_node_path7.default.dirname(mainRoot), `${import_node_path7.default.basename(mainRoot)}-task-${n}`);
 }
 function shortSessionId(sessionId) {
   const s = sessionId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
@@ -1219,20 +1360,20 @@ function isFreeformBranch(name) {
 }
 function freeformWorktreePathFor(mainRoot, sessionId) {
   const branch = freeformBranchFor(sessionId);
-  return branch ? import_node_path6.default.join(import_node_path6.default.dirname(mainRoot), `${import_node_path6.default.basename(mainRoot)}-${branch}`) : null;
+  return branch ? import_node_path7.default.join(import_node_path7.default.dirname(mainRoot), `${import_node_path7.default.basename(mainRoot)}-${branch}`) : null;
 }
 function mainCheckoutRoot(dir) {
-  const gitEntry = import_node_path6.default.join(dir, ".git");
+  const gitEntry = import_node_path7.default.join(dir, ".git");
   try {
-    if (!import_node_fs8.default.statSync(gitEntry).isFile()) return dir;
-    const text = import_node_fs8.default.readFileSync(gitEntry, "utf8");
+    if (!import_node_fs9.default.statSync(gitEntry).isFile()) return dir;
+    const text = import_node_fs9.default.readFileSync(gitEntry, "utf8");
     const m = /^gitdir:\s*(.+?)\s*$/m.exec(text);
     if (!m) return dir;
-    const gitDir = import_node_path6.default.resolve(dir, m[1]);
-    if (import_node_path6.default.basename(import_node_path6.default.dirname(gitDir)) !== "worktrees") return dir;
-    const common = import_node_path6.default.dirname(import_node_path6.default.dirname(gitDir));
-    if (import_node_path6.default.basename(common) !== ".git") return dir;
-    return import_node_path6.default.dirname(common);
+    const gitDir = import_node_path7.default.resolve(dir, m[1]);
+    if (import_node_path7.default.basename(import_node_path7.default.dirname(gitDir)) !== "worktrees") return dir;
+    const common = import_node_path7.default.dirname(import_node_path7.default.dirname(gitDir));
+    if (import_node_path7.default.basename(common) !== ".git") return dir;
+    return import_node_path7.default.dirname(common);
   } catch {
     return dir;
   }
@@ -1241,9 +1382,71 @@ function isLinkedWorktree(dir) {
   return mainCheckoutRoot(dir) !== dir;
 }
 
+// src/core/worktree-deps.ts
+var import_node_fs10 = __toESM(require("node:fs"), 1);
+var import_node_path8 = __toESM(require("node:path"), 1);
+var LOCKFILES = [
+  { file: "pnpm-lock.yaml", manager: "pnpm" },
+  { file: "package-lock.json", manager: "npm" },
+  { file: "yarn.lock", manager: "yarn" },
+  { file: "bun.lock", manager: "bun" },
+  { file: "bun.lockb", manager: "bun" }
+];
+function detectPackageManager(dir) {
+  const found = LOCKFILES.filter((l) => import_node_fs10.default.existsSync(import_node_path8.default.join(dir, l.file)));
+  const managers = new Set(found.map((l) => l.manager));
+  if (managers.size === 0) return { kind: "unknown" };
+  if (managers.size > 1) return { kind: "ambiguous", lockfiles: found.map((l) => l.file) };
+  return { kind: "detected", manager: found[0].manager, lockfile: found[0].file };
+}
+function installCommand(manager, dir) {
+  const q = JSON.stringify(dir);
+  switch (manager) {
+    case "pnpm":
+      return `pnpm --dir ${q} install`;
+    case "npm":
+      return `npm --prefix ${q} install`;
+    case "yarn":
+      return `yarn --cwd ${q} install`;
+    case "bun":
+      return `bun install --cwd ${q}`;
+  }
+}
+var INSTALL_MARKERS = [".modules.yaml", ".package-lock.json", ".yarn-integrity"];
+function hasInstalledModules(nodeModules) {
+  let entries;
+  try {
+    entries = import_node_fs10.default.readdirSync(nodeModules);
+  } catch {
+    return false;
+  }
+  return entries.some((e) => !e.startsWith(".") || INSTALL_MARKERS.includes(e));
+}
+function dependencyStatus(dir) {
+  if (!import_node_fs10.default.existsSync(import_node_path8.default.join(dir, "package.json"))) return { state: "not-applicable" };
+  if (hasInstalledModules(import_node_path8.default.join(dir, "node_modules"))) return { state: "installed" };
+  const detection = detectPackageManager(dir);
+  const command = detection.kind === "detected" ? installCommand(detection.manager, dir) : null;
+  return { state: "missing", detection, command };
+}
+function missingDependenciesNotice(dir) {
+  const status = dependencyStatus(dir);
+  if (status.state !== "missing") return null;
+  const head = `STOP: the worktree ${dir} has no installed dependencies (no node_modules), so tests, lint and builds cannot run there. Do NOT dispatch @test or @reviewer, and do NOT report the task as tested, until it is installed. `;
+  const tail = " Installing is the user's step (package installs cannot run in the agent sandbox). Then re-run this same command to confirm.\n";
+  const { detection, command } = status;
+  if (command && detection.kind === "detected") {
+    return `${head}Ask the user to run this (${detection.manager}, from ${detection.lockfile}):
+  ! ${command}
+${tail}`;
+  }
+  const why = detection.kind === "ambiguous" ? `More than one package manager's lockfile is present (${detection.lockfiles.join(", ")})` : "No recognised lockfile (pnpm-lock.yaml, package-lock.json, yarn.lock, bun.lock, bun.lockb) is present";
+  return `${head}${why}, so no install command is guessed. Ask the user which package manager this project uses and to install the dependencies in ${dir} with it.${tail}`;
+}
+
 // src/core/channel-write-guard.ts
-var import_node_fs9 = __toESM(require("node:fs"), 1);
-var import_node_path7 = __toESM(require("node:path"), 1);
+var import_node_fs11 = __toESM(require("node:fs"), 1);
+var import_node_path9 = __toESM(require("node:path"), 1);
 var CHANNEL_ONLY_AGENTS = ["reviewer", "refactor"];
 var WRITE_TOOL_PATH_KEYS = {
   Write: "file_path",
@@ -1255,25 +1458,25 @@ function isChannelOnlyAgent(agentType) {
   return CHANNEL_ONLY_AGENTS.includes(bareAgentName(agentType));
 }
 function realResolve(p) {
-  let cur = import_node_path7.default.resolve(p);
+  let cur = import_node_path9.default.resolve(p);
   const tail = [];
   for (; ; ) {
     let st = null;
     try {
-      st = import_node_fs9.default.lstatSync(cur);
+      st = import_node_fs11.default.lstatSync(cur);
     } catch {
       st = null;
     }
     if (st) {
       try {
-        return import_node_path7.default.join(import_node_fs9.default.realpathSync(cur), ...tail);
+        return import_node_path9.default.join(import_node_fs11.default.realpathSync(cur), ...tail);
       } catch {
         return null;
       }
     }
-    const parent = import_node_path7.default.dirname(cur);
-    if (parent === cur) return cur ? import_node_path7.default.join(cur, ...tail) : null;
-    tail.unshift(import_node_path7.default.basename(cur));
+    const parent = import_node_path9.default.dirname(cur);
+    if (parent === cur) return cur ? import_node_path9.default.join(cur, ...tail) : null;
+    tail.unshift(import_node_path9.default.basename(cur));
     cur = parent;
   }
 }
@@ -1284,17 +1487,17 @@ function denyMeeting(target, meetingDir) {
   };
 }
 function realMeetingDir(meetingDir) {
-  const resolved = import_node_path7.default.resolve(meetingDir);
-  const sessionDir = import_node_path7.default.dirname(resolved);
-  const sessionId = import_node_path7.default.basename(sessionDir);
-  if (import_node_path7.default.basename(resolved) !== "meeting" || import_node_path7.default.basename(import_node_path7.default.dirname(sessionDir)) !== "maestro_sessions") {
+  const resolved = import_node_path9.default.resolve(meetingDir);
+  const sessionDir = import_node_path9.default.dirname(resolved);
+  const sessionId = import_node_path9.default.basename(sessionDir);
+  if (import_node_path9.default.basename(resolved) !== "meeting" || import_node_path9.default.basename(import_node_path9.default.dirname(sessionDir)) !== "maestro_sessions") {
     return null;
   }
   const realSession = realResolve(sessionDir);
   const real = realResolve(resolved);
   if (!realSession || !real) return null;
-  if (real !== import_node_path7.default.join(realSession, "meeting")) return null;
-  const parts = real.split(import_node_path7.default.sep);
+  if (real !== import_node_path9.default.join(realSession, "meeting")) return null;
+  const parts = real.split(import_node_path9.default.sep);
   const n = parts.length;
   if (n < 3 || parts[n - 2] !== sessionId || parts[n - 3] !== "maestro_sessions") return null;
   return real;
@@ -1313,10 +1516,10 @@ function checkChannelWrite(input) {
     const raw2 = toolInput?.[key];
     if (typeof raw2 !== "string" || raw2 === "") return denyMeeting(String(raw2 ?? ""), meetingDir);
     if (raw2.split(/[\\/]+/).includes("..")) return denyMeeting(raw2, meetingDir);
-    const target2 = realResolve(import_node_path7.default.resolve(cwd || meetingDir, raw2));
+    const target2 = realResolve(import_node_path9.default.resolve(cwd || meetingDir, raw2));
     const root = realMeetingDir(meetingDir);
     if (!target2 || !root) return denyMeeting(raw2, meetingDir);
-    return target2.startsWith(root + import_node_path7.default.sep) ? { allow: true } : denyMeeting(raw2, meetingDir);
+    return target2.startsWith(root + import_node_path9.default.sep) ? { allow: true } : denyMeeting(raw2, meetingDir);
   }
   if (!isChannelOnlyAgent(agentType)) return { allow: true };
   if (!key) return { allow: true };
@@ -1324,19 +1527,23 @@ function checkChannelWrite(input) {
   if (typeof raw !== "string" || raw === "") return deny(String(raw ?? ""));
   if (!cwd) return deny(raw);
   if (raw.split(/[\\/]+/).includes("..")) return deny(raw);
-  const target = realResolve(import_node_path7.default.resolve(cwd, raw));
+  const target = realResolve(import_node_path9.default.resolve(cwd, raw));
   const realCwd = realResolve(cwd);
-  const lane = realResolve(import_node_path7.default.join(cwd, ".claude", "channels"));
+  const lane = realResolve(import_node_path9.default.join(cwd, ".claude", "channels"));
   if (!target || !realCwd || !lane) return deny(raw);
-  if (lane !== import_node_path7.default.join(realCwd, ".claude", "channels") && !lane.startsWith(realCwd + import_node_path7.default.sep)) {
+  if (lane !== import_node_path9.default.join(realCwd, ".claude", "channels") && !lane.startsWith(realCwd + import_node_path9.default.sep)) {
     return deny(raw);
   }
-  return target.startsWith(lane + import_node_path7.default.sep) ? { allow: true } : deny(raw);
+  return target.startsWith(lane + import_node_path9.default.sep) ? { allow: true } : deny(raw);
 }
 
 // src/core/human-review-gate.ts
 var HUMAN_REVIEW_LABEL = "human review";
+var MANAGER_REVIEW_LABEL = "manager review";
 var REVIEW_FILE_PATTERN = /\.review(-\d+)?\.md$/;
+function isReviewStop(label) {
+  return label === HUMAN_REVIEW_LABEL || label === MANAGER_REVIEW_LABEL;
+}
 function isReviewFile(filename) {
   return REVIEW_FILE_PATTERN.test(filename);
 }
@@ -1344,27 +1551,49 @@ function reviewFileName(taskFile, round) {
   const base = taskFile.replace(/^.*[\\/]/, "").replace(/\.md$/, "");
   return round <= 1 ? `${base}.review.md` : `${base}.review-${round}.md`;
 }
-function currentReviewRound(plan) {
+function currentReviewStop(plan) {
   if (!plan || !Array.isArray(plan.steps)) return null;
   const steps = plan.steps;
   const next = steps.findIndex((s) => s && s.status !== "done");
-  if (next === -1 || steps[next].label !== HUMAN_REVIEW_LABEL) return null;
-  const doneReviews = steps.filter((s) => s && s.label === HUMAN_REVIEW_LABEL && s.status === "done").length;
+  if (next === -1) return null;
+  const label = steps[next].label;
+  if (!isReviewStop(label)) return null;
+  const doneReviews = steps.filter((s) => s && isReviewStop(s.label) && s.status === "done").length;
   const loopbacks = typeof plan.loopbacks === "number" && plan.loopbacks > 0 ? Math.floor(plan.loopbacks) : 0;
-  return 1 + loopbacks + doneReviews;
+  return { label, round: 1 + loopbacks + doneReviews };
 }
+function currentReviewRound(plan) {
+  return currentReviewStop(plan)?.round ?? null;
+}
+function bareRecipient(to) {
+  return typeof to === "string" ? to.replace(/\s*\[[^\]]*\]\s*$/, "").trim() : "";
+}
+var HUMAN_SECTIONS = "'## Changed' (files and areas), '## Did' (one line per agent), '## Deviations from the ticket' and, on a re-review, '## Corrections since the last round'";
+var BRIEF_SECTIONS = "'## Goal', '## Done', '## Deviations', '## Decisions', '## Touches' (files and modules by name, never a diff), '## Sibling impact' and '## Questions'";
 function checkHumanReview(input) {
-  if (input.toolName !== "AskUserQuestion") return { allow: true };
+  if (input.toolName !== "AskUserQuestion" && input.toolName !== "SendMessage") return { allow: true };
   const state = input.state;
   if (!state || typeof state.active_task !== "string" || !state.active_task) return { allow: true };
-  const round = currentReviewRound(state.plan);
-  if (round === null) return { allow: true };
+  const stop = currentReviewStop(state.plan);
+  if (stop === null) return { allow: true };
+  if (input.toolName === "SendMessage") {
+    if (stop.label !== MANAGER_REVIEW_LABEL) return { allow: true };
+    const manager = typeof input.managerName === "string" ? input.managerName.trim() : "";
+    if (!manager || bareRecipient(input.toolInput?.to) !== manager) return { allow: true };
+  }
+  const { round } = stop;
   const name = reviewFileName(state.active_task, round);
   const file = `${input.tasksDir.replace(/[\\/]+$/, "")}/${name}`;
   if (input.exists(file)) return { allow: true };
+  if (stop.label === MANAGER_REVIEW_LABEL) {
+    return {
+      allow: false,
+      reason: `Manager review round ${round}: the review file is missing. Write ${file} first, as the direction brief with the sections ${BRIEF_SECTIONS}. Then record it with \`node .claude/scripts/maestro-epic.cjs review-request --task "${state.active_task}" --file "${file}"\` and send the manager the one line it prints. On an escalation, or the fallback to human review (no epic, no live manager), the same file is the summary: print it above the question and put a digest of at most 15 lines in the Approve option's preview, ending with the review file's path (${file}).`
+    };
+  }
   return {
     allow: false,
-    reason: `Human review round ${round}: the review file is missing. Write ${file} first, with the sections '## Changed' (files and areas), '## Did' (one line per agent), '## Deviations from the ticket' and, on a re-review, '## Corrections since the last round'. Then print the full summary as text above the question and ask again, putting a digest of at most 15 lines (deviations, risks and open questions, changed-file count, corrections since last round) in the Approve option's preview, ending with the review file's path (${file}).`
+    reason: `Human review round ${round}: the review file is missing. Write ${file} first, with the sections ${HUMAN_SECTIONS}. Then print the full summary as text above the question and ask again, putting a digest of at most 15 lines (deviations, risks and open questions, changed-file count, corrections since last round) in the Approve option's preview, ending with the review file's path (${file}).`
   };
 }
 
@@ -1493,12 +1722,12 @@ function checkPayload(msg, routes, written) {
 }
 
 // src/core/handoff-payload.ts
-var import_node_fs10 = __toESM(require("node:fs"), 1);
-var import_node_path8 = __toESM(require("node:path"), 1);
+var import_node_fs12 = __toESM(require("node:fs"), 1);
+var import_node_path10 = __toESM(require("node:path"), 1);
 function readProjectHandoff(projectDir, handoffId2) {
   try {
     const [sender, receiver] = handoffId2.split("/");
-    const body = import_node_fs10.default.readFileSync(import_node_path8.default.join(projectDir, ".claude", "handoffs", sender, `${receiver}.md`), "utf8").trim();
+    const body = import_node_fs12.default.readFileSync(import_node_path10.default.join(projectDir, ".claude", "handoffs", sender, `${receiver}.md`), "utf8").trim();
     return body || null;
   } catch {
     return null;
@@ -1529,7 +1758,7 @@ function payloadRoutes(projectDir, routes, readGlobal) {
 }
 function payloadRequirement(routes, opts) {
   if (routes.length === 0) return null;
-  const head = "REQUIRED before your HANDOFF line: write the payload for the route you take to that route's channel file. This is a step of the handoff, not a recommendation \u2014 the receiving agent starts from that file, and the stop hook checks it was written during THIS run. A missing payload is not skipped: the orchestrator resumes you to write it before the next agent is dispatched. When nothing applies, still write the file, containing an empty JSON object (`{}`).";
+  const head = "REQUIRED before your HANDOFF line: write the payload for the route you take to that route's channel file. This is a step of the handoff, not a recommendation \u2014 the receiving agent starts from that file, and the stop hook checks it was written during THIS run. A missing payload is not skipped: the orchestrator resumes you to write it before the next agent is dispatched. When nothing applies, still write the file, containing an empty JSON object (`{}`). Create the file with the Write tool, which creates the folder too; do not run mkdir in Bash.";
   if (opts.withShapes) {
     const blocks = routes.map(
       (r) => `Route \`HANDOFF: ${r.label}\` \u2192 \`${r.receiver}\` \u2014 write this to \`${r.channelFile}\`:
@@ -1568,7 +1797,7 @@ function payloadWrittenSince(projectDir, route, sinceMs) {
 function writtenSince(filePath, sinceMs) {
   let stat;
   try {
-    stat = import_node_fs10.default.statSync(filePath);
+    stat = import_node_fs12.default.statSync(filePath);
   } catch {
     return false;
   }
@@ -1703,8 +1932,8 @@ function runtimeNeedsRefresh(projectVersion, pluginVersion) {
 }
 
 // src/core/worktree-write-guard.ts
-var import_node_fs11 = __toESM(require("node:fs"), 1);
-var import_node_path9 = __toESM(require("node:path"), 1);
+var import_node_fs13 = __toESM(require("node:fs"), 1);
+var import_node_path11 = __toESM(require("node:path"), 1);
 var MAIN_CHECKOUT_SHARED_DIRS = ["maestro-tasks", "channels", "maestro_sessions"];
 var WRITE_TOOL_PATH_KEYS2 = {
   Write: "file_path",
@@ -1713,29 +1942,29 @@ var WRITE_TOOL_PATH_KEYS2 = {
   NotebookEdit: "notebook_path"
 };
 function realResolve2(p) {
-  let cur = import_node_path9.default.resolve(p);
+  let cur = import_node_path11.default.resolve(p);
   const tail = [];
   for (; ; ) {
     let exists = true;
     try {
-      import_node_fs11.default.lstatSync(cur);
+      import_node_fs13.default.lstatSync(cur);
     } catch {
       exists = false;
     }
     if (exists) {
       try {
-        return import_node_path9.default.join(import_node_fs11.default.realpathSync(cur), ...tail);
+        return import_node_path11.default.join(import_node_fs13.default.realpathSync(cur), ...tail);
       } catch {
         return null;
       }
     }
-    const parent = import_node_path9.default.dirname(cur);
-    if (parent === cur) return import_node_path9.default.join(cur, ...tail);
-    tail.unshift(import_node_path9.default.basename(cur));
+    const parent = import_node_path11.default.dirname(cur);
+    if (parent === cur) return import_node_path11.default.join(cur, ...tail);
+    tail.unshift(import_node_path11.default.basename(cur));
     cur = parent;
   }
 }
-var within = (target, root) => target === root || target.startsWith(root + import_node_path9.default.sep);
+var within = (target, root) => target === root || target.startsWith(root + import_node_path11.default.sep);
 function checkWorktreeWrite(input) {
   const { cwd, toolName, toolInput, worktree } = input;
   const key = toolName ? WRITE_TOOL_PATH_KEYS2[toolName] : void 0;
@@ -1746,11 +1975,11 @@ function checkWorktreeWrite(input) {
   if (typeof raw !== "string" || raw === "") return { allow: true };
   const wt = realResolve2(worktree.path);
   const main = realResolve2(worktree.main_root);
-  const target = realResolve2(import_node_path9.default.resolve(cwd || worktree.path, raw));
+  const target = realResolve2(import_node_path11.default.resolve(cwd || worktree.path, raw));
   if (!wt || !main || !target) return { allow: true };
   if (within(target, wt)) return { allow: true };
   if (!within(target, main)) return { allow: true };
-  if (MAIN_CHECKOUT_SHARED_DIRS.some((d) => within(target, import_node_path9.default.join(main, ".claude", d)))) return { allow: true };
+  if (MAIN_CHECKOUT_SHARED_DIRS.some((d) => within(target, import_node_path11.default.join(main, ".claude", d)))) return { allow: true };
   return {
     allow: false,
     reason: `Blocked: this session runs its task in the git worktree ${worktree.path}, and "${raw}" resolves to ${target}, inside the main checkout (${worktree.main_root}), which another session may be using and which a merge would later refuse to overwrite. Write the file at the same relative path under ${worktree.path} instead. Only ${MAIN_CHECKOUT_SHARED_DIRS.map((d) => `.claude/${d}/`).join(", ")} stay in the main checkout.`
@@ -1758,8 +1987,8 @@ function checkWorktreeWrite(input) {
 }
 
 // src/core/run-metrics.ts
-var import_node_fs12 = __toESM(require("node:fs"), 1);
-var import_node_path10 = __toESM(require("node:path"), 1);
+var import_node_fs14 = __toESM(require("node:fs"), 1);
+var import_node_path12 = __toESM(require("node:path"), 1);
 var METRICS_DIR_NAME = "maestro-metrics";
 var METRICS_FILE_NAME = "metrics.json";
 var DEFAULT_RECENT_RUNS = 10;
@@ -1769,10 +1998,10 @@ function emptyMetrics() {
   return { version: 1, runs: [], totals: { by_workflow: {}, by_agent: {} } };
 }
 function metricsDirFor(projectRoot) {
-  return import_node_path10.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
+  return import_node_path12.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
 }
 function metricsFileFor(projectRoot) {
-  return import_node_path10.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
+  return import_node_path12.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
 }
 function day(ts) {
   return typeof ts === "string" ? ts.slice(0, 10) : "";
@@ -1969,7 +2198,7 @@ function buildRunRecord(entries, session, cfg, sessionId) {
   return {
     id: session?.run_id || sessionId,
     workflow,
-    task: session?.active_task ? import_node_path10.default.basename(session.active_task) : null,
+    task: session?.active_task ? import_node_path12.default.basename(session.active_task) : null,
     started_at,
     ended_at,
     duration_ms,
@@ -1987,20 +2216,20 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 function withLock(dir, fn) {
-  import_node_fs12.default.mkdirSync(dir, { recursive: true });
-  const lock = import_node_path10.default.join(dir, "lock");
+  import_node_fs14.default.mkdirSync(dir, { recursive: true });
+  const lock = import_node_path12.default.join(dir, "lock");
   const deadline = Date.now() + LOCK_WAIT_MS;
   let held = false;
   for (; ; ) {
     try {
-      import_node_fs12.default.mkdirSync(lock);
+      import_node_fs14.default.mkdirSync(lock);
       held = true;
       break;
     } catch (err) {
       if (err.code !== "EEXIST") break;
       try {
-        if (Date.now() - import_node_fs12.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
-          import_node_fs12.default.rmSync(lock, { recursive: true, force: true });
+        if (Date.now() - import_node_fs14.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
+          import_node_fs14.default.rmSync(lock, { recursive: true, force: true });
           continue;
         }
       } catch {
@@ -2013,12 +2242,12 @@ function withLock(dir, fn) {
   try {
     return fn();
   } finally {
-    if (held) import_node_fs12.default.rmSync(lock, { recursive: true, force: true });
+    if (held) import_node_fs14.default.rmSync(lock, { recursive: true, force: true });
   }
 }
 function readMetrics(projectRoot) {
   try {
-    const v = JSON.parse(import_node_fs12.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
+    const v = JSON.parse(import_node_fs14.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
     if (v && v.version === 1 && Array.isArray(v.runs) && v.totals?.by_workflow && v.totals?.by_agent) return v;
   } catch {
   }
@@ -2031,25 +2260,25 @@ function recentRunsLimit(cfg) {
 function recordRun(projectRoot, run, keep = DEFAULT_RECENT_RUNS) {
   const dir = metricsDirFor(projectRoot);
   withLock(dir, () => {
-    const gi = import_node_path10.default.join(dir, ".gitignore");
-    if (!import_node_fs12.default.existsSync(gi)) import_node_fs12.default.writeFileSync(gi, "*\n");
+    const gi = import_node_path12.default.join(dir, ".gitignore");
+    if (!import_node_fs14.default.existsSync(gi)) import_node_fs14.default.writeFileSync(gi, "*\n");
     const file = readMetrics(projectRoot);
     const runs = file.runs.filter((r) => r.id !== run.id);
     runs.push(run);
     const next = compact({ ...file, runs }, keep);
     const target = metricsFileFor(projectRoot);
     const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-    import_node_fs12.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
-    import_node_fs12.default.renameSync(tmp, target);
+    import_node_fs14.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
+    import_node_fs14.default.renameSync(tmp, target);
   });
 }
 function recordSessionRun(projectRoot, sessionId) {
-  const claudeDir = import_node_path10.default.join(projectRoot, ".claude");
+  const claudeDir = import_node_path12.default.join(projectRoot, ".claude");
   const paths = sessionPathsFor(claudeDir, sessionId);
   if (!paths) return false;
   let raw;
   try {
-    raw = import_node_fs12.default.readFileSync(paths.log, "utf8");
+    raw = import_node_fs14.default.readFileSync(paths.log, "utf8");
   } catch {
     return false;
   }
@@ -2063,12 +2292,12 @@ function recordSessionRun(projectRoot, sessionId) {
   }
   const readJson2 = (p) => {
     try {
-      return JSON.parse(import_node_fs12.default.readFileSync(p, "utf8"));
+      return JSON.parse(import_node_fs14.default.readFileSync(p, "utf8"));
     } catch {
       return null;
     }
   };
-  const cfg = readJson2(import_node_path10.default.join(claudeDir, "maestro.json"));
+  const cfg = readJson2(import_node_path12.default.join(claudeDir, "maestro.json"));
   const run = buildRunRecord(entries, readJson2(paths.state), cfg, paths.id);
   if (!run) return false;
   recordRun(projectRoot, run, recentRunsLimit(cfg));
@@ -2116,15 +2345,15 @@ function renderMetricsDigest(file) {
 }
 
 // src/core/session-name.ts
-var import_node_fs14 = __toESM(require("node:fs"), 1);
-var import_node_path12 = __toESM(require("node:path"), 1);
+var import_node_fs16 = __toESM(require("node:fs"), 1);
+var import_node_path14 = __toESM(require("node:path"), 1);
 
 // src/core/claims.ts
-var import_node_fs13 = __toESM(require("node:fs"), 1);
-var import_node_path11 = __toESM(require("node:path"), 1);
+var import_node_fs15 = __toESM(require("node:fs"), 1);
+var import_node_path13 = __toESM(require("node:path"), 1);
 var CLAIMS_DIR_NAME = "claims";
 function claimsDirFor(tasksDir) {
-  return import_node_path11.default.join(tasksDir, CLAIMS_DIR_NAME);
+  return import_node_path13.default.join(tasksDir, CLAIMS_DIR_NAME);
 }
 
 // src/core/session-name.ts
@@ -2149,7 +2378,7 @@ function promptEntranceRole(prompt) {
 }
 function hasMaestroConfig(claudeDir) {
   try {
-    return import_node_fs14.default.statSync(import_node_path12.default.join(claudeDir, "maestro.json")).isFile();
+    return import_node_fs16.default.statSync(import_node_path14.default.join(claudeDir, "maestro.json")).isFile();
   } catch {
     return false;
   }
@@ -2189,14 +2418,14 @@ function noteEntrance(claudeDir, sessionId, role) {
 }
 function listJson(dir) {
   try {
-    return import_node_fs14.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    return import_node_fs16.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
   } catch {
     return [];
   }
 }
 function listDirs2(dir) {
   try {
-    return import_node_fs14.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    return import_node_fs16.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   } catch {
     return [];
   }
@@ -2206,10 +2435,10 @@ function roleOfName(name) {
 }
 function rederiveSessionName(claudeDir, sessionId) {
   if (!isValidSessionId(sessionId)) return null;
-  const root = mainCheckoutRoot(import_node_path12.default.dirname(claudeDir));
-  const claims = claimsDirFor(import_node_path12.default.join(root, ".claude", "maestro-tasks"));
+  const root = mainCheckoutRoot(import_node_path14.default.dirname(claudeDir));
+  const claims = claimsDirFor(import_node_path14.default.join(root, ".claude", "maestro-tasks"));
   for (const file of listJson(claims)) {
-    const claim = readJson(import_node_path12.default.join(claims, file));
+    const claim = readJson(import_node_path14.default.join(claims, file));
     if (!claim || claim.session_id !== sessionId) continue;
     if (typeof claim.session_name === "string" && claim.session_name.trim()) {
       const name = claim.session_name.trim();
@@ -2218,11 +2447,11 @@ function rederiveSessionName(claudeDir, sessionId) {
   }
   const manager = sessionNameFor(sessionId, "manager");
   const worker = sessionNameFor(sessionId, "worker");
-  const epicsRoot = import_node_path12.default.join(root, ".claude", "epics");
+  const epicsRoot = import_node_path14.default.join(root, ".claude", "epics");
   let asWorker = null;
   for (const slug of listDirs2(epicsRoot)) {
     const state = readJson(
-      import_node_path12.default.join(epicsRoot, slug, "state.json")
+      import_node_path14.default.join(epicsRoot, slug, "state.json")
     );
     if (!state) continue;
     if (manager && state.manager?.name === manager) return { name: manager, role: "manager" };
@@ -2276,13 +2505,13 @@ function titleFor(claudeDir, payload) {
 }
 
 // src/core/meeting-mode.ts
-var import_node_fs15 = __toESM(require("node:fs"), 1);
-var import_node_path13 = __toESM(require("node:path"), 1);
+var import_node_fs17 = __toESM(require("node:fs"), 1);
+var import_node_path15 = __toESM(require("node:path"), 1);
 var MEETING_DIR_NAME = "meeting";
 var MEETING_LEFTOVERS_KEY = "meeting_leftovers";
 var MEETING_MODES = ["review", "post-mortem"];
 function meetingDirFor(sessionDir) {
-  return import_node_path13.default.join(sessionDir, MEETING_DIR_NAME);
+  return import_node_path15.default.join(sessionDir, MEETING_DIR_NAME);
 }
 function readMeeting(session) {
   if (!session || typeof session !== "object") return null;
@@ -2314,22 +2543,22 @@ function withoutMeeting(session) {
 }
 function readRawState(statePath) {
   try {
-    const parsed = JSON.parse(import_node_fs15.default.readFileSync(statePath, "utf8"));
+    const parsed = JSON.parse(import_node_fs17.default.readFileSync(statePath, "utf8"));
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 function writeRawState(statePath, state) {
-  import_node_fs15.default.mkdirSync(import_node_path13.default.dirname(statePath), { recursive: true });
+  import_node_fs17.default.mkdirSync(import_node_path15.default.dirname(statePath), { recursive: true });
   const tmp = statePath + ".tmp";
-  import_node_fs15.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
-  import_node_fs15.default.renameSync(tmp, statePath);
+  import_node_fs17.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  import_node_fs17.default.renameSync(tmp, statePath);
 }
 function startMeeting(statePath, sessionDir, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const dir = meetingDirFor(sessionDir);
-  import_node_fs15.default.mkdirSync(dir, { recursive: true });
+  import_node_fs17.default.mkdirSync(dir, { recursive: true });
   const meeting = {
     id: `m-${now.getTime()}`,
     mode: opts.mode,
@@ -2360,10 +2589,10 @@ function closeMeeting(session, projectDir) {
   return { state, ended: true };
 }
 function projectDirOfState(statePath) {
-  return import_node_path13.default.resolve(statePath, "..", "..", "..", "..");
+  return import_node_path15.default.resolve(statePath, "..", "..", "..", "..");
 }
 function endMeeting(statePath, projectDir = projectDirOfState(statePath)) {
-  if (!import_node_fs15.default.existsSync(statePath)) return false;
+  if (!import_node_fs17.default.existsSync(statePath)) return false;
   const { state, ended } = closeMeeting(readRawState(statePath), projectDir);
   if (ended) writeRawState(statePath, state);
   return ended;
@@ -2418,7 +2647,7 @@ function closeOwnerRuns(session, projectDir) {
   return { state, ended: true };
 }
 function endOwnerRuns(statePath, projectDir = projectDirOfState(statePath)) {
-  if (!import_node_fs15.default.existsSync(statePath)) return false;
+  if (!import_node_fs17.default.existsSync(statePath)) return false;
   const { state, ended } = closeOwnerRuns(readRawState(statePath), projectDir);
   if (ended) writeRawState(statePath, state);
   return ended;
@@ -2447,9 +2676,13 @@ function meetingNotice(meeting, agentType) {
   HANDBACK_POLL_MS,
   HANDBACK_TOOLS,
   HANDBACK_WAIT_MS,
+  HEARTBEAT_INTERVAL_ENV,
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_STALE_MS,
   HUMAN_REVIEW_LABEL,
   LEGACY_SESSION_FILES,
   MAIN_CHECKOUT_SHARED_DIRS,
+  MANAGER_REVIEW_LABEL,
   MEETING_DIR_NAME,
   MEETING_LEFTOVERS_KEY,
   METRICS_DIR_NAME,
@@ -2460,6 +2693,8 @@ function meetingNotice(meeting, agentType) {
   RESUMABLE_END_REASONS,
   SEED_HANDOFFS,
   SESSIONS_DIR_NAME,
+  SESSION_HEARTBEAT_NAME,
+  SESSION_HEARTBEAT_PID_NAME,
   SESSION_ID_ENV,
   SESSION_LOG_FILE,
   SESSION_LOG_NAME,
@@ -2486,6 +2721,9 @@ function meetingNotice(meeting, agentType) {
   compactMetrics,
   compareRuntimeVersions,
   currentReviewRound,
+  currentReviewStop,
+  dependencyStatus,
+  detectPackageManager,
   dropResolvedMissingPayloads,
   duplicateAgentTypes,
   endMeeting,
@@ -2506,10 +2744,16 @@ function meetingNotice(meeting, agentType) {
   handoffRoutes,
   hasCompletedRun,
   hasHandbackCall,
+  heartbeatIntervalMs,
+  heartbeatTargets,
+  heartbeatTick,
+  heartbeatVerdict,
+  installCommand,
   isChannelOnlyAgent,
   isFreeformBranch,
   isGapReport,
   isLinkedWorktree,
+  isProcessAlive,
   isResumableEnd,
   isReviewFile,
   isRootSkillPath,
@@ -2527,18 +2771,22 @@ function meetingNotice(meeting, agentType) {
   meetingNotice,
   metricsDirFor,
   metricsFileFor,
+  missingDependenciesNotice,
   missingLoopbackPayload,
   nodeLabel,
   noteEntrance,
   ownerRunFor,
   ownerRunLeftovers,
   ownerRunNotice,
+  parentProbe,
   parseGapsHandled,
+  parsePsLine,
   parseStampedContent,
   payloadRequirement,
   payloadRoutes,
   payloadWrittenSince,
   pendingResumeDeliveries,
+  processInfo,
   projectOwnsHook,
   promptEntranceRole,
   readJson,
@@ -2590,10 +2838,12 @@ function meetingNotice(meeting, agentType) {
   unstampedFilesOf,
   validateConfig,
   walkProjectSkillIds,
+  watchedPid,
   withoutMeeting,
   workflowNodeLabels,
   worktreeBranchFor,
   worktreePathFor,
+  writeHeartbeatPid,
   writeSession,
   writeStamp
 });

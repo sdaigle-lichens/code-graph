@@ -79,7 +79,7 @@
         ]
       },
       {
-        "matcher": "AskUserQuestion",
+        "matcher": "AskUserQuestion|SendMessage",
         "hooks": [
           {
             "type": "command",
@@ -154,9 +154,18 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-name.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-heartbeat.cjs\""
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Write(/.claude/channels/**)"
     ]
   }
 }

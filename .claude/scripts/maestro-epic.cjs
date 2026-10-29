@@ -50,7 +50,19 @@
 //       note path and the receiving manager's session name to message, or says none is recorded
 //       and a resumed manager will list it. Refuses an unknown epic on either side, a note to the
 //       sender's own epic, and an empty body. A note is a teammate's request, never the user's approval.
-//   node maestro-epic.cjs reports <slug>             the unacknowledged reports and notes, oldest first
+//   node maestro-epic.cjs review-request --task <NNN-task.md> --file <review file> [--from "<session name>"]
+//       `132`: a worker at a `manager review` stop records its direction brief (the round's review
+//       file, which must already exist) as a review request mNNN, numbered as the ticket's next
+//       round, and prints the one line to send the manager plus the redirects recorded so far. A
+//       re-run with the same file while the request waits is a re-send, not a new round. A task in
+//       no epic, or an epic with no manager recorded, prints the fallback: a human review.
+//   node maestro-epic.cjs review-verdict --task <NNN-task.md> <on-track|redirect|escalate> [--by "<session name>"]
+//       `132`: records the verdict on the ticket's latest review request. The manager runs it when it
+//       decides, the worker when it receives the reply; the second caller gets the recorded verdict
+//       back. Manager redirects are counted per ticket here (not plan.loopbacks): with 2 already
+//       recorded, a redirect is recorded and printed as escalate.
+//   node maestro-epic.cjs reports <slug>
+//       the unacknowledged reports and notes, and the review requests waiting for a verdict, oldest first
 //   node maestro-epic.cjs ack <slug> <id>... [--by "<session name>"]
 //       Record that the manager received a report (rNNN) or a note (nNNN). Cross-session messages
 //       have no delivery receipt, so the acknowledgement lives in the epic's state.
@@ -267,12 +279,57 @@ try {
       );
       break;
     }
+    case "review-request": {
+      const usage = 'review-request --task <NNN-task.md> --file <review file> [--from "<session name>"]';
+      const task = need(flags.task, usage);
+      const file = need(flags.file, usage);
+      const base = path.basename(task);
+      if (!epics.epicOfTask(projectDir, task)) {
+        process.stdout.write(
+          `Maestro epic: "${base}" belongs to no epic — no review request recorded. Fall back to a human review at this stop, with ${file} as its summary.\n`
+        );
+        break;
+      }
+      const r = epics.writeReviewRequest(projectDir, task, file, preferOwn(flags.from));
+      const capLine =
+        r.redirects >= r.cap
+          ? `  The cap is reached (${r.redirects} redirects of ${r.cap}): if the manager's verdict on this round is redirect, it escalates to human review.\n`
+          : `  Manager redirects on this ticket so far: ${r.redirects} of ${r.cap}.\n`;
+      const line = `manager review ${r.id} (round ${r.round}) for ${base} is in ${r.file}`;
+      process.stdout.write(
+        `Maestro epic: ${r.already ? "review request already recorded, still waiting for a verdict" : "review request recorded"}: ${r.id}, round ${r.round}, "${base}", epic "${r.epic}"\n` +
+          capLine +
+          (r.manager
+            ? `  Check ListAgents for the manager session "${r.manager}". If it is live, send it (SendMessage) ONE short line: ${line}. The file is the brief; do not paste it. Then wait for its verdict.\n` +
+              `  If it is not live, or the send fails, fall back to a human review at this stop, with the same file as its summary.\n`
+            : `  No manager session is recorded for "${r.epic}": fall back to a human review at this stop, with the same file as its summary.\n`)
+      );
+      break;
+    }
+    case "review-verdict": {
+      const usage = 'review-verdict --task <NNN-task.md> <on-track|redirect|escalate> [--by "<session name>"]';
+      const task = need(flags.task, usage);
+      const verdict = need(positional[0], usage);
+      if (!epics.isReviewVerdict(verdict))
+        fail(`"${verdict}" is not a verdict (one of ${epics.REVIEW_VERDICTS.join(", ")}). Usage: ${usage}`);
+      const r = epics.recordReviewVerdict(projectDir, task, verdict, preferOwn(flags.by));
+      const head = `Maestro epic: verdict on ${r.id} (round ${r.round}, "${r.task}")`;
+      const capped = r.capped
+        ? ` (asked: redirect; ${r.cap} redirects were already recorded on this ticket, so it escalates to human review)`
+        : "";
+      process.stdout.write(
+        (r.already
+          ? `${head} was already recorded: ${r.effective}${capped}. Act on the recorded verdict.\n`
+          : `${head}: ${r.effective}${capped}\n`) + `  Manager redirects on this ticket: ${r.redirects} of ${r.cap}.\n`
+      );
+      break;
+    }
     case "reports": {
       const view = epics.showEpic(projectDir, need(positional[0], "reports <slug>"));
       process.stdout.write(
         view.unacknowledged.length
           ? `${view.unacknowledged.map((r) => epics.formatInboxEntry(r)).join("\n")}\n`
-          : "Maestro epic: no unacknowledged reports or notes\n"
+          : "Maestro epic: no unacknowledged reports, notes or review requests\n"
       );
       break;
     }
@@ -292,7 +349,9 @@ try {
       fail(
         "unknown command. Usage:\n  create <slug>\n  list [--json]\n  link <slug> <task.md>...\n  unlink <task.md>...\n  show <slug> [--json]\n  ready <slug> [--cap <n>] [--json]\n" +
           "  set-manager <slug> <name>\n  add-worker <slug> <name>\n  remove-worker <slug> <name>\n  report --task <task.md> [--file <path>|-]\n" +
-          "  note <to-slug> --from-epic <slug> [--from <name>] [--subject <text>] --file <path>|-\n  reports <slug>\n  ack <slug> <id>..."
+          "  note <to-slug> --from-epic <slug> [--from <name>] [--subject <text>] --file <path>|-\n" +
+          "  review-request --task <task.md> --file <review file> [--from <name>]\n" +
+          "  review-verdict --task <task.md> <on-track|redirect|escalate> [--by <name>]\n  reports <slug>\n  ack <slug> <id>..."
       );
   }
 } catch (err) {

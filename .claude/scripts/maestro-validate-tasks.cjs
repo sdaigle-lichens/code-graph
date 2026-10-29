@@ -36,6 +36,8 @@ function heuristicMatch(subject, description, expectedLabels) {
   for (const label of expectedLabels) {
     if (label === "human review") {
       if (/human.?review|review.?checkpoint/i.test(text)) return label;
+    } else if (label === "manager review") {
+      if (/manager.?review/i.test(text)) return label;
     } else if (label.startsWith("@")) {
       // Agent instance — match the bare name (without @).
       const name = label.slice(1).toLowerCase();
