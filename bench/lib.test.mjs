@@ -5,6 +5,8 @@ import {
   parseStream, validity, report, checkVerdict, score, claudeArgs, isCg, selectCases, parseArms, oraclePrompt, promptFor,
   planRuns, budgetStop, runStatus, rerunPlan, setupArm, oracleFile, sums, costDelta, ORACLE_HEADER,
   isConceptSkillMd, skillNameOf, coveringLoads, proposals, SKILLS_BIAS_NOTE, isReadOnly,
+  MODEL_ARMS, ARMS, baseArm, modelFor, isGraphArm, isEditCase, agentBody, replaceOnce, nodeTestSummary, isGreen,
+  gradeTestRun, gradeDocs, editCaseProblems, editSection, FLAGS, editErrorHead,
 } from './lib.mjs';
 import { listSkills, stripConceptSkills } from './strip-concept-skills.mjs';
 
@@ -252,7 +254,7 @@ test('selectCases: --group by substring on the group field, composes with --only
   const ids = (o) => selectCases(all, o).map((c) => c.id);
   assert.equal(ids({}).length, all.length);
   const g = ids({ group: 'maestro' });
-  assert.deepEqual(g.map((i) => i.split('-')[0]), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 's1', 's2', 's3']);
+  assert.deepEqual(g.map((i) => i.split('-')[0]), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 's1', 's2', 's3', 't1', 't2', 'd1', 'd2']);
   assert.ok(!g.includes('02-impact-movetask'));
   assert.deepEqual(ids({ group: 'maestro', only: 'm4' }), ['m4-cross-install-config']);
   assert.deepEqual(ids({ group: 'maestro', only: 'movetask' }), []);
@@ -800,10 +802,11 @@ test('cases: the 042 set is 5 or 6 maestro questions, m4 included, each grounded
     assert.deepEqual(miss, [], `${c.id}: the expected answer misses its own must regexes`);
     assert.ok(c.covering_skills.some((s) => c.skill_note.includes(s)), `${c.id}: the note names the covering skill`);
   }
-  // The user approved the 042 set (m2, m4, s1, s2, s3): no case anywhere is still a proposal,
-  // so run.mjs will not refuse it. A new proposal must fail here until it is approved too.
+  // The user approved the 042 set (m2, m4, s1, s2, s3) and the 044 set (t1, t2, d1, d2): none of them is
+  // a proposal, so run.mjs will not refuse them. Any new proposal must be added to this test explicitly.
   assert.deepEqual(set.map((c) => c.id.split('-')[0]), ['m2', 'm4', 's1', 's2', 's3'], 'the approved set');
-  assert.deepEqual(proposals(all).map((c) => c.id), [], 'approved: no proposal field left');
+  assert.deepEqual(proposals(set), [], '042: no proposal field');
+  assert.deepEqual(proposals(all).map((c) => c.id), [], 'no case awaits approval');
 });
 
 test('cases: s3 generation regex accepts correct paraphrases from either arm, rejects answers without the fact', async () => {
@@ -860,6 +863,519 @@ test('run.mjs: skill arms need cases with a skills list; proposals are refused b
   assert.ok(guard > src.indexOf("if (bool.has('init-check'))"), 'after the init check');
   assert.ok(guard < src.indexOf('for (const p of plan)'), 'before the run loop');
   assert.ok(guard < src.indexOf('if (!DRY) mkdirSync(outDir'), 'before the results dir');
-  assert.match(src, /validity\(arm, m, c\.skills \|\| \[\], \{ keepSkills: c\.keep_skills \|\| \[\] \}\)/);
+  assert.match(src, /validity\(arm, m, c\.skills \|\| \[\], \{ keepSkills: c\.keep_skills \|\| \[\], edit: isEditCase\(c\) \}\)/);
   assert.equal((src.match(/keepSkills: c\.keep_skills/g) || []).length, 2, 'init check and paid runs');
+});
+
+// --- 044: model arms and edit cases ---
+
+test('model arms: base arm, own model, setup and arm order', () => {
+  assert.deepEqual(Object.keys(MODEL_ARMS), ['haiku-nograph', 'haiku-graph', 'sonnet-nograph']);
+  assert.deepEqual(ARMS.slice(-3), ['haiku-nograph', 'haiku-graph', 'sonnet-nograph']);
+  assert.deepEqual(parseArms('sonnet-nograph,haiku-graph,haiku-nograph,nograph'), ['nograph', 'haiku-nograph', 'haiku-graph', 'sonnet-nograph']);
+  assert.equal(baseArm('haiku-graph'), 'graph');
+  assert.equal(baseArm('sonnet-nograph'), 'nograph');
+  assert.equal(baseArm('oracle'), 'oracle');
+  assert.equal(modelFor('haiku-nograph', 'claude-opus-5-5'), 'claude-haiku-5-5');
+  assert.equal(modelFor('sonnet-nograph', 'claude-opus-5-5'), 'claude-sonnet-5-5');
+  assert.equal(modelFor('graph', 'claude-opus-5-5'), 'claude-opus-5-5', '--model still sets the other arms');
+  assert.deepEqual(['graph', 'haiku-graph', 'nograph', 'haiku-nograph', 'sonnet-nograph', 'oracle'].map(isGraphArm), [true, true, false, false, false, false]);
+  assert.deepEqual(['haiku-graph', 'haiku-nograph', 'sonnet-nograph', 'noskills', 'skills'].map(setupArm), ['graph', 'nograph', 'nograph', 'noskills', 'nograph']);
+});
+
+test('claudeArgs: per-arm model, --plugin-dir only on graph-based arms, edit tools and system prompt only when asked', () => {
+  const val = (a, flag) => a[a.indexOf(flag) + 1];
+  const o = { model: 'claude-opus-5-5', runBudget: '0.75', pluginDir: '/p' };
+  const hg = claudeArgs('haiku-graph', 'q', o);
+  assert.equal(val(hg, FLAGS.model), 'claude-haiku-5-5');
+  assert.equal(val(hg, FLAGS.pluginDir), '/p');
+  const hn = claudeArgs('haiku-nograph', 'q', o);
+  assert.equal(val(hn, FLAGS.model), 'claude-haiku-5-5');
+  assert.ok(!hn.includes(FLAGS.pluginDir));
+  assert.equal(val(claudeArgs('sonnet-nograph', 'q', o), FLAGS.model), 'claude-sonnet-5-5');
+  assert.equal(val(claudeArgs('nograph', 'q', o), FLAGS.model), 'claude-opus-5-5');
+  assert.equal(val(hn, FLAGS.allowedTools), 'Bash,Read,Grep,Glob,Skill');
+  assert.ok(!hn.includes(FLAGS.appendSystemPrompt));
+  const e = claudeArgs('haiku-nograph', 'q', { ...o, edit: true, systemPrompt: '# Test Agent\nbody' });
+  assert.equal(val(e, FLAGS.allowedTools), 'Bash,Read,Grep,Glob,Skill,Edit,Write');
+  assert.equal(val(e, FLAGS.appendSystemPrompt), '# Test Agent\nbody');
+  assert.equal(val(e, FLAGS.print), 'q', 'the prompt is still the -p value');
+});
+
+test('validity: model arms are checked as their base arm', () => {
+  const g = parseStream(J(init(CG), bash('e', CMD), res('e', 'out'), done()));
+  const n = parseStream(J(init([]), done()));
+  assert.deepEqual(validity('haiku-graph', g), []);
+  assert.ok(validity('haiku-graph', n).some((p) => /does not show the code-graph plugin/.test(p)));
+  assert.deepEqual(validity('haiku-nograph', n), []);
+  assert.ok(validity('sonnet-nograph', g).some((p) => /code-graph in the no-graph arm/.test(p)));
+});
+
+const editUse = (id, name, file_path) => ({ type: 'assistant', message: { id: 'm' + id, usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'tool_use', id, name, input: { file_path } }] } });
+
+test('parseStream: Edit/Write counts, every non-zero Bash exit, refused edits', () => {
+  const m = parseStream(J(init(), editUse('w', 'Write', '/ws/a.test.ts'), res('w', 'ok'), editUse('e', 'Edit', '/ws/a.test.ts'), res('e', 'ok'),
+    bash('b', 'node --test a.test.ts'), res('b', 'Exit code 1\n# fail 2', true), bash('g', 'grep -rn x .'), res('g', 'Exit code 1\n', true), done()));
+  assert.deepEqual(m.editCounts, { Edit: 1, Write: 1 });
+  assert.deepEqual(m.counts, { Read: 0, Grep: 0, Glob: 0, Bash: 2, Skill: 0 }, 'tool counts unchanged');
+  assert.deepEqual(m.bashExits, ['1:node --test a.test.ts', '1:grep -rn x .']);
+  assert.deepEqual(m.editDenials, []);
+  const d = parseStream(J(init(), editUse('e', 'Edit', '/ws/.claude/skills/x/SKILL.md'), res('e', "Claude requested permissions to edit /ws/.claude/skills/x/SKILL.md, but you haven't granted it yet.", true),
+    editUse('f', 'Edit', '/ws/b.md'), res('f', 'String to replace not found in file.', true), done()));
+  assert.equal(d.editDenials.length, 1, 'a failed match is the model\'s miss, a permission refusal is the harness\'s');
+  assert.match(d.editDenials[0], /^Edit .*SKILL\.md -> Claude requested permissions/);
+});
+
+test('validity with edit: Bash failures do not invalidate, seccomp and refused edits do', () => {
+  const m = parseStream(J(init([], ['task-queue']), bash('b', 'node --test a.test.ts'), res('b', 'Exit code 1\n', true), done()));
+  assert.ok(validity('haiku-nograph', m, ['task-queue']).some((p) => /Bash failure/.test(p)), 'question cases: still invalid');
+  assert.deepEqual(validity('haiku-nograph', m, ['task-queue'], { edit: true }), []);
+  const s = parseStream(J(init(), bash('b', 'ls'), res('b', 'apply-seccomp: x'), done()));
+  assert.ok(validity('nograph', s, [], { edit: true }).some((p) => /apply-seccomp/.test(p)));
+  const d = parseStream(J(init(), editUse('e', 'Write', '/ws/x'), res('e', 'Permission to use Write has been denied.', true), done()));
+  assert.ok(validity('nograph', d, [], { edit: true }).some((p) => /edit refused by the permission layer/.test(p)));
+});
+
+test('planRuns and checkVerdict treat haiku-graph as a graph arm', () => {
+  const cs = [{ id: 'a1' }, { id: 'b2' }];
+  assert.deepEqual(planRuns(cs, { arms: ['haiku-nograph', 'haiku-graph'], graphCases: ['b2'] }).map((p) => `${p.case} ${p.arm}`), ['a1 haiku-nograph', 'b2 haiku-nograph', 'b2 haiku-graph']);
+  const planned = [{ case: 'c', arm: 'haiku-nograph', run: 1 }, { case: 'c', arm: 'haiku-graph', run: 1 }];
+  const noCall = parseStream(J(init(CG), done()));
+  const rows = [row('haiku-nograph', 1, good('nograph')), row('haiku-graph', 1, noCall)];
+  assert.equal(checkVerdict(rows, { planned, needGraphCall: true }).realCall, false);
+  assert.equal(checkVerdict([rows[0], row('haiku-graph', 1, good('graph'))], { planned, needGraphCall: true }).pass, true);
+});
+
+test('agentBody: frontmatter removed, body kept; an empty body throws', () => {
+  assert.equal(agentBody('---\nname: test\nmodel: x\n---\n\n# Test Agent\n\nYou are QA.\n'), '# Test Agent\n\nYou are QA.');
+  assert.equal(agentBody('# No frontmatter\n'), '# No frontmatter');
+  assert.throws(() => agentBody('---\nname: x\n---\n\n'), /no body/);
+});
+
+test('replaceOnce: exactly one occurrence, else it throws', () => {
+  assert.equal(replaceOnce('a = 5;\nb = 6;', 'a = 5;', 'a = 3;'), 'a = 3;\nb = 6;');
+  assert.equal(replaceOnce('x$&y', '$&', '$1'), 'x$1y', 'no replacement patterns');
+  assert.throws(() => replaceOnce('a a', 'a', 'b', 'mutant M1'), /mutant M1: expected exactly one .* found several/);
+  assert.throws(() => replaceOnce('abc', 'z', 'b'), /found none/);
+  assert.throws(() => replaceOnce('abc', '', 'b'), /found none/);
+});
+
+test('nodeTestSummary and isGreen', () => {
+  const out = 'TAP version 13\n# tests 5\n# suites 0\n# pass 4\n# fail 1\n# cancelled 0\n';
+  assert.deepEqual(nodeTestSummary(out), { pass: 4, fail: 1 });
+  assert.deepEqual(nodeTestSummary('garbage'), { pass: null, fail: null });
+  assert.equal(isGreen({ status: 0, pass: 3, fail: 0 }), true);
+  assert.equal(isGreen({ status: 0, pass: 0, fail: 0 }), false, 'no test ran');
+  assert.equal(isGreen({ status: 1, pass: 3, fail: 1 }), false);
+  assert.equal(isGreen({ status: null, timedOut: true, pass: null, fail: null }), false);
+});
+
+test('gradeTestRun: green original plus killed mutants; nothing counts without a green original', () => {
+  const green = { status: 0, pass: 5, fail: 0 };
+  const red = { status: 1, pass: 4, fail: 1 };
+  assert.deepEqual(gradeTestRun({ exists: false, mutants: [{ id: 'M1' }, { id: 'M2' }] }), { hits: 0, of: 3, detail: 'no test file' });
+  assert.match(gradeTestRun({ exists: true, original: red, mutants: [{ id: 'M1', ...red }] }).detail, /not green on the original \(exit 1, pass 4, fail 1\)/);
+  assert.equal(gradeTestRun({ exists: true, original: red, mutants: [{ id: 'M1', ...red }] }).hits, 0);
+  assert.match(gradeTestRun({ exists: true, original: { status: null, timedOut: true }, mutants: [] }).detail, /timed out/);
+  const g = gradeTestRun({ exists: true, original: green, mutants: [{ id: 'M1', ...red }, { id: 'M2', ...green }, { id: 'M3', status: null, timedOut: true }] });
+  assert.deepEqual([g.hits, g.of], [3, 4]);
+  assert.equal(g.detail, 'green (5 pass); killed M1,M3; survived M2');
+});
+
+test('gradeDocs: must hits plus must_not misses per file; a missing file scores nothing', () => {
+  const spec = { 'a.md': { must: ['30 min'], must_not: ['15 min'] }, 'b.md': { must: ['x', 'y'], must_not: ['old'] } };
+  assert.deepEqual(gradeDocs(spec, { 'a.md': 'cap 30 min', 'b.md': 'x y' }), { hits: 5, of: 5, detail: 'all facts right, nothing stale' });
+  const g = gradeDocs(spec, { 'a.md': 'cap 30 min (was 15 min)', 'b.md': null });
+  assert.deepEqual([g.hits, g.of], [1, 5]);
+  assert.equal(g.detail, 'a.md: stale 1/1; b.md: missing');
+  assert.equal(gradeDocs(spec, { 'a.md': '15 MIN', 'b.md': '  ' }).hits, 0, 'case-insensitive; blank = missing');
+});
+
+test('editCaseProblems: well-formed cases pass, broken ones are named', () => {
+  const t = { kind: 'test', agent: 'test', question: 'write t/x.node.test.ts', graph_contribution: 'g', edit: { test: 't/x.node.test.ts', mutants: [{ id: 'M1', file: 'f', from: 'a', to: 'b' }] } };
+  assert.deepEqual(editCaseProblems(t), []);
+  const s = { kind: 'scribe', agent: 'scribe', question: 'q', graph_contribution: 'g', edit: { plant: [{ file: 'f', from: 'a', to: 'b' }], docs: { 'd.md': { must: ['x'], must_not: ['y'] } } } };
+  assert.deepEqual(editCaseProblems(s), []);
+  const p = editCaseProblems({ kind: 'test', agent: 'scribe', question: 'q', edit: { test: 'x.test.ts', mutants: [{ id: 'M1', file: 'f', from: 'a', to: 'a' }] } });
+  for (const re of [/agent must name/, /graph_contribution/, /\.node\.test\.ts/, /bad mutant/, /name the test file/]) assert.ok(p.some((x) => re.test(x)), String(re));
+  const q = editCaseProblems({ kind: 'scribe', agent: 'scribe', question: 'q', graph_contribution: 'g', edit: { docs: { 'd.md': { must: ['x'] } } } });
+  assert.ok(q.some((x) => /planted code change/.test(x)) && q.some((x) => /needs must and must_not/.test(x)));
+  assert.deepEqual(editCaseProblems({ ...t, kind: 'review', agent: 'review' }).filter((x) => /kind/.test(x)).length, 1);
+});
+
+test('report: per-arm models in the header and the edit grading section', () => {
+  const m = parseStream(J(init(), editUse('w', 'Write', '/ws/a'), res('w', 'ok'), bash('b', 'node --test a'), res('b', 'Exit code 1\n', true), done()));
+  const rows = [
+    { case: 't1', arm: 'haiku-nograph', run: 1, m, problems: [], status: 'valid', sc: { hits: 3, of: 5 }, edit: { detail: 'green (5 pass); killed M1|M2; survived M3', restored: ['apps/x.ts'] } },
+    { case: 't1', arm: 'sonnet-nograph', run: 1, m, problems: [], status: 'valid', sc: { hits: 5, of: 5 }, edit: { detail: 'green', restored: [] } },
+    { case: 'q', arm: 'nograph', run: 1, m, problems: [], status: 'valid', sc: { hits: 1, of: 1 } },
+  ];
+  const md = report(rows, { model: 'claude-opus-5-5', models: { 'haiku-nograph': 'claude-haiku-5-5', 'sonnet-nograph': 'claude-sonnet-5-5' }, budget: 8, spent: 0.3 });
+  assert.match(md, /^# bench report \(haiku-nograph=claude-haiku-5-5, sonnet-nograph=claude-sonnet-5-5, spent/);
+  assert.match(md, /## Edit grading \(044\)/);
+  assert.match(md, /\| t1 \| haiku-nograph \| 1 \| yes \| 3\/5 \| green \(5 pass\); killed M1\\\|M2; survived M3 \| 0\/1 \| apps\/x\.ts \| 1:node --test a \|/);
+  assert.match(md, /\| haiku-nograph \| 1 \| 3\/5 \| 60% \| 0\.100 \| 0\.100 \|/);
+  assert.match(md, /\| sonnet-nograph \| 1 \| 5\/5 \| 100% \|/);
+  assert.ok(!/\| q \| nograph \| 1 \| yes \| 1\/1 \| -/.test(md.split('## Edit grading')[1]), 'question rows stay out of the edit section');
+  assert.match(report(rows.slice(2), { model: 'claude-opus-5-5', models: { nograph: 'claude-opus-5-5' }, budget: 1, spent: 0 }), /^# bench report \(claude-opus-5-5, spent/);
+  assert.deepEqual(editSection(rows.slice(2)), []);
+});
+
+// The 044 cases: shape, the reference fixtures that bench/edit-check.mjs runs, and paraphrase tests for
+// every must / must_not regex of the scribe cases.
+const cases044 = async () => {
+  const { readFileSync } = await import('node:fs');
+  return selectCases(JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')).cases, { set: '044' });
+};
+
+test('cases: the 044 set is two test and two scribe edit cases, well formed, approved (no proposal field)', async () => {
+  const { existsSync } = await import('node:fs');
+  const set = await cases044();
+  assert.deepEqual(set.map((c) => `${c.id} ${c.kind}`), ['t1-test-close-task test', 't2-test-epic-ready test', 'd1-scribe-claim-cap scribe', 'd2-scribe-spawn-cap scribe']);
+  for (const c of set) {
+    assert.ok(isEditCase(c), c.id);
+    assert.deepEqual(editCaseProblems(c), [], c.id);
+    assert.equal(c.group, 'maestro@3814a30', c.id);
+    assert.match(c.setup, /maestro-setup\.sh .* 3814a30 \{ARM\}$/, c.id);
+    assert.ok(c.skills.length, c.id);
+    assert.equal(c.proposal, undefined, `${c.id}: approved by the user, so run.mjs must not refuse it`);
+    const ref = c.kind === 'test' ? `./edit/ref/${c.id}.test.ts` : `./edit/ref/${c.id}.json`;
+    assert.ok(existsSync(new URL(ref, import.meta.url)), `${c.id}: ${ref}`);
+    if (c.kind === 'test') {
+      assert.equal(c.edit.mutants.length, 4, c.id);
+      assert.ok(c.question.includes(`node --import ./.bench/ts-resolve.mjs --test ${c.edit.test}`), `${c.id}: the prompt gives the run command`);
+      assert.ok(c.edit.protect.includes('apps/maestro/src'), `${c.id}: application code is protected`);
+    } else {
+      for (const p of c.edit.plant) assert.ok(c.edit.protect.some((d) => p.file.startsWith(d)), `${c.id}: the plant in ${p.file} is protected`);
+      for (const [f, d] of Object.entries(c.edit.docs)) for (const re of [...d.must, ...d.must_not]) assert.doesNotThrow(() => new RegExp(re, 'i'), `${f}: ${re}`);
+    }
+  }
+});
+
+test('cases: d1 regexes accept correct paraphrases of the 30-minute cap and catch only the stale wording', async () => {
+  const d1 = (await cases044()).find((c) => c.id === 'd1-scribe-claim-cap').edit.docs;
+  const re = (s) => new RegExp(s, 'i');
+  const must = [...new Set(Object.values(d1).flatMap((d) => d.must))];
+  assert.equal(must.length, 1, 'one 30-minute regex, shared by the three docs');
+  for (const s of ['`CLAIM_IDLE_CAP_MS` (30 minutes, named beside', '(30 min)', 'The 30-minute rule', '**30 min**', 'thirty minutes', 'half an hour', '`30 * 60 * 1000`', 'idle for 30 mins'])
+    assert.ok(re(must[0]).test(s), `must accept: ${s}`);
+  for (const s of ['(15 minutes,', '300 minutes', '130 min', '3 min', '30 seconds']) assert.ok(!re(must[0]).test(s), `must reject: ${s}`);
+  const claims = re(d1['.claude/skills/task-queue/sub-concepts/task-claims.md'].must_not[0]);
+  for (const s of ['`CLAIM_IDLE_CAP_MS` (15 minutes, named', '`CLAIM_IDLE_CAP_MS` (15 min)', 'CLAIM_IDLE_CAP_MS (15-minute)']) assert.ok(claims.test(s), `stale: ${s}`);
+  for (const s of ['`CLAIM_IDLE_CAP_MS` (30 minutes; it was 15 minutes)', '`CLAIM_IDLE_CAP_MS` (30 min)', 'raised from 15 min to 30 min']) assert.ok(!claims.test(s), `not stale: ${s}`);
+  const [bold, rule, live] = d1['apps/maestro/.claude/skills/log-view/SKILL.md'].must_not.map(re);
+  assert.ok(bold.test('| **15 min** (`SESSION_DELETE_IDLE_CAP_MS` = `CLAIM_IDLE_CAP_MS`) |'));
+  assert.ok(!bold.test('| **30 min** (`SESSION_DELETE_IDLE_CAP_MS` = `CLAIM_IDLE_CAP_MS`, was 15 min) |'));
+  assert.ok(rule.test('**Confirm before deleting.** The 15-minute rule cannot tell'));
+  assert.ok(!rule.test('The 30-minute rule (it was a 15-minute rule) cannot tell'));
+  assert.ok(live.test('(a live claim is within 15 min, inside both windows)'));
+  assert.ok(!live.test('(a live claim is within 30 min, inside both windows)'));
+});
+
+test('cases: d2 regexes accept correct paraphrases of the new default of 3 and catch only the stale wording', async () => {
+  const d2 = (await cases044()).find((c) => c.id === 'd2-scribe-spawn-cap').edit.docs;
+  const re = (s) => new RegExp(s, 'i');
+  const ok = (r, yes, no) => { for (const s of yes) assert.ok(r.test(s), `accept: ${s}`); for (const s of no) assert.ok(!r.test(s), `reject: ${s}`); };
+  const epics = d2['.claude/skills/task-queue/sub-concepts/epics.md'];
+  ok(re(epics.must[0]), ['`DEFAULT_SPAWN_CAP` is 3;', '`DEFAULT_SPAWN_CAP` is three', 'DEFAULT_SPAWN_CAP = 3', '`DEFAULT_SPAWN_CAP` defaults to 3', '**`DEFAULT_SPAWN_CAP`** is 3', '`DEFAULT_SPAWN_CAP`: 3'],
+    ['`DEFAULT_SPAWN_CAP` is 5;', 'DEFAULT_SPAWN_CAP is 30', 'DEFAULT_SPAWN_CAP is now lower']);
+  ok(re(epics.must_not[0]), ['`DEFAULT_SPAWN_CAP` is 5;'], ['`DEFAULT_SPAWN_CAP` is 3 (was 5);', 'DEFAULT_SPAWN_CAP is 50']);
+  const mgr = d2['plugins/maestro/skills/maestro-manager/SKILL.md'];
+  ok(re(mgr.must[0]), ['(up to 3 at once; without herdr', 'at most three at a time', 'up to **3** at once', 'no more than 3 workers', 'up to 3 concurrent sessions'],
+    ['(up to 5 at once;', 'up to 30 at once', 'up to 3']);
+  ok(re(mgr.must[1]), ['the default is 3)', 'the default is `3`', 'default cap of 3', 'default: 3', '3 by default', '`3` by default', 'three is the default'],
+    ['the default is 5)', 'the default is 30', 'by default']);
+  ok(re(mgr.must_not[0]), ['(up to 5 at once;'], ['(up to 3 at once; was 5)']);
+  ok(re(mgr.must_not[1]), ['the default is 5)'], ['the default is 3 (it was 5)', 'the default is 50']);
+  const herdr = d2['plugins/maestro/skills/maestro-install/references/herdr.md'];
+  ok(re(herdr.must[0]), ['(up to 3 at a\ntime)', 'up to 3 at a time', 'at most three at once'], ['(up to 5 at a\ntime)', 'up to 3 tabs']);
+  ok(re(herdr.must_not[0]), ['(up to 5 at a\ntime)', 'up to 5 at a time'], ['(up to 3 at a\ntime, was 5)']);
+});
+
+test('cases: the d1/d2 reference fixes satisfy their own regexes (offline twin of edit-check)', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const c of (await cases044()).filter((x) => x.kind === 'scribe')) {
+    const ref = JSON.parse(readFileSync(new URL(`./edit/ref/${c.id}.json`, import.meta.url), 'utf8')).edits;
+    for (const [f, d] of Object.entries(c.edit.docs)) {
+      const after = ref.filter((e) => e.file === f).map((e) => e.to).join('\n');
+      const before = ref.filter((e) => e.file === f).map((e) => e.from).join('\n');
+      assert.ok(after, `${c.id}: the reference fixes ${f}`);
+      for (const r of d.must) assert.ok(new RegExp(r, 'i').test(after), `${c.id} ${f}: the fix matches ${r}`);
+      for (const r of d.must_not) assert.ok(!new RegExp(r, 'i').test(after), `${c.id} ${f}: the fix is not stale for ${r}`);
+      assert.ok(d.must_not.some((r) => new RegExp(r, 'i').test(before)), `${c.id} ${f}: the original text is stale`);
+    }
+  }
+});
+
+// bench/edit.mjs on a tiny synthetic workspace (no maestro checkout needed): real `node --test` runs.
+test('edit.mjs: prepare, protect, grade a test case and a scribe case on a synthetic workspace', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { prepareEdit, gradeEdit, systemPromptFor, saveArtifacts } = await import('./edit.mjs');
+  const root = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'bench-edit-unit-'));
+  try {
+    const ws = join(root, 'ws');
+    mkdirSync(join(ws, 'src'), { recursive: true });
+    mkdirSync(join(ws, 'test'), { recursive: true });
+    mkdirSync(join(ws, '.claude', 'agents'), { recursive: true });
+    writeFileSync(join(ws, '.claude', 'agents', 'test.md'), '---\nname: test\n---\n\n# Test Agent\n');
+    writeFileSync(join(ws, 'src', 'm.ts'), 'export const add = (a: number, b: number): number => a + b;\nexport const CAP = 5;\n');
+    writeFileSync(join(ws, 'test', 'old.test.ts'), 'old');
+    const c = { id: 'x', kind: 'test', agent: 'test', edit: {
+      test: 'test/m.node.test.ts', remove: ['test/old.test.ts'], protect: ['src'],
+      mutants: [{ id: 'M1', file: 'src/m.ts', from: 'a + b', to: 'a - b' }, { id: 'M2', file: 'src/m.ts', from: 'CAP = 5', to: 'CAP = 6' }],
+    } };
+    assert.throws(() => prepareEdit(ws, { ...c, edit: { ...c.edit, remove: ['../escape'] } }), /escapes the workspace/);
+    const pristine = prepareEdit(ws, c);
+    assert.ok(existsSync(join(ws, '.bench', 'ts-resolve.mjs')), 'resolve hook copied');
+    assert.ok(!existsSync(join(ws, 'test', 'old.test.ts')), 'overlapping test removed');
+    assert.equal(systemPromptFor(ws, c), '# Test Agent');
+    assert.deepEqual([gradeEdit(ws, c, pristine).hits, gradeEdit(ws, c, pristine).detail], [0, 'no test file']);
+    // the "model": a test that imports with a .js specifier (the hook resolves it to .ts), plus a stray
+    // edit to protected code that grading must undo before it runs anything
+    writeFileSync(join(ws, 'test', 'm.node.test.ts'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../src/m.js';\ntest('add', () => assert.equal(add(2, 3), 5));\n");
+    writeFileSync(join(ws, 'src', 'm.ts'), 'export const add = (a: number, b: number): number => 5;\n');
+    writeFileSync(join(ws, 'src', 'extra.ts'), 'x');
+    const g = gradeEdit(ws, c, pristine);
+    assert.deepEqual(g.restored.sort(), ['src/extra.ts', 'src/m.ts']);
+    assert.deepEqual([g.hits, g.of], [2, 3], g.detail);
+    assert.equal(g.detail, 'green (1 pass); killed M1; survived M2');
+    assert.match(readFileSync(join(ws, 'src', 'm.ts'), 'utf8'), /a \+ b;\nexport const CAP = 5;/, 'mutants undone after grading');
+    const out = join(root, 'out');
+    mkdirSync(out);
+    saveArtifacts(ws, c, out, 'haiku-nograph-run1', g);
+    assert.deepEqual(readdirSync(out).sort(), ['haiku-nograph-run1.test-output.txt', 'haiku-nograph-run1.test__m.node.test.ts']);
+
+    const s = { id: 'y', kind: 'scribe', agent: 'test', edit: {
+      plant: [{ file: 'src/m.ts', from: 'CAP = 5', to: 'CAP = 3' }], protect: ['src'],
+      docs: { 'docs/cap.md': { must: ['\\b3\\b'], must_not: ['\\b5\\b'] }, 'docs/gone.md': { must: ['3'], must_not: ['5'] } },
+    } };
+    mkdirSync(join(ws, 'docs'));
+    writeFileSync(join(ws, 'docs', 'cap.md'), 'The cap is 5.\n');
+    const sp = prepareEdit(ws, s);
+    assert.match(readFileSync(join(ws, 'src', 'm.ts'), 'utf8'), /CAP = 3/, 'planted');
+    assert.throws(() => prepareEdit(ws, s), /expected exactly one occurrence/, 'a plant that no longer applies is refused');
+    writeFileSync(join(ws, 'docs', 'cap.md'), 'The cap is 3.\n');
+    writeFileSync(join(ws, 'src', 'm.ts'), readFileSync(join(ws, 'src', 'm.ts'), 'utf8').replace('CAP = 3', 'CAP = 5')); // reverting the plant
+    const sg = gradeEdit(ws, s, sp);
+    assert.deepEqual([sg.hits, sg.of, sg.restored], [2, 4, ['src/m.ts']]);
+    assert.equal(sg.detail, 'docs/gone.md: missing');
+    assert.match(readFileSync(join(ws, 'src', 'm.ts'), 'utf8'), /CAP = 3/, 'the plant is restored');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('run.mjs: edit cases are prepared after setup and graded before the workspace is removed', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('./run.mjs', import.meta.url), 'utf8');
+  const loop = src.slice(src.indexOf('for (const p of plan)'));
+  const at = (s) => { const i = loop.indexOf(s); assert.ok(i >= 0, s); return i; };
+  assert.ok(at("spawnSync('bash', ['-c', setupCmd(c, arm)]") < at('pristine = prepareEdit(ws, c)'));
+  assert.ok(at('pristine = prepareEdit(ws, c)') < at("spawnSync('claude', args"));
+  assert.ok(at('grade = gradeEdit(ws, c, pristine)') < loop.lastIndexOf("if (!bool.has('keep-ws')) rmSync(ws"), 'graded before the paid run removes its workspace');
+  assert.ok(at('grade = gradeEdit(ws, c, pristine)') < at('rows.push('));
+  assert.match(src, /\.\.\.editArgs\(ws, c\)/);
+  assert.equal((src.match(/\.\.\.editArgs\(ws, c\)/g) || []).length, 2, 'init check and paid runs');
+  assert.match(src, /needGraphCall = \[\.\.\.fullArms\]\.some\(isGraphArm\)/);
+  assert.match(src, /models: models\(/);
+});
+
+// --- 044 gap tests (test agent) ---
+
+test('MODEL_ARMS: every entry has a nograph/graph base and its own model; --model never overrides it and still drives the plain arms', () => {
+  for (const [arm, { base, model }] of Object.entries(MODEL_ARMS)) {
+    assert.ok(['nograph', 'graph'].includes(base), `${arm}: base ${base}`);
+    assert.match(model, /^claude-(haiku|sonnet)-/, `${arm}: model ${model}`);
+    for (const given of ['claude-opus-5-5', 'claude-sonnet-5-5', undefined]) assert.equal(modelFor(arm, given), model, `${arm} with --model ${given}`);
+  }
+  for (const arm of ['nograph', 'graph', 'oracle', 'skills', 'noskills']) {
+    assert.equal(modelFor(arm, 'claude-sonnet-5-5'), 'claude-sonnet-5-5', `${arm}: --model`);
+    assert.equal(modelFor(arm, undefined), undefined, `${arm}: no --model, nothing invented`);
+    assert.equal(baseArm(arm), arm);
+  }
+  assert.equal(baseArm('unknown-arm'), 'unknown-arm');
+  assert.equal(isGraphArm('unknown-arm'), false);
+});
+
+test('claudeArgs: every arm under one --model, with and without the edit options', () => {
+  const val = (a, flag) => a[a.indexOf(flag) + 1];
+  const o = { model: 'claude-opus-5-5', runBudget: 0.75, pluginDir: '/repo/plugin' };
+  for (const arm of ARMS) {
+    const a = claudeArgs(arm, 'q', o);
+    assert.equal(val(a, FLAGS.model), modelFor(arm, o.model), `${arm}: model`);
+    assert.equal(a.includes(FLAGS.pluginDir), isGraphArm(arm), `${arm}: --plugin-dir only on graph-based arms`);
+    assert.equal(a.filter((x) => x === FLAGS.model).length, 1, `${arm}: a single --model`);
+    assert.equal(val(a, FLAGS.maxBudget), '0.75', `${arm}: run budget is a string`);
+    assert.equal(val(a, FLAGS.permissionMode), 'dontAsk');
+    assert.ok(!a.includes(FLAGS.appendSystemPrompt), `${arm}: no system prompt without one`);
+  }
+  // edit without a system prompt: tools widened, no empty --append-system-prompt
+  const e = claudeArgs('haiku-graph', 'q', { ...o, edit: true });
+  assert.equal(val(e, FLAGS.allowedTools), 'Bash,Read,Grep,Glob,Skill,Edit,Write');
+  assert.ok(!e.includes(FLAGS.appendSystemPrompt));
+  assert.equal(val(e, FLAGS.pluginDir), '/repo/plugin');
+  // a system prompt with leading dashes or newlines stays one argv value right after the flag
+  const sp = '--- not a flag\n# Scribe Agent\n\nUpdate docs.';
+  const s = claudeArgs('sonnet-nograph', 'the handoff', { ...o, edit: true, systemPrompt: sp });
+  assert.equal(val(s, FLAGS.appendSystemPrompt), sp);
+  assert.equal(s.filter((x) => x === FLAGS.appendSystemPrompt).length, 1);
+  assert.equal(val(s, FLAGS.print), 'the handoff');
+  assert.equal(val(s, FLAGS.model), 'claude-sonnet-5-5');
+  // the options object is not mutated (run.mjs reuses it across arms)
+  assert.deepEqual(o, { model: 'claude-opus-5-5', runBudget: 0.75, pluginDir: '/repo/plugin' });
+});
+
+test('parseStream: edit denials only from Edit/Write errors; Bash permission errors are Bash exits; exits are 60-char, whitespace-collapsed', () => {
+  const longCmd = 'node   --import ./.bench/ts-resolve.mjs\n--test apps/maestro/test/core/close-task.node.test.ts --test-reporter tap';
+  const m = parseStream(J(init(),
+    editUse('w', 'Write', '/ws/.claude/skills/x.md'), res('w', 'Writing to this path is not allowed in dontAsk mode', true),
+    editUse('e', 'Edit', '/ws/y.md'), res('e', 'Permission to use Edit has been denied.', true),
+    editUse('ok', 'Edit', '/ws/z.md'), res('ok', 'The file /ws/z.md has been updated (permission note kept).', false),
+    bash('b', 'cat /root/secret'), res('b', 'Exit code 1\ncat: /root/secret: Permission denied', true),
+    bash('l', longCmd), res('l', 'Exit code 1\n# fail 1', true),
+    bash('n', 'node -e 1'), res('n', 'boom', true),
+    done()));
+  assert.equal(m.editDenials.length, 2, 'Write "not allowed" and Edit "denied"; a successful edit mentioning permission is not one');
+  assert.match(m.editDenials[0], /^Write \/ws\/\.claude\/skills\/x\.md -> Writing to this path is not allowed/);
+  assert.deepEqual(m.editCounts, { Edit: 2, Write: 1 });
+  assert.equal(m.bashExits[0], '1:cat /root/secret', 'a Bash permission error is a Bash exit, not an edit denial');
+  assert.equal(m.bashExits[1], `1:${longCmd.replace(/\s+/g, ' ').slice(0, 60)}`);
+  assert.equal(m.bashExits[1].length, 62);
+  assert.equal(m.bashExits[2], '1:node -e 1', 'is_error without an "Exit code" line counts as exit 1');
+  // a refused edit invalidates on every arm, model arms included, edit case or not
+  for (const arm of ['haiku-nograph', 'sonnet-nograph', 'nograph']) {
+    assert.ok(validity(arm, m, [], { edit: true }).some((p) => /edit refused by the permission layer: Write/.test(p)), arm);
+  }
+});
+
+test('parseStream: a failed Edit whose echoed old_string mentions permissions is not a refusal', () => {
+  const miss = 'String to replace not found in file.\nString: Each worker\'s permission prompts and human-review';
+  const m = parseStream(J(init(), editUse('e', 'Edit', '/ws/plugins/maestro/skills/maestro-install/references/herdr.md'), res('e', miss, true), done()));
+  assert.deepEqual(m.editDenials, []);
+  // a refusal is still caught when the error also echoes the input
+  const refused = parseStream(J(init(), editUse('r', 'Edit', '/ws/.claude/skills/a.md'), res('r', 'Permission to use Edit has been denied.\nString: not allowed here', true), done()));
+  assert.equal(refused.editDenials.length, 1);
+});
+
+test('editErrorHead: cuts at the first echoed-input label at a line start, any case, keeping a multi-line head', () => {
+  assert.equal(editErrorHead('String to replace not found in file.\nString: x'), 'String to replace not found in file.');
+  // a multi-line head survives whole; the cut is at the label line
+  const multi = 'Found 2 matches of the string to replace, but replace_all is false.\nTo replace all occurrences, set replace_all to true.\nString: Permission denied';
+  assert.equal(editErrorHead(multi), 'Found 2 matches of the string to replace, but replace_all is false.\nTo replace all occurrences, set replace_all to true.');
+  // labels are case-insensitive and may be indented
+  assert.equal(editErrorHead('Edit failed\nOLD_STRING: denied'), 'Edit failed');
+  assert.equal(editErrorHead('Edit failed\n  New_String: not allowed'), 'Edit failed');
+  assert.equal(editErrorHead('Write failed\nContent: permission'), 'Write failed');
+  // a label word mid-line is not an echo
+  assert.equal(editErrorHead('Bad content: permission denied'), 'Bad content: permission denied');
+  // no label: the whole text; non-strings are stringified
+  assert.equal(editErrorHead('Permission to use Edit has been denied.'), 'Permission to use Edit has been denied.');
+  assert.equal(editErrorHead(undefined), 'undefined');
+});
+
+test('parseStream: edit refusal edges (echo-only wording, refusal before echo, multi-line head, label case, array content)', () => {
+  const run = (name, content) => parseStream(J(init(), editUse('x', name, '/ws/doc.md'), res('x', content, true), done())).editDenials;
+  // refusal wording only in a multi-line echoed old_string, one line of which starts with "Permission"
+  assert.deepEqual(run('Edit', 'String to replace not found in file.\nString: intro\nPermission denied is logged\nnot allowed twice'), []);
+  // a "Found N matches" multi-line head followed by an echo that mentions denial
+  assert.deepEqual(run('Edit', 'Found 3 matches of the string to replace, but replace_all is false.\nTo replace all occurrences, set replace_all to true.\nString: access denied'), []);
+  // upper-case echo label still cuts
+  assert.deepEqual(run('Edit', 'String to replace not found in file.\nOLD_STRING: permission'), []);
+  // a Write error that is not a refusal
+  assert.deepEqual(run('Write', 'File has not been read yet. Read it first before writing to it.\ncontent: not allowed'), []);
+  // a real refusal before an echo, in a multi-line head, still counts
+  assert.equal(run('Write', 'Writing to this path is not allowed in dontAsk mode.\nSee settings.\nContent: hello').length, 1);
+  assert.equal(run('Edit', 'Edit failed.\nPermission to use Edit has been denied.\nold_string: a').length, 1);
+  // tool_result content as an array of text blocks
+  assert.deepEqual(run('Edit', [{ type: 'text', text: 'String to replace not found in file.\nString: permission' }]), []);
+  assert.equal(run('Edit', [{ type: 'text', text: 'Permission to use Edit has been denied.' }]).length, 1);
+});
+
+test('validity with edit: model arms keep their base-arm init checks (code-graph placement, concept skills)', () => {
+  const failing = [bash('b', 'node --test x'), res('b', 'Exit code 1\n', true)];
+  const graphNoSkills = parseStream(J(init(CG, []), ...failing, done()));
+  assert.ok(validity('haiku-graph', graphNoSkills, ['task-queue'], { edit: true }).some((p) => /task-queue/.test(p)), 'a missing concept skill still invalidates');
+  assert.ok(!validity('haiku-graph', graphNoSkills, ['task-queue'], { edit: true }).some((p) => /Bash failure/.test(p)));
+  const cgLeak = parseStream(J(init(CG, ['task-queue']), ...failing, done()));
+  assert.ok(validity('haiku-nograph', cgLeak, ['task-queue'], { edit: true }).some((p) => /code-graph in the no-graph arm/.test(p)));
+  assert.ok(validity('sonnet-nograph', cgLeak, ['task-queue'], { edit: true }).some((p) => /code-graph in the no-graph arm/.test(p)));
+  const errResult = parseStream(J(init([], ['task-queue']), done({ is_error: true })));
+  assert.ok(validity('haiku-nograph', errResult, ['task-queue'], { edit: true }).length > 0, 'an error result still invalidates an edit run');
+});
+
+test('gradeTestRun and gradeDocs: boundaries', () => {
+  const green = { status: 0, pass: 2, fail: 0 };
+  // every mutant survives: only the green point
+  const all = gradeTestRun({ exists: true, original: green, mutants: [{ id: 'M1', ...green }, { id: 'M2', ...green }] });
+  assert.deepEqual([all.hits, all.of, all.detail], [1, 3, 'green (2 pass); killed -; survived M1,M2']);
+  // exit 0 with no test is not green, so mutants never count
+  const empty = gradeTestRun({ exists: true, original: { status: 0, pass: 0, fail: 0 }, mutants: [{ id: 'M1', status: 1, pass: 0, fail: 1 }] });
+  assert.deepEqual([empty.hits, empty.of], [0, 2]);
+  // a mutant with only placeholder ids (never run) is not counted as killed when the original is red
+  const red = gradeTestRun({ exists: true, original: { status: 1, pass: 0, fail: 1 }, mutants: [{ id: 'M1' }] });
+  assert.equal(red.hits, 0);
+  assert.equal(gradeTestRun({ exists: true, original: null, mutants: [] }).hits, 0, 'no original run');
+  // gradeDocs: a file with only must_not, a file both missing facts and stale, a doc absent from the map
+  const spec = { 'a.md': { must_not: ['old'] }, 'b.md': { must: ['new', 'also'], must_not: ['old', 'older'] }, 'c.md': { must: ['x'], must_not: ['y'] } };
+  const g = gradeDocs(spec, { 'a.md': 'fresh', 'b.md': 'new but OLD and older' });
+  assert.deepEqual([g.hits, g.of], [2, 7]);
+  assert.equal(g.detail, 'b.md: missing 1/2, stale 2/2; c.md: missing');
+  assert.deepEqual(gradeDocs({}, {}), { hits: 0, of: 0, detail: 'all facts right, nothing stale' });
+});
+
+test('edit.mjs: restore recreates a deleted protected file, removes a nested added one; a red suite runs no mutant; a missing remove path or stale mutant throws', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { prepareEdit, gradeEdit, runTestFile } = await import('./edit.mjs');
+  const root = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'bench-edit-gap-'));
+  const savedOpts = process.env.NODE_OPTIONS;
+  try {
+    const ws = join(root, 'ws');
+    mkdirSync(join(ws, 'src', 'core'), { recursive: true });
+    mkdirSync(join(ws, 'test'), { recursive: true });
+    writeFileSync(join(ws, 'src', 'core', 'm.ts'), 'export const twice = (n: number): number => n * 2;\n');
+    writeFileSync(join(ws, 'src', 'keep.ts'), 'export const K = 1;\n');
+    const c = { id: 'g', kind: 'test', agent: 'test', edit: {
+      test: 'test/m.node.test.ts', protect: ['src'],
+      mutants: [{ id: 'M1', file: 'src/core/m.ts', from: 'n * 2', to: 'n + 2' }],
+    } };
+    assert.throws(() => prepareEdit(ws, { ...c, edit: { ...c.edit, remove: ['test/absent.test.ts'] } }), /edit.remove names a missing path/);
+    assert.throws(() => prepareEdit(ws, { ...c, edit: { ...c.edit, protect: ['/etc'] } }), /escapes the workspace/);
+    const pristine = prepareEdit(ws, c);
+
+    // the "model" deletes a protected file and adds one in a new nested dir; the suite is red
+    rmSync(join(ws, 'src', 'keep.ts'));
+    mkdirSync(join(ws, 'src', 'new', 'deep'), { recursive: true });
+    writeFileSync(join(ws, 'src', 'new', 'deep', 'x.ts'), 'x');
+    writeFileSync(join(ws, 'test', 'm.node.test.ts'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { twice } from '../src/core/m.js';\ntest('twice', () => assert.equal(twice(2), 5));\n");
+    const r = gradeEdit(ws, c, pristine);
+    assert.deepEqual(r.restored.sort(), ['src/keep.ts', 'src/new/deep/x.ts']);
+    assert.equal(readFileSync(join(ws, 'src', 'keep.ts'), 'utf8'), 'export const K = 1;\n');
+    assert.ok(!existsSync(join(ws, 'src', 'new', 'deep', 'x.ts')));
+    assert.deepEqual([r.hits, r.of], [0, 2]);
+    assert.match(r.detail, /^not green on the original \(exit 1, pass 0, fail 1\)/);
+    assert.deepEqual(r.runs.mutants, [], 'a red suite runs no mutant');
+
+    // an inherited NODE_OPTIONS that would break the child (and NODE_TEST_CONTEXT, set by this outer
+    // node --test run) does not leak into the graded run
+    assert.ok(process.env.NODE_TEST_CONTEXT, 'this test runs under node --test');
+    process.env.NODE_OPTIONS = `--require ${join(root, 'does-not-exist.cjs')}`;
+    writeFileSync(join(ws, 'test', 'm.node.test.ts'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { twice } from '../src/core/m.js';\ntest('twice', () => assert.equal(twice(3), 6));\n");
+    const direct = runTestFile(ws, c.edit.test);
+    assert.deepEqual([direct.status, direct.pass, direct.fail, direct.timedOut], [0, 1, 0, false], direct.tail);
+    const ok = gradeEdit(ws, c, pristine);
+    assert.deepEqual([ok.hits, ok.of, ok.restored], [2, 2, []], ok.detail);
+    if (savedOpts === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = savedOpts;
+
+    // a mutant whose text no longer occurs (maestro pin change) stops grading, and the file is untouched
+    const stale = { ...c, edit: { ...c.edit, mutants: [{ id: 'M9', file: 'src/core/m.ts', from: 'n * 3', to: 'n' }] } };
+    assert.throws(() => gradeEdit(ws, stale, pristine), /g mutant M9: expected exactly one occurrence .* found none/);
+    assert.equal(readFileSync(join(ws, 'src', 'core', 'm.ts'), 'utf8'), 'export const twice = (n: number): number => n * 2;\n');
+  } finally {
+    if (savedOpts === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = savedOpts;
+    rmSync(root, { recursive: true, force: true });
+  }
 });

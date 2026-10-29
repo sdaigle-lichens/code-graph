@@ -3,6 +3,9 @@
 // Usage: node bench/run.mjs [--runs 1] [--budget 1] [--run-budget 0.75] [--model claude-opus-5-5] [--group <substring>]
 //                           [--only <substring>] [--set <name>] [--arms nograph,graph] [--graph-cases <id,id>]
 //                           [--dry] [--keep-ws] [--init-check]
+// Model arms (044: haiku-nograph, haiku-graph, sonnet-nograph) pin their own model; --model sets the
+// others. Edit cases (an `edit` field, 044) run as the case's maestro agent and are graded on the files
+// they leave (bench/edit.mjs).
 //        node bench/run.mjs --rerun bench/results/<timestamp>   (only the runs that hit the usage limit or never ran)
 // Output: bench/results/<timestamp>/ (transcripts per run, runs.json, report.md), gitignored.
 import { spawnSync, spawn } from 'node:child_process';
@@ -13,7 +16,9 @@ import { fileURLToPath } from 'node:url';
 import {
   claudeArgs, selectCases, parseStream, validity, score, report, checkVerdict, parseArms, planRuns, promptFor,
   oracleFile, setupArm, budgetStop, runStatus, statusOf, rerunPlan, proposals, DEFAULT_ARMS, SKILL_ARMS,
+  isEditCase, isGraphArm, modelFor,
 } from './lib.mjs';
+import { prepareEdit, gradeEdit, systemPromptFor, saveArtifacts } from './edit.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
@@ -82,6 +87,9 @@ const work = process.env.TMPDIR || tmpdir();
 const pluginDir = join(repo, 'plugin');
 const maestroDir = process.env.MAESTRO_DIR || join(homedir(), 'gits', 'maestro'); // read-only: only `git archive` touches it
 const setupCmd = (c, arm) => c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', setupArm(arm)).replaceAll('{MAESTRO}', maestroDir);
+// Edit cases: Edit/Write allowed and the maestro agent's body appended to the system prompt.
+const editArgs = (ws, c) => (isEditCase(c) ? { edit: true, systemPrompt: systemPromptFor(ws, c) } : {});
+const models = (arms) => Object.fromEntries(arms.map((a) => [a, modelFor(a, opts.model)]));
 
 // --init-check: $0 preflight. Points claude at a dead API endpoint so no model call can succeed, then
 // reads the init event of each planned arm of the first selected case (init is emitted before any API call).
@@ -94,7 +102,7 @@ if (bool.has('init-check')) {
     const sc = spawnSync('bash', ['-c', setupCmd(c, arm)], { cwd: ws, encoding: 'utf8', timeout: 180000 });
     if (sc.status !== 0) die(`setup failed: ${sc.stderr || sc.stdout}`);
     console.log(`[${arm}] running claude against a dead endpoint, waiting for the init event (max 90s) ...`);
-    const args = claudeArgs(arm, 'hi', { model: opts.model, runBudget: '0.01', pluginDir });
+    const args = claudeArgs(arm, 'hi', { model: opts.model, runBudget: '0.01', pluginDir, ...editArgs(ws, c) });
     // Stream stdout and stop as soon as the init event arrives (it comes before any API call).
     const stdout = await new Promise((done) => {
       const p = spawn('claude', args, { cwd: ws, env: { ...process.env, ANTHROPIC_BASE_URL: 'http://127.0.0.1:9' }, stdio: ['ignore', 'pipe', 'ignore'] });
@@ -106,9 +114,12 @@ if (bool.has('init-check')) {
       p.stdout.on('data', (d) => { buf += d; if (buf.split('\n').slice(0, -1).some((l) => /"subtype"\s*:\s*"init"/.test(l))) finish(); });
     });
     const m = parseStream(stdout);
-    const problems = validity(arm, m, c.skills || [], { keepSkills: c.keep_skills || [] }).filter((p) => !/result event|no result|is_error/.test(p));
+    const problems = validity(arm, m, c.skills || [], { keepSkills: c.keep_skills || [], edit: isEditCase(c) }).filter((p) => !/result event|no result|is_error/.test(p));
     const names = m.init ? [...(m.init.skills || []), ...(m.init.plugins || []).map((p) => p.name || p)] : [];
     console.log(`[${arm}] init ${m.init ? 'seen' : 'MISSING'}; skills+plugins (${names.length}): ${names.join(', ')}`);
+    // The model and tools the init event reports, to compare by eye with the arm's (044 model arms,
+    // Edit/Write for edit cases). A missing init after --append-system-prompt means the flag is wrong.
+    if (m.init) console.log(`[${arm}] model ${m.init.model ?? '?'} (want ${modelFor(arm, opts.model)}); tools ${(m.init.tools || []).join(', ') || '?'}`);
     console.log(problems.length ? problems.map((p) => `  PROBLEM: ${p}`).join('\n') : '  ok');
     bad += problems.length;
     rmSync(ws, { recursive: true, force: true });
@@ -122,14 +133,15 @@ const pending = proposals(planCases);
 if (!DRY && pending.length) die(`case(s) awaiting approval (\`proposal\` field in cases.json): ${pending.map((c) => c.id).join(', ')}. Remove the field once the user approves them.`);
 
 const perArm = planArms.map((a) => `${a} ${plan.filter((p) => p.arm === a).length}`).join(', ');
-console.log(`bench: ${plan.length} runs (${perArm}), model ${opts.model}, cap $${BUDGET}, per run $${opts['run-budget']}${prev ? `, rerun of ${opts.rerun} (already spent $${prev.spent.toFixed(3)})` : ''}`);
+const modelNote = planArms.some((a) => modelFor(a, opts.model) !== opts.model) ? `models ${Object.entries(models(planArms)).map(([a, m]) => `${a}=${m}`).join(' ')}` : `model ${opts.model}`;
+console.log(`bench: ${plan.length} runs (${perArm}), ${modelNote}, cap $${BUDGET}, per run $${opts['run-budget']}${prev ? `, rerun of ${opts.rerun} (already spent $${prev.spent.toFixed(3)})` : ''}`);
 
 // Rows of the rerun's source invocation that count (valid or invalid) are carried into this report.
 const rows = prev ? prev.rows.filter((r) => statusOf(r) !== 'usage-limit') : [];
 const fullPlan = prev ? prev.planned : plan;
 let spent = prev ? prev.spent : 0;
 let stop = null;
-const meta = { model: opts.model, budget: BUDGET, 'run-budget': Number(opts['run-budget']), arms: planArms, rerunOf: prev ? resolve(opts.rerun) : undefined };
+const meta = { model: opts.model, models: models([...new Set(fullPlan.map((p) => p.arm))]), budget: BUDGET, 'run-budget': Number(opts['run-budget']), arms: planArms, rerunOf: prev ? resolve(opts.rerun) : undefined };
 const save = () => writeFileSync(join(outDir, 'runs.json'), JSON.stringify({ meta, planned: fullPlan, rows: rows.map(({ m: { init, ...m }, ...r }) => ({ ...r, m })), spent, stop }, null, 1));
 if (!DRY) mkdirSync(outDir, { recursive: true });
 
@@ -140,7 +152,12 @@ for (const p of plan) {
   const ws = mkdtempSync(join(work, 'bench-'));
   const sc = spawnSync('bash', ['-c', setupCmd(c, arm)], { cwd: ws, encoding: 'utf8', timeout: 180000 });
   if (sc.status !== 0) { stop = `setup failed for ${c.id}: ${sc.stderr || sc.stdout}`; break; }
-  const args = claudeArgs(arm, promptFor(arm, c, oracleText[c.id]), { model: opts.model, runBudget: opts['run-budget'], pluginDir });
+  // Edit cases: plants, removals and the protected-file snapshot, before the model sees the workspace.
+  let pristine = null;
+  if (isEditCase(c)) {
+    try { pristine = prepareEdit(ws, c); } catch (e) { stop = `edit preparation failed for ${c.id}: ${e.message}`; break; }
+  }
+  const args = claudeArgs(arm, promptFor(arm, c, oracleText[c.id]), { model: opts.model, runBudget: opts['run-budget'], pluginDir, ...editArgs(ws, c) });
   if (DRY) {
     console.log(`[${c.id} ${arm} run${n}] cwd=${ws}\nclaude ${args.map((x) => JSON.stringify(x)).join(' ')}\n`);
     if (!bool.has('keep-ws')) rmSync(ws, { recursive: true, force: true });
@@ -154,10 +171,16 @@ for (const p of plan) {
   if (r.stderr) writeFileSync(join(dir, `${arm}-run${n}.stderr.txt`), r.stderr);
   if (r.error) { stop = `could not run claude: ${r.error.message}`; break; }
   const m = parseStream(r.stdout || '');
-  const problems = validity(arm, m, c.skills || [], { keepSkills: c.keep_skills || [] });
+  const problems = validity(arm, m, c.skills || [], { keepSkills: c.keep_skills || [], edit: isEditCase(c) });
   if (r.status !== 0 && m.cost == null) problems.push(`claude exited ${r.status} with no result (see stderr file)`);
   const status = runStatus(m, problems);
-  rows.push({ case: c.id, arm, run: n, m, problems, status, sc: score(m.answer, c.must) });
+  // Edit cases are graded on the workspace the run left (before it is removed), not on the answer.
+  let grade = null;
+  if (pristine) {
+    try { grade = gradeEdit(ws, c, pristine); saveArtifacts(ws, c, dir, `${arm}-run${n}`, grade); } catch (e) { stop = `grading failed for ${c.id} ${arm} run${n}: ${e.message}`; break; }
+  }
+  const points = grade ? { hits: grade.hits, of: grade.of } : score(m.answer, c.must);
+  rows.push({ case: c.id, arm, run: n, m, problems, status, sc: points, ...(grade ? { edit: { detail: grade.detail, restored: grade.restored } } : {}) });
   spent += m.cost || 0;
   save();
   console.log(`exit ${r.status} cost ${m.cost ?? 'n/a'} ${status} total $${spent.toFixed(3)}`);
@@ -178,13 +201,13 @@ if (!DRY) {
   const graphishPlan = [...fullArms].some((a) => !SKILL_ARMS.has(a));
   const md = report(rows, {
     ...meta, spent, stop, kinds, missing, covering,
-    biasNote: graphishPlan && reportCases.some((c) => c.group),
+    biasNote: graphishPlan && reportCases.some((c) => c.group && !isEditCase(c)), // the proxy filter never chose the 044 edit cases
     skillsBiasNote: [...fullArms].some((a) => SKILL_ARMS.has(a)),
   });
   writeFileSync(join(outDir, 'report.md'), md);
   console.log('\n' + md);
   const oraclePlan = fullArms.has('oracle');
-  const needGraphCall = fullArms.has('graph') && !oraclePlan;
+  const needGraphCall = [...fullArms].some(isGraphArm) && !oraclePlan;
   const v = checkVerdict(rows, { planned: fullPlan, needGraphCall });
   console.log(`check: ${v.pass ? 'PASS' : 'FAIL'} (all planned runs counted: ${v.complete}, all counted runs valid: ${v.allValid}, every arm ran: ${v.bothArms}, graph arm real code-graph call exit 0: ${v.realCall}${needGraphCall ? '' : ' (not required: oracle arm or no graph arm)'})`);
   console.log(`results: ${outDir}`);

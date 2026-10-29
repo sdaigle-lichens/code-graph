@@ -64,7 +64,8 @@ function listTaskFiles(projectDir) {
   } catch {
     return [];
   }
-  return files.filter((f) => f.endsWith(".md")).sort((a, b) => a.localeCompare(b));
+  // `130`: `<task>.review.md` files sit beside the tasks but are not tasks.
+  return files.filter((f) => f.endsWith(".md") && !/\.review(-\d+)?\.md$/.test(f)).sort((a, b) => a.localeCompare(b));
 }
 
 // Pull the sibling filenames referenced in a file's "## Blocked by" section.

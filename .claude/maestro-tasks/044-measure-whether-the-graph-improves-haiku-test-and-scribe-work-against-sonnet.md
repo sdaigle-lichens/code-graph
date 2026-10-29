@@ -98,3 +98,33 @@ Write a "Ticket 044" section in `docs/evals.md`:
 ## Blocked by
 
 None - can start immediately.
+
+## Remaining work (handover)
+
+The setup is done, reviewed and approved: 4 tasks (t1, t2, d1, d2) and the $8 cap approved by the user, `proposal` fields removed, three arms in `bench/lib.mjs` (`MODEL_ARMS`), decision rule in `docs/evals.md` "Ticket 044". Checks: `node --test bench/lib.test.mjs` 88/88, `node bench/edit-check.mjs` all graders behave, `pnpm check` green. Review rounds: `044-*.review.md`, `044-*.review-2.md`.
+
+Still to do, from a plain terminal (not inside Claude Code) at the repo root. On a new machine you need Node 22.19+ and a maestro clone containing commit `3814a30` at `~/gits/maestro` (or set `MAESTRO_DIR`); the runner builds each workspace from it with `bench/maestro-setup.sh` through `git archive`, and the graph arm uses the committed `plugin/` bundle.
+
+1. **Preflight ($0).** Init event MISSING means `--append-system-prompt` isn't accepted: fix `FLAGS.appendSystemPrompt` in `bench/lib.mjs`.
+   ```
+   node bench/run.mjs --set 044 --arms haiku-nograph,haiku-graph,sonnet-nograph --init-check
+   ```
+2. **Pilot (6 runs, at most $2).**
+   ```
+   node bench/run.mjs --set 044 --only t1 --arms haiku-nograph,haiku-graph,sonnet-nograph --runs 1 --budget 1 --run-budget 0.75
+   node bench/run.mjs --set 044 --only d1 --arms haiku-nograph,haiku-graph,sonnet-nograph --runs 1 --budget 1 --run-budget 0.75
+   ```
+   In each `bench/results/<timestamp>/report.md`: every run valid, no Edit/Write refused (d1 edits `.claude/skills` docs), no Sonnet run at the $0.75 per-run cap (if one is, use `--run-budget 1` below).
+3. **Paid run (24 runs).** `--budget` = 8 minus the pilot's spend (6 at most).
+   ```
+   node bench/run.mjs --set 044 --arms haiku-nograph,haiku-graph,sonnet-nograph --runs 2 --budget 6 --run-budget 0.75
+   ```
+4. **429s** aren't counted: rerun after the limit resets with `node bench/run.mjs --rerun bench/results/<timestamp>`. More than two other invalid runs: stop and report.
+5. **Report** (a `/maestro` session on this ticket, given the pilot and paid-run `bench/results/<timestamp>` folders; `bench/results/` is gitignored, so do it on the machine that ran them): fill "Ticket 044 → Results" in `docs/evals.md` with the per-task/arm table (points, grade detail, cost, turns, tokens, tool counts), whether `haiku-graph` loaded the retrieval skill and called the CLI, a verdict against the rule with confidence at n=2, d2 on its own, and which friction steps (trimming output, a primer) the data argues for. Then `node .claude/scripts/maestro-task-status.cjs done` and report to the epic `haiku-subagents-with-graph`.
+
+## Post-Mortem
+
+- **Problem:** @backend's first pass had `parseStream` treat any Edit/Write error containing "permission|denied|not allowed" as a refused edit, including the old_string Claude Code repeats in the error; 3 graded docs contain "permission", so valid paid runs would have been marked INVALID. @test caught it, @reviewer returned FAIL, and it took a loop-back to @backend (`editErrorHead`).
+  **Fix:** none
+- **Problem:** no skill covers `bench/` (runner, graders, case format); every agent reported working from `bench/README.md` and the code alone.
+  **Fix:** none

@@ -77,6 +77,15 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-channel-write-guard.cjs\""
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-human-review-gate.cjs\""
+          }
+        ]
       }
     ],
     "SubagentStart": [

@@ -514,3 +514,85 @@ For scale, Haiku `nograph` costs $0.129 against Opus `nograph` $3.416 (3.8%): ne
 **Confidence: low to moderate.** n=2 per cell, one model pair, seven questions; single runs differ widely within an arm (for example m6 nograph 10/13 and 12/13, m3 nograph 5/7 and 3/7). The direction (oracle >= nograph, at about 30% lower cost) is consistent across five of seven questions and never reversed, which is why it is supported; the exact percentages are not. **Selection bias favours the graph and the oracle:** questions were kept only where the proxy showed the graph covers the answer, so this overstates the advantage on questions in general. The Opus numbers come from earlier invocations, so model, date and session differ. Main session only.
 
 Follow-up (a realistic primer built from the task text at subagent start) is the user's decision and is not part of this ticket.
+
+## Ticket 044: can the graph let a Haiku subagent do Sonnet's work (bench/, plan and rule written before any paid run)
+
+Question: tickets 039 to 043 measured questions answered in the main session. Maestro subagents do more: a `test` agent writes tests from a backend handoff, and a `scribe` agent updates docs after a code change. Both run on Haiku in maestro (`model: claude-haiku-5-5` in their agent files). Does the code graph let Haiku do these edit tasks as well as Sonnet, at Haiku's price?
+
+### Feasibility ($0, done)
+
+Maestro's tests use vitest, and the bench workspace has no `node_modules` and no network. Node 22.19 runs maestro's TypeScript directly (type stripping). A small ESM resolve hook (`bench/edit/ts-resolve.mjs`) maps maestro's `./x.js` imports to `./x.ts`. With it, `node --import ./.bench/ts-resolve.mjs --test <file>.ts` runs `node:test` suites against maestro's `apps/maestro/src/core` modules, unchanged, at the pinned `3814a30`. Nothing is installed. `node bench/edit-check.mjs` proves every grader at $0: each case scores 0 untouched and full marks with its reference solution, every mutant is killed, every plant applies exactly once, and a stray edit to protected code is undone.
+
+### Tasks (`--set 044`, approved by the user with the $8 cap; `proposal` fields removed)
+
+Each task gives the model a backend or reviewer handoff. It runs as maestro's own agent file (body in `--append-system-prompt`) with `Edit,Write` added. In every task the prompt names one symbol, and the work needs code in other files.
+
+| id | kind | asks | grading | what the graph should give |
+|---|---|---|---|---|
+| `t1-test-close-task` | test | Tests for `closeTask` (`tasks.ts`): the cascade, a deleted blocker counts as done, the epic link is kept, a live claim on the closed task is released and another task's live claim is not, and a close from a linked worktree updates the main checkout. File: `apps/maestro/test/core/close-task.node.test.ts`. | 1 point green on the original, plus 1 per mutant killed (5 in all). Mutants: drop the deleted-blocker clause; drop the epic carry-over; keep the claim on close; `mainCheckoutRoot` returns its input. | How a claim is made and when it is live (`claims.ts`, `isSessionLive`, the session dir layout, `CLAIM_IDLE_CAP_MS`). Only a *live* claim proves the release, because `readClaims` reaps dead ones. It also needs what makes a linked worktree (`worktree.ts`). That is four modules away from the named function. |
+| `t2-test-epic-ready` | test | Tests for `readyTasks` (`epics.ts`): a stale `ready` with an open blocker is not listed, a live claim means running and a dead one means ready, an idle claim past the cap is not running, and a pending worker takes a slot. File: `apps/maestro/test/core/epic-ready.node.test.ts`. | Same scheme, 5 points. Mutants: `unblocked = true`; any claim counts as running; pending takes no slot; `isSessionLive` ignores the idle cap. | `readyTasks` only reads state that others write: `createEpic`, `linkTasks` and `addWorker`; the `status.json` shape from `tasks.ts`; `claimTask` and the session log whose mtime decides liveness. |
+| `d1-scribe-claim-cap` | scribe | `CLAIM_IDLE_CAP_MS` went from 15 to 30 min (planted in `handoff-channels.ts`, the two generated libs and their mirrors). Update the affected docs. | 8 points across 3 docs. 3 `must` (a 30-minute value in each file) and 5 `must_not` (the stale wording only): task-queue's `task-claims`, maestro-architecture's `session-end-reasons`, and apps/maestro's `log-view` skill. | Impact of the constant. `session-sweep.ts` derives `SESSION_DELETE_IDLE_CAP_MS = CLAIM_IDLE_CAP_MS`, and the log-view skill states that cap as "15 min" next to the derived name. A grep for the constant's name finds that line, but not its two other stale "15-minute" lines. |
+| `d2-scribe-spawn-cap` | scribe | `DEFAULT_SPAWN_CAP` went from 5 to 3 (planted in `epics.ts`, the lib, the entry script and their mirrors). Update the docs, including the plugin's own skills. | 8 points across 3 docs (4 `must`, 4 `must_not`): task-queue's `epics` sub-concept, the `maestro-manager` plugin skill (description and step 1), and the `herdr` install reference. | The users of the constant and the task-queue concept doc. The two plugin docs are **outside every concept's globs**, so the graph cannot point at them. This task measures partial coverage honestly. |
+
+Removed before the test tasks, because they would hand over the answer: `tasks.test.ts`, `claims.test.ts`, `task-claims-cli.test.ts`, `worktree-isolation.test.ts`, `epics-cli.test.ts` and `per-session-state.test.ts`. Protected (undone and reported if touched): `apps/maestro/src` and `plugins/maestro/scripts`. Scribe tasks also protect `.claude/scripts`, so the plant cannot be reverted.
+
+Known confounds, stated before any run:
+
+- maestro's concept skills (task-queue, maestro-architecture) describe claims, epics and both constants in prose, and they reach every arm.
+- The graph is built from the tree before the plant, which is what a real scribe run would see.
+- Mutants test the behaviours the prompt lists. A suite can be good and still miss a mutant if it tests a behaviour another way.
+
+### Arms
+
+- `haiku-nograph`: Haiku 5.5, concept skills plus Grep. This is maestro's subagent today.
+- `haiku-graph`: Haiku 5.5 plus the code-graph plugin.
+- `sonnet-nograph`: Sonnet 5.5, concept skills plus Grep. This is the alternative of paying for a bigger model.
+
+### Decision rule (fixed before any result)
+
+Points are summed over the four tasks and both runs: 5 + 5 + 8 + 8 = 26 per run, so 52 per arm.
+
+- **The graph helps Haiku** if `haiku-graph` scores at least 15% more points than `haiku-nograph` (`graph >= 1.15 x nograph`), and no task scores lower with the graph in both runs.
+- **It closes the gap** if `haiku-graph` recovers at least half of the `haiku-nograph` to `sonnet-nograph` point gap, at less than half of Sonnet's cost per task.
+- If `haiku-nograph` already scores within 5% of `sonnet-nograph`, there is no gap to close. Report that, and judge `haiku-graph` on cost alone: does it cost less than `haiku-nograph` at no loss of points?
+- Report per task and arm: points, grade detail (which mutants survived, which docs stayed stale), cost, turns, Edit/Write counts, code-graph calls, protected files restored. Then give a plain verdict against the rule, with confidence at n=2.
+- d2 is reported on its own as well, because the graph cannot cover half its docs.
+
+### Commands (from a plain terminal at the repo root; at most $8 in all)
+
+1. $0 grader proof (already run, all green; rerun it after any case change):
+
+   ```
+   node bench/edit-check.mjs
+   ```
+
+2. $0 preflight, one per model arm. It checks the init event: the model, Edit/Write in the tools, code-graph only in `haiku-graph`, and the concept skills in all three. It also proves that `--append-system-prompt` is accepted. If the init event is MISSING, the flag name is wrong: fix `FLAGS.appendSystemPrompt` in `bench/lib.mjs`.
+
+   ```
+   node bench/run.mjs --set 044 --arms haiku-nograph,haiku-graph,sonnet-nograph --init-check
+   ```
+
+3. The user approved the four tasks and the $8 cap, and their `proposal` fields are removed from `bench/cases.json`. Run a 1-run pilot: one test task and one scribe task per arm, 6 runs, cap $2.
+
+   ```
+   node bench/run.mjs --set 044 --only t1 --arms haiku-nograph,haiku-graph,sonnet-nograph --runs 1 --budget 1 --run-budget 0.75
+   node bench/run.mjs --set 044 --only d1 --arms haiku-nograph,haiku-graph,sonnet-nograph --runs 1 --budget 1 --run-budget 0.75
+   ```
+
+   Read each `report.md` before going on:
+   - every run must be valid, and no Edit or Write may be refused (a `.claude/skills` doc must be editable under `dontAsk`);
+   - each run's test file or docs are saved next to its transcript;
+   - check Sonnet's cost per run. If a Sonnet run hits the $0.75 per-run cap (the result is an error), raise `--run-budget` to 1 below and lower nothing else.
+
+4. Paid run: 4 tasks x 3 arms x 2 runs = 24 runs. The cap is $8 (no run starts once spent + run-budget would pass it), and that cap includes the pilot's spend, so lower `--budget` by what the pilot cost.
+
+   ```
+   node bench/run.mjs --set 044 --arms haiku-nograph,haiku-graph,sonnet-nograph --runs 2 --budget 6 --run-budget 0.75
+   ```
+
+- Usage-limit (429) runs are not counted. Rerun them once the limit resets with `node bench/run.mjs --rerun bench/results/<timestamp>`.
+- If more than two runs are invalid for any other reason, stop and report. The runner already stops at the second invalid run.
+
+### Results
+
+Not run yet (approved; user-run).

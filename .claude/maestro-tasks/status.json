@@ -264,5 +264,9 @@
     "status": "ready",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
+  },
+  "045-refresh-the-graph-automatically-after-skill-md-edits.md": {
+    "status": "ready",
+    "blockedBy": []
   }
 }

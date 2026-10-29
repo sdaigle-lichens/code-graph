@@ -870,7 +870,11 @@ function planStepCommand(label, status) {
     process.exit(1);
   }
   if (status === "done") plan.steps[index].status = "done";
-  else for (let i = index; i < plan.steps.length; i++) plan.steps[i].status = "pending";
+  else {
+    for (let i = index; i < plan.steps.length; i++) plan.steps[i].status = "pending";
+    // `130`: each loop-back starts a new human-review round (its own review file).
+    plan.loopbacks = (typeof plan.loopbacks === "number" ? plan.loopbacks : 0) + 1;
+  }
   plan.updated_at = new Date().toISOString();
   writeSessionState(file, state);
   process.stdout.write(`Maestro plan: "${label}" -> ${status}.\n${renderPlan(plan)}\n`);

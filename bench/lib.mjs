@@ -14,22 +14,37 @@ export const FLAGS = {
   settingSources: '--setting-sources', // value: project,local (drops user settings, so no installed plugins; loads the workspace's .claude/skills. A workspace .claude/settings.json would still apply, so maestro-setup.sh deletes it)
   strictMcpConfig: '--strict-mcp-config',
   pluginDir: '--plugin-dir',
+  appendSystemPrompt: '--append-system-prompt', // 044: the maestro agent file's body (edit cases)
 };
 
 export const ALLOWED_TOOLS = 'Bash,Read,Grep,Glob,Skill';
+export const EDIT_TOOLS = 'Edit,Write'; // added for edit cases only (044)
 export const OK_CG_EXITS = new Set([0, 4, 6, 7]); // documented code-graph exits (docs/usage.md)
 
 // Arms, in the order they run per case. `oracle` = the nograph workspace and flags (no plugin, no
 // scribe-output/), with the case's stored graph output appended to the question. `skills` (042) =
 // the nograph workspace as is (concept skills present); `noskills` = the same workspace with every
 // concept skill removed from .claude/skills (bench/strip-concept-skills.mjs), other skills kept.
-export const ARMS = ['nograph', 'oracle', 'graph', 'skills', 'noskills'];
+// 044 model arms: each pins its own model and behaves like its `base` arm in every other respect
+// (workspace, flags, validity). `--model` keeps setting the model of the other arms.
+export const MODEL_ARMS = {
+  'haiku-nograph': { base: 'nograph', model: 'claude-haiku-5-5' },
+  'haiku-graph': { base: 'graph', model: 'claude-haiku-5-5' },
+  'sonnet-nograph': { base: 'nograph', model: 'claude-sonnet-5-5' },
+};
+export const ARMS = ['nograph', 'oracle', 'graph', 'skills', 'noskills', ...Object.keys(MODEL_ARMS)];
 export const DEFAULT_ARMS = 'nograph,graph';
 export const SKILL_ARMS = new Set(['skills', 'noskills']);
 
+// The arm an arm behaves as: a model arm's base, else itself.
+export const baseArm = (arm) => MODEL_ARMS[arm]?.base ?? arm;
+// The model an arm runs: a model arm's own, else the --model value.
+export const modelFor = (arm, model) => MODEL_ARMS[arm]?.model ?? model;
+export const isGraphArm = (arm) => baseArm(arm) === 'graph';
+
 // The arm a case's setup command is built for ({ARM}): only the graph arm gets a graph, only the
 // noskills arm loses its concept skills; every other arm gets the nograph workspace.
-export const setupArm = (arm) => (arm === 'graph' || arm === 'noskills' ? arm : 'nograph');
+export const setupArm = (arm) => (isGraphArm(arm) || arm === 'noskills' ? baseArm(arm) : 'nograph');
 
 // True when a SKILL.md's YAML frontmatter carries the concept-skill marker `metadata.type:
 // concept-skill` (block form `metadata:\n  type: concept-skill`, quoted or not, or inline
@@ -90,7 +105,7 @@ export function planRuns(cases, { arms, graphCases = [], runs = 1 }) {
   for (let n = 1; n <= runs; n++) {
     for (const c of cases) {
       for (const arm of arms) {
-        if (arm === 'graph' && graphCases.length && !graphCases.some((s) => c.id.includes(s))) continue;
+        if (isGraphArm(arm) && graphCases.length && !graphCases.some((s) => c.id.includes(s))) continue;
         plan.push({ case: c.id, arm, run: n });
       }
     }
@@ -118,19 +133,22 @@ export function rerunPlan(prev) {
   return prev.planned.filter((p) => !done.has(`${p.case}|${p.arm}|${p.run}`));
 }
 
-export function claudeArgs(arm, prompt, { model, runBudget, pluginDir }) {
+// `edit` (044 edit cases) adds Edit and Write to the allowed tools; `systemPrompt` (the maestro
+// agent file's body) is appended to Claude Code's system prompt, as the agent's prompt would be.
+export function claudeArgs(arm, prompt, { model, runBudget, pluginDir, edit = false, systemPrompt = '' }) {
   const a = [
     FLAGS.print, prompt,
-    FLAGS.model, model,
+    FLAGS.model, modelFor(arm, model),
     FLAGS.outputFormat, 'stream-json', FLAGS.verbose,
     FLAGS.maxBudget, String(runBudget),
     FLAGS.noSessionPersistence,
-    FLAGS.allowedTools, ALLOWED_TOOLS,
+    FLAGS.allowedTools, edit ? `${ALLOWED_TOOLS},${EDIT_TOOLS}` : ALLOWED_TOOLS,
     FLAGS.permissionMode, 'dontAsk',
     FLAGS.settingSources, 'project,local',
     FLAGS.strictMcpConfig,
   ];
-  if (arm === 'graph') a.push(FLAGS.pluginDir, pluginDir);
+  if (systemPrompt) a.push(FLAGS.appendSystemPrompt, systemPrompt);
+  if (isGraphArm(arm)) a.push(FLAGS.pluginDir, pluginDir);
   return a;
 }
 
@@ -211,12 +229,20 @@ export function isReadOnly(cmd) {
 
 const textOf =(c) => (typeof c === 'string' ? c : (c || []).map((x) => x.text || '').join(''));
 
+// The error text of a failed Edit/Write, without the input Claude Code echoes back: "String to replace
+// not found in file.\nString: <old_string>" repeats the document, and the graded docs mention
+// permissions, so a model's miss must not read as a permission refusal.
+export const editErrorHead = (t) => String(t).split(/(?:^|\n)\s*(?:String|old_string|new_string|content)\s*:/i)[0];
+
 // Parse one stream-json transcript into metrics.
 export function parseStream(text) {
   const m = {
     init: null, cost: null, turns: null, isError: null, answer: '',
     input: 0, output: 0, cacheRead: 0, cacheCreate: 0,
     counts: { Read: 0, Grep: 0, Glob: 0, Bash: 0, Skill: 0 },
+    editCounts: { Edit: 0, Write: 0 }, // 044 edit cases
+    editDenials: [], // Edit/Write calls the permission layer refused: the harness, not the model, failed
+    bashExits: [], // every non-zero Bash exit, as `exit:command` (edit cases report them; they do not invalidate there)
     bashFailures: [], // non-code-graph failures or seccomp: these invalidate the run
     readOnlyFailures: [], // non-zero exits of read-only grep/sed/rg/cat/head/tail/ls/find: recorded, not invalidating
     graphCalls: [], // { exit, chars }
@@ -257,12 +283,16 @@ export function parseStream(text) {
       if (b.type === 'tool_use') {
         idToTool.set(b.id, b);
         if (b.name in m.counts) m.counts[b.name]++;
+        if (b.name in m.editCounts) m.editCounts[b.name]++;
         if (b.name === 'Skill' && b.input) {
           const s = b.input.skill ?? b.input.name ?? b.input.command;
           if (typeof s === 'string' && s.trim()) m.skillCalls.push(s.trim().replace(/^\//, ''));
         }
       } else if (b.type === 'tool_result') {
         const t = idToTool.get(b.tool_use_id);
+        if (t && t.name in m.editCounts && b.is_error && /permission|denied|not allowed/i.test(editErrorHead(textOf(b.content)))) {
+          m.editDenials.push(`${t.name} ${String(t.input?.file_path || '').slice(-80)} -> ${textOf(b.content).replace(/\s+/g, ' ').slice(0, 100)}`);
+        }
         if (!t || t.name !== 'Bash') continue;
         const out = textOf(b.content);
         const cmd = String((t.input && t.input.command) || '');
@@ -273,6 +303,7 @@ export function parseStream(text) {
         if (seccomp) m.seccomp++;
         if (cg) m.graphCalls.push({ exit, chars: out.length });
         const okCg = cg && OK_CG_EXITS.has(exit);
+        if (exit !== 0 || b.is_error) m.bashExits.push(`${exit}:${cmd.replace(/\s+/g, ' ').slice(0, 60)}`);
         if (seccomp || ((exit !== 0 || b.is_error) && !okCg)) {
           const entry = `${cmd.replace(/\s+/g, ' ').slice(0, 80)} -> ${out.replace(/\s+/g, ' ').slice(0, 100)}`;
           if (!seccomp && !cg && isReadOnly(cmd)) m.readOnlyFailures.push(entry);
@@ -294,10 +325,19 @@ const sameSkill = (x, s) => String(x) === s || String(x).endsWith(`:${s}`);
 // none of them and must not call any of them through the Skill tool.
 // `keepSkills` (optional, per case `keep_skills`): non-concept project skills both skill arms must
 // still list, so `noskills` proves it removed only the concept skills, not .claude/skills wholesale.
-export function validity(arm, m, expectSkills = [], { keepSkills = [] } = {}) {
+// An Edit/Write the permission layer refused always invalidates (see below).
+// `edit` (044 edit cases): a failing Bash call does not invalidate the run. Writing tests means
+// running them while they still fail, and a missing tool (no vitest, no ts-morph) is part of the
+// task; the outcome grading judges the work. Seccomp still invalidates. A model arm is checked as
+// its base arm.
+export function validity(arm, m, expectSkills = [], { keepSkills = [], edit = false } = {}) {
   const p = [];
   if (m.seccomp) p.push(`apply-seccomp in ${m.seccomp} Bash call(s): nested sandbox, the CLI never ran`);
-  for (const f of m.bashFailures) if (!/apply-seccomp/.test(f)) p.push(`Bash failure: ${f}`);
+  if (!edit) for (const f of m.bashFailures) if (!/apply-seccomp/.test(f)) p.push(`Bash failure: ${f}`);
+  // A refused Edit/Write (e.g. a protected .claude/ path under dontAsk) means the arm could not do the
+  // task at all: a harness problem, never a model result.
+  for (const d of m.editDenials || []) p.push(`edit refused by the permission layer: ${d}`);
+  arm = baseArm(arm);
   if (!m.init) {
     p.push('no init event in transcript');
   } else {
@@ -331,6 +371,101 @@ export function validity(arm, m, expectSkills = [], { keepSkills = [] } = {}) {
 export function score(answer, must) {
   const hits = must.filter((re) => new RegExp(re, 'i').test(answer)).length;
   return { hits, of: must.length };
+}
+
+// --- 044 edit cases: the model edits the workspace, the harness grades the files it leaves ---
+
+export const isEditCase = (c) => Boolean(c && c.edit);
+export const EDIT_KINDS = new Set(['test', 'scribe']);
+
+// The body of a Claude Code agent file, frontmatter removed: the prompt the agent runs with.
+export function agentBody(text) {
+  const s = String(text ?? '');
+  const fm = /^﻿?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/.exec(s);
+  const body = (fm ? s.slice(fm[0].length) : s).trim();
+  if (!body) throw new Error('the agent file has no body');
+  return body;
+}
+
+// Replace the single occurrence of `from`. Throws on zero or several, so a planted change or a mutant
+// can neither silently not apply nor land somewhere unintended.
+export function replaceOnce(text, from, to, label = 'replace') {
+  const i = from ? text.indexOf(from) : -1;
+  const n = i === -1 ? 0 : text.indexOf(from, i + 1) === -1 ? 1 : 2;
+  if (n !== 1) throw new Error(`${label}: expected exactly one occurrence of ${JSON.stringify(String(from).slice(0, 60))}, found ${n === 0 ? 'none' : 'several'}`);
+  return text.slice(0, i) + to + text.slice(i + from.length);
+}
+
+// `# pass N` and `# fail N` from the summary `node --test` prints (null when a line is absent).
+export function nodeTestSummary(out) {
+  const num = (k) => { const m = new RegExp(`^# ${k} (\\d+)\\s*$`, 'm').exec(String(out ?? '')); return m ? Number(m[1]) : null; };
+  return { pass: num('pass'), fail: num('fail') };
+}
+
+// A suite run is green when it exited 0 with at least one passing test and none failing.
+export const isGreen = (r) => Boolean(r && r.status === 0 && r.pass > 0 && !r.fail);
+
+// Test-case grade: 1 point for a suite that is green on the original code, plus 1 per mutant whose run
+// is not green (the suite caught the planted bug). Mutants count only when the original run is green:
+// a red or missing suite "catches" every mutant, so it scores 0 of 1 + mutants.
+export function gradeTestRun({ exists, original, mutants = [] }) {
+  const of = 1 + mutants.length;
+  if (!exists) return { hits: 0, of, detail: 'no test file' };
+  if (!isGreen(original)) {
+    const why = original?.timedOut ? 'timed out' : `exit ${original?.status}, pass ${original?.pass ?? '?'}, fail ${original?.fail ?? '?'}`;
+    return { hits: 0, of, detail: `not green on the original (${why})` };
+  }
+  const killed = mutants.filter((x) => !isGreen(x)).map((x) => x.id);
+  const survived = mutants.filter((x) => isGreen(x)).map((x) => x.id);
+  return {
+    hits: 1 + killed.length,
+    of,
+    detail: `green (${original.pass} pass); killed ${killed.join(',') || '-'}; survived ${survived.join(',') || '-'}`,
+  };
+}
+
+// Scribe-case grade. spec = { file: { must: [regex], must_not: [regex] } }, docs = { file: text|null }.
+// 1 point per `must` regex the file matches and per `must_not` regex it does not. A missing or empty
+// file scores 0 on all of its regexes (deleting a stale doc is not a fix).
+export function gradeDocs(spec, docs) {
+  let hits = 0;
+  let of = 0;
+  const parts = [];
+  for (const [file, { must = [], must_not: mustNot = [] }] of Object.entries(spec)) {
+    const text = docs[file];
+    of += must.length + mustNot.length;
+    if (!text || !String(text).trim()) { parts.push(`${file}: missing`); continue; }
+    const missed = must.filter((re) => !new RegExp(re, 'i').test(text));
+    const stale = mustNot.filter((re) => new RegExp(re, 'i').test(text));
+    hits += must.length - missed.length + mustNot.length - stale.length;
+    if (missed.length || stale.length) parts.push(`${file}: ${missed.length ? `missing ${missed.length}/${must.length}` : ''}${missed.length && stale.length ? ', ' : ''}${stale.length ? `stale ${stale.length}/${mustNot.length}` : ''}`);
+  }
+  return { hits, of, detail: parts.length ? parts.join('; ') : 'all facts right, nothing stale' };
+}
+
+// Shape problems of an edit case (empty list = well formed). The replacement texts themselves are
+// checked against the pinned tree by bench/edit-check.mjs.
+export function editCaseProblems(c) {
+  const p = [];
+  const e = c.edit;
+  const rep = (x) => x && typeof x.file === 'string' && typeof x.from === 'string' && x.from && typeof x.to === 'string' && x.from !== x.to;
+  if (!EDIT_KINDS.has(c.kind)) p.push(`kind must be test or scribe, not ${c.kind}`);
+  if (c.agent !== c.kind) p.push('agent must name the maestro agent of the same kind');
+  if (!c.graph_contribution) p.push('graph_contribution is missing');
+  for (const x of e.plant || []) if (!rep(x)) p.push(`bad plant entry ${JSON.stringify(x)}`);
+  if (c.kind === 'test') {
+    if (!/\.node\.test\.ts$/.test(e.test || '')) p.push('edit.test must be a .node.test.ts path');
+    if (!(e.mutants || []).length) p.push('a test case needs at least one mutant');
+    for (const x of e.mutants || []) if (!rep(x) || !x.id) p.push(`bad mutant ${JSON.stringify(x)}`);
+    if (!String(c.question).includes(e.test || '\0')) p.push('the prompt must name the test file');
+  }
+  if (c.kind === 'scribe') {
+    if (!(e.plant || []).length) p.push('a scribe case needs a planted code change');
+    const docs = Object.entries(e.docs || {});
+    if (!docs.length) p.push('a scribe case needs edit.docs');
+    for (const [f, d] of docs) if (!(d.must || []).length || !(d.must_not || []).length) p.push(`${f}: needs must and must_not`);
+  }
+  return p;
 }
 
 const f = (x, d = 0) => (x == null ? 'n/a' : x.toFixed(d));
@@ -382,7 +517,11 @@ export function report(rows, meta) {
   const by = (st) => rows.filter((r) => statusOf(r) === st);
   const invalid = by('invalid');
   const limited = by('usage-limit');
-  L.push(`# bench report (${meta.model}, spent $${meta.spent.toFixed(3)} of $${meta.budget})`, '');
+  const models = Object.entries(meta.models || {});
+  const modelLabel = models.length && models.some(([, m]) => m !== meta.model)
+    ? models.map(([a, m]) => `${a}=${m}`).join(', ')
+    : meta.model;
+  L.push(`# bench report (${modelLabel}, spent $${meta.spent.toFixed(3)} of $${meta.budget})`, '');
   if (meta.biasNote) L.push(`NOTE (selection bias): ${SELECTION_BIAS_NOTE}`, '');
   if (meta.skillsBiasNote) L.push(`NOTE (selection bias, concept skills): ${SKILLS_BIAS_NOTE}`, '');
   if (meta.stop) L.push(`STOPPED: ${meta.stop}`, '');
@@ -445,7 +584,31 @@ export function report(rows, meta) {
       L.push(`| ${c} | ${cell(s)} | ${cell(n)} | ${pct(costDelta(s, n))} | ${pass(s)} | ${pass(n)} | ${l ? `${l.loaded}/${l.runs} (${l.skills.join(', ')})` : '-'} |`);
     }
   }
+  L.push(...editSection(rows));
   return L.join('\n') + '\n';
+}
+
+// 044: what each edit run left behind (the score column above is its grade), its Edit/Write calls,
+// its non-zero Bash exits (they do not invalidate an edit run) and a per-arm total against cost.
+export function editSection(rows) {
+  const edits = rows.filter((r) => r.edit);
+  if (!edits.length) return [];
+  const L = ['', '## Edit grading (044)', ''];
+  L.push('| case | arm | run | valid | points | grade detail | Edit/Write | protected files restored | non-zero Bash exits |', '|---|---|---|---|---|---|---|---|---|');
+  const cell = (s) => String(s).replace(/\|/g, '\\|');
+  for (const r of edits) {
+    const ec = r.m.editCounts || { Edit: 0, Write: 0 };
+    const exits = r.m.bashExits || [];
+    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${STATUS_CELL[statusOf(r)]} | ${r.sc.hits}/${r.sc.of} | ${cell(r.edit.detail || '-')} | ${ec.Edit}/${ec.Write} | ${(r.edit.restored || []).join(', ') || '-'} | ${exits.length ? cell(exits.slice(0, 4).join('; ')) + (exits.length > 4 ? ` (+${exits.length - 4})` : '') : '-'} |`);
+  }
+  const perArm = sums(edits, (r) => r.arm);
+  L.push('', '| arm | valid runs | points | points % | cost $ | cost $ per run |', '|---|---|---|---|---|---|');
+  for (const a of ARMS) {
+    const s = perArm.get(a);
+    if (s) L.push(`| ${a} | ${s.n} | ${s.hits}/${s.of} | ${s.of ? f((100 * s.hits) / s.of) : 'n/a'}% | ${f(s.cost, 3)} | ${f(s.cost / s.n, 3)} |`);
+  }
+  L.push('', 'Points compare only across arms with the same valid runs per case; the decision rule is in docs/evals.md (Ticket 044).');
+  return L;
 }
 
 // Pass rule for the fixture check: graph arm has a code-graph call exiting 0 with output, no run
@@ -466,7 +629,7 @@ export const proposals = (cases) => cases.filter((c) => c.proposal);
 // that never calls the CLI is a result, not a failure). Usage-limit rows are not counted either way.
 export function checkVerdict(rows, { planned = null, needGraphCall = true } = {}) {
   const counted = rows.filter((r) => statusOf(r) !== 'usage-limit');
-  const graph = counted.filter((r) => r.arm === 'graph');
+  const graph = counted.filter((r) => isGraphArm(r.arm));
   const realCall = graph.some((r) => r.m.graphCalls.some((c) => c.exit === 0 && c.chars > 0));
   const allValid = counted.length > 0 && counted.every((r) => statusOf(r) === 'valid');
   const arms = planned ? [...new Set(planned.map((p) => p.arm))] : ['nograph', 'graph'];

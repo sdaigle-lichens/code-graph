@@ -259,7 +259,7 @@ function writeStatusMap(dir, statusMap) {
 }
 function listTaskFiles(dir) {
   try {
-    return import_node_fs7.default.readdirSync(dir).filter((f) => f.endsWith(".md")).sort((a, b) => a.localeCompare(b));
+    return import_node_fs7.default.readdirSync(dir).filter((f) => f.endsWith(".md") && !/\.review(-\d+)?\.md$/.test(f)).sort((a, b) => a.localeCompare(b));
   } catch {
     return [];
   }

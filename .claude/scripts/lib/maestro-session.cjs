@@ -40,6 +40,7 @@ __export(maestro_session_exports, {
   HANDBACK_POLL_MS: () => HANDBACK_POLL_MS,
   HANDBACK_TOOLS: () => HANDBACK_TOOLS,
   HANDBACK_WAIT_MS: () => HANDBACK_WAIT_MS,
+  HUMAN_REVIEW_LABEL: () => HUMAN_REVIEW_LABEL,
   LEGACY_SESSION_FILES: () => LEGACY_SESSION_FILES,
   MAIN_CHECKOUT_SHARED_DIRS: () => MAIN_CHECKOUT_SHARED_DIRS,
   MEETING_DIR_NAME: () => MEETING_DIR_NAME,
@@ -68,6 +69,7 @@ __export(maestro_session_exports, {
   channelDir: () => channelDir,
   checkChannelWrite: () => checkChannelWrite,
   checkHandoff: () => checkHandoff,
+  checkHumanReview: () => checkHumanReview,
   checkPayload: () => checkPayload,
   checkRoute: () => checkRoute,
   checkWorktreeWrite: () => checkWorktreeWrite,
@@ -76,6 +78,7 @@ __export(maestro_session_exports, {
   collectAgentSkills: () => collectAgentSkills,
   compactMetrics: () => compact,
   compareRuntimeVersions: () => compareRuntimeVersions,
+  currentReviewRound: () => currentReviewRound,
   dropResolvedMissingPayloads: () => dropResolvedMissingPayloads,
   duplicateAgentTypes: () => duplicateAgentTypes,
   endMeeting: () => endMeeting,
@@ -101,6 +104,7 @@ __export(maestro_session_exports, {
   isGapReport: () => isGapReport,
   isLinkedWorktree: () => isLinkedWorktree,
   isResumableEnd: () => isResumableEnd,
+  isReviewFile: () => isReviewFile,
   isRootSkillPath: () => isRootSkillPath,
   isSeededHandoff: () => isSeededHandoff,
   isValidHandoffId: () => isValidHandoffId,
@@ -157,6 +161,7 @@ __export(maestro_session_exports, {
   resumeTarget: () => resumeTarget,
   retire: () => retire,
   retireResumeDeliveries: () => retireResumeDeliveries,
+  reviewFileName: () => reviewFileName,
   routesFrom: () => routesFrom,
   runStartedAt: () => runStartedAt,
   runtimeNeedsRefresh: () => runtimeNeedsRefresh,
@@ -1329,6 +1334,40 @@ function checkChannelWrite(input) {
   return target.startsWith(lane + import_node_path7.default.sep) ? { allow: true } : deny(raw);
 }
 
+// src/core/human-review-gate.ts
+var HUMAN_REVIEW_LABEL = "human review";
+var REVIEW_FILE_PATTERN = /\.review(-\d+)?\.md$/;
+function isReviewFile(filename) {
+  return REVIEW_FILE_PATTERN.test(filename);
+}
+function reviewFileName(taskFile, round) {
+  const base = taskFile.replace(/^.*[\\/]/, "").replace(/\.md$/, "");
+  return round <= 1 ? `${base}.review.md` : `${base}.review-${round}.md`;
+}
+function currentReviewRound(plan) {
+  if (!plan || !Array.isArray(plan.steps)) return null;
+  const steps = plan.steps;
+  const next = steps.findIndex((s) => s && s.status !== "done");
+  if (next === -1 || steps[next].label !== HUMAN_REVIEW_LABEL) return null;
+  const doneReviews = steps.filter((s) => s && s.label === HUMAN_REVIEW_LABEL && s.status === "done").length;
+  const loopbacks = typeof plan.loopbacks === "number" && plan.loopbacks > 0 ? Math.floor(plan.loopbacks) : 0;
+  return 1 + loopbacks + doneReviews;
+}
+function checkHumanReview(input) {
+  if (input.toolName !== "AskUserQuestion") return { allow: true };
+  const state = input.state;
+  if (!state || typeof state.active_task !== "string" || !state.active_task) return { allow: true };
+  const round = currentReviewRound(state.plan);
+  if (round === null) return { allow: true };
+  const name = reviewFileName(state.active_task, round);
+  const file = `${input.tasksDir.replace(/[\\/]+$/, "")}/${name}`;
+  if (input.exists(file)) return { allow: true };
+  return {
+    allow: false,
+    reason: `Human review round ${round}: the review file is missing. Write ${file} first, with the sections '## Changed' (files and areas), '## Did' (one line per agent), '## Deviations from the ticket' and, on a re-review, '## Corrections since the last round'. Then print the full summary as text above the question and ask again, putting a digest of at most 15 lines (deviations, risks and open questions, changed-file count, corrections since last round) in the Approve option's preview, ending with the review file's path (${file}).`
+  };
+}
+
 // src/core/handoff-label.ts
 var HANDOFF_RE = /[`*]*HANDOFF:\s*([^\n`*]+)[`*]*/gi;
 var HANDBACK_TOOLS = ["SubagentHandback", "SendMessage"];
@@ -2408,6 +2447,7 @@ function meetingNotice(meeting, agentType) {
   HANDBACK_POLL_MS,
   HANDBACK_TOOLS,
   HANDBACK_WAIT_MS,
+  HUMAN_REVIEW_LABEL,
   LEGACY_SESSION_FILES,
   MAIN_CHECKOUT_SHARED_DIRS,
   MEETING_DIR_NAME,
@@ -2436,6 +2476,7 @@ function meetingNotice(meeting, agentType) {
   channelDir,
   checkChannelWrite,
   checkHandoff,
+  checkHumanReview,
   checkPayload,
   checkRoute,
   checkWorktreeWrite,
@@ -2444,6 +2485,7 @@ function meetingNotice(meeting, agentType) {
   collectAgentSkills,
   compactMetrics,
   compareRuntimeVersions,
+  currentReviewRound,
   dropResolvedMissingPayloads,
   duplicateAgentTypes,
   endMeeting,
@@ -2469,6 +2511,7 @@ function meetingNotice(meeting, agentType) {
   isGapReport,
   isLinkedWorktree,
   isResumableEnd,
+  isReviewFile,
   isRootSkillPath,
   isSeededHandoff,
   isValidHandoffId,
@@ -2525,6 +2568,7 @@ function meetingNotice(meeting, agentType) {
   resumeTarget,
   retire,
   retireResumeDeliveries,
+  reviewFileName,
   routesFrom,
   runStartedAt,
   runtimeNeedsRefresh,

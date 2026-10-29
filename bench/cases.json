@@ -153,6 +153,138 @@
       "must": ["tasks\\.ts", "maestro-tasks\\.cjs", "buildStatusMap", "status\\.json", "(not|never|isn[’']t)[\\s*_]+(auto[- ]?)?generated|hand[- ]?(maintained|written|edited)|by hand|manually|no (plugin-entries |tasks\\.ts )?source|(except(ion|ed)?|excluded|exempt)(?:(?!\\.\\s)[^\\n]){0,80}?(generat|plugin-entries|plugin-libs|lib build)|(generat|plugin-entries|plugin-libs|lib build)(?:(?!\\.\\s)[^\\n]){0,80}?(except(ion|ed)?|excluded|exempt)"],
       "expected": "The rule is implemented twice and the two must agree: apps/maestro/src/core/tasks.ts (buildStatusMap, also applied in tasksFromFiles; parseBlockedBy reads the task file's ## Blocked by section; listTasks, closeTask) for the desktop app, and plugins/maestro/scripts/lib/maestro-tasks.cjs (buildStatusMap, behind sync and markDone) for the orchestrator via maestro-task-status.cjs (also used by maestro-write-tasks.cjs). Today a non-done task is ready when every blockedBy entry is done or no longer exists as a file, else blocked; only done is stored as a decision, the rest is recomputed into .claude/maestro-tasks/status.json ({status, blockedBy}). maestro-tasks.cjs is the one plugin lib that is NOT generated from apps/maestro/src/core/plugin-entries (it has no source there), so build:plugin-libs will not carry a tasks.ts change into it: edit both by hand in the same way. It is also a STATIC_ASSET with a tracked mirror at .claude/scripts/lib/maestro-tasks.cjs (copy it over, run parity.test.ts), and a change under plugins/maestro bumps plugin.json's version.",
       "skill_note": "task-queue (root, listed at init): its first section says the cascade lives in tasks.ts and maestro-tasks.cjs, that maestro-tasks.cjs is the one lib file NOT generated (no plugin-entries source, hand-maintained) and why (a UI close and an orchestrator close must not disagree). The code says only that the two are kept in sync; the root rule plugin-publishing.md also says maestro-tasks.cjs is the exception to generation, so that part reaches both arms."
+    },
+    {
+      "id": "t1-test-close-task",
+      "group": "maestro@3814a30",
+      "kind": "test",
+      "agent": "test",
+      "sets": ["044"],
+      "question": "Handoff from the backend agent: `closeTask` in `apps/maestro/src/core/tasks.ts` is done and needs tests. Behaviors to test:\n1. Closing a task cascades: a task whose only blocker was the closed task becomes ready; a task that still has another open blocker stays blocked.\n2. A blocker whose task file no longer exists counts as satisfied.\n3. Closing keeps every task's epic link in the queue's status file.\n4. Closing releases the claim on the closed task, even when the session holding it is still live; a live claim on another task is left alone.\n5. Called from inside a linked git worktree, closing updates the main checkout's queue, not the worktree's.\n\nWrite the tests in `apps/maestro/test/core/close-task.node.test.ts`. Environment: this checkout has no node_modules and no network, so vitest, lint and the package scripts cannot run and nothing can be installed. Use `node:test` and `node:assert/strict`, import the code under test with relative `.js` specifiers, build every fixture in a fresh temporary directory, and run the file from the repository root with `node --import ./.bench/ts-resolve.mjs --test apps/maestro/test/core/close-task.node.test.ts`. Do not modify application code. Finish with the file passing.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "test": "apps/maestro/test/core/close-task.node.test.ts",
+        "remove": [
+          "apps/maestro/test/core/tasks.test.ts",
+          "apps/maestro/test/core/claims.test.ts",
+          "apps/maestro/test/core/task-claims-cli.test.ts",
+          "apps/maestro/test/core/worktree-isolation.test.ts",
+          "apps/maestro/test/core/epics-cli.test.ts",
+          "apps/maestro/test/core/per-session-state.test.ts"
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "mutants": [
+          { "id": "M1-deleted-blocker", "file": "apps/maestro/src/core/tasks.ts", "from": ": blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b))\n", "to": ": blockedBy.every((b) => doneSet.has(b))\n" },
+          { "id": "M2-epic-dropped", "file": "apps/maestro/src/core/tasks.ts", "from": "      ...(previous[filename]?.epic ? { epic: previous[filename].epic } : {}),\n", "to": "" },
+          { "id": "M3-claim-kept", "file": "apps/maestro/src/core/tasks.ts", "from": "  writeStatusMap(dir, statusMap);\n  deleteClaimIfAny(dir, base);\n", "to": "  writeStatusMap(dir, statusMap);\n" },
+          { "id": "M4-worktree-root", "file": "apps/maestro/src/core/worktree.ts", "from": "    return path.dirname(common);\n", "to": "    return dir;\n" }
+        ]
+      },
+      "graph_contribution": "The prompt names only closeTask. Behaviors 4 and 5 need code outside tasks.ts: how a claim is made and when it counts as live (claimTask and readClaims in claims.ts, isSessionLive: a session dir under .claude/maestro_sessions/<id>/ with a log.jsonl touched within CLAIM_IDLE_CAP_MS from handoff-channels.ts, via session-paths.ts), that readClaims reaps dead claims (so only a LIVE claim proves the release, mutant M3), and what makes a directory a linked worktree for mainCheckoutRoot (worktree.ts: a .git FILE with gitdir: <main>/.git/worktrees/<name>, mutant M4). `code-graph query impact closeTask` / `query cross closeTask isSessionLive` should hand these over as @file:line pointers instead of a Grep-and-Read walk across four modules. The task-queue concept skill (task-claims sub-concept) describes claim liveness in prose to every arm."
+    },
+    {
+      "id": "t2-test-epic-ready",
+      "group": "maestro@3814a30",
+      "kind": "test",
+      "agent": "test",
+      "sets": ["044"],
+      "question": "Handoff from the backend agent: `readyTasks` in `apps/maestro/src/core/epics.ts` (the epic's spawn list) is done and needs tests. Behaviors to test:\n1. A task the queue's status file marks ready while one of its blockers is not done is never listed as ready.\n2. A task claimed by a live session is listed as running, not ready; a task whose claiming session is gone is listed as ready.\n3. A claim whose session has been idle longer than the claim idle cap does not count as running.\n4. A task already recorded on a spawned worker but not claimed yet is pending and takes a slot: `slots = max(0, cap - running - pending)`.\n\nWrite the tests in `apps/maestro/test/core/epic-ready.node.test.ts`. Environment: this checkout has no node_modules and no network, so vitest, lint and the package scripts cannot run and nothing can be installed. Use `node:test` and `node:assert/strict`, import the code under test with relative `.js` specifiers, build every fixture in a fresh temporary directory, and run the file from the repository root with `node --import ./.bench/ts-resolve.mjs --test apps/maestro/test/core/epic-ready.node.test.ts`. Do not modify application code. Finish with the file passing.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "test": "apps/maestro/test/core/epic-ready.node.test.ts",
+        "remove": [
+          "apps/maestro/test/core/tasks.test.ts",
+          "apps/maestro/test/core/claims.test.ts",
+          "apps/maestro/test/core/task-claims-cli.test.ts",
+          "apps/maestro/test/core/worktree-isolation.test.ts",
+          "apps/maestro/test/core/epics-cli.test.ts",
+          "apps/maestro/test/core/per-session-state.test.ts"
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "mutants": [
+          { "id": "M1-stale-ready", "file": "apps/maestro/src/core/epics.ts", "from": "const unblocked = entry.blockedBy.every((b) => !tracker[b] || tracker[b].status === \"done\");", "to": "const unblocked = true;" },
+          { "id": "M2-dead-claim-runs", "file": "apps/maestro/src/core/epics.ts", "from": "    if (claim?.live) {\n", "to": "    if (claim) {\n" },
+          { "id": "M3-pending-free", "file": "apps/maestro/src/core/epics.ts", "from": "view.slots = Math.max(0, cap - view.running.length - view.pending.length);", "to": "view.slots = Math.max(0, cap - view.running.length);" },
+          { "id": "M4-no-idle-cap", "file": "apps/maestro/src/core/claims.ts", "from": "    return now - stat.mtimeMs <= CLAIM_IDLE_CAP_MS;\n", "to": "    return true;\n" }
+        ]
+      },
+      "graph_contribution": "readyTasks only reads state other modules write. A test must create an epic and link tasks (createEpic, linkTasks, addWorker in epics.ts), write task files whose `## Blocked by` the tracker parses and edit status.json (tasks.ts: parseBlockedBy, buildStatusMap, the {status, blockedBy, epic} shape), make a claim live or idle (claimTask in claims.ts, isSessionLive, the .claude/maestro_sessions/<id>/log.jsonl layout from session-paths.ts, CLAIM_IDLE_CAP_MS = 15 min in handoff-channels.ts) and record a pending worker. `code-graph query impact readyTasks` and the epics/claims neighbourhood should give those entry points as @file:line pointers. The task-queue concept skill (epics and task-claims sub-concepts) documents the same rules in prose to every arm."
+    },
+    {
+      "id": "d1-scribe-claim-cap",
+      "group": "maestro@3814a30",
+      "kind": "scribe",
+      "agent": "scribe",
+      "sets": ["044"],
+      "question": "Trigger 1 (feature completed). Scribe Handoff from the reviewer:\n- Change: the task-claim idle cap `CLAIM_IDLE_CAP_MS` (`apps/maestro/src/core/handoff-channels.ts`) went from 15 to 30 minutes, so a session parked on a long human review keeps its task claim. The generated plugin libs (`plugins/maestro/scripts/lib/maestro-session.cjs`, `maestro-epic.cjs`) and their mirrors under `.claude/scripts/lib/` were regenerated with the new value.\n- Files added/removed/renamed: none. Justfile or command changes: none. Schema changes: none.\n- Code patterns, rules, workflow changes: none beyond the new value.\n\nThe code change is already made and reviewed: update the documentation and skills it affects. Do not touch application code or tests.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "plant": [
+          { "file": "apps/maestro/src/core/handoff-channels.ts", "from": "export const CLAIM_IDLE_CAP_MS = 15 * 60 * 1000;", "to": "export const CLAIM_IDLE_CAP_MS = 30 * 60 * 1000;" },
+          { "file": "plugins/maestro/scripts/lib/maestro-session.cjs", "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;", "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;" },
+          { "file": "plugins/maestro/scripts/lib/maestro-epic.cjs", "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;", "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;" },
+          { "file": ".claude/scripts/lib/maestro-session.cjs", "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;", "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;" },
+          { "file": ".claude/scripts/lib/maestro-epic.cjs", "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;", "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;" }
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts", ".claude/scripts"],
+        "docs": {
+          ".claude/skills/task-queue/sub-concepts/task-claims.md": {
+            "must": ["\\b(30|thirty)[ -]?min(ute)?s?\\b|half an hour|\\b30 \\* 60\\b"],
+            "must_not": ["CLAIM_IDLE_CAP_MS`?\\s*\\(\\s*15[ -]?min"]
+          },
+          ".claude/skills/maestro-architecture/sub-concepts/session-end-reasons.md": {
+            "must": ["\\b(30|thirty)[ -]?min(ute)?s?\\b|half an hour|\\b30 \\* 60\\b"],
+            "must_not": ["CLAIM_IDLE_CAP_MS`?\\s*\\(\\s*15[ -]?min"]
+          },
+          "apps/maestro/.claude/skills/log-view/SKILL.md": {
+            "must": ["\\b(30|thirty)[ -]?min(ute)?s?\\b|half an hour|\\b30 \\* 60\\b"],
+            "must_not": ["\\*\\*15 min\\*\\*\\s*\\(`?SESSION_DELETE_IDLE_CAP_MS", "\\bThe 15-minute rule\\b", "live claim is within 15 min"]
+          }
+        }
+      },
+      "graph_contribution": "The handoff names only CLAIM_IDLE_CAP_MS. The stale docs are reached through what depends on it: claims.ts (isSessionLive) is documented by task-queue's task-claims sub-concept, the session-end story by maestro-architecture's session-end-reasons, and session-sweep.ts (claude-session-bridge concept) derives SESSION_DELETE_IDLE_CAP_MS = CLAIM_IDLE_CAP_MS, used by deleteSession and documented as the tab-delete cap in apps/maestro's log-view skill. `code-graph query impact CLAIM_IDLE_CAP_MS` should list isSessionLive and the session-sweep constant and its callers with their concepts, so the scribe finds the second-order doc (whether the graph links the log-view doc itself depends on its doc vertex; the pilot transcript shows it), which a grep for the constant's name also finds in only two of the three files (log-view states the value as \"15 min\" next to SESSION_DELETE_IDLE_CAP_MS). The graph is built from the tree before the plant, as a real scribe run would see it."
+    },
+    {
+      "id": "d2-scribe-spawn-cap",
+      "group": "maestro@3814a30",
+      "kind": "scribe",
+      "agent": "scribe",
+      "sets": ["044"],
+      "question": "Trigger 1 (feature completed). Scribe Handoff from the reviewer:\n- Change: the default spawn cap of an epic, `DEFAULT_SPAWN_CAP` (`apps/maestro/src/core/epics.ts`), went from 5 to 3 concurrent worker sessions, because five parallel workers kept hitting the account rate limit. `--cap <n>` still overrides it. The generated plugin lib `plugins/maestro/scripts/lib/maestro-epic.cjs`, the `maestro-epic.cjs` entry script and their mirrors under `.claude/scripts/` were regenerated.\n- Files added/removed/renamed: none. Justfile or command changes: none. Schema changes: none.\n- Code patterns, rules, workflow changes: none beyond the new default.\n\nThe code change is already made and reviewed: update the documentation and skills it affects, including the plugin's own skills. Do not touch application code or tests.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "plant": [
+          { "file": "apps/maestro/src/core/epics.ts", "from": "export const DEFAULT_SPAWN_CAP = 5;", "to": "export const DEFAULT_SPAWN_CAP = 3;" },
+          { "file": "plugins/maestro/scripts/lib/maestro-epic.cjs", "from": "var DEFAULT_SPAWN_CAP = 5;", "to": "var DEFAULT_SPAWN_CAP = 3;" },
+          { "file": ".claude/scripts/lib/maestro-epic.cjs", "from": "var DEFAULT_SPAWN_CAP = 5;", "to": "var DEFAULT_SPAWN_CAP = 3;" },
+          { "file": "plugins/maestro/scripts/maestro-epic.cjs", "from": "cap (default 5) leaves", "to": "cap (default 3) leaves" },
+          { "file": ".claude/scripts/maestro-epic.cjs", "from": "cap (default 5) leaves", "to": "cap (default 3) leaves" }
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts", ".claude/scripts"],
+        "docs": {
+          ".claude/skills/task-queue/sub-concepts/epics.md": {
+            "must": ["DEFAULT_SPAWN_CAP`?\\**\\s*(is|=|of|defaults to|:)\\s*\\**`?(3|three)\\b"],
+            "must_not": ["DEFAULT_SPAWN_CAP`?\\s*is\\s*5\\b"]
+          },
+          "plugins/maestro/skills/maestro-manager/SKILL.md": {
+            "must": ["\\b(up to|at most|max(imum)?( of)?|no more than)\\s+\\**(3|three)\\**\\s+(at once|at a time|concurrent|in parallel|parallel|workers|worker sessions|sessions|tabs)\\b","default\\s*(is|of|cap is|cap of|:|=)?\\s*`?(3|three)\\b|\\b(3|three)`?\\s*(by default|is the default)"],
+            "must_not": ["up to 5 at once", "the default is 5\\b"]
+          },
+          "plugins/maestro/skills/maestro-install/references/herdr.md": {
+            "must": ["\\b(up to|at most|max(imum)?( of)?|no more than)\\s+(3|three)\\s+at\\s+(a\\s+time|once)"],
+            "must_not": ["up to 5 at\\s+a\\s+time"]
+          }
+        }
+      },
+      "graph_contribution": "The handoff names DEFAULT_SPAWN_CAP. `code-graph query impact DEFAULT_SPAWN_CAP` reaches readyTasks and the plugin entry (plugin-entries/maestro-epic.ts, the `ready` command) and the task-queue concept whose epics sub-concept states the value. The two plugin docs (the maestro-manager skill, the herdr install reference) are NOT in the graph: they are plugin markdown outside every concept's globs, so the graph cannot point at them and both arms must find them by searching for the behaviour (\"up to 5\", \"--cap\"). This case measures whether the graph's partial coverage helps or distracts when half the stale docs sit outside it."
     }
   ]
 }
