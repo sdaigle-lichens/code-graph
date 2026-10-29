@@ -278,5 +278,17 @@
     "status": "done",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
+  },
+  "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md": {
+    "status": "ready",
+    "blockedBy": []
+  },
+  "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md": {
+    "status": "ready",
+    "blockedBy": []
+  },
+  "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md": {
+    "status": "ready",
+    "blockedBy": []
   }
 }
