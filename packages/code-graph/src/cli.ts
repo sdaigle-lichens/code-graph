@@ -32,6 +32,21 @@ const lazy = {
 const EXIT_LOW_CONFIDENCE = 7;
 
 /**
+ * The build this process runs: version plus the running script's path and mtime (`dist/cli.js` or
+ * the plugin bundle), so a gate result can be tied to the code it measured. Uses `process.argv[1]`
+ * because `import.meta.url` is empty in the CJS bundle.
+ */
+function describeBuild(): string {
+  const script = process.argv[1];
+  if (!script) return `code-graph ${packageVersion()}`;
+  try {
+    return `code-graph ${packageVersion()}, ${script} built ${statSync(script).mtime.toISOString()}`;
+  } catch {
+    return `code-graph ${packageVersion()}, ${script}`;
+  }
+}
+
+/**
  * True (after printing why) when the config declares no concepts: graph commands that iterate
  * concepts then exit 0 without loading typescript, ts-morph or the store. A missing config still
  * exits 5 inside `loadConfig`.
@@ -364,6 +379,7 @@ program
     mkdirSync(outputDir, { recursive: true });
 
     console.log(`running eval from ${tasksPath}`);
+    console.log(`build: ${describeBuild()}`);
     const run = await runEval(tasksPath, outputDir);
     const verdict = run.regressions.length === 0 ? "green" : "REGRESSIONS";
     console.log(`\n${verdict}: ${run.passed}/${run.total} passed, ${run.skipped} skipped`);

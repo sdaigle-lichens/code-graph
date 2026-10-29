@@ -26,6 +26,9 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
 
 - After changing `packages/code-graph/src/`, run `pnpm build` from the root (it also runs `bundle`).
 - `just eval` must stay green (**7/7**) before shipping retrieval changes.
+- `just eval` / `just regraph` first run `just dist-fresh` (`packages/code-graph/scripts/ensure-dist.mjs`:
+  package tsc, no pnpm, sandbox-safe) to rebuild a `dist/` older than `src/`; `--check` only
+  reports. Eval's `build:` line names the build it measured.
 - **`pnpm format` invalidates the graph**: rewritten bodies change `contentHash` and mark
   enrichment stale. Run `just regraph` after any format pass.
 - **Vertex `_key` includes the filepath**: moving files rewrites keys and orphans

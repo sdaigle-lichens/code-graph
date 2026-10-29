@@ -106,12 +106,17 @@ impact:
 
 # ─── Eval ────────────────────────────────────────────────────────────────────
 
+# Rebuild packages/code-graph/dist with tsc when any src/ file is newer than its output (no-op
+# otherwise). Calls tsc directly, not `pnpm build`, so it also runs inside Claude Code's sandbox.
+dist-fresh:
+    @node packages/code-graph/scripts/ensure-dist.mjs
+
 # Run Layer-A eval harness against this repo's own graph (the refactor gate)
-eval:
+eval: dist-fresh
     node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json
 
 # Re-extract + re-apply both of this repo's own concepts, then re-run the gate
-regraph:
+regraph: dist-fresh
     node packages/code-graph/dist/cli.js extract code-graph-search
     node packages/code-graph/dist/cli.js apply code-graph-search
     node packages/code-graph/dist/cli.js extract scribe-pipeline

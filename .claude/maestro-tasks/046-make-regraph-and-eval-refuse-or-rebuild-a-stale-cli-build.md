@@ -27,3 +27,10 @@ Out of scope: the committed plugin bundle `plugin/scripts/code-graph.cjs` (`pnpm
 ## Blocked by
 
 None — can start immediately
+
+## Post-Mortem
+
+- **Problem:** @backend changed `src/cli.ts` without regenerating `plugin/scripts/code-graph.cjs`; the ticket's "bundle out of scope" line was read as "don't touch the bundle", which contradicts CLAUDE.md's rebuild-after-src rule. @reviewer FAILed it (stale-bundle test red) and forced a loop-back.
+  **Fix:** none
+- **Problem:** `ensure-dist.mjs` copied the non-symlink-safe run-directly check from `check-versions.mjs`, so it failed open via symlinked paths; @test caught it, @reviewer blocked on it. The same pattern remains in `check-versions.mjs` (one `scribe/ast-stability.test.ts` case fails under a /tmp temp dir).
+  **Fix:** none
