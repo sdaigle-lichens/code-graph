@@ -725,24 +725,24 @@ Three decisions, each a deviation from the plan above and each made before any p
 
 ### Commands (from a plain terminal at the repo root)
 
-All use the pinned maestro clone, `MAESTRO_DIR=~/Documents/gits/maestro` on this machine (ticket 053 adds a default).
+All use the pinned maestro clone. Since ticket 053 the scripts find it themselves (`~/Documents/gits/maestro`, then `~/gits/maestro`); set `MAESTRO_DIR` only to point elsewhere. The 051 runs above were made before 053 landed, with `MAESTRO_DIR=$HOME/Documents/gits/maestro` set by hand.
 
 1. $0 grader proof (run in the worktree, all green):
 
    ```
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/edit-check.mjs --set 051
+   node bench/edit-check.mjs --set 051
    ```
 
 2. $0 preflight over all four arms. It checks the model, Edit/Write in the tools, skills present or stripped, and no code-graph plugin. It must be run by the user: it spawns `claude`, which the agent sandbox blocks.
 
    ```
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --init-check
+   node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --init-check
    ```
 
 3. Pilot, 1 run per cell, 5 tasks x 4 arms = 20 runs, cap $2:
 
    ```
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --runs 1 --budget 2 --run-budget 0.75
+   node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --runs 1 --budget 2 --run-budget 0.75
    ```
 
    Read each `report.md`: every run valid, no Edit or Write refused, then apply the saturation rule and decide the tasks with the user.
@@ -750,10 +750,10 @@ All use the pinned maestro clone, `MAESTRO_DIR=~/Documents/gits/maestro` on this
 4. Paid run (as decided in "Pilot outcome and paid-run plan"): 3 Haiku arms, 4 runs per cell, one command per kept task because `--only` takes one substring (t4 dropped, Sonnet dropped). Expected spend is about $0.60 in all; each command has a `--budget 1` ceiling, so the four together cannot pass $4, and with the pilot's $0.818 the ticket stays far under the $8 cap:
 
    ```
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only d2-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only t3-test --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only d3-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only d4-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   node bench/run.mjs --set 051 --only d2-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   node bench/run.mjs --set 051 --only t3-test --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   node bench/run.mjs --set 051 --only d3-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   node bench/run.mjs --set 051 --only d4-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
    ```
 
 - Usage-limit (429) runs are not counted. Rerun them with `node bench/run.mjs --rerun bench/results/<timestamp>`.
