@@ -46,3 +46,21 @@ embedding ranking; an MCP server.
   harder edit set with arms `haiku-noskills`, `haiku-nograph`, `haiku-oracle`, `sonnet-nograph`,
   which also tests concept skills on Haiku edits (041 only covered Opus questions). A primer only
   if the oracle shows a gain. Output trimming is dropped for now: Haiku never ran the CLI on edits.
+- Bench tests run as `node --test bench/*.test.mjs` (the directory form fails on Node 25), and
+  the maestro path comes from `bench/maestro-dir.mjs` (`maestroFor`), never a new default (053).
+- 051 decision rule (pre-registered): an arm helps when it recovers at least a third of the
+  baseline's missed points and at least 3; under 3 missed is inconclusive; verdicts per group
+  (test, scribe) and overall, the overall never overriding a group.
+- Scribe-side limit found in 051: docs outside every concept's globs never appear in graph
+  output, and `search` reaches a concept's SKILL.md but not the stale lines in it. A primer
+  (052) can only give what the oracle shows.
+- 051 result (paid run bdfb1d2, $1.43 incl. pilot; Sonnet dropped from the paid run): oracle ties
+  Haiku without the graph (100 vs 100 of 120, ~11% costlier), so no support for the 052 primer;
+  skills effect not shown (test group saturated, scribe confounded by the strip deleting the
+  edited SKILL.md files); no gap to Sonnet.
+- After 051 (user, 2026-10-30): 052 stays on hold. The tracker shows it ready, but it is not to
+  be spawned until a later measurement shows a gain. A fair scribe-side skills test (edited
+  SKILL.md files kept on disk but not loadable as skills) is not filed for now.
+- Concept skills stay; the push to use the graph before grep goes (user, 2026-10-30, ticket 054):
+  no SessionStart context line, and code-graph-retrieval becomes user-run only, so the 043
+  read-only gain stays one command away.

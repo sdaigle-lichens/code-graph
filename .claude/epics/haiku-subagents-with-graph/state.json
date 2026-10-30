@@ -20,6 +20,16 @@
       "name": "haiku-subagents-with-graph-047",
       "task": "047-make-check-versions-run-directly-check-symlink-safe.md",
       "added_at": "2026-10-29T22:16:13.636Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-051",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "added_at": "2026-10-30T01:57:03.292Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-053",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "added_at": "2026-10-30T01:57:03.587Z"
     }
   ],
   "log": [
@@ -63,6 +73,138 @@
       "kind": "ack",
       "id": "r003",
       "at": "2026-10-30T01:18:13.214Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "review",
+      "id": "m001",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.review.md",
+      "at": "2026-10-30T01:59:10.671Z",
+      "from": "haiku-subagents-with-graph-053"
+    },
+    {
+      "kind": "verdict",
+      "id": "m001",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-30T01:59:22.066Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "review",
+      "id": "m002",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.review-2.md",
+      "at": "2026-10-30T02:02:11.106Z",
+      "from": "haiku-subagents-with-graph-053"
+    },
+    {
+      "kind": "verdict",
+      "id": "m002",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-30T02:02:18.144Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "review",
+      "id": "m003",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "round": 3,
+      "file": ".claude/maestro-tasks/053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.review-3.md",
+      "at": "2026-10-30T02:04:22.702Z",
+      "from": "haiku-subagents-with-graph-053"
+    },
+    {
+      "kind": "verdict",
+      "id": "m003",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-30T02:04:31.976Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "report",
+      "id": "r004",
+      "task": "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "file": "inbox/r004-053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md",
+      "at": "2026-10-30T02:06:06.071Z",
+      "from": "haiku-subagents-with-graph-053"
+    },
+    {
+      "kind": "ack",
+      "id": "r004",
+      "at": "2026-10-30T02:06:11.995Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "review",
+      "id": "m004",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.review.md",
+      "at": "2026-10-30T02:08:11.721Z",
+      "from": "haiku-subagents-with-graph-051"
+    },
+    {
+      "kind": "verdict",
+      "id": "m004",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-10-30T02:08:28.117Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "review",
+      "id": "m005",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.review-2.md",
+      "at": "2026-10-30T02:11:42.986Z",
+      "from": "haiku-subagents-with-graph-051"
+    },
+    {
+      "kind": "verdict",
+      "id": "m005",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-30T02:11:53.990Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "report",
+      "id": "r005",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "file": "inbox/r005-051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "at": "2026-10-30T02:14:15.299Z",
+      "from": "haiku-subagents-with-graph-051"
+    },
+    {
+      "kind": "ack",
+      "id": "r005",
+      "at": "2026-10-30T02:14:21.582Z",
+      "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "report",
+      "id": "r006",
+      "task": "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "file": "inbox/r006-051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md",
+      "at": "2026-10-30T17:07:11.236Z",
+      "from": "haiku-subagents-with-graph-051"
+    },
+    {
+      "kind": "ack",
+      "id": "r006",
+      "at": "2026-10-30T17:07:56.011Z",
       "by": "code-graph-manager-haiku-epic"
     }
   ]

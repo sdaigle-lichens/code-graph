@@ -17,3 +17,14 @@ The bench scripts (`bench/run.mjs`, `bench/edit-check.mjs`, `bench/capture-oracl
 ## Blocked by
 
 None — can start immediately
+
+## Post-Mortem
+
+- **Problem:** @backend resolved MAESTRO_DIR eagerly at script startup, so scripts exited on a machine with no maestro checkout even for runs that never use `{MAESTRO}`; @reviewer failed it (round 1) and it needed a loop-back to make the lookup lazy (`maestroFor`).
+  **Fix:** none
+- **Problem:** The loop-back edit garbled the `{MAESTRO}` README sentence and overstated that `--dry` needs no checkout; @reviewer failed it again (round 2) and a second loop-back was needed.
+  **Fix:** none
+- **Problem:** @backend ended `HANDOFF: success` twice without writing the `test/backend.1.md` payload (worktree run); the coordinator had to resume it for the payload and write the channel file itself.
+  **Fix:** none
+- **Problem:** The ticket's acceptance criterion `node --test bench/` fails on Node 25; tests had to be run per file (`node --test bench/*.test.mjs`).
+  **Fix:** none

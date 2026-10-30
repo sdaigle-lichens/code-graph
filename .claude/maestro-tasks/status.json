@@ -292,18 +292,23 @@
     "blockedBy": []
   },
   "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
   },
   "052-primer-from-the-task-text-at-haiku-subagent-start.md": {
-    "status": "blocked",
+    "status": "ready",
     "blockedBy": [
       "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md"
     ],
     "epic": "haiku-subagents-with-graph"
   },
   "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "054-stop-steering-claude-code-to-code-graph-before-grep-keep-retrieval-user-run.md": {
     "status": "ready",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
