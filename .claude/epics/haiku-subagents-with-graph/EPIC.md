@@ -41,3 +41,8 @@ embedding ranking; an MCP server.
 - Tickets that change `packages/code-graph/src/` must say the plugin bundle is regenerated
   (`pnpm bundle`) even when the bundle is otherwise out of scope (046, report r001).
 - `just eval` and `just regraph` rebuild a stale `dist/` themselves (046).
+- 044 verdict (user, 2026-10-30): no gain from the graph on edit tasks, and Haiku without the graph
+  already matches Sonnet; but the set saturated and the graph arm never called the CLI. Next: a
+  harder edit set with arms `haiku-noskills`, `haiku-nograph`, `haiku-oracle`, `sonnet-nograph`,
+  which also tests concept skills on Haiku edits (041 only covered Opus questions). A primer only
+  if the oracle shows a gain. Output trimming is dropped for now: Haiku never ran the CLI on edits.
