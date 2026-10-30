@@ -654,3 +654,92 @@ Points: haiku-nograph 10/16, haiku-graph 10/16, sonnet-nograph 8/16. The graph a
 1. **Test summaries.** `nodeTestSummary` (`bench/lib.mjs`) read only TAP summaries (`# pass N`). The user's Node prints spec-reporter summaries (`ℹ pass N`), so every test case graded 0 in the t1 pilot. It now accepts both.
 2. **Edit permission mode.** Edit cases now run under `--permission-mode bypassPermissions` with `--tools Bash,Read,Grep,Glob,Skill,Edit,Write` instead of `dontAsk`. Claude Code 2.1.312 refuses every Edit under the protected `.claude/` dir in `dontAsk`, even with an explicit `Edit(**/.claude/skills/**)` allow rule. A new validity check marks a run invalid if its init event lists any other tool; the paid run's init events listed exactly those seven. Read-only cases (042/043) keep `dontAsk`.
 3. **Maestro path.** The runner's default maestro clone is `~/gits/maestro`; on this machine it is `~/Documents/gits/maestro`, so the runs set `MAESTRO_DIR`.
+
+## Ticket 051: do concept skills and graph answers help Haiku on harder edit tasks (bench/, plan and rule written before any paid run)
+
+Question: 044 found that the test tasks saturated (20/20 in every arm), that `haiku-graph` never called the CLI, and that `haiku-nograph` (46/52) matched `sonnet-nograph` (44/52) at about 1/9 of the cost. So 044 measured the plugin's discovery on easy tasks, not the value of the concept skills or of a graph answer. 051 uses harder tasks and separates the two effects.
+
+### Tasks (`--set 051`, 36 points per run)
+
+`d2-scribe-spawn-cap` stays from 044 as the deliberate hard case: every arm, Sonnet included, left the stale cap in `maestro-manager/SKILL.md`'s frontmatter `description`. The other four are new, at the same maestro pin `3814a30`, and need several modules each.
+
+| id | kind | points | what is hard |
+|---|---|---|---|
+| `d2-scribe-spawn-cap` | scribe | 8 | frontmatter miss; two plugin docs outside every concept's globs |
+| `t3-test-session-sweep` | test | 6 | `sweepStaleSessions`: idleness is the newest child mtime, own session, future mtime, worktree-moved sessions (pointer plus `sessionDirsFor`), `deleteSession` claim cap and reasons. 1 point green plus 5 mutants |
+| `t4-test-channel-lanes` | test | 6 | `pendingLanes` current/stranded split by live-session `run_id`, `sweep` of `.consumed/` and the age cap. 1 point green plus 5 mutants |
+| `d3-scribe-channel-age-cap` | scribe | 9 | `CHANNEL_AGE_CAP_MS` 14 to 7 days; one stale "14-day age limit" sits in a doc outside every concept's globs, split across a line break |
+| `d4-scribe-sweep-idle-cap` | scribe | 7 | `SESSION_SWEEP_IDLE_CAP_MS` 24h to 48h; stale "24h" appears in a table, a heading and "removable a day later" |
+
+**What the graph can store for d2 to d4 (tried at $0, richest real output kept).** Constants are not graph vertices (`query impact <CONSTANT>` exits 6), so `impact` can only show the function that reads the constant. `code-graph search` was tried for the constant, the doc wording and the concept. It returns the code that reads the constant plus pointers to the **concept SKILL.md files** that matched (d2: `task-queue`; d3: `maestro-architecture`; d4: `claude-session-bridge`), not the stale lines inside them. The docs outside every concept's globs (`maestro-manager/SKILL.md`, `tools-tasks-runtime.md`, and the log-view skill in d4) never appear. So each scribe oracle is one `search` plus one `impact`, captured by `bench/capture-oracle.mjs` (`proxy_cmd` plus `proxy_extra`), and nothing else is added. If it stays thin in the pilot, the scribe-side verdict measures this limit of the graph: a primer built from the graph cannot name the stale docs that sit outside the concepts. The oracle bounds what a primer could give; no context the graph cannot produce is pasted in. The test tasks are where a graph answer can matter (what `sweepStaleSessions` and `pendingLanes` reach).
+
+### Arms
+
+- `haiku-nograph`: Haiku 5.5, concept skills, Grep. Maestro's subagent today.
+- `haiku-noskills`: as `haiku-nograph` with the case's concept skills stripped from the workspace by `bench/strip-concept-skills.mjs` (the non-concept `keep_skills` stay).
+- `haiku-oracle`: as `haiku-nograph`, plus the stored graph output for the case (`bench/oracle/<case>.txt`, captured at $0 from `proxy_cmd` and `proxy_extra`) pasted into the prompt in a `<code-index>` block. The model needs no plugin and no CLI call.
+- `sonnet-nograph`: Sonnet 5.5, concept skills, Grep.
+
+No arm has the code-graph plugin. The runner checks each run: concept skills absent only in `haiku-noskills`, the stored output in the prompt of `haiku-oracle` only, and no code-graph plugin in any init event. A run that fails a check is invalid and not counted.
+
+### Decision rule (fixed before any result)
+
+The user confirms the final numbers and the cap at pilot time, from the pilot's cost and saturation; anything changed then is written here before the paid run.
+
+Points are summed per arm over its valid runs, in two groups and overall. At 2 runs per task: **test** (t3, t4) is 24 points, **scribe** (d2, d3, d4) is 48, **overall** is 72. For an arm, *missed* is the group's maximum minus its points. A task is *saturated* if every arm scores full marks on it in every valid run.
+
+- **Spend cap: $8 in all, pilot included.** Per run cap `--run-budget 0.75`. The pilot is capped at $2. No run starts once spent plus the run budget would pass the cap.
+- **Recovery.** Arm X *recovers* from a baseline B in a group if `missed(B) - missed(X)` is at least one third of `missed(B)` and at least 3 points (the absolute floor). The rule is on missed points, not a ratio of points, because a ratio of 1.15 passes the ceiling above 87% (044 scored 46/52 = 88%).
+- **Cannot discriminate.** If the baseline B misses fewer than 3 points in a group, the verdict for that group is **inconclusive (saturated)**: report it, neither pass nor fail. A group where X misses at least 3 more points than B is **hurts**; anything else is **no effect shown**.
+- **Skills help**: X = `haiku-nograph`, B = `haiku-noskills`. On a pass, skills help on points. On no effect shown, skills help on cost if `haiku-nograph` costs at least 20% less per run at no points lost.
+- **Graph answers help**: X = `haiku-oracle`, B = `haiku-nograph`. On no effect shown, graph answers help on cost if `haiku-oracle` costs at least 20% less per run at no points lost.
+- **Gap to Sonnet**: the gap is `missed(haiku-nograph) - missed(sonnet-nograph)`. If the gap is under 3 points, there is no gap; report it and judge the other arms on cost. Otherwise an arm closes the gap if it recovers at least half of it, at less than half of Sonnet's cost per run.
+- **Per group, not only overall.** Every verdict above is given for test, for scribe and overall, and the epic's per-agent model recommendation (test agent, scribe agent) follows the group verdict. The overall verdict never overrides a group verdict: a thin scribe oracle must not dilute a test-side gain, and a test-side gain must not hide a scribe-side null.
+- **Saturation**: after the pilot, a task that is saturated in every arm is dropped from the paid run (it cannot discriminate). If fewer than three tasks remain unsaturated, or a whole group is saturated, say so: that group's verdicts are inconclusive and the next step is harder tasks, not more runs.
+- **Hard case**: d2 is reported on its own, with the frontmatter line named, whatever the verdict.
+- Report per task and arm: points, grade detail (surviving mutants, stale docs), cost, turns, Edit/Write counts, protected files restored. Then a plain verdict per rule above with confidence at n=2. Results go below this section, only after the paid run.
+
+#### Results template (filled in only after the paid run)
+
+| group | arm | valid runs | points / max | missed | cost per run |
+|---|---|---|---|---|---|
+| test, scribe, overall | haiku-nograph, haiku-noskills, haiku-oracle, sonnet-nograph | | | | |
+
+| group | skills help (nograph vs noskills) | graph answers help (oracle vs nograph) | gap to Sonnet (nograph vs sonnet) |
+|---|---|---|---|
+| test | pass, no effect shown, hurts or inconclusive (saturated) | same | gap in points; arms that close it |
+| scribe | same | same | same |
+| overall | same | same | same |
+
+### Commands (from a plain terminal at the repo root)
+
+All use the pinned maestro clone, `MAESTRO_DIR=~/Documents/gits/maestro` on this machine (ticket 053 adds a default).
+
+1. $0 grader proof (run in the worktree, all green):
+
+   ```
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/edit-check.mjs --set 051
+   ```
+
+2. $0 preflight over all four arms. It checks the model, Edit/Write in the tools, skills present or stripped, and no code-graph plugin. It must be run by the user: it spawns `claude`, which the agent sandbox blocks.
+
+   ```
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --init-check
+   ```
+
+3. Pilot, 1 run per cell, 5 tasks x 4 arms = 20 runs, cap $2:
+
+   ```
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --runs 1 --budget 2 --run-budget 0.75
+   ```
+
+   Read each `report.md`: every run valid, no Edit or Write refused, then apply the saturation rule and decide the tasks with the user.
+
+4. Paid run, 2 runs per cell. If the pilot dropped a saturated task, run one command per kept task with `--only <id substring>` (it takes one substring) instead of the whole set. Lower `--budget` by the pilot's spend so the total stays under $8:
+
+   ```
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --runs 2 --budget 6 --run-budget 0.75
+   ```
+
+- Usage-limit (429) runs are not counted. Rerun them with `node bench/run.mjs --rerun bench/results/<timestamp>`.
+- The runner stops at the second invalid run; report instead of retrying.

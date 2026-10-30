@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import {
   claudeArgs, selectCases, parseStream, validity, score, report, checkVerdict, parseArms, planRuns, promptFor,
   oracleFile, setupArm, budgetStop, runStatus, statusOf, rerunPlan, proposals, DEFAULT_ARMS, SKILL_ARMS,
-  isEditCase, isGraphArm, modelFor,
+  isEditCase, isGraphArm, modelFor, baseArm, isOracleArm, promptProblems,
 } from './lib.mjs';
 import { prepareEdit, gradeEdit, systemPromptFor, saveArtifacts } from './edit.mjs';
 import { maestroFor } from './maestro-dir.mjs';
@@ -71,12 +71,12 @@ const planCases = [...new Set(plan.map((p) => p.case))].map((id) => byId.get(id)
 const planArms = [...new Set(plan.map((p) => p.arm))];
 // The skill arms compare concept skills against none: a case with no `skills` list has nothing the
 // init check could confirm was present in one arm and stripped in the other.
-const noSkillList = [...new Set(plan.filter((p) => SKILL_ARMS.has(p.arm) && !(byId.get(p.case)?.skills || []).length).map((p) => p.case))];
+const noSkillList = [...new Set(plan.filter((p) => SKILL_ARMS.has(baseArm(p.arm)) && !(byId.get(p.case)?.skills || []).length).map((p) => p.case))];
 if (noSkillList.length) die(`the skills/noskills arms need cases with a \`skills\` list; these have none: ${noSkillList.join(', ')}`);
 
 // The oracle arm's prompt carries the case's stored graph output (bench/capture-oracle.mjs).
 const oracleText = {};
-for (const id of new Set(plan.filter((p) => p.arm === 'oracle').map((p) => p.case))) {
+for (const id of new Set(plan.filter((p) => isOracleArm(p.arm)).map((p) => p.case))) {
   const f = join(here, oracleFile(id));
   if (!existsSync(f)) die(`oracle arm needs ${oracleFile(id)} under bench/; capture it with node bench/capture-oracle.mjs --only ${id}`);
   oracleText[id] = readFileSync(f, 'utf8');
@@ -157,7 +157,10 @@ for (const p of plan) {
   if (isEditCase(c)) {
     try { pristine = prepareEdit(ws, c); } catch (e) { stop = `edit preparation failed for ${c.id}: ${e.message}`; break; }
   }
-  const args = claudeArgs(arm, promptFor(arm, c, oracleText[c.id]), { model: opts.model, runBudget: opts['run-budget'], pluginDir, ...editArgs(ws, c) });
+  const prompt = promptFor(arm, c, oracleText[c.id]);
+  const ctxProblems = promptProblems(arm, prompt); // 051: oracle context only in the oracle arm
+  if (ctxProblems.length) { stop = `${c.id} ${arm}: ${ctxProblems.join('; ')}`; break; }
+  const args = claudeArgs(arm, prompt, { model: opts.model, runBudget: opts['run-budget'], pluginDir, ...editArgs(ws, c) });
   if (DRY) {
     console.log(`[${c.id} ${arm} run${n}] cwd=${ws}\nclaude ${args.map((x) => JSON.stringify(x)).join(' ')}\n`);
     if (!bool.has('keep-ws')) rmSync(ws, { recursive: true, force: true });
@@ -206,7 +209,7 @@ if (!DRY) {
   });
   writeFileSync(join(outDir, 'report.md'), md);
   console.log('\n' + md);
-  const oraclePlan = fullArms.has('oracle');
+  const oraclePlan = [...fullArms].some(isOracleArm);
   const needGraphCall = [...fullArms].some(isGraphArm) && !oraclePlan;
   const v = checkVerdict(rows, { planned: fullPlan, needGraphCall });
   console.log(`check: ${v.pass ? 'PASS' : 'FAIL'} (all planned runs counted: ${v.complete}, all counted runs valid: ${v.allValid}, every arm ran: ${v.bothArms}, graph arm real code-graph call exit 0: ${v.realCall}${needGraphCall ? '' : ' (not required: oracle arm or no graph arm)'})`);

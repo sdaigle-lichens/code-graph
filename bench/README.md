@@ -22,7 +22,7 @@ node bench/run.mjs --dry           # scaffold + print the claude commands, spend
 | `--group` | all | Substring filter on the case's `group` field (the maestro cases have `maestro@3814a30`, so `--group maestro` skips the fixture case). Combined with `--only`, a case must match both; no match exits 2. `--init-check` uses the first selected case that has `skills`. |
 | `--set` | all | Keep only the cases whose `sets` list contains this exact name (e.g. `--set 042`). Combines with `--only` and `--group`. |
 | `--keep-ws` | off | Keep the fresh workspaces under `$TMPDIR`. |
-| `--arms` | nograph,graph | Comma list from `nograph`, `oracle`, `graph`, `skills`, `noskills`, and the 044 model arms `haiku-nograph`, `haiku-graph`, `sonnet-nograph`. Unknown names exit 2. `skills`/`noskills` exit 2 on a case with no `skills` list. |
+| `--arms` | nograph,graph | Comma list from `nograph`, `oracle`, `graph`, `skills`, `noskills`, and the 044 model arms `haiku-nograph`, `haiku-graph`, `sonnet-nograph`, and the 051 arms `haiku-noskills`, `haiku-oracle`. Unknown names exit 2. `skills`/`noskills` exit 2 on a case with no `skills` list. |
 | `--graph-cases` | all | Comma list of case-id substrings: the graph arm runs only on these cases (the other arms still run on every selected case). |
 | `--rerun <dir>` | off | Finish an earlier invocation: rerun its usage-limit runs and run any planned run that has no row yet. Takes the model, run-budget and budget from `<dir>/runs.json` (pass `--budget` to raise the cap). Refuses if that invocation had more than one invalid run. Results go to a new directory. |
 
@@ -75,6 +75,9 @@ both arms. Case fields used by these arms:
   how many valid `skills` runs called one of them through the Skill tool.
 - `skill_note`: why that skill covers the question and what else leaks the answer to both arms.
 - `sets`: named case sets for `--set`.
+- `proxy_extra` (optional, 051): a list of extra argv lists. `capture-oracle.mjs` runs them after
+  `proxy_cmd` and appends their output to `bench/oracle/<case>.txt`, so a case can store a `search`
+  plus an `impact`. A `search` that exits 7 (low confidence) is accepted; any other non-zero exit fails.
 - `proposal`: a question not yet approved by the user. The runner refuses to start a paid run on
   any selected case that still has it (`--dry` and `--init-check` are allowed). Delete the field
   once the question is approved.
@@ -272,3 +275,11 @@ output size (`exit:chars`).
 USAGE-LIMIT and NOT RUN runs. The run ends with `check: PASS|FAIL`. PASS needs every planned run
 done and valid, with usage-limit runs not counted. Without the oracle arm, it also needs a
 graph-arm code-graph call that exited 0 with output.
+
+## Ticket 051 arms and set
+
+`--set 051` is d2 plus four harder edit cases (t3, t4, d3, d4; 36 points per run). Its arms are
+`haiku-nograph`, `haiku-noskills` (concept skills stripped), `haiku-oracle` (stored graph output from
+`bench/oracle/<case>.txt` pasted into the prompt) and `sonnet-nograph`. The runner stops a run whose
+prompt carries stored graph output outside an oracle arm, or lacks it inside one. The cap, thresholds and
+exact commands are in [docs/evals.md](../docs/evals.md), "Ticket 051".

@@ -36,12 +36,22 @@ try {
       wsBySetup.set(setup, ws);
     }
     const ws = wsBySetup.get(setup);
-    const r = spawnSync('node', [cli, ...c.proxy_cmd], { cwd: ws, encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: ws } });
-    if (r.status !== 0 || !r.stdout.trim()) {
-      console.error(`${c.id}: code-graph ${c.proxy_cmd.join(' ')} exited ${r.status} with ${r.stdout.length} chars: ${r.stderr.trim().slice(0, 300)}`);
-      bad++;
-      continue;
+    // 051: optional `proxy_extra` (a list of argv lists) is captured after proxy_cmd and appended, so a
+    // case can store a search plus an impact. `search` exits 7 on a low-confidence match but still prints.
+    const outs = [];
+    let failed = false;
+    for (const argv of [c.proxy_cmd, ...(c.proxy_extra || [])]) {
+      const r = spawnSync('node', [cli, ...argv], { cwd: ws, encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: ws } });
+      const okExit = r.status === 0 || (argv[0] === 'search' && r.status === 7);
+      if (!okExit || !r.stdout.trim()) {
+        console.error(`${c.id}: code-graph ${argv.join(' ')} exited ${r.status} with ${r.stdout.length} chars: ${r.stderr.trim().slice(0, 300)}`);
+        failed = true;
+        break;
+      }
+      outs.push(r.stdout);
     }
+    if (failed) { bad++; continue; }
+    const r = { stdout: outs.join('\n') };
     const f = join(here, oracleFile(c.id));
     if (check) {
       const same = existsSync(f) && readFileSync(f, 'utf8') === r.stdout;
