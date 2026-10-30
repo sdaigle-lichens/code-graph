@@ -198,7 +198,7 @@ arm appends `bench/oracle/<case>.txt` to it. Only the graph arm gets `--plugin-d
 Cases may also carry `skills` (project skill names the init event must list in every arm except
 `noskills`, where it must list none of them) and, for
 the maestro cases, `expected`, `why_grep_expensive` and `proxy` notes. `setup` also gets `{ARM}` and
-`{MAESTRO}` (`$MAESTRO_DIR`, default `~/gits/maestro`, only ever read through `git archive`).
+`{MAESTRO}` (`$MAESTRO_DIR` when set, else the first git checkout among `~/Documents/gits/maestro` and `~/gits/maestro` (`bench/maestro-dir.mjs`); with none, a case whose setup uses `{MAESTRO}` exits with one line naming `MAESTRO_DIR`; `--dry` needs a checkout only if a selected case uses `{MAESTRO}`; only ever read through `git archive`). Run the tests with `node --test bench/*.test.mjs` (`node --test bench/` fails on Node 25).
 `bench/maestro-setup.sh` builds the maestro workspace from a pinned sha: graph arm = `apply` of each
 concept from the committed `.ast.json` (no extract, no ts-morph); no-graph arm = same tree with no
 `scribe-output/` directory at all. Both arms keep maestro's own `.claude/skills` and both lose

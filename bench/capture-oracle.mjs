@@ -7,17 +7,17 @@
 //   --check: capture to memory and exit 1 if any stored file differs (nothing is written).
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { oracleFile, setupArm } from './lib.mjs';
+import { maestroFor } from './maestro-dir.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
 const args = process.argv.slice(2);
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : '';
 const check = args.includes('--check');
-const maestroDir = process.env.MAESTRO_DIR || join(homedir(), 'gits', 'maestro');
 const cli = join(repo, 'plugin', 'scripts', 'code-graph.cjs');
 const work = process.env.TMPDIR || tmpdir();
 
@@ -28,7 +28,7 @@ const wsBySetup = new Map();
 let bad = 0;
 try {
   for (const c of cases) {
-    const setup = c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', setupArm('graph')).replaceAll('{MAESTRO}', maestroDir);
+    const setup = c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', setupArm('graph')).replaceAll('{MAESTRO}', maestroFor(c.setup));
     if (!wsBySetup.has(setup)) {
       const ws = mkdtempSync(join(work, 'bench-oracle-'));
       const sc = spawnSync('bash', ['-c', setup], { cwd: ws, encoding: 'utf8', timeout: 180000 });

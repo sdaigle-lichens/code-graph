@@ -11,11 +11,12 @@
 // Usage: node bench/edit-check.mjs [--only <substring>] [--set 044] [--keep-ws]
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { editCaseProblems, isEditCase, replaceOnce, selectCases } from './lib.mjs';
 import { gradeEdit, prepareEdit, systemPromptFor } from './edit.mjs';
+import { maestroFor } from './maestro-dir.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
@@ -27,7 +28,6 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (k in opts) opts[k] = process.argv[++i];
   else { console.error(`unknown option ${process.argv[i]}`); process.exit(2); }
 }
-const maestroDir = process.env.MAESTRO_DIR || join(homedir(), 'gits', 'maestro'); // read-only: only `git archive` touches it
 const cases = selectCases(JSON.parse(readFileSync(join(here, 'cases.json'), 'utf8')).cases, opts).filter(isEditCase);
 if (!cases.length) { console.error(`edit-check: no edit case matches --only "${opts.only}" --set "${opts.set}"`); process.exit(2); }
 
@@ -37,7 +37,7 @@ const check = (ok, msg) => { console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${msg}`); if
 
 function workspace(c) {
   const ws = mkdtempSync(join(work, 'bench-edit-check-'));
-  const cmd = c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', 'nograph').replaceAll('{MAESTRO}', maestroDir);
+  const cmd = c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', 'nograph').replaceAll('{MAESTRO}', maestroFor(c.setup));
   const sc = spawnSync('bash', ['-c', cmd], { cwd: ws, encoding: 'utf8', timeout: 180000 });
   if (sc.status !== 0) throw new Error(`setup failed: ${sc.stderr || sc.stdout}`);
   return ws;

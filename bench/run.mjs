@@ -10,7 +10,7 @@
 // Output: bench/results/<timestamp>/ (transcripts per run, runs.json, report.md), gitignored.
 import { spawnSync, spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -19,6 +19,7 @@ import {
   isEditCase, isGraphArm, modelFor,
 } from './lib.mjs';
 import { prepareEdit, gradeEdit, systemPromptFor, saveArtifacts } from './edit.mjs';
+import { maestroFor } from './maestro-dir.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
@@ -85,8 +86,7 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(here, 'results', stamp);
 const work = process.env.TMPDIR || tmpdir();
 const pluginDir = join(repo, 'plugin');
-const maestroDir = process.env.MAESTRO_DIR || join(homedir(), 'gits', 'maestro'); // read-only: only `git archive` touches it
-const setupCmd = (c, arm) => c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', setupArm(arm)).replaceAll('{MAESTRO}', maestroDir);
+const setupCmd = (c, arm) => c.setup.replaceAll('{REPO}', repo).replaceAll('{ARM}', setupArm(arm)).replaceAll('{MAESTRO}', maestroFor(c.setup)); // maestro is read-only: only `git archive` touches it
 // Edit cases: Edit/Write allowed and the maestro agent's body appended to the system prompt.
 const editArgs = (ws, c) => (isEditCase(c) ? { edit: true, systemPrompt: systemPromptFor(ws, c) } : {});
 const models = (arms) => Object.fromEntries(arms.map((a) => [a, modelFor(a, opts.model)]));
