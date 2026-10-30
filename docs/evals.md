@@ -711,6 +711,18 @@ Points are summed per arm over its valid runs, in two groups and overall. At 2 r
 | scribe | same | same | same |
 | overall | same | same | same |
 
+### Pilot outcome and paid-run plan (decided with the user before the paid run)
+
+The pilot ran 20 runs (1 per cell, 5 tasks x 4 arms), all valid, $0.818 of the $2 cap. Pilot points per arm: `haiku-nograph` 33/36, `sonnet-nograph` 31/36, `haiku-noskills` 16/36, `haiku-oracle` 29/36. Per task (nograph / sonnet / noskills / oracle): d2 6/4/2/4 of 8, t3 5/5/6/4 of 6, t4 6/6/6/6 of 6, d3 9/9/2/8 of 9, d4 7/7/0/7 of 7. These are one run per cell: read them as a plan input, not a result.
+
+Three decisions, each a deviation from the plan above and each made before any paid run:
+
+1. **Task set: t4 is dropped.** It scored full marks in every arm, so the saturation rule drops it. The paid run uses d2, t3, d3 and d4 (four tasks, above the minimum of three). The test group is then one task (t3); its verdicts rest on t3 alone and say so.
+2. **Sonnet is dropped from the paid run (deviation).** Reason: Haiku is at or above Sonnet on both measurements (044: 46 vs 44 of 52; this pilot: 33 vs 31 of 36), so a paid Sonnet run would not change the gap question, and Sonnet was about 78% of the pilot's spend ($0.614 of $0.818, about $0.123 per run against about $0.014 for `haiku-nograph`). The "gap to Sonnet" verdict uses the pilot and 044 as its reference, at n=1 for the pilot. I read Sonnet's d2 pilot transcript: its 4/8 is thoroughness, not a grader blind spot (it edited with `sed -i` through Bash, which the grader counts; it left the `herdr.md` cap at "up to 5 at a time"; it did not search `plugins/` for the phrase). The savings go to noise: 4 runs per Haiku arm (3 arms x 4 tasks x 4 runs = 48 runs, about $0.60 expected at the pilot's per-run costs). At 4 runs the maxima are test 24, scribe 96 and overall 120. The rule above is otherwise unchanged; with no Sonnet arm in the paid run, its gap clause is judged against the pilot and 044 figures.
+3. **`haiku-noskills` on the scribe group is confounded.** `bench/strip-concept-skills.mjs` removes the concept SKILL.md files that the scribe tasks must edit (the grader reports them "missing", for example `maestro-architecture/sub-concepts/channels.md` in d3), so that arm cannot do the scribe task whatever it knows: 4/24 against 22/24 in the pilot is mostly the strip. **"Skills help" is decided on the test group only.** The scribe-group skills verdict is reported as confounded, not as a pass. Whether to keep those files on disk while removing them as loadable skills is left for a later ticket; it would change the arm, so it is not done here.
+
+**Record the oracle's direction.** In the pilot `haiku-oracle` scored below `haiku-nograph` (29 vs 33 overall; scribe 19 vs 22 of 24, test 10 vs 11 of 12). The paid-run report states the direction of oracle against nograph for each group, even when the rule's verdict is inconclusive (saturated) or no effect shown, because the primer ticket (052) is gated on it.
+
 ### Commands (from a plain terminal at the repo root)
 
 All use the pinned maestro clone, `MAESTRO_DIR=~/Documents/gits/maestro` on this machine (ticket 053 adds a default).
@@ -735,11 +747,59 @@ All use the pinned maestro clone, `MAESTRO_DIR=~/Documents/gits/maestro` on this
 
    Read each `report.md`: every run valid, no Edit or Write refused, then apply the saturation rule and decide the tasks with the user.
 
-4. Paid run, 2 runs per cell. If the pilot dropped a saturated task, run one command per kept task with `--only <id substring>` (it takes one substring) instead of the whole set. Lower `--budget` by the pilot's spend so the total stays under $8:
+4. Paid run (as decided in "Pilot outcome and paid-run plan"): 3 Haiku arms, 4 runs per cell, one command per kept task because `--only` takes one substring (t4 dropped, Sonnet dropped). Expected spend is about $0.60 in all; each command has a `--budget 1` ceiling, so the four together cannot pass $4, and with the pilot's $0.818 the ticket stays far under the $8 cap:
 
    ```
-   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --arms haiku-nograph,haiku-noskills,haiku-oracle,sonnet-nograph --runs 2 --budget 6 --run-budget 0.75
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only d2-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only t3-test --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only d3-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
+   MAESTRO_DIR=$HOME/Documents/gits/maestro node bench/run.mjs --set 051 --only d4-scribe --arms haiku-nograph,haiku-noskills,haiku-oracle --runs 4 --budget 1 --run-budget 0.75
    ```
 
 - Usage-limit (429) runs are not counted. Rerun them with `node bench/run.mjs --rerun bench/results/<timestamp>`.
 - The runner stops at the second invalid run; report instead of retrying.
+
+### Results (paid run)
+
+Run as planned in "Pilot outcome and paid-run plan": 4 commands (d2, t3, d3, d4), 3 Haiku arms, 4 runs per cell, 48 runs, all valid, no usage-limit reruns, init checks matched every arm. Paid spend $0.614 (d2 $0.118, t3 $0.206, d3 $0.168, d4 $0.122); with the pilot's $0.818 the ticket spent $1.43 of the $8 cap. Result directories: `bench/results/2026-10-30T15-08-46-226Z` (d2), `2026-10-30T15-23-20-860Z` (t3), `2026-10-30T15-48-50-730Z` (d3), `2026-10-30T16-04-18-256Z` (d4); the pilot is `2026-10-30T12-45-30-980Z`. `bench/results/` is gitignored. Sonnet was not run (decision 2 above).
+
+**Per task and arm** (points over 4 runs, each run in brackets; cost per run):
+
+| task | max | haiku-nograph | haiku-noskills | haiku-oracle |
+|---|---|---|---|---|
+| d2-scribe-spawn-cap | 32 | 18 (6, 4, 4, 4), $0.009 | 14 (2, 2, 6, 4), $0.010 | 16 (4, 4, 4, 4), $0.010 |
+| t3-test-session-sweep | 24 | 20 (4, 4, 6, 6), $0.018 | 22 (6, 5, 6, 5), $0.014 | 21 (5, 6, 5, 5), $0.019 |
+| d3-scribe-channel-age-cap | 36 | 36 (9, 9, 9, 9), $0.014 | 8 (2, 2, 2, 2), $0.008 | 35 (9, 9, 9, 8), $0.019 |
+| d4-scribe-sweep-idle-cap | 28 | 26 (7, 5, 7, 7), $0.012 | 0 (0, 0, 0, 0), $0.007 | 28 (7, 7, 7, 7), $0.011 |
+
+**Per group and overall** (the rule's groups: test is t3 alone, scribe is d2 + d3 + d4):
+
+| group | max | arm | points | missed | cost per run |
+|---|---|---|---|---|---|
+| test | 24 | haiku-nograph | 20 (83%) | 4 | $0.018 |
+| test | 24 | haiku-noskills | 22 (92%) | 2 | $0.014 |
+| test | 24 | haiku-oracle | 21 (88%) | 3 | $0.019 |
+| scribe | 96 | haiku-nograph | 80 (83%) | 16 | $0.012 |
+| scribe | 96 | haiku-noskills | 22 (23%, confounded) | 74 | $0.009 |
+| scribe | 96 | haiku-oracle | 79 (82%) | 17 | $0.014 |
+| overall | 120 | haiku-nograph | 100 (83%) | 20 | $0.013 |
+| overall | 120 | haiku-noskills | 44 (37%, scribe part confounded) | 76 | $0.010 |
+| overall | 120 | haiku-oracle | 100 (83%) | 20 | $0.015 |
+
+**Verdicts** (the rule above, at n=4 per cell; the paid run has no Sonnet arm):
+
+| group | skills help (nograph vs noskills) | graph answers help (oracle vs nograph) | gap to Sonnet (nograph vs sonnet) |
+|---|---|---|---|
+| test | inconclusive (saturated): the baseline misses 2 of 24, under the floor of 3. Direction against skills: nograph 2 points lower and about 25% costlier per run | no effect shown: oracle recovers 1 of nograph's 4 missed points (needs at least a third and at least 3). Direction slightly positive (21 vs 20), costs 7% more | no gap (pilot, n=1) |
+| scribe | confounded, no verdict: the strip deletes the concept SKILL.md files the tasks edit (noskills 22/96 mostly "missing" files), so the mechanical recovery of 58 of 74 missed points measures the strip | no effect shown: oracle 79 vs 80, misses 1 more point, costs 14% more. Direction flat, slightly negative | no gap (pilot, n=1) |
+| overall | not decided (rule 3 above: the test group decides it, and it is inconclusive) | no effect shown: tied, 100 vs 100 of 120; oracle costs about 11% more per run | no gap |
+
+**Plain verdicts**
+
+1. **Skills help? Not shown, and not refuted.** The only clean comparison is the test group (t3 alone), where `haiku-noskills` is already at 92%, so it cannot tell. Nothing in it says skills raise Haiku's edit scores; on cost, nograph was about 25% more expensive per run there. The scribe numbers are an artifact of the strip and are not evidence. Confidence: low. A skills test on the scribe side needs a strip that keeps the edited SKILL.md files on disk while hiding them as loadable skills (a new ticket).
+2. **Graph answers help? No gain measured.** Oracle ended level with nograph overall (100 vs 100 of 120) and mixed per task: oracle minus nograph is d2 -2, t3 +1, d3 -1, d4 +2. It cost about 11% more per run, so there is no cost credit either. Where there was headroom (d2 misses 14 of 32, t3 misses 4 of 24) the oracle did not recover it. Confidence: moderate that a large effect is absent on these tasks; low for a small one. The scribe oracle is thin by design (search reaches concept SKILL.md files, not the stale lines, and docs outside every concept's globs never appear), so the scribe-side null measures that limit of the graph. **Direction for ticket 052 (primer), recorded as required: flat to slightly negative (oracle 100 vs nograph 100 overall; scribe 79 vs 80; test 21 vs 20).** The paid run gives no support for a primer on these tasks.
+3. **Gap to Sonnet? No gap.** The paid run did not rerun Sonnet. The reference is the pilot (Haiku nograph 33 vs Sonnet 31 of 36, n=1) and 044 (46 vs 44 of 52). The gap `missed(haiku-nograph) - missed(sonnet-nograph)` is -2, under 3, so there is no gap; Sonnet cost about 9x more per run ($0.123 vs $0.014 in the pilot). Sonnet's pilot d2 score (4/8) equals Haiku's paid d2 mean (4.5/8). Confidence: low to moderate, since Sonnet has one run per task. The data do not support moving the test or scribe agent to Sonnet.
+
+**Hard case, d2.** The stale cap is the "(up to 5 at once; ...)" phrase in the frontmatter `description` of `plugins/maestro/skills/maestro-manager/SKILL.md`. Across the pilot and the paid run it was fixed 0 of 5 times by `haiku-nograph`, 0 of 5 by `haiku-oracle`, 0 of 1 by `sonnet-nograph`, and 2 of 5 by `haiku-noskills` (paid runs 3 and 4). The oracle never pointed at it (the doc is outside every concept's globs). I do not know why noskills fixed it more often; at n=5 it may be chance, or the arm without concept skills read `maestro-manager/SKILL.md` directly. `herdr.md` ("up to 5 at a time") was also missed in most runs of every arm.
+
+**What the set measures.** d3 saturates for `haiku-nograph` (36/36) and t3 is close to the ceiling (83% to 92%), so only d2 has real headroom. The scribe group decides little about skills because of the strip. These tasks mostly measure how thoroughly a model searches for every mention of a changed fact.

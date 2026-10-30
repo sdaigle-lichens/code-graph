@@ -1468,14 +1468,19 @@ test('051 cases: the set is d2 plus four new edit cases, well formed, with captu
   assert.deepEqual(set.map(pts), [8, 6, 6, 9, 7]);
 });
 
-test('051 decision rule: docs/evals.md has the pre-registered rule with cap, thresholds, and no results yet', async () => {
+test('051 decision rule: docs/evals.md has the pre-registered rule with cap and thresholds, and any results come after it', async () => {
   const { readFileSync } = await import('node:fs');
   const md = readFileSync(new URL('../docs/evals.md', import.meta.url), 'utf8');
   const i = md.indexOf('## Ticket 051');
   assert.ok(i >= 0, 'a Ticket 051 section');
   const sec = md.slice(i);
   for (const re of [/Decision rule \(fixed before any result\)/, /cap/i, /skills help/i, /graph answers help/i, /gap to Sonnet/i, /haiku-noskills/, /haiku-oracle/, /sonnet-nograph/, /haiku-nograph/]) assert.match(sec, re, String(re));
-  assert.doesNotMatch(sec, /^#{2,4} Results(?! template)/m, 'results are written only after the paid run');
+  // the rule and the paid-run plan are fixed before the results: a results heading must come after both
+  const results = sec.search(/^#{2,4} Results(?! template)/m);
+  if (results >= 0) {
+    assert.ok(sec.indexOf('### Decision rule (fixed before any result)') < results, 'results come after the decision rule');
+    assert.ok(sec.indexOf('### Pilot outcome and paid-run plan') < results, 'results come after the paid-run plan');
+  }
 });
 
 test('051 decision rule: missed-points recovery with a floor, an inconclusive case, per-group verdicts, user confirms at pilot', async () => {
