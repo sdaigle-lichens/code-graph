@@ -6,7 +6,7 @@ import {
   planRuns, budgetStop, runStatus, rerunPlan, setupArm, oracleFile, sums, costDelta, ORACLE_HEADER,
   isConceptSkillMd, skillNameOf, coveringLoads, proposals, SKILLS_BIAS_NOTE, isReadOnly,
   MODEL_ARMS, ARMS, baseArm, modelFor, isGraphArm, isEditCase, agentBody, replaceOnce, nodeTestSummary, isGreen,
-  gradeTestRun, gradeDocs, editCaseProblems, editSection, FLAGS, editErrorHead,
+  gradeTestRun, gradeDocs, editCaseProblems, editSection, FLAGS, editErrorHead, EDIT_TOOLS,
 } from './lib.mjs';
 import { listSkills, stripConceptSkills } from './strip-concept-skills.mjs';
 
@@ -898,6 +898,10 @@ test('claudeArgs: per-arm model, --plugin-dir only on graph-based arms, edit too
   assert.ok(!hn.includes(FLAGS.appendSystemPrompt));
   const e = claudeArgs('haiku-nograph', 'q', { ...o, edit: true, systemPrompt: '# Test Agent\nbody' });
   assert.equal(val(e, FLAGS.allowedTools), 'Bash,Read,Grep,Glob,Skill,Edit,Write');
+  assert.equal(val(e, FLAGS.permissionMode), 'bypassPermissions', 'edit cases: dontAsk refuses protected .claude/ paths');
+  assert.equal(val(e, FLAGS.tools), 'Bash,Read,Grep,Glob,Skill,Edit,Write', 'edit cases: --tools limits what bypass allows');
+  assert.equal(val(hn, FLAGS.permissionMode), 'dontAsk', 'read-only cases keep dontAsk');
+  assert.ok(!hn.includes(FLAGS.tools), 'read-only cases pass no --tools');
   assert.equal(val(e, FLAGS.appendSystemPrompt), '# Test Agent\nbody');
   assert.equal(val(e, FLAGS.print), 'q', 'the prompt is still the -p value');
 });
@@ -934,6 +938,13 @@ test('validity with edit: Bash failures do not invalidate, seccomp and refused e
   assert.ok(validity('nograph', s, [], { edit: true }).some((p) => /apply-seccomp/.test(p)));
   const d = parseStream(J(init(), editUse('e', 'Write', '/ws/x'), res('e', 'Permission to use Write has been denied.', true), done()));
   assert.ok(validity('nograph', d, [], { edit: true }).some((p) => /edit refused by the permission layer/.test(p)));
+  // bypassPermissions: the session must list only the allowed tools (else --tools was ignored)
+  const withTools = (tools) => parseStream(J({ ...init(), tools }, done()));
+  const ok = withTools(['Bash', 'Read', 'Grep', 'Glob', 'Skill', 'Edit', 'Write']);
+  assert.deepEqual(validity('haiku-nograph', ok, [], { edit: true }), []);
+  const wide = withTools(['Task', 'Bash', 'Read', 'Edit', 'WebFetch']);
+  assert.ok(validity('haiku-nograph', wide, [], { edit: true }).some((p) => /beyond the allowed set.*Task, WebFetch/.test(p)));
+  assert.deepEqual(validity('nograph', wide, [], {}), [], 'question cases run under dontAsk: extra listed tools are fine');
 });
 
 test('planRuns and checkVerdict treat haiku-graph as a graph arm', () => {
@@ -963,6 +974,8 @@ test('replaceOnce: exactly one occurrence, else it throws', () => {
 test('nodeTestSummary and isGreen', () => {
   const out = 'TAP version 13\n# tests 5\n# suites 0\n# pass 4\n# fail 1\n# cancelled 0\n';
   assert.deepEqual(nodeTestSummary(out), { pass: 4, fail: 1 });
+  const spec = '✔ a (1ms)\n✖ b (1ms)\nℹ tests 2\nℹ suites 0\nℹ pass 1\nℹ fail 1\nℹ cancelled 0\n';
+  assert.deepEqual(nodeTestSummary(spec), { pass: 1, fail: 1 }, 'spec reporter summary');
   assert.deepEqual(nodeTestSummary('garbage'), { pass: null, fail: null });
   assert.equal(isGreen({ status: 0, pass: 3, fail: 0 }), true);
   assert.equal(isGreen({ status: 0, pass: 0, fail: 0 }), false, 'no test ran');
@@ -1213,7 +1226,7 @@ test('claudeArgs: every arm under one --model, with and without the edit options
   }
   // edit without a system prompt: tools widened, no empty --append-system-prompt
   const e = claudeArgs('haiku-graph', 'q', { ...o, edit: true });
-  assert.equal(val(e, FLAGS.allowedTools), 'Bash,Read,Grep,Glob,Skill,Edit,Write');
+  assert.equal(val(e, FLAGS.allowedTools), `Bash,Read,Grep,Glob,Skill,${EDIT_TOOLS}`);
   assert.ok(!e.includes(FLAGS.appendSystemPrompt));
   assert.equal(val(e, FLAGS.pluginDir), '/repo/plugin');
   // a system prompt with leading dashes or newlines stays one argv value right after the flag

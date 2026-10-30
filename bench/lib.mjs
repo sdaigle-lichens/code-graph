@@ -15,6 +15,7 @@ export const FLAGS = {
   strictMcpConfig: '--strict-mcp-config',
   pluginDir: '--plugin-dir',
   appendSystemPrompt: '--append-system-prompt', // 044: the maestro agent file's body (edit cases)
+  tools: '--tools', // 044 edit cases: the only tools that exist in the session (bypassPermissions would allow any listed one)
 };
 
 export const ALLOWED_TOOLS = 'Bash,Read,Grep,Glob,Skill';
@@ -135,18 +136,23 @@ export function rerunPlan(prev) {
 
 // `edit` (044 edit cases) adds Edit and Write to the allowed tools; `systemPrompt` (the maestro
 // agent file's body) is appended to Claude Code's system prompt, as the agent's prompt would be.
+// Edit cases run under bypassPermissions, not dontAsk: `.claude/` is a protected path that neither an
+// allow rule nor dontAsk lets Edit/Write touch, and the scribe cases edit `.claude/skills`. `--tools`
+// then limits the session to the allowed tools, and validity() checks the init event's tool list.
 export function claudeArgs(arm, prompt, { model, runBudget, pluginDir, edit = false, systemPrompt = '' }) {
+  const tools = edit ? `${ALLOWED_TOOLS},${EDIT_TOOLS}` : ALLOWED_TOOLS;
   const a = [
     FLAGS.print, prompt,
     FLAGS.model, modelFor(arm, model),
     FLAGS.outputFormat, 'stream-json', FLAGS.verbose,
     FLAGS.maxBudget, String(runBudget),
     FLAGS.noSessionPersistence,
-    FLAGS.allowedTools, edit ? `${ALLOWED_TOOLS},${EDIT_TOOLS}` : ALLOWED_TOOLS,
-    FLAGS.permissionMode, 'dontAsk',
+    FLAGS.allowedTools, tools,
+    FLAGS.permissionMode, edit ? 'bypassPermissions' : 'dontAsk',
     FLAGS.settingSources, 'project,local',
     FLAGS.strictMcpConfig,
   ];
+  if (edit) a.push(FLAGS.tools, tools);
   if (systemPrompt) a.push(FLAGS.appendSystemPrompt, systemPrompt);
   if (isGraphArm(arm)) a.push(FLAGS.pluginDir, pluginDir);
   return a;
@@ -356,6 +362,13 @@ export function validity(arm, m, expectSkills = [], { keepSkills = [], edit = fa
       const gone = keepSkills.filter((s) => !listed(s));
       if (gone.length) p.push(`init does not list non-concept project skill(s) in the ${arm} arm: ${gone.join(', ')}`);
     }
+    // Edit cases run under bypassPermissions, so any tool the session has is usable: it must have
+    // only the allowed ones (else `--tools` was ignored and arms could differ in tools).
+    if (edit && Array.isArray(m.init.tools)) {
+      const allowed = new Set(`${ALLOWED_TOOLS},${EDIT_TOOLS}`.split(','));
+      const extra = m.init.tools.filter((t) => !allowed.has(t));
+      if (extra.length) p.push(`init lists tools beyond the allowed set under bypassPermissions: ${extra.join(', ')}`);
+    }
     if (arm !== 'graph' && hasCg) p.push(`init shows code-graph in the ${ARM_LABEL[arm] || 'no-graph'} arm (config leak)`);
     if (arm === 'graph' && !hasCg) p.push('init does not show the code-graph plugin in the graph arm');
   }
@@ -396,9 +409,10 @@ export function replaceOnce(text, from, to, label = 'replace') {
   return text.slice(0, i) + to + text.slice(i + from.length);
 }
 
-// `# pass N` and `# fail N` from the summary `node --test` prints (null when a line is absent).
+// `pass N` and `fail N` from the summary `node --test` prints: `# ` under the TAP reporter, `ℹ ` under
+// the spec reporter (the default on some Node versions even when piped). Null when a line is absent.
 export function nodeTestSummary(out) {
-  const num = (k) => { const m = new RegExp(`^# ${k} (\\d+)\\s*$`, 'm').exec(String(out ?? '')); return m ? Number(m[1]) : null; };
+  const num = (k) => { const m = new RegExp(`^(?:#|ℹ) ${k} (\\d+)\\s*$`, 'm').exec(String(out ?? '')); return m ? Number(m[1]) : null; };
   return { pass: num('pass'), fail: num('fail') };
 }
 

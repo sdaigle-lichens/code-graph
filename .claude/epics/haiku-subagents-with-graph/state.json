@@ -50,6 +50,20 @@
       "id": "r002",
       "at": "2026-10-29T22:34:18.980Z",
       "by": "code-graph-manager-haiku-epic"
+    },
+    {
+      "kind": "report",
+      "id": "r003",
+      "task": "044-measure-whether-the-graph-improves-haiku-test-and-scribe-work-against-sonnet.md",
+      "file": "inbox/r003-044-measure-whether-the-graph-improves-haiku-test-and-scribe-work-against-sonnet.md",
+      "at": "2026-10-30T01:18:04.383Z",
+      "from": "haiku-subagents-with-graph-044"
+    },
+    {
+      "kind": "ack",
+      "id": "r003",
+      "at": "2026-10-30T01:18:13.214Z",
+      "by": "code-graph-manager-haiku-epic"
     }
   ]
 }

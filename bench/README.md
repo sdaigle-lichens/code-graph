@@ -132,7 +132,10 @@ workspace, and the harness grades the files it leaves, not its answer. `bench/ed
   over the answer); apply `edit.plant` (the code change a scribe task documents); copy
   `bench/edit/ts-resolve.mjs` to `<ws>/.bench/` for test cases; snapshot the `edit.protect` paths.
   Every plant and mutant is an exact string that must occur exactly once, or the case is refused.
-- The run: `Edit,Write` join the allowed tools, and the body of `.claude/agents/<agent>.md` (the
+- The run: `Edit,Write` join the allowed tools, and the session runs under `--permission-mode
+  bypassPermissions` with `--tools` set to the same list. `.claude/` is a protected path: under
+  `dontAsk` every Edit there is refused, even with an explicit `Edit(**/.claude/skills/**)` rule
+  (Claude Code 2.1.312). A run whose init event lists any other tool is invalid. And the body of `.claude/agents/<agent>.md` (the
   maestro `test` or `scribe` agent, frontmatter stripped) goes in `--append-system-prompt`.
 - After the run, before the workspace is removed: any change to a protected path is undone and
   listed in the report. Then:
@@ -221,7 +224,7 @@ All claude flag names are in the `FLAGS` object in `bench/lib.mjs`. Per run:
 `-p <question> --model --output-format stream-json --verbose --max-budget-usd --no-session-persistence
 --allowedTools Bash,Read,Grep,Glob,Skill --permission-mode dontAsk --setting-sources project,local
 --strict-mcp-config` (+ `--plugin-dir <repo>/plugin` in the graph arm; on edit cases, `Edit,Write` in
-`--allowedTools` and `--append-system-prompt <agent body>`). It uses your normal login.
+`--allowedTools` and `--tools`, `--permission-mode bypassPermissions` and `--append-system-prompt <agent body>`). It uses your normal login.
 `--setting-sources local` alone loaded no project skills, so the runner uses `project,local`: that
 loads the workspace's `.claude/skills` and skips your user settings (installed plugins). Project
 settings would still apply, which is why `maestro-setup.sh` deletes `.claude/settings.json`. Check

@@ -261,7 +261,7 @@
     "epic": "absorb-concept-skills"
   },
   "044-measure-whether-the-graph-improves-haiku-test-and-scribe-work-against-sonnet.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
   },

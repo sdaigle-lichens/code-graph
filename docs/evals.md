@@ -595,4 +595,62 @@ Points are summed over the four tasks and both runs: 5 + 5 + 8 + 8 = 26 per run,
 
 ### Results
 
-Not run yet (approved; user-run).
+User-run, Claude Code 2.1.312. Paid run `bench/results/2026-10-30T00-43-25-519Z` (gitignored): **24/24 runs valid, $1.339 spent of the $6 cap, no 429s, no invalid run.** Pilots: `2026-10-30T00-23-20-811Z` (t1, 3 arms) and `2026-10-30T00-40-52-268Z` (d1, 3 arms, all 8/8). The t1 pilot graded 0/5 in every arm because of the `nodeTestSummary` bug below; its saved `test-output.txt` files show all three arms green with 4/4 mutants killed. `…00-27-40-982Z` and `…00-34-13-077Z` are invalid d1 runs from the permission bug below, and `…00-33-47-575Z` ran nothing. Pilot spend was about $0.37, so 044 spent about **$1.71 of the $8 cap** in all.
+
+#### Per task and arm
+
+Sums over n=2 valid runs. Cost in $; tool counts are Read/Grep/Glob/Bash/Skill; Edit/Write are per run (run 1, run 2). No protected file was restored in any run, and no run called code-graph (next section).
+
+| Task | Arm | Cost | Turns | In / out tok | Cache read / create | Read/Grep/Glob/Bash/Skill | Edit/Write | Points | Grade detail |
+|---|---|---|---|---|---|---|---|---|---|
+| t1 test | haiku-nograph | 0.033 | 27 | 34 / 113 | 650,863 / 114,954 | 3/0/0/12/4 | 0/1, 0/1 | 10/10 | green, M1-M4 killed in both runs |
+| t1 test | haiku-graph | 0.046 | 38 | 46 / 158 | 1,163,939 / 141,959 | 7/0/0/14/6 | 1/1, 0/1 | 10/10 | same |
+| t1 test | sonnet-nograph | 0.340 | 25 | 28 / 1,278 | 400,837 / 78,368 | 3/1/0/11/3 | 0/1, 0/1 | 10/10 | same |
+| t2 test | haiku-nograph | 0.038 | 32 | 40 / 134 | 891,249 / 123,558 | 4/1/0/14/3 | 0/1, 3/1 | 10/10 | green, M1-M4 killed in both runs |
+| t2 test | haiku-graph | 0.043 | 48 | 46 / 181 | 1,097,469 / 142,020 | 15/7/2/8/6 | 0/1, 0/1 | 10/10 | same |
+| t2 test | sonnet-nograph | 0.456 | 24 | 24 / 1,392 | 445,043 / 110,772 | 5/0/0/9/3 | 0/1, 0/1 | 10/10 | same |
+| d1 scribe | haiku-nograph | 0.023 | 31 | 26 / 98 | 356,625 / 95,021 | 10/4/3/2/0 | 5/0, 5/0 | 16/16 | nothing stale |
+| d1 scribe | haiku-graph | 0.021 | 36 | 20 / 59 | 344,373 / 95,655 | 8/2/3/0/6 | 5/0, 4/0 | 15/16 | run 2: one stale line left in log-view `SKILL.md` |
+| d1 scribe | sonnet-nograph | 0.152 | 14 | 16 / 892 | 133,093 / 37,153 | 0/2/2/3/0 | 0/0, 5/0 | 16/16 | nothing stale |
+| d2 scribe | haiku-nograph | 0.024 | 40 | 30 / 104 | 472,696 / 90,030 | 7/9/1/2/5 | 3/0, 5/1 | 10/16 | see d2 below |
+| d2 scribe | haiku-graph | 0.023 | 35 | 24 / 82 | 462,977 / 94,185 | 7/4/2/1/6 | 3/0, 3/1 | 10/16 | see d2 below |
+| d2 scribe | sonnet-nograph | 0.141 | 11 | 16 / 944 | 138,763 / 37,259 | 0/2/1/4/1 | 0/0, 0/0 | 8/16 | see d2 below |
+| **all** | haiku-nograph | **0.117** | 130 | - | - | - | - | **46/52** (88%) | |
+| **all** | haiku-graph | **0.133** | 157 | - | - | - | - | **45/52** (87%) | |
+| **all** | sonnet-nograph | **1.089** | 74 | - | - | - | - | **44/52** (85%) | |
+
+Cost per run (8 runs per arm): haiku-nograph $0.015, haiku-graph $0.017 (+14%), sonnet-nograph $0.136 (about 9x haiku-nograph). By group, haiku-graph against haiku-nograph: test +27% ($0.089 against $0.070, 86 turns against 59), scribe -6% ($0.044 against $0.047).
+
+Sonnet often edits through Bash `sed -i` rather than Edit/Write, so its Edit/Write counts (0/0 on three scribe runs) understate its edits. Grading reads the outcome, so the points are unaffected.
+
+#### Did haiku-graph load the retrieval skill and call the CLI?
+
+**It never called the CLI.** The check line reads "graph arm real code-graph call exit 0: false", and no Bash command in the eight haiku-graph transcripts contains `code-graph`. Of its 24 Skill calls, three were plugin skills: `code-graph:code-graph-retrieval` in t1 run 2 and t2 run 2, and `code-graph:scribe` in d2 run 1. The other 21 were maestro's concept skills (`task-queue`, `maestro-architecture`, `test-maestro`, `updating-maestro`, `installing-maestro`). On read-only questions (043) Haiku loaded the retrieval skill and ran the CLI in 14 of 14 runs. On edit tasks with an agent body in the system prompt, it loaded the skill in 2 of 8 runs and never acted on it.
+
+#### d2 on its own
+
+The task-queue `epics` doc, the one doc inside a concept's globs, was fixed in all six runs. The two plugin docs are outside every concept's globs:
+
+- **`maestro-manager/SKILL.md`, missed in all six runs.** At `3814a30` the old cap appears twice: the frontmatter `description` ("up to 5 at once") and line 55 ("the default is 5"). Every run fixed line 55 and none fixed the description, in every arm, Sonnet included. That is a real miss, not a grader artifact.
+- **`maestro-install/references/herdr.md`**, missed by haiku-nograph run 1, haiku-graph run 1 and both Sonnet runs; fixed by both Haiku arms in run 2.
+
+Points: haiku-nograph 10/16, haiku-graph 10/16, sonnet-nograph 8/16. The graph arm never queried the graph, so d2 says nothing about partial coverage. It does show that the shared miss is a frontmatter line no arm thought to check.
+
+#### Verdict
+
+**The graph helps Haiku: no.** haiku-graph scored 45/52 against 46/52 for haiku-nograph; the rule needs at least 52.9 (1.15 x 46). d1 scored lower with the graph in one run only, so the "lower in both runs" clause is not triggered. It does not apply anyway, because the first condition already fails.
+
+**It closes the gap: no gap to close.** haiku-nograph (46/52) is not within 5% under sonnet-nograph (44/52); it is 2 points above, at about 1/9 of Sonnet's cost per run. Per the rule, haiku-graph is judged on cost alone: it costs 14% more than haiku-nograph ($0.133 against $0.117) and scores one point less. **It fails that test.** The extra cost is all in the test tasks (+27%, more turns and Reads), not the CLI, which never ran.
+
+**Confidence: low.** n=2 per cell, four tasks, one model pair. The set discriminates little: both test tasks saturate (20/20 in every arm, every mutant killed in all 12 runs), and d1 nearly so (47/48 over all runs). The 1-to-2-point differences between arms come from d1 haiku-graph run 2 and d2's herdr.md, so the ranking of the three arms is noise. Two findings are firm. First, Haiku with concept skills already does this work as well as Sonnet, at about 11% of the cost. Second, in this setup the graph arm does not reach the graph at all. The verdict measures the plugin's discovery on edit tasks, not the value of graph answers.
+
+**What the data argues for in the epic's friction steps** (`.claude/epics/haiku-subagents-with-graph/EPIC.md`, step 2):
+
+- **Trimming cross-concept CLI output: not yet.** Haiku made no CLI calls here, so output size had no part in any cost. 043's +62% on cross still stands for read-only questions.
+- **Discovery is the open question, and a primer is the step that tests it.** On edit tasks Haiku took 2 of 8 chances to load the retrieval skill and none to use it. A primer built from the task text at subagent start puts graph output in front of it without that choice. Whether that output helps is untested on this set: with Haiku-nograph already at or above Sonnet, the tasks would need to be harder (unsaturated test tasks, scribe tasks whose stale docs a grep misses) before a primer could show a gain. The user decides on both.
+
+#### Method notes (bench changes during this run)
+
+1. **Test summaries.** `nodeTestSummary` (`bench/lib.mjs`) read only TAP summaries (`# pass N`). The user's Node prints spec-reporter summaries (`ℹ pass N`), so every test case graded 0 in the t1 pilot. It now accepts both.
+2. **Edit permission mode.** Edit cases now run under `--permission-mode bypassPermissions` with `--tools Bash,Read,Grep,Glob,Skill,Edit,Write` instead of `dontAsk`. Claude Code 2.1.312 refuses every Edit under the protected `.claude/` dir in `dontAsk`, even with an explicit `Edit(**/.claude/skills/**)` allow rule. A new validity check marks a run invalid if its init event lists any other tool; the paid run's init events listed exactly those seven. Read-only cases (042/043) keep `dontAsk`.
+3. **Maestro path.** The runner's default maestro clone is `~/gits/maestro`; on this machine it is `~/Documents/gits/maestro`, so the runs set `MAESTRO_DIR`.

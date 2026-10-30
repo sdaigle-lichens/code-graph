@@ -121,10 +121,15 @@ Still to do, from a plain terminal (not inside Claude Code) at the repo root. On
    ```
 4. **429s** aren't counted: rerun after the limit resets with `node bench/run.mjs --rerun bench/results/<timestamp>`. More than two other invalid runs: stop and report.
 5. **Report** (a `/maestro` session on this ticket, given the pilot and paid-run `bench/results/<timestamp>` folders; `bench/results/` is gitignored, so do it on the machine that ran them): fill "Ticket 044 → Results" in `docs/evals.md` with the per-task/arm table (points, grade detail, cost, turns, tokens, tool counts), whether `haiku-graph` loaded the retrieval skill and called the CLI, a verdict against the rule with confidence at n=2, d2 on its own, and which friction steps (trimming output, a primer) the data argues for. Then `node .claude/scripts/maestro-task-status.cjs done` and report to the epic `haiku-subagents-with-graph`.
+   - **Results written** (paid run `2026-10-30T00-43-25-519Z`, 24/24 valid, $1.339; about $1.71 in all with pilots). Verdict: the graph does not help Haiku (45 vs 46/52), there is no gap to close (haiku-nograph 46 vs Sonnet 44 at about 1/9 the cost), and haiku-graph fails the cost-only test (+14%). haiku-graph never called the CLI. Still to do: the status `done` and the epic report.
 
 ## Post-Mortem
 
 - **Problem:** @backend's first pass had `parseStream` treat any Edit/Write error containing "permission|denied|not allowed" as a refused edit, including the old_string Claude Code repeats in the error; 3 graded docs contain "permission", so valid paid runs would have been marked INVALID. @test caught it, @reviewer returned FAIL, and it took a loop-back to @backend (`editErrorHead`).
   **Fix:** none
 - **Problem:** no skill covers `bench/` (runner, graders, case format); every agent reported working from `bench/README.md` and the code alone.
+  **Fix:** none
+- **Problem:** the "setup is done and approved" handover had three bugs the reviewed checks couldn't catch, each found only by a user-run pilot. The runner defaulted to `~/gits/maestro` (the clone is at `~/Documents/gits/maestro`). `nodeTestSummary` read only TAP summaries, so every test task graded 0 under the user's Node (spec reporter, `ℹ pass N`); the `edit-check` dry run hadn't exercised that. Edit cases under `dontAsk` couldn't edit protected `.claude/` paths. A first fix with explicit `Edit(**/.claude/skills/**)` allow rules, made from a guess about Claude Code's behaviour, cost a wasted run before the switch to `bypassPermissions` plus `--tools`. No offline check runs real `claude -p` and Node-version paths before the user-run pilot.
+  **Fix:** none
+- **Problem:** the orchestrator fixed the three bench bugs inline, outside any workflow, instead of routing them to @backend/@test; `pnpm check` was never run, because the sandbox blocks pnpm's lockfile read.
   **Fix:** none
