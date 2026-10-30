@@ -1,0 +1,9 @@
+{
+  "note": "Reference doc fix for bench case d4-scribe-sweep-idle-cap (051). Never shown to a model: bench/edit-check.mjs applies it to prove the grader gives full marks to a correct fix.",
+  "edits": [
+    { "file": ".claude/skills/maestro-architecture/sub-concepts/session-end-reasons.md", "from": "24 h idle cap", "to": "48 h idle cap" },
+    { "file": "apps/maestro/.claude/skills/log-view/SKILL.md", "from": "**24h** (`SESSION_SWEEP_IDLE_CAP_MS`)", "to": "**48h** (`SESSION_SWEEP_IDLE_CAP_MS`)" },
+    { "file": "apps/maestro/.claude/skills/log-view/SKILL.md", "from": "Why 24h for the sweep", "to": "Why 48h for the sweep" },
+    { "file": "apps/maestro/.claude/skills/log-view/SKILL.md", "from": "as removable a day later", "to": "as removable two days later" }
+  ]
+}

@@ -5,7 +5,7 @@ import {
   parseStream, validity, report, checkVerdict, score, claudeArgs, isCg, selectCases, parseArms, oraclePrompt, promptFor,
   planRuns, budgetStop, runStatus, rerunPlan, setupArm, oracleFile, sums, costDelta, ORACLE_HEADER,
   isConceptSkillMd, skillNameOf, coveringLoads, proposals, SKILLS_BIAS_NOTE, isReadOnly,
-  MODEL_ARMS, ARMS, baseArm, modelFor, isGraphArm, isEditCase, agentBody, replaceOnce, nodeTestSummary, isGreen,
+  MODEL_ARMS, ARMS, baseArm, modelFor, isGraphArm, isOracleArm, promptProblems, isEditCase, agentBody, replaceOnce, nodeTestSummary, isGreen,
   gradeTestRun, gradeDocs, editCaseProblems, editSection, FLAGS, editErrorHead, EDIT_TOOLS,
 } from './lib.mjs';
 import { listSkills, stripConceptSkills } from './strip-concept-skills.mjs';
@@ -254,7 +254,7 @@ test('selectCases: --group by substring on the group field, composes with --only
   const ids = (o) => selectCases(all, o).map((c) => c.id);
   assert.equal(ids({}).length, all.length);
   const g = ids({ group: 'maestro' });
-  assert.deepEqual(g.map((i) => i.split('-')[0]), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 's1', 's2', 's3', 't1', 't2', 'd1', 'd2']);
+  assert.deepEqual(g.map((i) => i.split('-')[0]), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 's1', 's2', 's3', 't1', 't2', 'd1', 'd2', 't3', 't4', 'd3', 'd4']);
   assert.ok(!g.includes('02-impact-movetask'));
   assert.deepEqual(ids({ group: 'maestro', only: 'm4' }), ['m4-cross-install-config']);
   assert.deepEqual(ids({ group: 'maestro', only: 'movetask' }), []);
@@ -492,7 +492,7 @@ test('sums and costDelta skip invalid and usage-limit rows', () => {
 test('cases: every proxy_cmd case has a stored oracle output that covers its must regexes (offline proxy)', async () => {
   const { readFileSync, existsSync } = await import('node:fs');
   const all = JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')).cases;
-  const withProxy = all.filter((c) => c.proxy_cmd);
+  const withProxy = all.filter((c) => c.proxy_cmd && !isEditCase(c));
   assert.deepEqual(withProxy.map((c) => c.id.split('-')[0]), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7']);
   for (const c of withProxy) {
     const f = new URL(`./${oracleFile(c.id)}`, import.meta.url);
@@ -870,8 +870,8 @@ test('run.mjs: skill arms need cases with a skills list; proposals are refused b
 // --- 044: model arms and edit cases ---
 
 test('model arms: base arm, own model, setup and arm order', () => {
-  assert.deepEqual(Object.keys(MODEL_ARMS), ['haiku-nograph', 'haiku-graph', 'sonnet-nograph']);
-  assert.deepEqual(ARMS.slice(-3), ['haiku-nograph', 'haiku-graph', 'sonnet-nograph']);
+  assert.deepEqual(Object.keys(MODEL_ARMS), ['haiku-nograph', 'haiku-graph', 'sonnet-nograph', 'haiku-noskills', 'haiku-oracle']);
+  assert.deepEqual(ARMS.slice(-5), ['haiku-nograph', 'haiku-graph', 'sonnet-nograph', 'haiku-noskills', 'haiku-oracle']);
   assert.deepEqual(parseArms('sonnet-nograph,haiku-graph,haiku-nograph,nograph'), ['nograph', 'haiku-nograph', 'haiku-graph', 'sonnet-nograph']);
   assert.equal(baseArm('haiku-graph'), 'graph');
   assert.equal(baseArm('sonnet-nograph'), 'nograph');
@@ -1199,7 +1199,7 @@ test('run.mjs: edit cases are prepared after setup and graded before the workspa
 
 test('MODEL_ARMS: every entry has a nograph/graph base and its own model; --model never overrides it and still drives the plain arms', () => {
   for (const [arm, { base, model }] of Object.entries(MODEL_ARMS)) {
-    assert.ok(['nograph', 'graph'].includes(base), `${arm}: base ${base}`);
+    assert.ok(['nograph', 'graph', 'noskills', 'oracle'].includes(base), `${arm}: base ${base}`);
     assert.match(model, /^claude-(haiku|sonnet)-/, `${arm}: model ${model}`);
     for (const given of ['claude-opus-5-5', 'claude-sonnet-5-5', undefined]) assert.equal(modelFor(arm, given), model, `${arm} with --model ${given}`);
   }
@@ -1391,4 +1391,129 @@ test('edit.mjs: restore recreates a deleted protected file, removes a nested add
     if (savedOpts === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = savedOpts;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+// --- 051: haiku-noskills and haiku-oracle arms, the harder edit set, the decision-rule guard ---
+
+test('051 arms: haiku-noskills and haiku-oracle pin Haiku and behave as their base arm', () => {
+  assert.equal(baseArm('haiku-noskills'), 'noskills');
+  assert.equal(baseArm('haiku-oracle'), 'oracle');
+  assert.equal(modelFor('haiku-noskills', 'claude-opus-5-5'), 'claude-haiku-5-5');
+  assert.equal(modelFor('haiku-oracle', 'claude-opus-5-5'), 'claude-haiku-5-5');
+  assert.equal(setupArm('haiku-noskills'), 'noskills', 'the strip runs for the Haiku noskills arm');
+  assert.equal(setupArm('haiku-oracle'), 'nograph', 'the oracle arm gets the plain workspace, no graph.db');
+  assert.equal(isGraphArm('haiku-oracle'), false);
+  assert.equal(isGraphArm('haiku-noskills'), false);
+  assert.deepEqual(parseArms('sonnet-nograph,haiku-oracle,haiku-nograph,haiku-noskills'), ['haiku-nograph', 'sonnet-nograph', 'haiku-noskills', 'haiku-oracle']);
+  for (const arm of ['haiku-noskills', 'haiku-nograph', 'haiku-oracle', 'sonnet-nograph']) {
+    const a = claudeArgs(arm, 'q', { model: 'claude-opus-5-5', runBudget: '0.75', pluginDir: '/p', edit: true, systemPrompt: 'body' });
+    assert.ok(!a.includes(FLAGS.pluginDir), `${arm}: no --plugin-dir`);
+  }
+});
+
+test('051 prompts: stored graph output is in haiku-oracle only', () => {
+  const c = { question: 'Write the tests.' };
+  const p = (arm) => promptFor(arm, c, 'idx line');
+  assert.match(p('haiku-oracle'), /<code-index>\nidx line\n<\/code-index>/);
+  assert.equal(p('haiku-oracle'), oraclePrompt('Write the tests.', 'idx line'));
+  for (const arm of ['haiku-noskills', 'haiku-nograph', 'sonnet-nograph', 'haiku-graph']) assert.equal(p(arm), 'Write the tests.', arm);
+  for (const arm of ['haiku-noskills', 'haiku-nograph', 'haiku-oracle', 'sonnet-nograph']) {
+    assert.deepEqual(promptProblems(arm, p(arm)), [], arm);
+  }
+  assert.match(promptProblems('haiku-oracle', 'Write the tests.')[0], /no stored graph output/);
+  for (const arm of ['haiku-noskills', 'haiku-nograph', 'sonnet-nograph']) {
+    assert.match(promptProblems(arm, oraclePrompt('q', 'idx'))[0], /only an oracle arm may/, arm);
+  }
+  assert.equal(isOracleArm('oracle'), true);
+  assert.equal(isOracleArm('haiku-nograph'), false);
+});
+
+test('051 init checks: skills absent only in haiku-noskills, no code-graph plugin in any of the four arms', () => {
+  const withSkills = parseStream(J(init([], ['task-queue', 'maestro']), done()));
+  const noSkills = parseStream(J(init([], ['maestro']), done()));
+  const cg = parseStream(J(init(CG, ['task-queue', 'maestro']), done()));
+  const o = { keepSkills: ['maestro'], edit: true };
+  for (const arm of ['haiku-nograph', 'haiku-oracle', 'sonnet-nograph']) {
+    assert.deepEqual(validity(arm, withSkills, ['task-queue'], o), [], arm);
+    assert.ok(validity(arm, noSkills, ['task-queue'], o).some((x) => /does not load project skill/.test(x)), `${arm} needs its concept skills`);
+  }
+  assert.deepEqual(validity('haiku-noskills', noSkills, ['task-queue'], o), []);
+  assert.ok(validity('haiku-noskills', withSkills, ['task-queue'], o).some((x) => /not stripped/.test(x)), 'a leaked concept skill invalidates haiku-noskills');
+  assert.ok(validity('haiku-noskills', parseStream(J(init([], []), done())), ['task-queue'], o).some((x) => /non-concept project skill/.test(x)), 'the non-concept skill must survive the strip');
+  for (const arm of ['haiku-noskills', 'haiku-nograph', 'haiku-oracle', 'sonnet-nograph']) {
+    assert.ok(validity(arm, cg, arm === 'haiku-noskills' ? [] : ['task-queue'], o).some((x) => /code-graph/.test(x)), `${arm}: a code-graph plugin is a config leak`);
+  }
+});
+
+test('051 cases: the set is d2 plus four new edit cases, well formed, with captured oracle output and a reference solution each', async () => {
+  const { existsSync, readFileSync } = await import('node:fs');
+  const set = selectCases(JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')).cases, { set: '051' });
+  assert.deepEqual(set.map((c) => c.id), ['d2-scribe-spawn-cap', 't3-test-session-sweep', 't4-test-channel-lanes', 'd3-scribe-channel-age-cap', 'd4-scribe-sweep-idle-cap']);
+  for (const c of set) {
+    assert.ok(isEditCase(c), c.id);
+    assert.deepEqual(editCaseProblems(c), [], c.id);
+    assert.equal(c.group, 'maestro@3814a30', c.id);
+    assert.ok(c.skills.length && c.keep_skills.length, `${c.id}: the noskills arm needs skills to strip and one to keep`);
+    assert.ok(Array.isArray(c.proxy_cmd) && c.proxy_cmd[0] === 'query', `${c.id}: proxy_cmd for the oracle capture`);
+    const of = new URL(`./${oracleFile(c.id)}`, import.meta.url);
+    assert.ok(existsSync(of), `${c.id}: stored graph output`);
+    assert.ok(readFileSync(of, 'utf8').trim().length > 100, `${c.id}: non-empty oracle`);
+    const ref = c.kind === 'test' ? `./edit/ref/${c.id}.test.ts` : `./edit/ref/${c.id}.json`;
+    assert.ok(existsSync(new URL(ref, import.meta.url)), `${c.id}: ${ref}`);
+    assert.equal(c.proposal, undefined, c.id);
+  }
+  const d2 = set[0];
+  assert.deepEqual(d2.sets, ['044', '051']);
+  const pts = (c) => (c.kind === 'test' ? 1 + c.edit.mutants.length : Object.values(c.edit.docs).reduce((n, d) => n + d.must.length + d.must_not.length, 0));
+  assert.deepEqual(set.map(pts), [8, 6, 6, 9, 7]);
+});
+
+test('051 decision rule: docs/evals.md has the pre-registered rule with cap, thresholds, and no results yet', async () => {
+  const { readFileSync } = await import('node:fs');
+  const md = readFileSync(new URL('../docs/evals.md', import.meta.url), 'utf8');
+  const i = md.indexOf('## Ticket 051');
+  assert.ok(i >= 0, 'a Ticket 051 section');
+  const sec = md.slice(i);
+  for (const re of [/Decision rule \(fixed before any result\)/, /cap/i, /skills help/i, /graph answers help/i, /gap to Sonnet/i, /haiku-noskills/, /haiku-oracle/, /sonnet-nograph/, /haiku-nograph/]) assert.match(sec, re, String(re));
+  assert.doesNotMatch(sec, /^#{2,4} Results(?! template)/m, 'results are written only after the paid run');
+});
+
+test('051 decision rule: missed-points recovery with a floor, an inconclusive case, per-group verdicts, user confirms at pilot', async () => {
+  const { readFileSync } = await import('node:fs');
+  const md = readFileSync(new URL('../docs/evals.md', import.meta.url), 'utf8');
+  const sec = md.slice(md.indexOf('## Ticket 051'));
+  assert.match(sec, /missed/i, 'the rule is on missed points');
+  assert.match(sec, /one third of `missed\(B\)`/, 'a third of the baseline\'s missed points');
+  assert.match(sec, /at least 3 points \(the absolute floor\)/, 'an absolute floor');
+  assert.match(sec, /fewer than 3 points in a group[^.]*inconclusive \(saturated\)/, 'a near-perfect baseline is inconclusive, not pass or fail');
+  assert.doesNotMatch(sec, /1\.15 x/, 'no ratio threshold: it is out of reach near the ceiling');
+  for (const g of ['test', 'scribe', 'overall']) assert.match(sec, new RegExp(`\\| ${g} \\|`), `results template row for ${g}`);
+  assert.match(sec, /Every verdict above is given for test, for scribe and overall/);
+  assert.match(sec, /never overrides a group verdict/);
+  assert.match(sec, /user confirms the final numbers and the cap at pilot time/);
+  assert.match(sec, /per-agent model recommendation/);
+  // the scribe-side limit of the graph is stated, with what search was tried
+  assert.match(sec, /`code-graph search` was tried/);
+  assert.match(sec, /measures this limit of the graph/);
+  // the points arithmetic stated in the rule matches the cases: test 24, scribe 48, overall 72 at 2 runs
+  const all = JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')).cases;
+  const set = selectCases(all, { set: '051' });
+  const pts = (c) => (c.kind === 'test' ? 1 + c.edit.mutants.length : Object.values(c.edit.docs).reduce((n, d) => n + d.must.length + d.must_not.length, 0));
+  const sum = (k) => 2 * set.filter((c) => c.kind === k).reduce((n, c) => n + pts(c), 0);
+  assert.equal(sum('test'), 24);
+  assert.equal(sum('scribe'), 48);
+  assert.match(sec, /\*\*test\*\* \(t3, t4\) is 24 points, \*\*scribe\*\* \(d2, d3, d4\) is 48, \*\*overall\*\* is 72/);
+});
+
+test('051 oracle: scribe cases store a real search plus the impact, as captured by capture-oracle', async () => {
+  const { readFileSync } = await import('node:fs');
+  const all = JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')).cases;
+  for (const id of ['d2-scribe-spawn-cap', 'd3-scribe-channel-age-cap', 'd4-scribe-sweep-idle-cap']) {
+    const c = all.find((x) => x.id === id);
+    assert.deepEqual(c.proxy_extra.map((a) => a[0]), ['search'], `${id}: one search after proxy_cmd`);
+    const text = readFileSync(new URL(`./${oracleFile(id)}`, import.meta.url), 'utf8');
+    assert.match(text, /^# Search: /m, `${id}: the stored output holds the search`);
+    assert.match(text, /SKILL\.md/, `${id}: the search reaches concept skill docs`);
+  }
+  assert.match(readFileSync(new URL('./capture-oracle.mjs', import.meta.url), 'utf8'), /proxy_extra/);
 });

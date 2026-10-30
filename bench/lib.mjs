@@ -32,6 +32,9 @@ export const MODEL_ARMS = {
   'haiku-nograph': { base: 'nograph', model: 'claude-haiku-5-5' },
   'haiku-graph': { base: 'graph', model: 'claude-haiku-5-5' },
   'sonnet-nograph': { base: 'nograph', model: 'claude-sonnet-5-5' },
+  // 051: concept skills stripped / stored graph output pasted into the prompt, on Haiku.
+  'haiku-noskills': { base: 'noskills', model: 'claude-haiku-5-5' },
+  'haiku-oracle': { base: 'oracle', model: 'claude-haiku-5-5' },
 };
 export const ARMS = ['nograph', 'oracle', 'graph', 'skills', 'noskills', ...Object.keys(MODEL_ARMS)];
 export const DEFAULT_ARMS = 'nograph,graph';
@@ -45,7 +48,7 @@ export const isGraphArm = (arm) => baseArm(arm) === 'graph';
 
 // The arm a case's setup command is built for ({ARM}): only the graph arm gets a graph, only the
 // noskills arm loses its concept skills; every other arm gets the nograph workspace.
-export const setupArm = (arm) => (isGraphArm(arm) || arm === 'noskills' ? baseArm(arm) : 'nograph');
+export const setupArm = (arm) => (isGraphArm(arm) || baseArm(arm) === 'noskills' ? baseArm(arm) : 'nograph');
 
 // True when a SKILL.md's YAML frontmatter carries the concept-skill marker `metadata.type:
 // concept-skill` (block form `metadata:\n  type: concept-skill`, quoted or not, or inline
@@ -92,8 +95,20 @@ export function oraclePrompt(question, indexOutput) {
   return `${question}\n\n${ORACLE_HEADER}\n\n<code-index>\n${body}\n</code-index>`;
 }
 
+export const isOracleArm = (arm) => baseArm(arm) === 'oracle';
+
 export function promptFor(arm, c, oracleText) {
-  return arm === 'oracle' ? oraclePrompt(c.question, oracleText) : c.question;
+  return isOracleArm(arm) ? oraclePrompt(c.question, oracleText) : c.question;
+}
+
+// 051 context check: the stored graph output is in the prompt of the oracle-based arm and of no other
+// (the init event carries no prompt, so the runner checks the prompt it is about to send). Empty = ok.
+export function promptProblems(arm, prompt) {
+  const text = String(prompt ?? '');
+  const has = text.includes(ORACLE_HEADER) || text.includes('<code-index>');
+  if (isOracleArm(arm) && !has) return [`the ${arm} arm's prompt carries no stored graph output`];
+  if (!isOracleArm(arm) && has) return [`the ${arm} arm's prompt carries stored graph output (only an oracle arm may)`];
+  return [];
 }
 
 // Where a case's stored graph output lives (captured by bench/capture-oracle.mjs from `proxy_cmd`).

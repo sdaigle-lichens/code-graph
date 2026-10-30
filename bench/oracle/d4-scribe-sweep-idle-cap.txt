@@ -1,0 +1,143 @@
+# Impact (both, depth 2): sweepStaleSessions
+
+## Direct neighbors
+
+- @apps/maestro/src/core/session-ipc.ts:55 — `sweepAndRetarget`
+- @apps/maestro/src/core/session-sweep.ts:120 — `isAbandoned`
+- @apps/maestro/src/core/session-paths.ts:118 — `isValidSessionId`
+- @apps/maestro/src/core/session-paths.ts:119 — `sessionPathsFor`
+- @apps/maestro/src/core/session-paths.ts:117 — `listSessionIds`
+- @apps/maestro/src/core/session-paths.ts:122 — `sessionDirsFor`
+
+## Indirect neighbors (depth 2)
+
+- @apps/maestro/src/main/ipc.ts:328 — `sweepAndRefresh`
+- @apps/maestro/src/core/session-sweep.ts:73 — `lastActivityMs`
+- @apps/maestro/src/core/session-paths.ts:149 — `effectiveClaudeDir`
+- @apps/maestro/src/core/session-paths.ts:124 — `sessionsRoot`
+
+
+# Search: "session sweep idle cap abandoned sessions deleted"
+> 4 concepts matched, 37 vertices, 4 skill docs, ~2456 tokens
+> Low confidence: concept claude-session-bridge is mostly un-enriched (2% of core vertices have a purpose), so ranking leans on names only. Do not rely on these results alone; grep, or read the concept's SKILL.md (apps/maestro/.claude/skills/claude-session-bridge/SKILL.md).
+
+## Concept: claude-session-bridge
+
+> Skill: `claude-session-bridge` (apps/maestro/.claude/skills/claude-session-bridge/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/session-sweep.ts:108-130 — `sweepStaleSessions` — _not enriched_
+  - ← called by `sweepAndRetarget` at apps/maestro/src/core/session-ipc.ts:54 (line 55)
+  - ← called by `sweepAndRefresh` at apps/maestro/src/main/ipc.ts:328 (line 329)
+  - → has-type `SessionSweepResult` (claude-session-bridge) (lines 108, 113)
+  - → calls `isAbandoned` (claude-session-bridge) (line 120)
+  - → calls `isValidSessionId` (claude-session-bridge) (line 118)
+  - → calls `sessionPathsFor` (claude-session-bridge) (line 119)
+  - → calls `listSessionIds` (claude-session-bridge) (line 117)
+  - → calls `sessionDirsFor` (claude-session-bridge) (line 122)
+  - → has-type `SessionSweepOptions` (claude-session-bridge) (line 108)
+  - → has-type `SessionIdEnv` (claude-session-bridge) (line 111)
+- @apps/maestro/src/core/session-sweep.ts:155-186 — `deleteSession` — _not enriched_
+  - ← called by `deleteAndRetarget` at apps/maestro/src/core/session-ipc.ts:61 (line 68)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 959)
+  - → has-type `SessionIdEnv` (claude-session-bridge) (line 163)
+  - → calls `sessionPathsFor` (claude-session-bridge) (line 168)
+  - → has-type `SessionSweepOptions` (claude-session-bridge) (line 159)
+  - → calls `isAbandoned` (claude-session-bridge) (line 177)
+  - → calls `isValidSessionId` (claude-session-bridge) (line 164)
+  - → has-type `DeleteSessionResult` (claude-session-bridge) (line 160)
+  - → calls `sessionDirsFor` (claude-session-bridge) (line 179)
+- @apps/maestro/src/core/session-sweep.ts:189-203 — `listDeletableSessions` — _not enriched_
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 961)
+  - → has-type `SessionRef` (claude-session-bridge) (lines 189, 193)
+  - → has-type `SessionSweepOptions` (claude-session-bridge) (line 189)
+  - → calls `listSessionIds` (claude-session-bridge) (line 196)
+  - → has-type `SessionIdEnv` (claude-session-bridge) (line 192)
+  - → calls `sessionPathsFor` (claude-session-bridge) (line 198)
+  - → calls `isAbandoned` (claude-session-bridge) (line 199)
+- @apps/maestro/src/core/session-sweep.ts:57-63 — `SessionSweepOptions` — _not enriched_
+- @apps/maestro/src/core/session-sweep.ts:65-70 — `SessionSweepResult` — _not enriched_
+- @apps/maestro/src/core/session-sweep.ts:147-148 — `DeleteSessionResult` — _not enriched_
+- @apps/maestro/src/core/session-sweep.ts:90-102 — `isAbandoned` — _not enriched_
+  - ← called by `sweepStaleSessions` at apps/maestro/src/core/session-sweep.ts:108 (line 120)
+  - ← called by `sweepAndRetarget` at apps/maestro/src/core/session-ipc.ts:54 (line 55)
+  - ← called by `deleteSession` at apps/maestro/src/core/session-sweep.ts:155 (line 177)
+  - ← called by `deleteAndRetarget` at apps/maestro/src/core/session-ipc.ts:61 (line 68)
+  - ← called by `listDeletableSessions` at apps/maestro/src/core/session-sweep.ts:189 (line 199)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 961)
+  - → calls `lastActivityMs` (claude-session-bridge) (line 98)
+- @apps/maestro/src/core/claude-run.ts:94-98 — `appendCapped` — _not enriched_
+  - ← called by `runPreviewedClaude` at apps/maestro/src/core/claude-run.ts:169 (lines 192, 196)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 1087)
+- @apps/maestro/src/core/session-paths.ts:159-169 — `sessionPathsFor` — _not enriched_
+- @apps/maestro/src/core/session-paths.ts:84-86 — `SessionIdEnv` — _not enriched_
+- @apps/maestro/src/core/session-paths.ts:102-104 — `isValidSessionId` — _not enriched_
+- @apps/maestro/src/core/session-paths.ts:218-229 — `listSessionIds` — _not enriched_
+- @apps/maestro/src/core/session-paths.ts:265-284 — `sessionDirsFor` — _not enriched_
+- @apps/maestro/src/core/session-sweep.ts:150-153 — `SessionRef` — _not enriched_
+- @apps/maestro/src/core/claude-run.ts:169-276 — `runPreviewedClaude` — _not enriched_
+- @apps/maestro/src/core/session-ipc.ts:54-58 — `sweepAndRetarget` — _not enriched_
+- @apps/maestro/src/core/session-ipc.ts:61-71 — `deleteAndRetarget` — _not enriched_
+- @apps/maestro/src/core/session-sweep.ts:73-87 — `lastActivityMs` — _not enriched_
+
+### Cross-concept side effects
+
+- → **electron-shell-invariants** — `registerIpc` calls `listDeletableSessions` (line 961)
+
+## Concept: task-queue
+
+> Skill: `task-queue` (.claude/skills/task-queue/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/claims.ts:140-160 — `readClaims` — Lists the claim files in the claims directory, returns the live ones keyed by task filename, and deletes the claim files whose sessions are not live.
+  - ← called by `listTasks` at apps/maestro/src/core/tasks.ts:167 (line 172) — why: "listTasks loads claim records to attach to the tasks."
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (lines 955, 956, 957)
+  - ← called by `tailTasks` at apps/maestro/src/core/tasks.ts:320 (line 323) — why: "tailTasks takes the task queue snapshot via listTasks on every poll."
+  - ← called by `readyTasks` at apps/maestro/src/core/epics.ts:581 (line 587)
+  - ← called by `deleteTask` at apps/maestro/src/core/tasks.ts:266 (lines 273, 291) — why: "On the early-return path for an unknown filename, deleteTask loads claims for the unchanged queue." — why: "deleteTask loads claims for the refreshed queue it returns."
+  - ← called by `closeTask` at apps/maestro/src/core/tasks.ts:183 (lines 190, 197) — why: "closeTask loads claims for the refreshed queue it returns." — why: "On the early-return path for an unknown filename, closeTask loads claims for the unchanged queue."
+  - ← called by `showEpic` at apps/maestro/src/core/epics.ts:494 (line 500)
+  - → has-type `TaskClaim` (task-queue) (lines 140, 143) — why: "readClaims declares TaskClaim as the Map value type in its return type at line 140." — why: "readClaims uses the TaskClaim type in the Map it builds at line 143."
+  - → calls `listClaimFiles` (task-queue) (line 144) — why: "readClaims calls listClaimFiles to enumerate the claim files in the directory."
+  - → calls `claimsDirFor` (task-queue) (line 142) — why: "readClaims calls claimsDirFor to find the directory to list."
+  - → calls `nameOf` (task-queue) (line 150) — why: "readClaims calls nameOf to attach the optional sessionName to each returned claim."
+  - → calls `isSessionLive` (task-queue) (line 149) — why: "readClaims calls isSessionLive to decide whether each claim is still live."
+  - → calls `readClaimFile` (task-queue) (line 146) — why: "readClaims calls readClaimFile to parse each claim file it lists."
+- @apps/maestro/src/core/claims.ts:72-78 — `TaskClaim` — _not enriched_
+- @apps/maestro/src/core/tasks.ts:266-292 — `deleteTask` — Deletes a task file, appends its Post-Mortem section to postmortems.log when present, removes its claim, rebuilds the status map for the remaining files, and returns the refreshed queue.
+- @apps/maestro/src/core/tasks.ts:183-198 — `closeTask` — Marks one task file done in status.json, rebuilds the status map so tasks it unblocks become ready, drops its claim, and returns the refreshed queue.
+- @apps/maestro/src/core/claims.ts:126-132 — `listClaimFiles` — _not enriched_
+- @apps/maestro/src/core/claims.ts:35-37 — `claimsDirFor` — Returns the claims directory path under a tasks directory.
+- @apps/maestro/src/core/claims.ts:81-83 — `nameOf` — Extracts the optional session name from a claim as a sessionName field.
+- @apps/maestro/src/core/claims.ts:114-124 — `isSessionLive` — Reports whether a claiming session still counts as live, based on how recently its session log was modified.
+- @apps/maestro/src/core/claims.ts:85-100 — `readClaimFile` — Reads and parses a claim file, accepting it only if it has string session_id and claimed_at fields.
+- @apps/maestro/src/core/tasks.ts:167-174 — `listTasks` — Lists the task queue for a project by resolving the main checkout, then reading the task files, status.json and claims and building the task records.
+- @apps/maestro/src/core/tasks.ts:320-344 — `tailTasks` — Polls the task queue on an interval and calls back with the initial snapshot and with each later snapshot whose serialized form differs from the last one.
+- @apps/maestro/src/core/epics.ts:581-619 — `readyTasks` — _not enriched_
+- @apps/maestro/src/core/epics.ts:494-522 — `showEpic` — _not enriched_
+
+## Concept: installing-maestro
+
+> Skill: `installing-maestro` (.claude/skills/installing-maestro/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/detect.ts:353-359 — `capLines` — _not enriched_
+  - ← called by `suppressedEvidence` at apps/maestro/src/core/detect.ts:376 (line 382)
+  - ← called by `detectImplAgents` at apps/maestro/src/core/detect.ts:400 (lines 420, 436)
+  - ← called by `toEvidence` at apps/maestro/src/core/detect.ts:362 (line 366)
+- @apps/maestro/src/core/detect.ts:400-437 — `detectImplAgents` — _not enriched_
+- @apps/maestro/src/core/detect.ts:376-383 — `suppressedEvidence` — _not enriched_
+- @apps/maestro/src/core/detect.ts:362-367 — `toEvidence` — _not enriched_
+
+## Concept: electron-shell-invariants
+
+> Skill: `electron-shell-invariants` (apps/maestro/.claude/skills/electron-shell-invariants/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/main/ipc.ts:492-1272 — `registerIpc` — _not enriched_
+- @apps/maestro/src/main/ipc.ts:328-330 — `sweepAndRefresh` — _not enriched_
+

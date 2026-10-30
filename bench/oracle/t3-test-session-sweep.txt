@@ -1,0 +1,18 @@
+# Impact (both, depth 2): sweepStaleSessions
+
+## Direct neighbors
+
+- @apps/maestro/src/core/session-ipc.ts:55 — `sweepAndRetarget`
+- @apps/maestro/src/core/session-sweep.ts:120 — `isAbandoned`
+- @apps/maestro/src/core/session-paths.ts:118 — `isValidSessionId`
+- @apps/maestro/src/core/session-paths.ts:119 — `sessionPathsFor`
+- @apps/maestro/src/core/session-paths.ts:117 — `listSessionIds`
+- @apps/maestro/src/core/session-paths.ts:122 — `sessionDirsFor`
+
+## Indirect neighbors (depth 2)
+
+- @apps/maestro/src/main/ipc.ts:328 — `sweepAndRefresh`
+- @apps/maestro/src/core/session-sweep.ts:73 — `lastActivityMs`
+- @apps/maestro/src/core/session-paths.ts:149 — `effectiveClaudeDir`
+- @apps/maestro/src/core/session-paths.ts:124 — `sessionsRoot`
+
