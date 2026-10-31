@@ -1541,6 +1541,7 @@ function checkChannelWrite(input) {
 var HUMAN_REVIEW_LABEL = "human review";
 var MANAGER_REVIEW_LABEL = "manager review";
 var REVIEW_FILE_PATTERN = /\.review(-\d+)?\.md$/;
+var SUMMARY_PLACEMENT = (file) => `print the full summary as text above the question with the review file's path (${file}) as its first line, and ask with AskUserQuestion, putting a digest of at most 15 lines in the Approve option's preview with the review file's path as its first line (then deviations, risks and open questions, changed-file count, corrections since last round). If the digest is shortened to fit, its last line states that the full text is in the review file.`;
 function isReviewStop(label) {
   return label === HUMAN_REVIEW_LABEL || label === MANAGER_REVIEW_LABEL;
 }
@@ -1588,12 +1589,12 @@ function checkHumanReview(input) {
   if (stop.label === MANAGER_REVIEW_LABEL) {
     return {
       allow: false,
-      reason: `Manager review round ${round}: the review file is missing. Write ${file} first, as the direction brief with the sections ${BRIEF_SECTIONS}. Then record it with \`node .claude/scripts/maestro-epic.cjs review-request --task "${state.active_task}" --file "${file}"\` and send the manager the one line it prints. On an escalation, or the fallback to human review (no epic, no live manager), the same file is the summary: print it above the question and put a digest of at most 15 lines in the Approve option's preview, ending with the review file's path (${file}).`
+      reason: `Manager review round ${round}: the review file is missing. Write ${file} first, as the direction brief with the sections ${BRIEF_SECTIONS}. Then record it with \`node .claude/scripts/maestro-epic.cjs review-request --task "${state.active_task}" --file "${file}"\` and send the manager the one line it prints. On an escalation, or the fallback to human review (no epic, no live manager), the same file is the summary: ${SUMMARY_PLACEMENT(file)}`
     };
   }
   return {
     allow: false,
-    reason: `Human review round ${round}: the review file is missing. Write ${file} first, with the sections ${HUMAN_SECTIONS}. Then print the full summary as text above the question and ask again, putting a digest of at most 15 lines (deviations, risks and open questions, changed-file count, corrections since last round) in the Approve option's preview, ending with the review file's path (${file}).`
+    reason: `Human review round ${round}: the review file is missing. Write ${file} first, with the sections ${HUMAN_SECTIONS}. Then ${SUMMARY_PLACEMENT(file)}`
   };
 }
 
