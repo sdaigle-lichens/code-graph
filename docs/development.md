@@ -94,7 +94,8 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
   plugin/                   the Claude Code plugin (--plugin-dir target)
     commands/
       graph.md              /graph slash command
-                            (no hooks/: the plugin registers none and adds no session context)
+    hooks/
+      hooks.json            Stop + SubagentStop run `refresh-skills --hook` (120 s); no session context
     skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
       create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
       scribe                placement rule, extract+apply rule, gap channel, enrichment procedure
@@ -139,8 +140,9 @@ changes silently stop reaching the plugin.
 
 - `typescript` and `ts-morph` are not bundled: `requireFromProject` loads `ts-morph` from the
   plugin-owned deps dir (`code-graph deps install`) first, then the consumer project's own copy; with
-  neither, the error names `deps install` (or, when a deps dir is unreadable in a sandbox, the
-  `sandbox.filesystem.allowRead` fix).
+  neither, the error names `deps install` (or, when a deps dir exists but is unreadable or hidden in a
+  sandbox, the absolute path(s) for `sandbox.filesystem.allowRead`; `probeDepsDir` stats and then
+  lists `node_modules`, since macOS Seatbelt allows stat on a denied dir).
 - The `skills` command group (layer 1) must never load `node:sqlite`, `typescript` or `ts-morph`, so
   it runs in any repo on any supported Node. `cli.ts` imports every graph module lazily, inside its
   command — keep new ones that way.

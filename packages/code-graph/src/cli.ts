@@ -197,21 +197,71 @@ program
   .option("--dry-run")
   .option("--approve-drift")
   .option("--json", "with --dry-run: emit the drift as JSON (names and files)")
-  .action(async (concept: string, opts: { dryRun?: boolean; approveDrift?: boolean; json?: boolean }) => {
-    try {
-      if (opts.json && !opts.dryRun) {
-        console.error("apply failed: --json needs --dry-run");
+  .option(
+    "--defer-renames",
+    "non-interactive: never prompt; when there are rename candidates write nothing and exit 10"
+  )
+  .action(
+    async (
+      concept: string,
+      opts: { dryRun?: boolean; approveDrift?: boolean; json?: boolean; deferRenames?: boolean }
+    ) => {
+      try {
+        if (opts.json && !opts.dryRun) {
+          console.error("apply failed: --json needs --dry-run");
+          process.exit(1);
+        }
+        if (opts.deferRenames && opts.approveDrift) {
+          console.error("apply failed: --defer-renames and --approve-drift are mutually exclusive");
+          process.exit(1);
+        }
+        if (await skippedForNoConcepts("apply")) return;
+        const { apply } = await import("./scribe/apply.js");
+        await apply(concept, {
+          dryRun: opts.dryRun ?? false,
+          approveDrift: opts.approveDrift ?? false,
+          json: opts.json ?? false,
+          deferRenames: opts.deferRenames ?? false,
+        });
+      } catch (err) {
+        console.error("apply failed:", (err as Error).message);
         process.exit(1);
       }
-      if (await skippedForNoConcepts("apply")) return;
-      const { apply } = await import("./scribe/apply.js");
-      await apply(concept, {
-        dryRun: opts.dryRun ?? false,
-        approveDrift: opts.approveDrift ?? false,
-        json: opts.json ?? false,
-      });
+    }
+  );
+
+// Not in STORE_COMMANDS: as the plugin's Stop/SubagentStop hook it must be a silent no-op on a Node
+// without node:sqlite (refreshSkipReason checks it) rather than exit 8.
+program
+  .command("refresh-skills")
+  .description(
+    "extract + apply every concept whose SKILL.md changed since its last apply; renames are deferred, never decided"
+  )
+  .option("--hook", "Claude Code hook mode: read the hook payload on stdin, print only a systemMessage JSON, exit 0")
+  .option("--json", "print the report as JSON")
+  .action(async (opts: { hook?: boolean; json?: boolean }) => {
+    const { refreshSkills, hookMessage, hookCwd, readHookStdin, EXIT_RENAMES_DEFERRED } =
+      await import("./scribe/skill-refresh.js");
+    if (opts.hook) {
+      // A hook never fails the stop: every outcome, errors included, is a message or silence.
+      try {
+        const message = hookMessage(await refreshSkills(hookCwd(readHookStdin())));
+        if (message) console.log(JSON.stringify({ systemMessage: message }));
+      } catch (err) {
+        console.log(JSON.stringify({ systemMessage: `code-graph: refresh-skills failed: ${(err as Error).message}` }));
+      }
+      return;
+    }
+    try {
+      const report = await refreshSkills(process.cwd());
+      if (opts.json) console.log(JSON.stringify(report));
+      else if (report.skipped) console.log(`refresh-skills: skipped (${report.skipped})`);
+      else if (report.changed.length === 0) console.log("refresh-skills: no SKILL.md changed since the last apply");
+      else console.log(hookMessage(report) ?? "refresh-skills: nothing to report");
+      if (report.results.some((r) => r.status === "failed")) process.exitCode = 1;
+      else if (report.results.some((r) => r.status === "deferred")) process.exitCode = EXIT_RENAMES_DEFERRED;
     } catch (err) {
-      console.error("apply failed:", (err as Error).message);
+      console.error("refresh-skills failed:", (err as Error).message);
       process.exit(1);
     }
   });

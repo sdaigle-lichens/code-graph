@@ -119,6 +119,31 @@ run `extract <concept>` first, then `drift`, to see pending source edits. The JS
 `extract` (counted in files, from `meta.files` in the ast.json); non-zero means run `extract` then
 `apply`. It is absent for an ast.json written before 0.3.17.
 
+With rename candidates, `apply` asks `y`/`n`/skip-all for each one; `--approve-drift` accepts them all
+without asking. `apply --defer-renames` never prompts: when there are rename candidates it prints the
+drift, writes nothing and exits 10, so a later `apply <concept>` at a terminal sees the same drift. It
+cannot be combined with `--approve-drift` (exit 1).
+
+### Automatic refresh after a SKILL.md edit (`refresh-skills`, plugin hook)
+
+```sh
+code-graph refresh-skills [--json]
+```
+
+Runs `extract` then `apply --defer-renames` for every concept whose SKILL.md differs from the body last
+applied to the store (its `docs/<concept>::skill` row). A concept never applied is left to
+`add-concept`. Exit codes: 1 if any concept failed, 10 if any was deferred, else 0. A lock file
+`.refresh-skills.lock` next to `graph.db` stops two runs at once; a lock older than 120 s is taken over.
+
+The plugin runs `refresh-skills --hook` on **Stop** and **SubagentStop** (`plugin/hooks/hooks.json`,
+timeout 120 s), so the "extract + apply after a SKILL.md" rule no longer depends on an agent
+remembering it. The hook reports through a `systemMessage` (refreshed, deferred or failed concepts) and
+always exits 0. It is silent when there is no `scribe.config.json`, no concepts, no tsconfig, no store,
+no `node:sqlite`, or no changed SKILL.md. A deferred concept is named with the command to run
+(`code-graph apply <concept>` in a terminal, never `--approve-drift`) and is reported again at every
+stop until applied by hand. Measured on a copy of a 16-concept repo (0.3.30): 0.07 s with no change,
+about 15 s to refresh 11 concepts (about 1.4 s per concept).
+
 A **docs-only** concept (no `tsconfig`, or globs that name no TypeScript files) needs no compiler:
 `extract` writes zero vertices plus its skill block, `apply` stores the doc so the SKILL.md body is
 searchable, and `search` finds it.
@@ -139,9 +164,14 @@ commands (`extract`, `catalog`) resolve `ts-morph` (which carries its own compil
 
 Populate (1) with the explicit `code-graph deps install` (it runs `npm install` and says so);
 `code-graph deps status` shows what resolves from where. When neither has ts-morph, the error names
-`deps install`. Inside a Claude Code Bash sandbox (`SANDBOX_RUNTIME=1`) an unreadable `~/.cache` looks
-missing; the error and `deps status` then say so and name `sandbox.filesystem.allowRead` with the
-absolute cache dir. The `skills` commands never need any of this.
+`deps install`. A deps dir that exists but cannot be read is reported apart from a missing one: the
+macOS Seatbelt sandbox lets a denied `~/.cache/code-graph` be stat-ed but not listed, so `deps status`
+prints `ts-morph: not loadable — the plugin deps dir exists but cannot be read from this session`
+and marks the dir `unreadable (exists, not absent)`. In that case, and when a Linux sandbox hides the
+dir entirely (`not visible`), the error and `deps status` name the absolute path(s) to add to
+`sandbox.filesystem.allowRead`; re-running `deps install` will not help. A truly absent dir still
+says `missing — run code-graph deps install`. `/code-graph-install` and `/code-graph-update` run this
+check before anything calls `extract`. The `skills` commands never need any of this.
 
 ### 6. Search
 
@@ -217,6 +247,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph extract <concept>`        | `code-graph extract workorder-store`                                 | Extract AST → `scribe-output/<concept>.ast.json`          |
 | `code-graph apply <concept>`          | `code-graph apply workorder-store`                                   | Apply enriched doc to graph (upsert + drift check)        |
 | `code-graph drift <concept>`          | `code-graph drift workorder-store`                                   | Show drift without applying (alias for `apply --dry-run`) |
+| `code-graph refresh-skills`           | `code-graph refresh-skills --json`                                   | Extract + apply every applied concept whose SKILL.md changed; renames deferred (exit 10) |
 | `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --summary --json`         | List vertices that need enrichment (lazy; `--all`: every) |
 | `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
 | `code-graph search "<query>"`         | `code-graph search "sync sends stale ops"`                           | Hybrid BM25 + multi-hop search                            |
@@ -285,7 +316,7 @@ window of `skills status` and the graph steps are skipped.
 | `create-concept-skills` | No list yet: catalog → proposal → `scribe.config.json` + SKILL.md skeletons → `bootstrap`/`extract`/`apply` | repo and skills stamped `1.0` (`--bump initial`) |
 | `update-concept-skills` | List exists, code moved: `skills status --json` / `drift --json`, revise, `extract` + `apply`, re-enrich revised | `--bump minor` |
 | `update-single-concept-skill` | One thin skill or a reported gap: deepen from `query concept` / `impact`. An "enrich only" gap just enriches the named vertices (`enrich merge` + `apply`), no SKILL.md edit | `--bump major` (none for "enrich only") |
-| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md; gap channel (incl. "enrich only" gaps for un-enriched search hits); enrichment procedure | none |
+| `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md (enforced by the Stop hook); gap channel (incl. "enrich only" gaps for un-enriched search hits); enrichment procedure | none |
 | `cleanup-skill`, `load-concept-skills`, `explore-concept-skills` | Building blocks the flows call | none |
 | `code-architecture-design`, `use-code-architecture-design-check` | Design gate and brief; explore uses `query cross` / `impact` | none |
 | `code-graph-install` / `-update` / `-uninstall` | Enable/check/disable the plugin per project; install migrates `.claude/concept-skills.json` into `scribe.config.json` keeping its version | none |
@@ -383,6 +414,7 @@ the repo's history.
 | 7         | `search` low confidence | Results are printed, but the top cluster is a weak match or its concept is un-enriched (`LOW_CONFIDENCE_MIN_SCORE`, `LOW_CONFIDENCE_MIN_ENRICHED` in `query/search.ts`). Verify with grep or the concept's SKILL.md. `--json` sets `low_confidence: true` and `low_confidence_reason`. An exact symbol-name hit and a docs-only concept are never low confidence |
 | 8         | `node:sqlite` unavailable | Any command that opens the store (`search`, `query *`, `status`, `bootstrap`, `reindex`, `apply`, `drift`, `enrich *`, `eval`, `delete-concept`) on a Node without `node:sqlite`. One stderr line names the requirement: Node >=22.5, no `--no-experimental-sqlite`. Check with `node --version`. `skills *`, `deps *`, `extract` and `catalog` never open the store and still run |
 | 9         | `skills stamp` computed, not written | The sandbox blocked the SKILL.md write (EROFS/EPERM/EACCES). Output: `stamp computed, not written: <path>`, `reason:`, then `set exactly these lines in its metadata block:` and the lines (unmarked skill: `replace the metadata block (or add it to the frontmatter) with exactly:` and the whole block). Apply them with Edit, then re-run `skills status`. `--print` computes and prints without writing (exit 0); `--json` gives `{ stamped, version, lastUpdate, written: false, blocked: { reason, lines } }` |
+| 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and wrote nothing. Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
 
 ## Zed editor LSP
 
