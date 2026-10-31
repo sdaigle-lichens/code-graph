@@ -19,6 +19,26 @@ Out of scope: where `deps install` writes, and downloading inside graph commands
 - [ ] The install and update plugin skills check deps readability before the first extract and tell the user which path to allow
 - [ ] Tests cover the unreadable case; plugin bundle regenerated; `just eval` 7/7 and `pnpm check` green (or its parts, in the sandbox)
 
+## Reproduction
+
+Under the macOS Seatbelt sandbox with `~/.cache/code-graph` denied:
+
+- `stat`/`lstat` on the deps dir succeed;
+- `readdir` and `access(R_OK)` fail with EPERM;
+- a truly nonexistent path gives ENOENT.
+
+Before the fix, plugin 0.3.28 and build 0.3.29 both printed `ts-morph: missing — run code-graph deps install`
+from `deps status`, and `extract` exited 1 with `"ts-morph" could not be found: ... Run code-graph deps install`
+(stat succeeded, so the dir was classed `present` and the resolve failure read as a missing install).
+0.3.28 also mislabelled a truly absent dir under a denied parent as "missing or unreadable".
+
 ## Blocked by
 
 None — can start immediately
+
+## Post-Mortem
+
+- **Problem:** @test's injected `.claude/channels/test/backend.1.md` was task 045's payload, not 048's: parallel worktree sessions share the main checkout's channel folder, so payloads collide. @test noticed and worked from the task file and diff.
+  **Fix:** none
+- **Problem:** @backend ran the eval from the main checkout's cwd, so its results file landed in the main checkout; and the first `just eval` in the fresh worktree scored 0/7 because `scribe-output/` (gitignored) had no graph until `just regraph` ran there.
+  **Fix:** none

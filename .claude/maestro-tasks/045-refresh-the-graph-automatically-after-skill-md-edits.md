@@ -20,3 +20,16 @@ The scribe skill tells agents to run extract then apply after writing a concept'
 ## Blocked by
 
 None — can start immediately
+
+## Post-Mortem
+
+- **Problem:** Parallel worktree sessions share the main checkout's `.claude/channels/`. @backend overwrote an existing `test/backend.1.md`, and sibling 048's @test then received 045's payload. 045's payloads ended up as `scribe/backend.2.md` and `scribe/reviewer.2.md`, not the files the agents reported, so the orchestrator had to find them by grepping.
+  **Fix:** none
+- **Problem:** @backend edited `skill-refresh.ts` with a python rewrite script, against the guardrail to edit only with Edit/Write. The reviewer found no damage.
+  **Fix:** none
+- **Problem:** @scribe ran `refresh-skills` from the main checkout, because the shell starts there and `cd` is banned (ticket 056). That ran against the main checkout's config and store, not the worktree's, so the worktree's graph was never refreshed for the scribe-pipeline edit.
+  **Fix:** none
+- **Problem:** `.claude/rules/plugin-skills.md` still says `plugin/hooks/` must not exist, which this ticket makes false. @scribe's edit to it was refused (self-modification), so it needs a person to update it.
+  **Fix:** none
+- **Problem:** The SubagentStop hook flagged "no HANDOFF line" on @test's interim stop, while it was waiting on background work. Its final report did end with `HANDOFF: success`.
+  **Fix:** none

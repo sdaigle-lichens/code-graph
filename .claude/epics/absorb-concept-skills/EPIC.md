@@ -954,3 +954,107 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
   - `stash@{0}` is a stray from 043's backend agent. Left for the user.
   - This revises the earlier idea of removing the retrieval skill and hook: on Haiku they are the
     part that works.
+- Reopened (2026-10-30) by maestro-mgr-11fd3a4f for the four unepic'd open tasks 045, 048, 049
+  and 050, all linked and spawned. 052 (haiku-subagents-with-graph) is held by the user.
+  - m001 (050, round 1): on-track. `enrich targets --summary` with no concept is a cross-concept
+    roll-up (`neverApplied`, `notExtracted`, `applied`). "Applied" = live vertices or a docs row.
+    The default "incremental only" fits the lazy-enrichment decision.
+  - 049 and 050 overlap in cli.ts, usage.md, update-concept-skills, the versions and the bundle.
+    049's never-applied drift line reuses 050's definition. Whichever commits second rebases.
+  - m002 (048), m003 (049), m004 (045), round 1: all on-track.
+    - One "applied" helper: `isConceptApplied` (049, scribe/enrich.ts), used by 045, 049 and 050.
+    - Versions: 045 owns 0.3.30, the only ticket that requires a bump. The rest take the next free
+      patch when they land.
+    - 045 reports deferred renames through `systemMessage` (non-blocking, re-reported at every stop).
+      Without a tsconfig there is no auto-refresh. Docs-only refresh waits until someone asks.
+    - 049: one `--bump` per stamp batch.
+  - r043 (050 done, worktree code-graph-task-050 / branch task-050, uncommitted). Acked.
+    - Results: 524/524 tests, `pnpm check` green, eval 7/7.
+    - The roll-up form of `enrich targets --summary` is in, and step 6 asks before any fan-out.
+    - It still has a private `conceptWasApplied`. At the rebase onto 049, swap it for
+      `isConceptApplied` and fix the scribe-pipeline invariant text that names it.
+    - After the merge, re-run extract + apply for scribe-pipeline (ts-morph wasn't loadable in the worktree).
+    - All four worktrees branch from 5daadc0, so land them one at a time and rebase each later one.
+    - Follow-ups, ticketed with the user's approval:
+      - 055: print core.leftOut beside first-time builds. Blocked by 050.
+      - 056: a `--root` option, plus perhaps a CLAUDE_PROJECT_DIR fallback. Blocked by 049.
+        Likely cause: `loadConfig` walks up from the cwd, and sessions never `cd`.
+    - Spawn 055 only after task-050 is committed. A worker started earlier branches from HEAD and
+      misses 050's step-6 text.
+  - 050 committed as 3b43b6a on branch task-050, not yet merged into feat/integrate-concept-skills.
+  - r044 (048 done, worktree code-graph-task-048 / branch task-048, uncommitted, no bump). Acked.
+    - Cause: on macOS Seatbelt, stat on the denied cache dir succeeds and readdir fails with EPERM.
+      The probe now lists node_modules after stat.
+    - `MissingProjectDependencyError` has a 4th parameter, `allowPaths`. code-graph-update now has a
+      new step 4, so its later steps are renumbered.
+    - Results: 522/522 tests, eval 7/7, bundle reproducible.
+    - Post-mortem findings:
+      - Parallel worktrees share the main checkout's `.claude/channels`, so 045's handoff payload
+        reached 048's @test.
+      - A fresh worktree has no graph.db, so eval scores 0/7 until `just regraph`.
+      - `scribe/backend.2.md` holds 045's skill-refresh gaps.
+    - The user chose to ticket the empty store as 057 (eval builds or refuses, never a fake 0/7).
+      The channel scoping went to maestro-mgr-4c5a135c as a post-mortem request; it is waiting on
+      its user. 045 and 049 were warned to check that a payload names their own ticket.
+    - 048 committed as f7abe30 on branch task-048 at 0.3.31 (0.3.30 is reserved for 045), not merged.
+  - 055 waits until task-050 is merged into feat/integrate-concept-skills, not just committed,
+    because new worktrees branch from it.
+  - Channel collision → maestro task 144 (scope handoff channels per task). Until it ships, parallel
+    worktree workers here can still collide.
+  - The user put 057 on hold for now.
+  - r045 (049 done, worktree code-graph-task-049, uncommitted, no bump). Acked.
+    - Results: 556/556 tests, eval 7/7.
+    - Batch stamp/extract/apply/drift and a one-line drift for never-applied concepts are in. The
+      flows use the batch forms.
+  - r046 (045 done, committed as 32e6481 on branch task-045 at 0.3.30, unmerged). Acked.
+    - Results: 540/540 tests, eval 7/7.
+    - Built: `apply --defer-renames` (exit 10) and `refresh-skills` on Stop/SubagentStop with a 120 s
+      timeout. Every apply write is in one transaction.
+    - **Conflict with 054's rule** ("plugin/hooks/ must not exist"), which I missed at m004.
+      - The user kept the hook. I amended `.claude/rules/plugin-skills.md` (uncommitted in the main
+        checkout).
+      - New rule: no session context or steering. Maintenance hooks are allowed if they report only
+        through `systemMessage`, never inject `additionalContext`, never block and always exit 0.
+  - 058 (user-approved), to run after 045, 049 and 050 are merged:
+    - one applied-concept check, used everywhere;
+    - an atomic, owner-checked refresh lock;
+    - EXIT_RENAMES_DEFERRED moved out of the hook module;
+    - one shared ReportedError helper;
+    - a test for the stamp batch's failed[] path;
+    - the ts-morph Project cache lifetime documented or bounded.
+    The tracker already shows it as unblocked, because the tasks it waits on are marked done even
+    though they aren't merged.
+  - Merge state: 048 (f7abe30, 0.3.31), 050 (3b43b6a) and 045 (32e6481, 0.3.30) are committed on
+    their branches, and so is 049 (ba6adf1).
+  - Merges: 045 is merged, and 048 is merged as d700e14 (0.3.31, not pushed). Recommended order:
+    050, then 049 (049 rebases once and folds `conceptWasApplied` into `isConceptApplied`).
+  - Broken on the branch: 045 grew plugin/skills/scribe/SKILL.md to 9922 B, over the 9216 B cap
+    (cli.test.ts:1034), even though r046 reported the suite green. 045's worker had exited, so the
+    user routed the trim to 048's worker, on a branch from d700e14: a pointer stays in SKILL.md, the
+    detail moves to a reference file, and the gap-channel text stays verbatim.
+  - 048 was merged as 9f92594. The trim is on branch fix/scribe-skill-size in the main checkout,
+    uncommitted.
+    - SKILL.md is 9135 B. The hook detail is in `scribe/refresh-hook.md`, and the gap text is
+      unchanged.
+    - The worker reports 547/547 tests and `pnpm check` 6/6.
+    - I asked it to restore "Do not read it otherwise." after the enrichment.md pointer (025's
+      load guard).
+    - Stage only the two scribe files. The rule amendment and the bookkeeping go in separate commits.
+    - Merged: fast-forwarded as cbc8936. SKILL.md is 9161 B with the guard restored; 547/547 tests.
+      The fix branch is deleted. Next: merge 050, then 049.
+  - 050 merged as 3c94b99 (0.3.32; the worker reports 556/556 tests and eval 7/7). 049 is last: it
+    rebases, folds `conceptWasApplied` into `isConceptApplied`, and takes 0.3.33. 055 also edits
+    step 6 of update-concept-skills, so it waits for 049 too.
+  - 049 rebased as e7d1130 on 3c94b99 (597/597, eval 7/7, 0.3.33). `isConceptApplied` is now the
+    only applied check, which covers that part of 058. Two changes have no tests yet: docs-only
+    concepts now count as applied, and `--defer-renames` continues through a batch. Merging is the
+    user's call.
+  - 049 merged as bde12b5 (commit c59ac1c, amended with 8 tests for those two changes).
+    605/605, eval 7/7, 0.3.33. When a batch has both a deferred and a failed concept, it exits 1.
+    All four tasks are merged. Open: a skill gap in scribe-pipeline (extract fails on a code
+    concept whose globs match nothing). The worker's note about it no longer exists in the main
+    checkout.
+  - Post-mortem on the parallel-merge friction went to maestro's manager. It became maestro tasks
+    145 (touched surfaces, overlap check, merge plan, review checks, re-test after merge) and 146
+    (blocked until merged). Both are queued; 145 waits on 144 and 146 on 145. The missing graph
+    store in fresh worktrees stays with 056/057.

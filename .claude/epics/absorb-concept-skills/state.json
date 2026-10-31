@@ -2,8 +2,8 @@
   "slug": "absorb-concept-skills",
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
-    "name": "manager-concept-skills-merge",
-    "set_at": "2026-10-21T12:40:16.898Z"
+    "name": "maestro-mgr-11fd3a4f",
+    "set_at": "2026-10-31T00:51:02.018Z"
   },
   "workers": [
     {
@@ -165,6 +165,26 @@
       "name": "absorb-concept-skills-039",
       "task": "039-measure-graph-impact-and-cross-questions-on-maestro.md",
       "added_at": "2026-10-27T15:02:10.436Z"
+    },
+    {
+      "name": "absorb-concept-skills-045",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "added_at": "2026-10-31T00:51:52.356Z"
+    },
+    {
+      "name": "absorb-concept-skills-048",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "added_at": "2026-10-31T00:51:53.580Z"
+    },
+    {
+      "name": "absorb-concept-skills-049",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "added_at": "2026-10-31T00:51:54.671Z"
+    },
+    {
+      "name": "absorb-concept-skills-050",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "added_at": "2026-10-31T00:51:55.695Z"
     }
   ],
   "log": [
@@ -748,6 +768,134 @@
       "id": "r042",
       "at": "2026-10-28T14:55:18.989Z",
       "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "review",
+      "id": "m001",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.review.md",
+      "at": "2026-10-31T00:59:20.485Z",
+      "from": "absorb-concept-skills-050"
+    },
+    {
+      "kind": "verdict",
+      "id": "m001",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T00:59:34.581Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "review",
+      "id": "m002",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.review.md",
+      "at": "2026-10-31T01:03:03.912Z",
+      "from": "absorb-concept-skills-048"
+    },
+    {
+      "kind": "review",
+      "id": "m003",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.review.md",
+      "at": "2026-10-31T01:03:18.930Z",
+      "from": "absorb-concept-skills-049"
+    },
+    {
+      "kind": "review",
+      "id": "m004",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/045-refresh-the-graph-automatically-after-skill-md-edits.review.md",
+      "at": "2026-10-31T01:04:50.472Z",
+      "from": "absorb-concept-skills-045"
+    },
+    {
+      "kind": "verdict",
+      "id": "m002",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T01:20:07.735Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "verdict",
+      "id": "m003",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T01:20:08.929Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "verdict",
+      "id": "m004",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T01:20:10.070Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r043",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "file": "inbox/r043-050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "at": "2026-10-31T01:21:32.797Z",
+      "from": "absorb-concept-skills-050"
+    },
+    {
+      "kind": "ack",
+      "id": "r043",
+      "at": "2026-10-31T01:21:41.251Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r044",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "file": "inbox/r044-048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "at": "2026-10-31T01:26:38.857Z",
+      "from": "absorb-concept-skills-048"
+    },
+    {
+      "kind": "ack",
+      "id": "r044",
+      "at": "2026-10-31T01:26:44.015Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r045",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "file": "inbox/r045-049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "at": "2026-10-31T01:30:47.267Z",
+      "from": "absorb-concept-skills-049"
+    },
+    {
+      "kind": "report",
+      "id": "r046",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "file": "inbox/r046-045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "at": "2026-10-31T01:31:39.847Z",
+      "from": "absorb-concept-skills-045"
+    },
+    {
+      "kind": "ack",
+      "id": "r045",
+      "at": "2026-10-31T01:43:26.053Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "ack",
+      "id": "r046",
+      "at": "2026-10-31T01:43:26.718Z",
+      "by": "maestro-mgr-11fd3a4f"
     }
   ]
 }

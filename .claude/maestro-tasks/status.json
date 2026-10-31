@@ -266,8 +266,9 @@
     "epic": "haiku-subagents-with-graph"
   },
   "045-refresh-the-graph-automatically-after-skill-md-edits.md": {
-    "status": "ready",
-    "blockedBy": []
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   },
   "046-make-regraph-and-eval-refuse-or-rebuild-a-stale-cli-build.md": {
     "status": "done",
@@ -280,16 +281,19 @@
     "epic": "haiku-subagents-with-graph"
   },
   "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md": {
-    "status": "ready",
-    "blockedBy": []
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   },
   "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md": {
-    "status": "ready",
-    "blockedBy": []
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   },
   "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md": {
-    "status": "ready",
-    "blockedBy": []
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   },
   "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md": {
     "status": "done",
@@ -312,5 +316,32 @@
     "status": "done",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
+  },
+  "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md": {
+    "status": "ready",
+    "blockedBy": [
+      "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md": {
+    "status": "ready",
+    "blockedBy": [
+      "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "058-one-applied-concept-check-safe-refresh-lock-and-shared-error-helper-after-045-049-050.md": {
+    "status": "ready",
+    "blockedBy": [
+      "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md"
+    ],
+    "epic": "absorb-concept-skills"
   }
 }

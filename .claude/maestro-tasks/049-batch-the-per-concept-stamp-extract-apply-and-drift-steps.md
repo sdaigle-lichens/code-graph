@@ -30,3 +30,12 @@ Out of scope: changing what stamp, extract, apply or drift compute for one conce
 ## Blocked by
 
 None — can start immediately
+
+## Post-Mortem
+
+- **Problem:** Parallel worktree sessions share the main checkout's `.claude/channels`; @test was injected 045's `test/backend.1.md` instead of 049's backend payload and had to plan from the ticket and diff.
+  **Fix:** none
+- **Problem:** `isConceptApplied` (scribe/enrich.ts) was meant as the single shared "applied" helper, but `enrich targets` (`dbMap.size > 0`) and apply.ts (`conceptWasApplied`) still keep their own checks; its doc comment overstates its use. Left for the rebase onto 050.
+  **Fix:** none
+- **Problem:** @scribe could not refresh the graph (extract + apply) for the two revised project skills because the CLI reads config from cwd and `cd` is forbidden (ticket 056).
+  **Fix:** none
