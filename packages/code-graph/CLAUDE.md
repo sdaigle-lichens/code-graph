@@ -143,7 +143,11 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   reported). `apply` stamps `agent.touched_at` (optional in `VertexSchema`, no `SCHEMA_VERSION` bump)
   on un-enriched new/changed vertices or approved renames, never on a concept's first apply. `--all` = old listing,
   `--core` = no-op, `--vertex` narrows to the named vertices (full details), `--summary` = counts +
-  core block + one line per target, no edge arrays (compact JSON with `--json`).
+  core block + one line per target, no edge arrays (compact JSON with `--json`), plus `applied`.
+  `enrich targets --summary` with **no concept** (`enrichTargetsRollup`) is the cross-concept roll-up:
+  `{ total, neverApplied[], notExtracted[], concepts[{ concept, extracted, applied, total, counts, core }] }`,
+  same selection rules, no target lines; `applied` = live vertices or a `docs` row (reporting only,
+  `touchedSinceApply` keeps its live-vertex rule). No concept without `--summary` (or with `--vertex`) exits 1.
   Staleness: a changed vertex is fresh only if `hash_seen === contentHash`; entries with no
   `hash_seen` (pre-0.3.6) keep the `sig_seen === signature` rule (`enrichmentIsCurrent`). `gaps`
   counts a vertex as enriched only with a non-stale purpose.

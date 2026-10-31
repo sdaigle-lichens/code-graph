@@ -23,7 +23,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `EXIT_RENAMES_DEFERRED` (10) and `HOOK_TIMEOUT_SECONDS` (120). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
-| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
+| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
@@ -42,6 +42,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   body-changed, or the new key of an approved rename (`--approve-drift` or interactive `y`) whose
   merged vertex has no purpose, but never on a concept's first apply (an empty store for it): that
   ingest is not a task, so nothing is touched before it.
+- "Applied" (`conceptWasApplied`, private in `enrich.ts`) = the concept has live vertices or a `docs`
+  row, so a docs-only concept counts. Reporting only (`applied`, `neverApplied`); `touchedSinceApply`
+  keeps its live-vertex rule. Reuse this definition rather than writing another.
 - Enrichment is partial-friendly: `.enriched.json` is the only committed copy and `apply` reads it as
   the whole truth (edge reasons are re-inserted from it), so never overwrite it with a partial; use
   `enrich merge`. A changed vertex is fresh only when the entry's `hash_seen` equals its new

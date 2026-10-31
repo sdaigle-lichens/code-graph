@@ -74,7 +74,14 @@ Enrichment can build up a few vertices at a time. Run `extract <concept>` first 
 - `--summary` (text, or compact JSON with `--json`) gives the total, counts per reason, the `core`
   block, the total of edges without a reason and one short line per target (`key`, `name`, `type`,
   `loc` = `filepath:start-end`, `reasons`, `core`, `edgesWithoutReason` as a count). No edge arrays,
-  so it stays a few KB on a concept of 200+ vertices.
+  so it stays a few KB on a concept of 200+ vertices. It also carries `applied` (`false`: `apply`
+  never ingested the concept, i.e. no live vertex and no `docs` row, so enriching it is a first-time
+  build).
+- `code-graph enrich targets --summary [--json] [--all]` with **no concept** sizes every configured
+  concept in one call: `{ total, neverApplied[], notExtracted[], concepts[] }`, each concept with
+  `extracted`, `applied`, `total`, `counts` and `core { size, leftOut, thin }` (same selection rules,
+  no target lines). A concept with no `.ast.json` is `extracted: false` and counts 0. Without
+  `--summary`, or with `--vertex`, a concept is required (exit 1).
 - **Thin core.** A concept with 50+ live vertices but fewer than 5 core vertices is `thin`: the
   SKILL.md names too little to enrich from. `enrich targets` reports it (`core.thin`,
   `core.message`) and `gaps` lists it under "thin core"; the flows then route to

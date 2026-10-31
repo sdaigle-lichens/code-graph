@@ -450,7 +450,7 @@ describe("enrich targets --summary and --vertex on a 200+ vertex concept", () =>
     fs.symlinkSync(path.join(PKG, "node_modules"), path.join(tmp, "node_modules"), "dir");
     assert.equal(run(["extract", "c"]).code, 0);
   }
-  const SUMMARY_KEYS = ["concept", "core", "counts", "edgesWithoutReason", "targets", "total"];
+  const SUMMARY_KEYS = ["applied", "concept", "core", "counts", "edgesWithoutReason", "targets", "total"];
   const LINE_KEYS = ["core", "edgesWithoutReason", "key", "loc", "name", "reasons", "type"];
 
   it("--summary --json: per-reason counts, core block, edge total, one short line per target, a few KB", () => {
@@ -462,7 +462,13 @@ describe("enrich targets --summary and --vertex on a 200+ vertex concept", () =>
     assert.ok(bytes < 5000, `summary is ${bytes} bytes`);
     const s = JSON.parse(r.stdout);
     assert.deepEqual(Object.keys(s).sort(), SUMMARY_KEYS);
+    assert.deepEqual(
+      Object.keys(s),
+      ["concept", "applied", "total", "counts", "core", "edgesWithoutReason", "targets"],
+      "applied sits right after concept"
+    );
     assert.equal(s.concept, "c");
+    assert.equal(s.applied, false, "extracted but never applied");
     assert.equal(s.total, CORE);
     assert.deepEqual(s.counts, { new: CORE, changed: 0, stale: 0, named: 0 });
     assert.deepEqual(s.core, { size: CORE, leftOut: N - CORE, thin: false });
@@ -501,6 +507,7 @@ describe("enrich targets --summary and --vertex on a 200+ vertex concept", () =>
     );
     assert.match(text, new RegExp(`core: ${CORE} vertices; ${N - CORE} non-core new vertices left out`));
     assert.match(text, new RegExp(`edges without a reason: ${CORE}\\b`));
+    assert.equal(lines[1], "  never applied: a first-time build, not an incremental update");
     const targetLines = lines.filter((l) => /^ {2}[0-9a-f]{8,} fn\d+ \(function\) /.test(l));
     assert.equal(targetLines.length, CORE);
     for (const l of targetLines) {
@@ -539,6 +546,233 @@ describe("enrich targets --summary and --vertex on a 200+ vertex concept", () =>
     const bad = run(["enrich", "targets", "c", "--json", "--vertex", "noSuchFn"]);
     assert.notEqual(bad.code, 0);
     assert.match(bad.stderr, /noSuchFn/);
+  });
+});
+
+describe("enrich targets --summary with no concept (cross-concept roll-up)", () => {
+  // applied: extracted + applied; pending: extracted only; fresh: never extracted; guide: docs-only, applied
+  const ORDER = ["applied", "pending", "fresh", "guide"];
+  const ROLLUP_KEYS = ["concepts", "neverApplied", "notExtracted", "total"];
+  const CONCEPT_KEYS = ["applied", "concept", "core", "counts", "extracted", "total"];
+
+  function multiProject() {
+    write(
+      "scribe.config.json",
+      JSON.stringify({
+        project: "p",
+        tsconfig: "tsconfig.json",
+        concepts: {
+          applied: { globs: ["src/applied/**/*.ts"], skill: "skills/applied/SKILL.md" },
+          pending: { globs: ["src/pending/**/*.ts"], skill: "skills/pending/SKILL.md" },
+          fresh: { globs: ["src/fresh/**/*.ts"], skill: "skills/fresh/SKILL.md" },
+          guide: { globs: ["docs/**/*.md"], skill: "docs/SKILL.md" },
+        },
+      })
+    );
+    write(
+      "tsconfig.json",
+      JSON.stringify({ compilerOptions: { target: "ES2022", module: "ESNext", strict: true }, include: ["src"] })
+    );
+    write("src/applied/a.ts", A_SRC);
+    write("src/applied/b.ts", B_SRC);
+    write("skills/applied/SKILL.md", "# applied\n\nStarts at `alpha`.\n");
+    write(
+      "src/pending/p.ts",
+      "export function pendingOne(): number {\n  return 1;\n}\n" +
+        "export function pendingTwo(): number {\n  return pendingOne() + 2;\n}\n"
+    );
+    write("skills/pending/SKILL.md", "# pending\n\nSee `pendingOne` and `pendingTwo`.\n");
+    write("src/fresh/f.ts", "export function freshOne(): number {\n  return 1;\n}\n");
+    write("skills/fresh/SKILL.md", "# fresh\n\nSee `freshOne`.\n");
+    write("docs/SKILL.md", '---\nname: guide\ndescription: "x"\n---\n\n# Guide\n\nThe runbook.\n');
+    fs.symlinkSync(path.join(PKG, "node_modules"), path.join(tmp, "node_modules"), "dir");
+    for (const c of ["applied", "pending", "guide"]) assert.equal(run(["extract", c]).code, 0, `extract ${c}`);
+    for (const c of ["applied", "guide"]) assert.equal(run(["apply", c]).code, 0, `apply ${c}`);
+  }
+
+  function rollup(...extra: string[]) {
+    const r = run(["enrich", "targets", "--summary", "--json", ...extra]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.stdout.trim().split("\n").length, 1, "single-line compact JSON");
+    return JSON.parse(r.stdout);
+  }
+
+  function perConcept(concept: string, ...extra: string[]) {
+    const r = run(["enrich", "targets", concept, "--summary", "--json", ...extra]);
+    assert.equal(r.code, 0, r.stderr);
+    return JSON.parse(r.stdout);
+  }
+
+  function liveRows(table: "vertices" | "docs", concept: string): number {
+    const db = new DatabaseSync(path.join(tmp, "scribe-output/graph.db"), { readOnly: true });
+    try {
+      const where = table === "vertices" ? "concept = ? AND status = 'live'" : "concept = ?";
+      return (db.prepare(`SELECT count(*) AS n FROM ${table} WHERE ${where}`).get(concept) as { n: number }).n;
+    } finally {
+      db.close();
+    }
+  }
+
+  it("--json: config order, per-concept counts equal each concept's own --summary, total is their sum", () => {
+    multiProject();
+    const s = rollup();
+    assert.deepEqual(Object.keys(s).sort(), ROLLUP_KEYS);
+    assert.deepEqual(
+      s.concepts.map((c: any) => c.concept),
+      ORDER
+    );
+    for (const c of s.concepts) {
+      assert.deepEqual(Object.keys(c).sort(), CONCEPT_KEYS);
+      assert.deepEqual(Object.keys(c.core).sort(), ["leftOut", "size", "thin"]);
+    }
+    for (const name of ["applied", "pending", "guide"]) {
+      const c = s.concepts.find((x: any) => x.concept === name);
+      const own = perConcept(name);
+      assert.equal(c.extracted, true, name);
+      assert.equal(c.total, own.total, `${name} total`);
+      assert.deepEqual(c.counts, own.counts, `${name} counts`);
+      assert.deepEqual(c.core, { size: own.core.size, leftOut: own.core.leftOut, thin: own.core.thin }, name);
+      assert.equal(c.applied, own.applied, `${name} applied agrees with the per-concept summary`);
+    }
+    assert.ok(
+      s.concepts.find((x: any) => x.concept === "pending").total > 0,
+      "pending has targets, so the sum is not trivially 0"
+    );
+    assert.equal(
+      s.total,
+      s.concepts.reduce((n: number, c: any) => n + c.total, 0)
+    );
+    assert.doesNotMatch(JSON.stringify(s), /"targets"|signature|edgesWithoutReason/, "no per-target lines");
+  });
+
+  it("neverApplied / notExtracted: extracted-only and never-extracted concepts are flagged; apply clears it", () => {
+    multiProject();
+    const s = rollup();
+    const byName = (o: any, n: string) => o.concepts.find((x: any) => x.concept === n);
+    assert.deepEqual(s.neverApplied, ["pending", "fresh"]);
+    assert.deepEqual(s.notExtracted, ["fresh"]);
+    assert.equal(byName(s, "applied").applied, true);
+    assert.equal(byName(s, "pending").applied, false);
+    assert.equal(byName(s, "pending").extracted, true);
+    // a never-extracted concept: zeroed, not a failure
+    assert.deepEqual(byName(s, "fresh"), {
+      concept: "fresh",
+      extracted: false,
+      applied: false,
+      total: 0,
+      counts: { new: 0, changed: 0, stale: 0, named: 0 },
+      core: { size: 0, leftOut: 0, thin: false },
+    });
+    // its own per-concept listing still fails, naming extract (the roll-up does not)
+    const own = run(["enrich", "targets", "fresh", "--summary", "--json"]);
+    assert.notEqual(own.code, 0);
+    assert.match(own.stderr, /code-graph extract fresh/);
+
+    assert.equal(run(["apply", "pending"]).code, 0);
+    const after = rollup();
+    assert.deepEqual(after.neverApplied, ["fresh"]);
+    assert.equal(byName(after, "pending").applied, true);
+    assert.equal(perConcept("pending").applied, true);
+  });
+
+  it("a docs-only concept that was applied (a docs row, no code vertices) counts as applied", () => {
+    multiProject();
+    assert.equal(liveRows("vertices", "guide"), 0, "docs-only: no live code vertices");
+    assert.ok(liveRows("docs", "guide") > 0, "docs-only: a docs row after apply");
+    const g = rollup().concepts.find((x: any) => x.concept === "guide");
+    assert.equal(g.applied, true);
+    assert.equal(g.extracted, true);
+    assert.equal(g.total, 0);
+    assert.equal(perConcept("guide").applied, true);
+    assert.doesNotMatch(run(["enrich", "targets", "guide", "--summary"]).stdout, /never applied/);
+  });
+
+  it("--all switches each concept's total to every never-enriched vertex", () => {
+    multiProject();
+    const def = rollup();
+    const all = rollup("--all");
+    for (const name of ["applied", "pending", "guide"]) {
+      const c = all.concepts.find((x: any) => x.concept === name);
+      const own = perConcept(name, "--all");
+      assert.equal(c.total, own.total, `${name} --all total`);
+      assert.deepEqual(c.counts, own.counts, `${name} --all counts`);
+      assert.equal(c.core.leftOut, 0, `${name} --all leaves nothing out`);
+    }
+    const ap = (o: any) => o.concepts.find((x: any) => x.concept === "applied");
+    assert.equal(ap(all).total, 2, "both alpha and beta under --all");
+    assert.ok(ap(def).total < ap(all).total, "default is lazy after the first apply; --all is not");
+    assert.equal(
+      all.total,
+      all.concepts.reduce((n: number, c: any) => n + c.total, 0)
+    );
+    assert.deepEqual(all.neverApplied, def.neverApplied);
+    assert.deepEqual(all.notExtracted, def.notExtracted);
+  });
+
+  it("text form: header, one line per concept with flags, and a never-applied footer", () => {
+    multiProject();
+    const s = rollup();
+    const r = run(["enrich", "targets", "--summary"]);
+    assert.equal(r.code, 0, r.stderr);
+    const lines = r.stdout.trimEnd().split("\n");
+    const t = (n: string) => s.concepts.find((x: any) => x.concept === n).total;
+    assert.deepEqual(lines, [
+      `All concepts — ${s.total} vertices to enrich across 4 concepts`,
+      `  applied: ${t("applied")}`,
+      `  pending: ${t("pending")} (never applied)`,
+      `  fresh: 0 (never applied, not extracted)`,
+      `  guide: ${t("guide")}`,
+      `  never applied (first-time build, not incremental): pending, fresh`,
+    ]);
+  });
+
+  it("text form omits the never-applied footer once every concept is applied", () => {
+    multiProject();
+    run(["extract", "fresh"]);
+    run(["apply", "fresh"]);
+    run(["apply", "pending"]);
+    const s = rollup();
+    assert.deepEqual(s.neverApplied, []);
+    assert.deepEqual(s.notExtracted, []);
+    const text = run(["enrich", "targets", "--summary"]).stdout;
+    assert.doesNotMatch(text, /never applied|not extracted/);
+  });
+
+  it("exits 1 with no concept and no --summary, or with --vertex", () => {
+    multiProject();
+    const msg = /name a concept, or pass --summary \(without --vertex\) for every concept/;
+    for (const args of [
+      ["enrich", "targets"],
+      ["enrich", "targets", "--json"],
+      ["enrich", "targets", "--all", "--json"],
+      ["enrich", "targets", "--summary", "--vertex", "alpha"],
+      ["enrich", "targets", "--summary", "--json", "--vertex", "alpha"],
+    ]) {
+      const r = run(args);
+      assert.equal(r.code, 1, args.join(" "));
+      assert.match(r.stderr, msg, args.join(" "));
+      assert.equal(r.stdout, "", args.join(" "));
+    }
+  });
+
+  it("no concepts configured: --summary skips with exit 0; a missing --summary still exits 1 first", () => {
+    write("scribe.config.json", JSON.stringify({ project: "p", concepts: {} }));
+    const skip = run(["enrich", "targets", "--summary", "--json"]);
+    assert.equal(skip.code, 0, skip.stderr);
+    assert.match(skip.stdout + skip.stderr, /no concepts configured in scribe\.config\.json, skipped/);
+    const bad = run(["enrich", "targets"]);
+    assert.equal(bad.code, 1);
+    assert.match(bad.stderr, /name a concept, or pass --summary/);
+  });
+
+  it("a corrupt ast.json still fails the whole roll-up, naming the concept to re-extract", () => {
+    multiProject();
+    write("scribe-output/pending.ast.json", "{ not json");
+    const r = run(["enrich", "targets", "--summary", "--json"]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /ast\.json validation failed/);
+    assert.match(r.stderr, /code-graph extract pending/);
+    assert.equal(r.stdout, "", "no partial roll-up printed");
   });
 });
 
