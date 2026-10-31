@@ -37,8 +37,8 @@ because the two copies drift, and nothing reports it when they do.
   what it prevents; move the story.
 - Anything addressed to "you" as a new team member.
 
-When you find one, **offer to move it** and leave a reference behind. Don't move it silently — the
-author put it there for a reason and may want to argue.
+When you find one, **offer to move it** and leave a reference behind. Never move it silently: the
+author put it there on purpose.
 
 **A `docs/` file that should be a concept skill:** a doc nobody has read in a year that agents keep
 rediscovering the hard way. If its content is mechanism and traps, it is a concept skill wearing the
@@ -72,15 +72,10 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```
 
 Run each alone in its own Bash call. `apply` reports drift; enrichment (`enrichment.md`) is a separate,
-token-spending step, run only when asked or when `update-concept-skills` calls for it.
+token-spending step, run only when asked or called for by `update-concept-skills`.
 
-**The plugin's Stop/SubagentStop hook enforces this rule** (`refresh-skills --hook`): when a session or
-subagent stops, every already-applied concept whose SKILL.md changed is extracted and applied. Running
-the two commands yourself still works and makes the doc searchable before the stop. The hook never
-decides a rename: a concept with rename candidates is left unapplied and named in a `code-graph:` system
-message. Have the user run `code-graph apply <concept>` in a terminal to answer the rename prompts;
-never `--approve-drift` (it records a rename as an insert plus an archive and loses enrichment). Such a
-concept is re-reported at every stop until it is applied by hand: hooks never block and always exit 0.
+A Stop/SubagentStop hook also runs both at each stop; if its message names a concept left unapplied,
+Read `${CLAUDE_PLUGIN_ROOT}/skills/scribe/refresh-hook.md`.
 
 **No tsconfig, or no `concepts` in `scribe.config.json`** (Terraform, docs-only repos): there is no
 graph to feed. Skip extract + apply, and say so. Writing the SKILL.md and stamping it
@@ -105,9 +100,9 @@ deepening, you run the flows yourself:
    rediscovering what already changed; a gap delivered on your channel lane names the skill and the
    gap outright.
 3. **Expect a proposal step to end your turn.** `create-concept-skills` and `update-concept-skills`
-   settle their concept list with the user before writing, and no subagent has `AskUserQuestion`. At
-   that step, emit the numbered proposal as your report and stop without writing any file. The caller
-   settles it and invokes you again with the approved list. That is a completed turn, not a failure.
+   settle their concept list with the user before writing, and no subagent has `AskUserQuestion`.
+   There, report the numbered proposal and stop without writing any file; the caller settles it and
+   invokes you again with the approved list. That is a completed turn, not a failure.
 4. **Confirm.** Report which flow ran, which concept skills changed, and their new versions.
 
 These flows call `code-graph.cjs` with `Bash` and read widely with `Agent`. Your `Bash` is for that
@@ -145,11 +140,10 @@ inline, within the 20-target rule), then `cg enrich merge`, a spot-check and `cg
 
 Enrichment (adding `purpose`, `tags` and edge reasons to a concept's vertices) is invoked by the update
 flows and the retrieval skill's "yes, build it" path; never run it unprompted. **Only when a run enriches,**
-Read `${CLAUDE_PLUGIN_ROOT}/skills/scribe/enrichment.md` (incremental path, whole-concept path, output
+Read `${CLAUDE_PLUGIN_ROOT}/skills/scribe/enrichment.md` (incremental and whole-concept paths, output
 schema, hard rules). Do not read it otherwise.
 
 ## Also true of the other files
 
-The `CHANGELOG.md`, `AGENTS.md` File Structure sections and `.claude/rules/` are unchanged by any of
-this — they have their own rules in the scribe agent's own file. This skill is only about the
-concept-skill/`docs/` split, the graph refresh, the gap channel and enrichment.
+`CHANGELOG.md`, `AGENTS.md` File Structure sections and `.claude/rules/` follow the scribe agent's own
+file, not this skill.
