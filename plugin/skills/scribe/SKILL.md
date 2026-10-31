@@ -127,7 +127,7 @@ relies on this exact path and shape; do not rename either.
 
 **An "enrich only" gap is not a skill gap.** A `missing` that starts with `enrich only:` lists search
 hits an agent relied on that had no purpose (`enrich only: <name> (<filepath>), … — found by search
-"<query>"`, written by the `code-graph-retrieval` skill). The SKILL.md did not fail anyone, so do not
+"<query>"`, written when the user-run `code-graph-retrieval` skill answered a search). The SKILL.md did not fail anyone, so do not
 revise it, research the concept or run `skills stamp`. Run `update-single-concept-skill`, which takes
 its **Only a reported gap to close** branch directly: enrich the named vertices through the
 incremental path in `enrichment.md` (`cg enrich targets <concept> --json --vertex <name>...`; from a subagent

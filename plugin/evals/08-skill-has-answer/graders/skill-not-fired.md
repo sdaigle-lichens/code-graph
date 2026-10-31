@@ -1,5 +1,8 @@
 ---
 type: tool_used
 tool: Skill
+min: 0
+max: 0
+arm: with-only
 input_match: '"skill"\s*:\s*"(?:[\w-]+:)?code-graph-retrieval"'
 ---

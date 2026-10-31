@@ -153,7 +153,7 @@ lines are listed when the edge carries them (`at file:108 (lines 112, 140, 155)`
 (`×3`); distinct edge reasons are all shown. Inbound edges are labelled by their type (`← called by`,
 `← mounted by`, `← triggered by` only for `triggers`, ...), outbound ones show the type. `--json`
 stays one entry per stored edge. A hit with no purpose ends in ` — _not enriched_` (plain text only;
-in `--json` its `purpose` stays absent or null); the `code-graph-retrieval` skill reports the ones an
+in `--json` its `purpose` stays absent or null); the `code-graph-retrieval` skill (when run) reports the ones an
 answer used as an "enrich only" gap (see the `scribe` skill row below). The `~N tokens`
 figure in the totals line is the size of the printed output, after `--max-tokens` trimming. The thin-result enrichment warning is appended after that figure, so
 it is not counted in it (~14 tokens).
@@ -197,7 +197,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
   `add-concept`, `scribe` (incl. enrichment), `cleanup-skill`, `load-concept-skills`,
   `explore-concept-skills`
 - Design: `code-architecture-design`, `use-code-architecture-design-check`
-- Retrieval: `code-graph-retrieval`
+- Retrieval (on demand, user-run: `/code-graph:code-graph-retrieval` or `/graph`; Claude does not load it by itself): `code-graph-retrieval`
 - Lifecycle: `code-graph-install`, `code-graph-update`, `code-graph-uninstall`
 
 ## CLI Reference

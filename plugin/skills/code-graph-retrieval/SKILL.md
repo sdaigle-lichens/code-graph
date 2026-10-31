@@ -1,13 +1,14 @@
 ---
 name: code-graph-retrieval
-description: Use before Grep or Read for "how does X work", "what calls X / what would break if I change Y", "how do A and B interact", or "where is X handled" when no loaded concept skill names it, in a project with a scribe.config.json (or scribe-output/). Queries the code graph (TypeScript/React) for @file:line pointers with purpose and callers. Skip it when a loaded concept skill already names the file or symbol (read that directly), for literal string or regex searches, and when there is no scribe.config.json.
+description: User-run (/code-graph:code-graph-retrieval). Queries the code graph (TypeScript/React) on demand for @file:line pointers with purpose and callers, for "how does X work", "what calls X / what would break if I change Y", "how do A and B interact" or "where is X handled", in a project with a scribe.config.json (or scribe-output/). Claude does not load it on its own.
+disable-model-invocation: true
 allowed-tools: Bash, Read
 ---
 
 ## When to use
 
-Reach for this **before** grep/glob-ing whenever the task is to *understand* code in
-a project that has a `scribe.config.json` at its root — for example:
+Run this on request (the user invokes it, or asks for a graph lookup) when the task is to
+*understand* code in a project that has a `scribe.config.json` at its root — for example:
 
 - "How does <feature> work?" → `code-graph search`
 - "What calls / depends on / breaks if I change <symbol>?" → `code-graph query impact`

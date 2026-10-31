@@ -1,6 +1,6 @@
 # Plugin evals
 
-`plugin/evals/` is a `claude plugin eval` suite for the `code-graph-retrieval` flow. It is a measurement harness, not a gate: the three pilot runs below are the "before" baseline. Tickets 033 (make the skill trigger) and 034 (record cross-concept edges) are meant to change the numbers, and a full run after them is the "after".
+`plugin/evals/` is a `claude plugin eval` suite for the `code-graph-retrieval` flow. Since 0.3.29 (ticket 054) that skill is user-run and the plugin has no SessionStart hook, so the cases below no longer grade whether it fires; see "Decision (2026-10-30, ticket 054)" at the end. It is a measurement harness, not a gate: the three pilot runs below are the "before" baseline. Tickets 033 (make the skill trigger) and 034 (record cross-concept edges) are meant to change the numbers, and a full run after them is the "after".
 
 ## Layout
 
@@ -55,7 +55,7 @@ Run from the repo root, never from `plugin/`: a session started there creates `p
 | `07-neg-literal` | Find every place the string TODO appears. | Exactly the three real TODOs; grep, not the graph. |
 | `08-skill-has-answer` | Which function decides a task is overdue, and in which file? (ticket 037) | A concept skill quoted in the prompt already names `isOverdue` in `src/reminders/overdue.ts`; correct answer, and the retrieval skill should NOT load. |
 
-`08-skill-has-answer` ships its concept skill by quoting it in `prompt.md` ("already loaded in this session"), because eval workspaces do not load project `.claude/skills`. That is the simplest route that needs no extra plugin and no change to the shared fixture. Its `skill-fired` grader is display-only like the others, but here the expected value is 0 Skill calls; read it from the trace, not as a pass/fail.
+`08-skill-has-answer` ships its concept skill by quoting it in `prompt.md` ("already loaded in this session"), because eval workspaces do not load project `.claude/skills`. That is the simplest route that needs no extra plugin and no change to the shared fixture. Its `skill-not-fired` grader is display-only like the others; the expected value is 0 Skill calls.
 
 Scored: the `llm` outcome graders on the final answer, plus a few regex graders. The `tool_used` graders (skill fired, command chosen, CLI used) are display-only indicators (the runner never scores a `Skill` check; the others are `arm: with-only`). The one exception is `06-neg-no-config`'s `did-not-build-graph`, which is scored in both arms.
 
@@ -803,3 +803,20 @@ Run as planned in "Pilot outcome and paid-run plan": 4 commands (d2, t3, d3, d4)
 **Hard case, d2.** The stale cap is the "(up to 5 at once; ...)" phrase in the frontmatter `description` of `plugins/maestro/skills/maestro-manager/SKILL.md`. Across the pilot and the paid run it was fixed 0 of 5 times by `haiku-nograph`, 0 of 5 by `haiku-oracle`, 0 of 1 by `sonnet-nograph`, and 2 of 5 by `haiku-noskills` (paid runs 3 and 4). The oracle never pointed at it (the doc is outside every concept's globs). I do not know why noskills fixed it more often; at n=5 it may be chance, or the arm without concept skills read `maestro-manager/SKILL.md` directly. `herdr.md` ("up to 5 at a time") was also missed in most runs of every arm.
 
 **What the set measures.** d3 saturates for `haiku-nograph` (36/36) and t3 is close to the ceiling (83% to 92%), so only d2 has real headroom. The scribe group decides little about skills because of the strip. These tasks mostly measure how thoroughly a model searches for every mention of a changed fact.
+
+## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
+
+User decision, epic `haiku-subagents-with-graph`. The plugin stops pushing sessions to the graph instead of grep and read, and graph retrieval stays available on demand.
+
+What changed (0.3.29): the SessionStart hook (`plugin/hooks/graph-context.cjs`, its `hooks.json` registration and `graph-context-hook.test.ts`) is removed, so a session in a project with `scribe.config.json` gets no code-graph context line. The `code-graph-retrieval` skill sets `disable-model-invocation: true` and its description says it is user-run (`/code-graph:code-graph-retrieval`; `/graph` is unchanged). The concept-skill flows, the CLI, extract and apply are unchanged.
+
+Evidence:
+
+- **041 (Opus, read-only, best case):** with the graph's answer handed over for free, oracle was +3% against nograph on the deep group, not the at-least-20% saving the rule asked for. The graph did not cut cost.
+- **043 (Haiku, read-only):** the counterpoint, kept by leaving retrieval available by hand. The shipped plugin (graph arm) scored 107/108 against 91/108 without the graph, at 12% less cost than nograph; Haiku loaded the skill and ran the CLI in 14 of 14 runs.
+- **044 (Haiku edit tasks):** haiku-graph 45/52 against haiku-nograph 46/52 and sonnet-nograph 44/52. Haiku never called the CLI; it loaded the retrieval skill in 2 of 8 runs and never acted on it. The graph arm cost 14% more.
+- **051 (harder Haiku edit tasks):** even pasted best-case graph output (oracle) tied nograph, 100 vs 100 of 120, at about 11% more cost per run; the paid run gave no support for a primer.
+
+Reading: the graph helps on read-only questions that are explicitly run through it, and gives no gain on edit tasks, so it is offered on demand rather than pushed by default.
+
+Eval suite changes: the `skill-fired` graders in cases 01, 02, 03 and 04 and the `chose-*` / `cli-ran` graders that required the CLI to run unprompted (01 `chose-search`, 02 `chose-impact`, 03 `chose-cross`, 04 `chose-search-or-concept`, 05 `cli-ran`) are retired; those cases keep their answer-quality graders. The `skill-fired` graders in 06, 07 and 08 are inverted to `skill-not-fired` (min 0, max 0): the skill must not fire by itself in any case. The "Cases" and pilot sections above describe the earlier trigger-based suite and are history.

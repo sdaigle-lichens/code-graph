@@ -1,7 +1,6 @@
 ---
 paths:
   - "plugin/skills/**"
-  - "plugin/hooks/**"
 ---
 
 # plugin/skills
@@ -22,7 +21,7 @@ Concept-skill flows shipped with the plugin. Each calls only
   that version's release note to maestro's manager, with the old and new shape. A breaking change (a
   renamed or removed field, or a new required one) keeps accepting the old shape for one version so
   maestro can follow.
-- `plugin/hooks/graph-context.cjs` (SessionStart) must stay inert: silent without `scribe.config.json`
-  in the cwd, `additionalContext` only, always exit 0, no writes, no CLI calls. Guarded by
-  `packages/code-graph/src/skills/graph-context-hook.test.ts`.
+- The plugin ships no hooks and adds no session context (the graph-context SessionStart hook was removed
+  in 0.3.x, ticket 054): `plugin/hooks/` must not exist. `code-graph-retrieval` stays user-run
+  (`disable-model-invocation: true`); do not reintroduce anything that steers sessions to the graph before grep.
 - Nothing developer-facing (`CLAUDE.md`, `.claude/`) may live under `plugin/`; `pnpm check` fails on it.

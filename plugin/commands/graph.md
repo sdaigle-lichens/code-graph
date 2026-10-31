@@ -42,8 +42,7 @@ After the CLI run, check the exit code:
 
 On exit code `6`, the CLI may first print a `## Graph completeness` diagnostic to stdout
 (declared-but-unbuilt concepts, concepts missing a SKILL.md, source files no concept covers).
-When present, follow the `code-graph-retrieval` skill's answer-first handling: answer via the
-fallback, then offer to build the missing concept for future queries. A successful search may
+When present, answer-first: answer via the fallback, then offer to build the missing concept for future queries. A successful search may
 also append a thin-result completeness note (`> ⚠ graph N/M concepts enriched …`) — that is
 FYI for the user, not a reason to re-search.
 

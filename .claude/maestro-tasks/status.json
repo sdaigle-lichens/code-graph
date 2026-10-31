@@ -309,7 +309,7 @@
     "epic": "haiku-subagents-with-graph"
   },
   "054-stop-steering-claude-code-to-code-graph-before-grep-keep-retrieval-user-run.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
   }
