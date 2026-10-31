@@ -94,7 +94,8 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
   plugin/                   the Claude Code plugin (--plugin-dir target)
     commands/
       graph.md              /graph slash command
-                            (no hooks/: the plugin registers none and adds no session context)
+    hooks/
+      hooks.json            Stop + SubagentStop run `refresh-skills --hook` (120 s); no session context
     skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
       create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
       scribe                placement rule, extract+apply rule, gap channel, enrichment procedure

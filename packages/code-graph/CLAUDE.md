@@ -48,6 +48,9 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   loading it, for the top-level commands in `STORE_COMMANDS` and exits `EXIT_NO_SQLITE` (8) with one
   line naming Node >=22.5 and `node --version`.
   Add any new store-opening command to that set; `skills`, `deps`, `extract`, `catalog` stay out.
+  Deliberate exception: `refresh-skills` opens the store but stays out, so the Stop hook is a silent
+  no-op without `node:sqlite` (`refreshSkipReason` checks `isBuiltin` before any store import). It also
+  does its own no-concepts skip instead of `skippedForNoConcepts`.
 - `extract`/`apply`/`drift` with no `concepts` in the config exit 0 with a skip message before
   importing anything heavy (`skippedForNoConcepts` in `cli.ts`); keep new concept-iterating commands
   behind it.

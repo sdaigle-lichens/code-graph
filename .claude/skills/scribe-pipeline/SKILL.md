@@ -19,7 +19,8 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | --- | --- |
 | `scribe/extract.ts` | ts-morph walk of the concept's globs; emits vertices and edges, never touches the store |
 | `scribe/ast-output.ts` | reads the concept's SKILL.md, writes the `.ast.json`; `extractDocsOnly` for concepts with no code |
-| `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS |
+| `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants) |
+| `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `EXIT_RENAMES_DEFERRED` (10) and `HOOK_TIMEOUT_SECONDS` (120). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
 | `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
@@ -47,6 +48,25 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   `contentHash`; entries without `hash_seen` fall back to `sig_seen === signature` (no mass-stale on
   upgrade). `gaps` counts only non-stale purposes as enriched.
 - Nothing is hard-deleted: apply archives missing vertices (`status: archived`).
+- Rename detection pairs each missing vertex with each new one of the same filepath and type, scores
+  Levenshtein similarity of `"<signature> <name>"` (>= 0.8 is a candidate) and keeps unique pairs by
+  greedy best score. An approved rename writes the new key carrying the old agent fields and archives
+  the old key (counted 1 inserted + 1 archived); a rejected one archives the old key and inserts the new
+  one as new.
+- `apply --defer-renames` exits `EXIT_RENAMES_DEFERRED` (10) before any write when there are rename
+  candidates (the whole concept is left unapplied, so a later interactive `apply` sees the same drift);
+  combining it with `--approve-drift` exits 1. `EXIT_RENAMES_DEFERRED` lives in `skill-refresh.ts`, not
+  `apply.ts`, so the hook path imports no store module up front.
+- `refresh-skills` only touches concepts already applied: the SKILL.md `contentHash` differs from the
+  `docs/<concept>::skill` row's `body_hash`, or vertices exist but there is no doc row. A first ingest is
+  `add-concept`'s job. Each concept runs as a child process so extract/apply's stdout and `process.exit`
+  never reach the hook's JSON stdout. Lock `.refresh-skills.lock` sits next to `graph.db` and is taken
+  over after `HOOK_TIMEOUT_SECONDS`; keep that constant equal to the `timeout` in `plugin/hooks/hooks.json`.
+- `refresh-skills` is deliberately outside `STORE_COMMANDS` and `skippedForNoConcepts`:
+  `refreshSkipReason` returns a silent skip for no config, no concepts, no tsconfig or no `node:sqlite`
+  (checked with `isBuiltin`, before any store import), and a missing store is skipped too. `--hook` always
+  exits 0 and prints only `{ systemMessage }` or nothing; without `--hook`: 1 if any concept failed, 10 if
+  any was deferred, else 0. A deferred concept is re-reported at every stop until applied by hand.
 - `.ast.json` is byte-stable for unchanged code: no per-item `ast.extracted_at` in the file (`apply`
   stamps it into the store), and the whole `meta` (`extractor_version` + `extracted_at`) is kept when
   vertices, edges and skill are unchanged. So `meta.extractor_version` = the version that last
@@ -75,6 +95,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   `apply` and `drift` skip with exit 0. Docs-only concepts skip ts-morph entirely.
 - `pnpm format` rewrites bodies, changing `contentHash` and marking enrichment stale: re-graph after.
 - The FTS index is rebuilt wholesale at the end of every `apply`; a half-failed apply leaves a stale index.
+- Resolving a deferred concept with `--approve-drift` looks like the fix and isn't: it accepts every
+  candidate unreviewed (ticket 045 cites an installing-maestro run reported as 4 inserted, 2 archived with
+  enrichment lost). Have a person run `apply <concept>` and answer the prompts.
 
 ## Relationships
 
