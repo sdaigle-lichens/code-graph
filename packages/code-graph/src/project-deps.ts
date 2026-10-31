@@ -65,29 +65,38 @@ function listing(dir: string): "ok" | "denied" | "gone" {
 }
 
 /**
- * Stat `<dir>/node_modules`. EACCES/EPERM is `unreadable`. ENOENT is `absent`, except in a sandbox,
- * where bubblewrap can leave a denied home path out of the mount so a hidden dir looks missing. There
- * the surroundings decide: if the cache root (or its parent) lists and the dir is not in it, it is
+ * The root a deps dir `<root>/deps/<key>` lives under: the cache root for the cache dir, else two
+ * levels up (`$CLAUDE_PLUGIN_DATA`). This is the absolute path to add to `sandbox.filesystem.allowRead`.
+ */
+export function depsRootDir(dir: string): string {
+  const cacheRoot = cacheRootDir();
+  return resolve(dir).startsWith(cacheRoot + sep) ? cacheRoot : dirname(dirname(resolve(dir)));
+}
+
+/**
+ * Stat `<dir>/node_modules`, then list it. EACCES/EPERM on either is `unreadable`: the macOS Seatbelt
+ * sandbox allows stat on a denied path but refuses to list or open it, so a stat alone would call a
+ * denied deps dir `present` and the later resolve would fail as if it were missing. ENOENT is
+ * `absent`, except in a sandbox, where bubblewrap can leave a denied home path out of the mount so a
+ * hidden dir looks missing. There the surroundings decide: if the root (or its parent) lists, or is
+ * denied while still visible to stat (Seatbelt, where an ENOENT below it is genuine), the dir is
  * `absent`; if neither can be seen, it is `not-visible`.
  */
 export function probeDepsDir(dir: string): DepsDirState {
+  const modules = join(dir, "node_modules");
   try {
-    statSync(join(dir, "node_modules"));
-    return "present";
+    statSync(modules);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (DENIED.has(code ?? "")) return "unreadable";
     if (!isSandboxed()) return "absent";
+    const root = depsRootDir(dir);
+    if (listing(root) !== "gone") return "absent";
+    return listing(dirname(root)) === "gone" ? "not-visible" : "absent";
   }
-  const cacheRoot = cacheRootDir();
-  // `<root>/deps/<key>`: the root is the cache root for the cache dir, else two levels up (CLAUDE_PLUGIN_DATA).
-  const root = resolve(dir).startsWith(cacheRoot + sep) ? cacheRoot : dirname(dirname(resolve(dir)));
-  const rootListing = listing(root);
-  if (rootListing === "denied") return "unreadable";
-  if (rootListing === "ok") return "absent";
-  const parentListing = listing(dirname(root));
-  if (parentListing === "denied") return "unreadable";
-  return parentListing === "ok" ? "absent" : "not-visible";
+  const modulesListing = listing(modules);
+  if (modulesListing === "denied") return "unreadable";
+  return modulesListing === "ok" ? "present" : "absent";
 }
 
 /** The state that blocks a conclusion about the deps dirs: `unreadable` wins over `not-visible`; null when neither. */
@@ -96,32 +105,57 @@ export function blockedState(states: readonly DepsDirState[]): "unreadable" | "n
   return states.includes("not-visible") ? "not-visible" : null;
 }
 
-/** Advice for a sandboxed session that cannot read, or cannot see, the plugin deps dir. */
-export function sandboxReadAdvice(state: "unreadable" | "not-visible" = "unreadable"): string {
-  const allow = `add ${cacheRootDir()} to \`sandbox.filesystem.allowRead\` in your Claude Code settings`;
+/**
+ * The absolute paths to add to `sandbox.filesystem.allowRead` for the blocked deps dirs: the root of
+ * each dir in `state`, deduplicated, else the cache root (where `deps install` writes).
+ */
+export function allowReadPaths(
+  states: readonly { dir: string; state: DepsDirState }[],
+  state: "unreadable" | "not-visible"
+): string[] {
+  const roots = [...new Set(states.filter((s) => s.state === state).map((s) => depsRootDir(s.dir)))];
+  return roots.length > 0 ? roots : [cacheRootDir()];
+}
+
+/** Advice for a session that cannot read, or cannot see, the plugin deps dir; `paths` are the dirs to allow. */
+export function sandboxReadAdvice(
+  state: "unreadable" | "not-visible" = "unreadable",
+  paths: readonly string[] = [cacheRootDir()]
+): string {
+  const allow = `add ${paths.join(" and ")} to \`sandbox.filesystem.allowRead\` in your Claude Code settings`;
   return state === "not-visible"
     ? `The plugin deps directory is not visible from this sandboxed session: it may be absent or hidden. ` +
         `Check with \`code-graph deps status\` in your own shell. If ts-morph is not installed there, run ` +
         `\`${INSTALL_COMMAND}\` in your shell; if it is, ${allow}, or run the graph command outside the sandbox.`
-    : `The plugin deps directory may exist but cannot be read from this sandboxed session. ` +
-        `Check with \`code-graph deps status\` in your own shell; if ts-morph is installed there, ${allow}, ` +
-        `or run the graph command outside the sandbox.`;
+    : `The plugin deps directory exists but cannot be read from this session (in a sandboxed session, the ` +
+        `sandbox denies reading it), so ts-morph cannot be loaded from it. Do not re-run \`${INSTALL_COMMAND}\` ` +
+        `for this: ${allow} and re-run, or run the graph command outside the sandbox. If ` +
+        `\`code-graph deps status\` still reports ts-morph missing once the directory is readable, run ` +
+        `\`${INSTALL_COMMAND}\` in your own shell.`;
 }
 
 export class MissingProjectDependencyError extends Error {
   constructor(
     readonly dependency: string,
     readonly projectRoot: string,
-    readonly unreadable: boolean | "unreadable" | "not-visible" = false
+    readonly unreadable: boolean | "unreadable" | "not-visible" = false,
+    readonly allowPaths: readonly string[] = [cacheRootDir()]
   ) {
-    super(
+    const notFound =
       `"${dependency}" could not be found: not in code-graph's plugin deps directory and not installed in ` +
-        `${projectRoot}. ` +
-        (unreadable
-          ? `${sandboxReadAdvice(unreadable === "not-visible" ? "not-visible" : "unreadable")} If it is not installed anywhere, run \`${INSTALL_COMMAND}\` in your own shell. `
-          : `Run \`${INSTALL_COMMAND}\` (for the plugin: \`node "\${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install\`) ` +
-            `to install ts-morph for code-graph, then re-run. `) +
-        `The \`code-graph skills\` commands need neither.`
+      `${projectRoot}. `;
+    super(
+      (unreadable === "not-visible"
+        ? notFound + sandboxReadAdvice("not-visible", allowPaths) + " "
+        : unreadable
+          ? `"${dependency}" could not be loaded: not readable from code-graph's plugin deps directory and not ` +
+            `installed in ${projectRoot}. ` +
+            sandboxReadAdvice("unreadable", allowPaths) +
+            " "
+          : notFound +
+            `Run \`${INSTALL_COMMAND}\` (for the plugin: ` +
+            `\`node "\${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install\`) to install ts-morph for ` +
+            `code-graph, then re-run. `) + `The \`code-graph skills\` commands need neither.`
     );
     this.name = "MissingProjectDependencyError";
   }
@@ -179,8 +213,14 @@ export function projectRootForDeps(): string {
 export function requireFromProject(name: string): unknown {
   const found = resolveDependency(name, projectRootForDeps());
   if (!found) {
-    const blocked = blockedState(pluginDepsDirs().map(probeDepsDir));
-    throw new MissingProjectDependencyError(name, projectRootForDeps(), blocked ?? false);
+    const states = pluginDepsDirs().map((dir) => ({ dir, state: probeDepsDir(dir) }));
+    const blocked = blockedState(states.map((s) => s.state));
+    throw new MissingProjectDependencyError(
+      name,
+      projectRootForDeps(),
+      blocked ?? false,
+      blocked ? allowReadPaths(states, blocked) : undefined
+    );
   }
   return createRequire(found.path)(found.path);
 }

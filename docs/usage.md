@@ -157,9 +157,14 @@ commands (`extract`, `catalog`) resolve `ts-morph` (which carries its own compil
 
 Populate (1) with the explicit `code-graph deps install` (it runs `npm install` and says so);
 `code-graph deps status` shows what resolves from where. When neither has ts-morph, the error names
-`deps install`. Inside a Claude Code Bash sandbox (`SANDBOX_RUNTIME=1`) an unreadable `~/.cache` looks
-missing; the error and `deps status` then say so and name `sandbox.filesystem.allowRead` with the
-absolute cache dir. The `skills` commands never need any of this.
+`deps install`. A deps dir that exists but cannot be read is reported apart from a missing one: the
+macOS Seatbelt sandbox lets a denied `~/.cache/code-graph` be stat-ed but not listed, so `deps status`
+prints `ts-morph: not loadable — the plugin deps dir exists but cannot be read from this session`
+and marks the dir `unreadable (exists, not absent)`. In that case, and when a Linux sandbox hides the
+dir entirely (`not visible`), the error and `deps status` name the absolute path(s) to add to
+`sandbox.filesystem.allowRead`; re-running `deps install` will not help. A truly absent dir still
+says `missing — run code-graph deps install`. `/code-graph-install` and `/code-graph-update` run this
+check before anything calls `extract`. The `skills` commands never need any of this.
 
 ### 6. Search
 

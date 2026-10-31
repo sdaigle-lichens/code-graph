@@ -65,10 +65,12 @@ $ARGUMENTS
    gap channel keeps working. On yes, tell the user where: in the Maestro desktop app, open the
    workflow view, select the scribe instance and add the skill. **Do not edit `maestro.json`.**
 
-5. **Offer the list.** Run `cg skills state`. `{"present":false}` → offer `create-concept-skills`
-   now (it also writes `scribe.config.json`); if declined, say it can be run any time. A list already
-   recorded → point at `update-concept-skills`. A repo with no `tsconfig` is fine: concept skills and
-   their staleness tracking work without a graph.
+5. **Offer the list.** `create-concept-skills` runs `extract`, so for a repo with a `tsconfig` do the
+   deps check of step 7 first: an unreadable deps dir fails `extract` with a ts-morph error that
+   `deps install` cannot fix. Then run `cg skills state`. `{"present":false}` → offer
+   `create-concept-skills` now (it also writes `scribe.config.json`); if declined, say it can be run
+   any time. A list already recorded → point at `update-concept-skills`. A repo with no `tsconfig` is
+   fine: concept skills and their staleness tracking work without a graph.
 
 6. **Keep the store out of git.** The graph store is `scribe-output/graph.db` (plus `-shm`/`-wal`),
    or the `dbPath` in `scribe.config.json` when set. Ignore the database files only, never the whole
@@ -78,9 +80,13 @@ $ARGUMENTS
    directory). Skip the step when a line already ignores it; a re-run must add nothing.
 
 7. **Graph dependencies (only for projects with TypeScript concepts).** The graph commands need
-   `ts-morph`, which the plugin does not bundle. Run `cg deps status`. If `ts-morph` shows `missing`,
-   tell the user that `cg deps install` downloads it from the npm registry into the plugin's own
-   directory (not the project), and offer to run it. `deps install` downloads from the npm registry,
+   `ts-morph`, which the plugin does not bundle. Run `cg deps status` (before any `extract`; step 5
+   points here). If `ts-morph` shows `not loadable` or a deps dir shows `unreadable`, the dir exists
+   but this session cannot read it: **do not offer `deps install`** (it would not help). Tell the user
+   the absolute path(s) the advice line names to add to `sandbox.filesystem.allowRead`, and go to
+   **Sandbox read access** below. If `ts-morph` shows `missing`, tell the user that `cg deps install`
+   downloads it from the npm registry into the plugin's own directory (not the project), and offer to
+   run it. `deps install` downloads from the npm registry,
    which the sandbox usually blocks, so tell the user to run it in their own shell (`! code-graph deps
    install`, or `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install`). If it resolves
    (plugin or project), do nothing for the install.
@@ -88,9 +94,10 @@ $ARGUMENTS
 
    **Sandbox read access.** Read `sandbox.enabled` in `~/.claude/settings.json` and the project's
    `.claude/settings.json` / `.claude/settings.local.json` (missing is empty). Only when it is true and
-   `cg deps status` reports `ts-morph` missing or unreadable (the sandbox hides `~/.cache`), offer to add
-   the absolute `code-graph` cache dir named in `deps status`' advice line (i.e.
-   `<XDG_CACHE_HOME|~/.cache>/code-graph`) to `sandbox.filesystem.allowRead`. Say it is a lasting
+   `cg deps status` reports `ts-morph` not loadable, not visible or missing (the sandbox can deny
+   `~/.cache` even after a successful `deps install`), offer to add the absolute path(s) named in
+   `deps status`' advice line (with no advice line, the absolute `<XDG_CACHE_HOME|~/.cache>/code-graph`
+   that `deps install` writes under) to `sandbox.filesystem.allowRead`. Say it is a lasting
    settings change and add it only on the user's yes. Default to the user settings
    (`~/.claude/settings.json`, since the cache is per user); offer `.claude/settings.local.json` as the
    alternative. Edit the JSON with Edit, merging into an existing `allowRead` array, and skip it when the

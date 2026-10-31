@@ -32,12 +32,15 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   its own compiler; keep in step with package.json); (b) the project's own install via
   `createRequire(<project>/package.json)`. Neither → `MissingProjectDependencyError` naming
   `deps install`. Never download inside a graph command. A deps dir is probed with `probeDepsDir`
-  (stat) into `present | absent | unreadable | not-visible`: EACCES/EPERM is `unreadable`; ENOENT is
-  `absent` outside a sandbox. Under `SANDBOX_RUNTIME=1` (bubblewrap can hide a denied home path) an
-  ENOENT is told apart by listing `cacheRootDir()` (or the plugin-data root), then its parent: listable
-  and the dir not in it = `absent` ("run deps install"); neither visible = `not-visible` ("may be absent
-  or hidden", both fixes). `unreadable` and `not-visible` (`blockedState`) make the error and `deps
-  status` name `sandbox.filesystem.allowRead` and the absolute cache dir as well as `deps install`.
+  (stat, then readdir of `node_modules`) into `present | absent | unreadable | not-visible`: EACCES/EPERM
+  on either is `unreadable` (macOS Seatbelt allows stat on a denied dir but EPERMs readdir/open, so stat
+  alone is not enough); ENOENT is `absent` outside a sandbox. Under `SANDBOX_RUNTIME=1` (bubblewrap can
+  hide a denied home path) an ENOENT is told apart by listing `depsRootDir()` (cache root or plugin-data
+  root), then its parent: listable, or denied but visible (Seatbelt: the ENOENT is genuine) = `absent`
+  ("run deps install"); neither visible = `not-visible` ("may be absent or hidden", both fixes).
+  `unreadable` ("exists but cannot be read", never "run deps install" alone) and `not-visible`
+  (`blockedState`) make the error and `deps status` name `sandbox.filesystem.allowRead` and the
+  absolute root(s) from `allowReadPaths`.
   `deps install` stays on `~/.cache`: `CLAUDE_PLUGIN_DATA` is unset in the user's shell and Claude Code
   documents no way to locate it from there.
 - **No `node:sqlite`** (Node <22.5 or `--no-experimental-sqlite`): `sqlite-guard.ts` is the one catch.
