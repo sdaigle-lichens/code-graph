@@ -122,7 +122,22 @@ run `extract <concept>` first, then `drift`, to see pending source edits. The JS
 With rename candidates, `apply` asks `y`/`n`/skip-all for each one; `--approve-drift` accepts them all
 without asking. `apply --defer-renames` never prompts: when there are rename candidates it prints the
 drift, writes nothing and exits 10, so a later `apply <concept>` at a terminal sees the same drift. It
-cannot be combined with `--approve-drift` (exit 1).
+cannot be combined with `--approve-drift` (exit 1). In a batch a deferred concept does not stop the
+others; the batch exits 10 when any was deferred and none failed (a failure exits 1).
+
+A concept **never applied** (no live vertex and no doc row in the store) is reported in one line
+instead of every vertex listed as new: text
+`Concept: <c>  never applied, <n> vertices to insert — run: code-graph apply <c>`, JSON
+`{ concept, neverApplied: true, vertices }`. Exit 0.
+
+**Several concepts.** `extract`, `apply` and `drift` take several names, or `--all` (every concept in
+`scribe.config.json`, in config order). One name runs exactly as before (the first error exits 1).
+Names together with `--all`, or neither, exits 1. A batch runs each concept in turn and goes on past a
+failing one (`<command> <concept> failed: <message>` on stderr, unless the error was already printed),
+then prints `<command>: N of M concept(s) failed: a, b` and exits 1. Batch `extract` prefixes each
+concept's stderr summary with `<concept>: `; batch `apply`/`drift` text separates concepts with a blank
+line. Batch `drift --json` (and `apply --dry-run --json`) prints one object
+`{ concepts: [<per-concept report>], failed: [{ concept, error }] }`, also when some failed.
 
 ### Automatic refresh after a SKILL.md edit (`refresh-skills`, plugin hook)
 
@@ -244,9 +259,9 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph status`                   | `code-graph status`                                                  | Show store path, schema version, integrity and row counts |
 | `code-graph bootstrap`                | `code-graph bootstrap`                                               | Create the graph store for the current project            |
 | `code-graph reindex`                  | `code-graph reindex`                                                 | Rebuild the full-text index from the stored graph         |
-| `code-graph extract <concept>`        | `code-graph extract workorder-store`                                 | Extract AST → `scribe-output/<concept>.ast.json`          |
-| `code-graph apply <concept>`          | `code-graph apply workorder-store`                                   | Apply enriched doc to graph (upsert + drift check)        |
-| `code-graph drift <concept>`          | `code-graph drift workorder-store`                                   | Show drift without applying (alias for `apply --dry-run`) |
+| `code-graph extract <concept>...\|--all` | `code-graph extract workorder-store`                              | Extract AST → `scribe-output/<concept>.ast.json`          |
+| `code-graph apply <concept>...\|--all`   | `code-graph apply workorder-store`                                | Apply enriched doc to graph (upsert + drift check)        |
+| `code-graph drift <concept>...\|--all`   | `code-graph drift --all --json`                                   | Show drift without applying (alias for `apply --dry-run`) |
 | `code-graph refresh-skills`           | `code-graph refresh-skills --json`                                   | Extract + apply every applied concept whose SKILL.md changed; renames deferred (exit 10) |
 | `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --summary --json`         | List vertices that need enrichment (lazy; `--all`: every) |
 | `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
@@ -272,7 +287,7 @@ the `skills` block of `scribe.config.json`. They work in any repo — no store, 
 | ------------------------------------------ | --------------------------------------------------------------------------- |
 | `code-graph skills list [--json]`          | Every concept skill under every nested `.claude/skills`                     |
 | `code-graph skills state`                  | Repo-level list record (`{"present": false}` when none yet)                 |
-| `code-graph skills stamp [skill] [--bump minor\|major\|initial] [--sha <sha>] [--reviewed]` | Stamp one skill's marker; with no skill, the repo-level `skills` block. Warns on a blind stamp (see below) |
+| `code-graph skills stamp [skill...] [--bump minor\|major\|initial] [--sha <sha>] [--reviewed] [--print] [--json]` | Stamp skill markers (several share `--bump`/`--sha`); with no skill, the repo-level `skills` block. Warns on a blind stamp (see below) |
 | `code-graph skills check [--json] [--strict]` | Concepts missing a SKILL.md, path mismatches, unmarked and docs-only skills (`--strict` exits 1) |
 | `code-graph skills status [skill] [--json\|--summary]` | Per-concept version, last-update and commits since, over its globs; with a skill, that concept only, naming each changed file with its commit count |
 | `code-graph skills agents`                 | The agents list agent notes may be written for (JSON array)                 |
@@ -304,6 +319,17 @@ after you read the SKILL.md against those files. No check for an unstamped skill
 globs) or an unknown or malformed previous sha. A blocked write still exits 9 and prints the lines, plus the
 warning. It never refuses a stamp. Known limit: the first re-stamp after a skill is created gives no
 warning, because the commit that added the SKILL.md counts as an edit.
+
+**Several skills.** `skills stamp a b c --bump minor` resolves and computes every stamp first; any target
+that fails there exits 1 with nothing written (`nothing stamped, N of M skill(s) failed:` and one line
+each). Then each is written in turn, and a blocked write does not stop the rest. Text prints
+`stamped <path>  v<version>  written|unchanged` per written skill, then every blocked skill under one
+header, `N stamp(s) computed, not written; apply these lines by hand with Edit:` (per skill:
+`not written: <path>`, `reason:`, the heading and lines as for exit 9 below). `--json` gives
+`{ stamped: [{ path, version, lastUpdate, written, warning? }], blocked: [{ path, version, lastUpdate,
+reason, heading, lines, warning? }], failed: [{ path, error }] }`. `--print` lists every skill as blocked
+(reason `--print: write skipped`) and exits 0. Exit 0, 9 when any write was blocked, 1 when another
+write error happened (it wins over 9; the other skills are still written).
 
 ### Concept-skill skills (plugin)
 
@@ -413,8 +439,8 @@ the repo's history.
 | 6         | Zero search results     | Rephrase query or use Explore agent          |
 | 7         | `search` low confidence | Results are printed, but the top cluster is a weak match or its concept is un-enriched (`LOW_CONFIDENCE_MIN_SCORE`, `LOW_CONFIDENCE_MIN_ENRICHED` in `query/search.ts`). Verify with grep or the concept's SKILL.md. `--json` sets `low_confidence: true` and `low_confidence_reason`. An exact symbol-name hit and a docs-only concept are never low confidence |
 | 8         | `node:sqlite` unavailable | Any command that opens the store (`search`, `query *`, `status`, `bootstrap`, `reindex`, `apply`, `drift`, `enrich *`, `eval`, `delete-concept`) on a Node without `node:sqlite`. One stderr line names the requirement: Node >=22.5, no `--no-experimental-sqlite`. Check with `node --version`. `skills *`, `deps *`, `extract` and `catalog` never open the store and still run |
-| 9         | `skills stamp` computed, not written | The sandbox blocked the SKILL.md write (EROFS/EPERM/EACCES). Output: `stamp computed, not written: <path>`, `reason:`, then `set exactly these lines in its metadata block:` and the lines (unmarked skill: `replace the metadata block (or add it to the frontmatter) with exactly:` and the whole block). Apply them with Edit, then re-run `skills status`. `--print` computes and prints without writing (exit 0); `--json` gives `{ stamped, version, lastUpdate, written: false, blocked: { reason, lines } }` |
-| 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and wrote nothing. Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
+| 9         | `skills stamp` computed, not written | The sandbox blocked the SKILL.md write (EROFS/EPERM/EACCES). Output: `stamp computed, not written: <path>`, `reason:`, then `set exactly these lines in its metadata block:` and the lines (unmarked skill: `replace the metadata block (or add it to the frontmatter) with exactly:` and the whole block). Apply them with Edit, then re-run `skills status`. `--print` computes and prints without writing (exit 0); `--json` gives `{ stamped, version, lastUpdate, written: false, blocked: { reason, lines } }`. With several skills, every blocked skill's lines come back in one result (see **Several skills** above) |
+| 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and wrote nothing for that concept. Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
 
 ## Zed editor LSP
 

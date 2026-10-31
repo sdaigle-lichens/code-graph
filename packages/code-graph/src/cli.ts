@@ -10,6 +10,7 @@ process.on("warning", (w) => {
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
+import { batchFailureSummary, ReportedError, resolveConceptArgs, runConceptBatch } from "./concept-batch.js";
 import { tryLoadConfig } from "./config.js";
 import { registerSkillsCommands } from "./skills/commands.js";
 import { ensureSqlite, STORE_COMMANDS } from "./sqlite-guard.js";
@@ -169,12 +170,57 @@ program
     }
   });
 
+/**
+ * Shared driver of `extract` / `apply` / `drift`. One named concept (no `--all`) runs exactly as the
+ * single-concept command always has: the first failure exits 1. Several names or `--all` run each
+ * concept in turn, a failure does not stop the rest, and the batch exits 1 when any failed. `--json`
+ * (drift) gathers every concept's report into one `{ concepts, failed }` line.
+ */
+async function runForConcepts(
+  command: string,
+  named: string[] | undefined,
+  opts: { all?: boolean; json?: boolean },
+  one: (concept: string, batch: { collect: boolean }) => Promise<unknown>
+): Promise<void> {
+  const list = named ?? [];
+  try {
+    if (await skippedForNoConcepts(command)) return;
+    if (list.length === 1 && !opts.all) {
+      await one(list[0], { collect: false });
+      return;
+    }
+    const { loadConfig } = await import("./config.js");
+    const concepts = resolveConceptArgs(Object.keys(loadConfig(process.cwd()).concepts), list, opts.all ?? false);
+    if (concepts.length === 1) {
+      await one(concepts[0], { collect: false });
+      return;
+    }
+    const reports: unknown[] = [];
+    const failed = await runConceptBatch(command, concepts, async (concept) => {
+      const report = await one(concept, { collect: opts.json === true });
+      if (report !== undefined) reports.push(report);
+    });
+    if (opts.json) console.log(JSON.stringify({ concepts: reports, failed }));
+    if (failed.length > 0) {
+      console.error(batchFailureSummary(command, failed, concepts.length));
+      process.exit(1);
+    }
+  } catch (err) {
+    // Already printed (missing ast.json, unknown concept, ...): exit 1 without repeating it.
+    if (!(err instanceof ReportedError)) console.error(`${command} failed:`, (err as Error).message);
+    process.exit(1);
+  }
+}
+
 program
-  .command("extract <concept>")
-  .description("extract AST for a concept")
-  .action(async (concept: string) => {
-    try {
-      if (await skippedForNoConcepts("extract")) return;
+  .command("extract [concepts...]")
+  .description("extract AST for one or more concepts (or --all); a batch goes on past a failing concept")
+  .option("--all", "every concept in scribe.config.json, in config order")
+  .action(async (concepts: string[] | undefined, opts: { all?: boolean }) => {
+    const batch = (concepts?.length ?? 0) > 1 || opts.all === true;
+    await runForConcepts("extract", concepts, opts, async (concept) => {
+      // In a batch, the per-concept stderr summary ("N vertices, ...") is prefixed with its concept.
+      if (batch) process.stderr.write(`${concept}: `);
       // A docs-only concept needs no TypeScript compiler, so it must not load ts-morph.
       const { loadConfig } = await import("./config.js");
       const { isDocsOnly, extractDocsOnly } = await import("./scribe/ast-output.js");
@@ -185,48 +231,47 @@ program
       }
       const { extract } = await import("./scribe/extract.js");
       await extract(concept);
-    } catch (err) {
-      console.error("extract failed:", (err as Error).message);
-      process.exit(1);
-    }
+    });
   });
 
 program
-  .command("apply <concept>")
-  .description("apply enriched doc to graph")
+  .command("apply [concepts...]")
+  .description("apply enriched doc to graph, for one or more concepts (or --all)")
+  .option("--all", "every concept in scribe.config.json, in config order")
   .option("--dry-run")
   .option("--approve-drift")
   .option("--json", "with --dry-run: emit the drift as JSON (names and files)")
   .option(
     "--defer-renames",
-    "non-interactive: never prompt; when there are rename candidates write nothing and exit 10"
+    "non-interactive: never prompt; a concept with rename candidates is left unwritten and the command exits 10"
   )
   .action(
     async (
-      concept: string,
-      opts: { dryRun?: boolean; approveDrift?: boolean; json?: boolean; deferRenames?: boolean }
+      concepts: string[] | undefined,
+      opts: { all?: boolean; dryRun?: boolean; approveDrift?: boolean; json?: boolean; deferRenames?: boolean }
     ) => {
-      try {
-        if (opts.json && !opts.dryRun) {
-          console.error("apply failed: --json needs --dry-run");
-          process.exit(1);
-        }
-        if (opts.deferRenames && opts.approveDrift) {
-          console.error("apply failed: --defer-renames and --approve-drift are mutually exclusive");
-          process.exit(1);
-        }
-        if (await skippedForNoConcepts("apply")) return;
+      if (opts.json && !opts.dryRun) {
+        console.error("apply failed: --json needs --dry-run");
+        process.exit(1);
+      }
+      if (opts.deferRenames && opts.approveDrift) {
+        console.error("apply failed: --defer-renames and --approve-drift are mutually exclusive");
+        process.exit(1);
+      }
+      let first = true;
+      await runForConcepts("apply", concepts, opts, async (concept, { collect }) => {
+        // Blank line between concepts' text reports in a batch.
+        if (!first && !opts.json) console.log("");
+        first = false;
         const { apply } = await import("./scribe/apply.js");
-        await apply(concept, {
+        return apply(concept, {
           dryRun: opts.dryRun ?? false,
           approveDrift: opts.approveDrift ?? false,
           json: opts.json ?? false,
           deferRenames: opts.deferRenames ?? false,
+          collect,
         });
-      } catch (err) {
-        console.error("apply failed:", (err as Error).message);
-        process.exit(1);
-      }
+      });
     }
   );
 
@@ -326,18 +371,18 @@ enrich
   });
 
 program
-  .command("drift <concept>")
-  .description("show drift for a concept (alias for apply --dry-run)")
-  .option("--json", "emit the drift as JSON (names and files)")
-  .action(async (concept: string, opts: { json?: boolean }) => {
-    try {
-      if (await skippedForNoConcepts("drift")) return;
+  .command("drift [concepts...]")
+  .description("show drift for one or more concepts, or --all (alias for apply --dry-run)")
+  .option("--all", "every concept in scribe.config.json, in config order")
+  .option("--json", "emit the drift as JSON (names and files); several concepts: one { concepts, failed } object")
+  .action(async (concepts: string[] | undefined, opts: { all?: boolean; json?: boolean }) => {
+    let first = true;
+    await runForConcepts("drift", concepts, opts, async (concept, { collect }) => {
+      if (!first && !opts.json) console.log("");
+      first = false;
       const { apply } = await import("./scribe/apply.js");
-      await apply(concept, { dryRun: true, approveDrift: false, json: opts.json ?? false });
-    } catch (err) {
-      console.error("drift failed:", (err as Error).message);
-      process.exit(1);
-    }
+      return apply(concept, { dryRun: true, approveDrift: false, json: opts.json ?? false, collect });
+    });
   });
 
 program

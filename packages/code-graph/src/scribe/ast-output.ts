@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ScribeConfig } from "../config.js";
+import { ReportedError } from "../concept-batch.js";
 import { resolveConceptSkillPath } from "../skills/concept-skills.js";
 import { packageVersion } from "../version.js";
 import type { Edge, Vertex } from "../schema.js";
@@ -92,11 +93,11 @@ export function writeAstOutput(
 export async function extractDocsOnly(config: ScribeConfig, conceptName: string): Promise<void> {
   const skill = await readConceptSkill(config, conceptName);
   if (!skill) {
-    console.error(
+    const msg =
       `error: docs-only concept "${conceptName}" has no SKILL.md (set concepts.${conceptName}.skill, mark a ` +
-        `concept skill named "${conceptName}", or add <skillsDir>/${conceptName}/SKILL.md)`
-    );
-    process.exit(1);
+      `concept skill named "${conceptName}", or add <skillsDir>/${conceptName}/SKILL.md)`;
+    console.error(msg);
+    throw new ReportedError(msg);
   }
   writeAstOutput(config, conceptName, [], [], skill);
   process.stderr.write(`0 vertices, 0 edges, skill body ${skill.body.length} chars (docs-only)\n`);

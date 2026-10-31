@@ -141,25 +141,29 @@ For the `skill` path in the config: use the SKILL.md you just wrote. Where the k
 ### 7. Stamp — create is 1.0
 
 ```bash
-cg skills stamp <concept-id> --bump initial
+cg skills stamp <concept-id>... --bump initial
 cg skills stamp --bump initial
 ```
 
-First once per skill written, then once for the repo-level `skills` block. Both default to `HEAD`.
+First every skill written, in one call, then the repo-level `skills` block. Both default to `HEAD`.
+**Before stamping, warn the user** that the sandbox often blocks writes under the project's own
+`.claude/skills`, so some stamps may come back unwritten and you will offer to apply their lines with
+Edit. A blocked write does not stop the rest of the batch; it exits 9 and lists every blocked
+SKILL.md under `N stamp(s) computed, not written; apply these lines by hand with Edit:`.
 Never hand-edit `metadata.version` or `metadata.last-update`, except on exit 9 (sandbox blocked the
-write): the output says `set exactly these lines in its metadata block:` (unmarked skill: `replace the
-metadata block (or add it to the frontmatter) with exactly:`) and the lines. Apply them with Edit, then
-re-run `cg skills status`.
+write): per blocked skill the output says `set exactly these lines in its metadata block:` (unmarked
+skill: `replace the metadata block (or add it to the frontmatter) with exactly:`) and the lines. Apply
+them with Edit, then re-run `cg skills status`.
 
 ### 8. Build the graph (skip with no tsconfig)
 
 ```bash
 cg bootstrap
-cg extract <concept>
-cg apply <concept>
+cg extract --all
+cg apply --all
 ```
 
-`bootstrap` once, then `extract` + `apply` per concept — zero tokens, and the new SKILL.md is
+`bootstrap` once, then `extract` + `apply` over every concept in one call each — zero tokens, and the new SKILL.md is
 ingested as a doc vertex so `search` finds it. **Do not enrich now**: enrichment spends tokens and
 is better done when a SKILL.md has real content — run the `scribe` skill's enrichment for `<concept>` after
 `update-single-concept-skill`. In a repo with **no tsconfig** skip this whole step: the skills and

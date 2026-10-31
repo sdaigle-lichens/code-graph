@@ -17,13 +17,14 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 | File | Role |
 | --- | --- |
-| `scribe/extract.ts` | ts-morph walk of the concept's globs; emits vertices and edges, never touches the store |
+| `concept-batch.ts` | batch forms of `extract`/`apply`/`drift` (`<concept>...` or `--all`): `resolveConceptArgs`, `runConceptBatch`, `batchFailureSummary`, `ReportedError`; loaded statically by `cli.ts`, so it imports nothing that touches the store or ts-morph |
+| `scribe/extract.ts` | ts-morph walk of the concept's globs; emits vertices and edges, never touches the store; caches one `Project` per tsconfig path per process, so a batch extract parses the tsconfig once |
 | `scribe/ast-output.ts` | reads the concept's SKILL.md, writes the `.ast.json`; `extractDocsOnly` for concepts with no code |
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants) |
 | `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `EXIT_RENAMES_DEFERRED` (10) and `HOOK_TIMEOUT_SECONDS` (120). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
-| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses |
+| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`) |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
@@ -86,6 +87,18 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   queries (`oneHop`, `twoHops`, `oneHopAnyTable`, `queryConcept`, `queryCross`) hide edges whose far
   vertex is missing or archived. No `SCHEMA_VERSION`/`FTS_FORMAT` bump; the first `extract` after 0.3.27
   rewrites each ast.json once. Guarded by `scribe/cross-concept-edges.test.ts`.
+- Batch (`cli.ts` `runForConcepts`): one name without `--all` runs the single-concept path unchanged;
+  several names or `--all` (config order) run each concept, go on past a failure, then print
+  `<command>: N of M concept(s) failed: …` and exit 1. Batch `drift --json` passes `collect` to `apply`,
+  which returns its report instead of printing it, and prints one `{ concepts, failed }` line.
+- **Errors in `apply`/`extract` print, then throw `ReportedError`; never `process.exit`** (a batch must
+  reach the next concept). `apply`'s `fail(...lines)` does both; the CLI skips re-printing a
+  `ReportedError`. A dry run returns instead of `process.exit(0)`.
+- "Applied" means `isConceptApplied(store, concept)` in `enrich.ts`: a live vertex or a docs row (a
+  docs-only concept has no vertex). Use it, don't re-derive it. On a never-applied concept, `apply
+  --dry-run`/`drift` print one line (`{ concept, neverApplied: true, vertices }` in JSON) instead of
+  listing every vertex as new. `apply`'s `conceptWasApplied` and `enrich targets`' `conceptApplied`
+  still use their own vertex-count checks.
 - Re-apply replaces all AST edges; agent-authored edges are upserted separately.
 - The concept SKILL.md becomes a `docs/<concept>::skill` vertex with `documented-by` edges to every
   live vertex. A docs-only concept (no code vertices) still gets the doc vertex, which is what makes

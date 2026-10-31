@@ -10,6 +10,7 @@ import {
 } from "ts-morph";
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
+import { ReportedError } from "../concept-batch.js";
 import { scanConceptFiles } from "./unextracted.js";
 import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
 import type { ScribeConfig } from "../config.js";
@@ -556,23 +557,31 @@ function buildEdges(
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+const projects = new Map<string, Project>();
+
 export async function extract(conceptName: string): Promise<void> {
   const config = loadConfig(process.cwd());
   const { configRoot } = config;
 
   const concept = config.concepts[conceptName];
   if (!concept) {
-    console.error(`error: concept "${conceptName}" not found in scribe.config.json`);
-    process.exit(1);
+    const msg = `error: concept "${conceptName}" not found in scribe.config.json`;
+    console.error(msg);
+    throw new ReportedError(msg);
   }
 
   if (isDocsOnly(config, conceptName)) return extractDocsOnly(config, conceptName);
 
   const tsconfigPath = join(configRoot, config.tsconfig!);
-  const project = new Project({
-    tsConfigFilePath: tsconfigPath,
-    skipAddingFilesFromTsConfig: false,
-  });
+  // One parse of the tsconfig per process: a batch extract reads the same files for every concept.
+  let project = projects.get(tsconfigPath);
+  if (!project) {
+    project = new Project({
+      tsConfigFilePath: tsconfigPath,
+      skipAddingFilesFromTsConfig: false,
+    });
+    projects.set(tsconfigPath, project);
+  }
 
   // Filter source files to those matching the concept's globs
   const allSourceFiles = project.getSourceFiles();
@@ -585,8 +594,9 @@ export async function extract(conceptName: string): Promise<void> {
   });
 
   if (conceptFiles.length === 0) {
-    console.error(`error: no source files matched concept "${conceptName}" globs`);
-    process.exit(1);
+    const msg = `error: no source files matched concept "${conceptName}" globs`;
+    console.error(msg);
+    throw new ReportedError(msg);
   }
 
   const vertices: Vertex[] = [];

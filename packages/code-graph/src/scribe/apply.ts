@@ -3,9 +3,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
+import { ReportedError } from "../concept-batch.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
-import { enrichmentIsCurrent } from "./enrich.js";
+import { enrichmentIsCurrent, isConceptApplied } from "./enrich.js";
 import { formatUnextracted, unextractedChanges } from "./unextracted.js";
 import { EXIT_RENAMES_DEFERRED } from "./skill-refresh.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
@@ -178,10 +179,33 @@ function buildAgentUpdate(
   return update;
 }
 
+/** Prints `lines` to stderr and throws: the CLI exits 1 (one concept) or moves on (a batch). */
+function fail(...lines: string[]): never {
+  for (const l of lines) console.error(l);
+  throw new ReportedError(lines[0]);
+}
+
+/** `drift --json` for a concept never applied: one line instead of every vertex listed as new. */
+export interface NeverAppliedDrift {
+  concept: string;
+  neverApplied: true;
+  /** Vertices in the concept's .ast.json, all of which the first apply will insert. */
+  vertices: number;
+}
+
+/** What `apply --dry-run --json` / `drift --json` reports for one concept. */
+export type DriftJson = NeverAppliedDrift | Record<string, unknown>;
+
+/**
+ * Apply a concept's .ast.json (+ .enriched.json) to the store, or with `dryRun` only report the
+ * drift. With `dryRun` + `json` the report is printed as one JSON line and returned; `collect` returns
+ * it without printing (batch `drift --json` prints all concepts as one object). Errors are printed
+ * and thrown as `ReportedError`.
+ */
 export async function apply(
   concept: string,
-  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean; deferRenames?: boolean }
-): Promise<void> {
+  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean; deferRenames?: boolean; collect?: boolean }
+): Promise<DriftJson | void> {
   const config = loadConfig();
   const { configRoot } = config;
   const now = nowISO();
@@ -192,8 +216,7 @@ export async function apply(
   // Load ast.json (required)
   const astPath = join(configRoot, "scribe-output", `${concept}.ast.json`);
   if (!existsSync(astPath)) {
-    console.error(`error: ${astPath} not found — run: code-graph extract ${concept}`);
-    process.exit(1);
+    fail(`error: ${astPath} not found — run: code-graph extract ${concept}`);
   }
 
   let astDoc: AstDoc;
@@ -201,14 +224,11 @@ export async function apply(
     const raw = JSON.parse(readFileSync(astPath, "utf-8"));
     astDoc = AstDocSchema.parse(raw);
   } catch (err) {
-    console.error(`error: ast.json validation failed — ${fmtError(err)}`);
-    console.error(`  re-run: code-graph extract ${concept}`);
-    process.exit(1);
+    fail(`error: ast.json validation failed — ${fmtError(err)}`, `  re-run: code-graph extract ${concept}`);
   }
 
   if (astDoc.concept !== concept) {
-    console.error(`error: ast.json concept "${astDoc.concept}" !== arg "${concept}"`);
-    process.exit(1);
+    fail(`error: ast.json concept "${astDoc.concept}" !== arg "${concept}"`);
   }
 
   // Load enriched.json (optional)
@@ -219,14 +239,14 @@ export async function apply(
       const raw = JSON.parse(readFileSync(enrichedPath, "utf-8"));
       enrichedDoc = EnrichedDocSchema.parse(raw);
     } catch (err) {
-      console.error(`error: enriched.json validation failed — ${fmtError(err)}`);
-      console.error(`  re-run: ask the scribe skill to enrich ${concept}`);
-      process.exit(1);
+      fail(
+        `error: enriched.json validation failed — ${fmtError(err)}`,
+        `  re-run: ask the scribe skill to enrich ${concept}`
+      );
     }
 
     if (enrichedDoc.concept !== concept) {
-      console.error(`error: enriched.json concept "${enrichedDoc.concept}" !== arg "${concept}"`);
-      process.exit(1);
+      fail(`error: enriched.json concept "${enrichedDoc.concept}" !== arg "${concept}"`);
     }
   }
 
@@ -274,7 +294,21 @@ export async function apply(
   const dbMap = new Map(dbVertices.map((v) => [v._key, v]));
   // A concept's first apply ingests every vertex at once: none of them was touched by a task, so
   // only later applies stamp `agent.touched_at` on un-enriched new/changed vertices (lazy targets).
-  const conceptWasApplied = dbVertices.length > 0;
+  // "Applied" is `isConceptApplied` (a live vertex or a doc row), the same rule `enrich targets` uses.
+  const conceptWasApplied = isConceptApplied(store, concept);
+
+  // Never applied: every vertex would read as new, so the drift report says so in one line instead
+  // of listing them all.
+  if (opts.dryRun && !conceptWasApplied) {
+    const n = astDoc.vertices.length;
+    if (opts.json) {
+      const report: NeverAppliedDrift = { concept, neverApplied: true, vertices: n };
+      if (!opts.collect) console.log(JSON.stringify(report));
+      return report;
+    }
+    console.log(`Concept: ${concept}  never applied, ${n} vertices to insert — run: code-graph apply ${concept}`);
+    return;
+  }
 
   // Compute diff sets
   const newKeys: string[] = [];
@@ -353,24 +387,23 @@ export async function apply(
       return dbV.agent?.stale === true && !(ev?.hash_seen !== undefined && ev.hash_seen === dbV.contentHash);
     });
     const staleKeys = [...staleChangedKeys, ...stillStale];
-    console.log(
-      JSON.stringify({
-        concept,
-        new: trueNewKeys.map((k) => ref(astVertexMap.get(k)!)),
-        changed: changedKeys.map((k) => ref(astVertexMap.get(k)!)),
-        stale: staleKeys.map((k) => ref(astVertexMap.get(k) ?? dbMap.get(k)!)),
-        missing: missingKeys.map((k) => ref(dbMap.get(k)!)),
-        renameCandidates: uniqueRenames.map((r) => ({
-          from: ref(dbMap.get(r.oldKey)!),
-          to: ref(astVertexMap.get(r.newKey)!),
-          score: Number(r.score.toFixed(2)),
-        })),
-        doc: { bodyHashChanged: docHashDisplay === "changed" },
-        // Files edited/added/removed since the last extract; null when ast.json predates `meta.files`.
-        unextracted,
-      })
-    );
-    return;
+    const report = {
+      concept,
+      new: trueNewKeys.map((k) => ref(astVertexMap.get(k)!)),
+      changed: changedKeys.map((k) => ref(astVertexMap.get(k)!)),
+      stale: staleKeys.map((k) => ref(astVertexMap.get(k) ?? dbMap.get(k)!)),
+      missing: missingKeys.map((k) => ref(dbMap.get(k)!)),
+      renameCandidates: uniqueRenames.map((r) => ({
+        from: ref(dbMap.get(r.oldKey)!),
+        to: ref(astVertexMap.get(r.newKey)!),
+        score: Number(r.score.toFixed(2)),
+      })),
+      doc: { bodyHashChanged: docHashDisplay === "changed" },
+      // Files edited/added/removed since the last extract; null when ast.json predates `meta.files`.
+      unextracted,
+    };
+    if (!opts.collect) console.log(JSON.stringify(report));
+    return report;
   }
 
   // Print drift report
@@ -400,10 +433,8 @@ export async function apply(
     }
   }
 
-  // Dry-run: exit here
-  if (opts.dryRun) {
-    process.exit(0);
-  }
+  // Dry-run: stop here (return, not exit, so a batch drift goes on to the next concept)
+  if (opts.dryRun) return;
 
   // Non-interactive mode: never prompt and never decide a rename. The whole concept is left
   // unapplied (no partial write) so the person who runs `apply <concept>` later sees the same drift.
@@ -412,7 +443,9 @@ export async function apply(
       `\nDeferred: ${uniqueRenames.length} rename candidate(s) need a decision; nothing was written.` +
         `\n  run: code-graph apply ${concept}`
     );
-    process.exit(EXIT_RENAMES_DEFERRED);
+    // exitCode, not exit: a batch `apply --defer-renames` goes on to the next concept.
+    process.exitCode = EXIT_RENAMES_DEFERRED;
+    return;
   }
 
   // Interactive rename prompts
