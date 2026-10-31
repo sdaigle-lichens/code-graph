@@ -74,6 +74,14 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 Run each alone in its own Bash call. `apply` reports drift; enrichment (`enrichment.md`) is a separate,
 token-spending step, run only when asked or when `update-concept-skills` calls for it.
 
+**The plugin's Stop/SubagentStop hook enforces this rule** (`refresh-skills --hook`): when a session or
+subagent stops, every already-applied concept whose SKILL.md changed is extracted and applied. Running
+the two commands yourself still works and makes the doc searchable before the stop. The hook never
+decides a rename: a concept with rename candidates is left unapplied and named in a `code-graph:` system
+message. Have the user run `code-graph apply <concept>` in a terminal to answer the rename prompts;
+never `--approve-drift` (it records a rename as an insert plus an archive and loses enrichment). Such a
+concept is re-reported at every stop until it is applied by hand: hooks never block and always exit 0.
+
 **No tsconfig, or no `concepts` in `scribe.config.json`** (Terraform, docs-only repos): there is no
 graph to feed. Skip extract + apply, and say so. Writing the SKILL.md and stamping it
 (`skills stamp`) is the whole job; nothing else in this skill depends on a graph.
