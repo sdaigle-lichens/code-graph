@@ -1058,3 +1058,9 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     145 (touched surfaces, overlap check, merge plan, review checks, re-test after merge) and 146
     (blocked until merged). Both are queued; 145 waits on 144 and 146 on 145. The missing graph
     store in fresh worktrees stays with 056/057.
+  - Maestro task 144 (per-task channel scoping) is committed as 9250c5d on maestro's
+    feat/use-code-graph, but it isn't pushed or released. Until code-graph runs a maestro plugin
+    version that includes it, warn every parallel worker (055/056/058) that channel payloads can
+    cross tickets. Even after it ships, two gaps remain: a worktree agent other than reviewer or
+    refactor can still write into another task's channel, and claiming a task doesn't set a
+    session's channel scope.
