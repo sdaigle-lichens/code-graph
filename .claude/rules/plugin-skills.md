@@ -21,7 +21,10 @@ Concept-skill flows shipped with the plugin. Each calls only
   that version's release note to maestro's manager, with the old and new shape. A breaking change (a
   renamed or removed field, or a new required one) keeps accepting the old shape for one version so
   maestro can follow.
-- The plugin ships no hooks and adds no session context (the graph-context SessionStart hook was removed
-  in 0.3.x, ticket 054): `plugin/hooks/` must not exist. `code-graph-retrieval` stays user-run
-  (`disable-model-invocation: true`); do not reintroduce anything that steers sessions to the graph before grep.
+- The plugin adds no session context (the graph-context SessionStart hook was removed in 0.3.29,
+  ticket 054). `code-graph-retrieval` stays user-run (`disable-model-invocation: true`). Do not
+  reintroduce anything that steers sessions to the graph before grep.
+- The only hooks allowed in `plugin/hooks/` are maintenance hooks: they keep the store current and
+  report only through `systemMessage` (Stop/SubagentStop `refresh-skills`, ticket 045). A hook must
+  never inject `additionalContext`, block a stop, or suggest retrieval, and it always exits 0.
 - Nothing developer-facing (`CLAUDE.md`, `.claude/`) may live under `plugin/`; `pnpm check` fails on it.
