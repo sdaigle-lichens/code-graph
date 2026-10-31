@@ -7,6 +7,7 @@ import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
 import { enrichmentIsCurrent } from "./enrich.js";
 import { formatUnextracted, unextractedChanges } from "./unextracted.js";
+import { EXIT_RENAMES_DEFERRED } from "./skill-refresh.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
 import {
   AstDocSchema,
@@ -179,7 +180,7 @@ function buildAgentUpdate(
 
 export async function apply(
   concept: string,
-  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean }
+  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean; deferRenames?: boolean }
 ): Promise<void> {
   const config = loadConfig();
   const { configRoot } = config;
@@ -402,6 +403,16 @@ export async function apply(
   // Dry-run: exit here
   if (opts.dryRun) {
     process.exit(0);
+  }
+
+  // Non-interactive mode: never prompt and never decide a rename. The whole concept is left
+  // unapplied (no partial write) so the person who runs `apply <concept>` later sees the same drift.
+  if (opts.deferRenames && uniqueRenames.length > 0) {
+    console.log(
+      `\nDeferred: ${uniqueRenames.length} rename candidate(s) need a decision; nothing was written.` +
+        `\n  run: code-graph apply ${concept}`
+    );
+    process.exit(EXIT_RENAMES_DEFERRED);
   }
 
   // Interactive rename prompts
