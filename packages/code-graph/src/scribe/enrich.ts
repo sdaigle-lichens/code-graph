@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { loadConfig } from "../config.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore } from "./bootstrap.js";
-import { toDocs, vertexId } from "./rows.js";
+import type { DatabaseSync } from "node:sqlite";
+import { docKey, getRecord, toDocs, vertexId } from "./rows.js";
 import { coreVertices, isThinCore, thinCoreMessage } from "./core.js";
 import {
   AstDocSchema,
@@ -29,6 +30,18 @@ export function enrichmentIsCurrent(
   if (!ev) return false;
   if (ev.hash_seen !== undefined) return ev.hash_seen === now.contentHash;
   return ev.sig_seen !== undefined && ev.sig_seen === now.signature;
+}
+
+/**
+ * Whether `apply` has ever ingested the concept: a live code vertex, or the SKILL.md doc row a
+ * docs-only concept leaves behind. The one definition of "applied": `enrich targets` (the `applied`
+ * flag, the roll-up's `neverApplied[]`, and lazy target selection, where nothing counts as touched
+ * before the first apply), `apply` (no `agent.touched_at` stamps on the first apply) and `drift` /
+ * `apply --dry-run` (the one-line never-applied report).
+ */
+export function isConceptApplied(store: DatabaseSync, concept: string): boolean {
+  const live = store.prepare("SELECT 1 FROM vertices WHERE concept = ? AND status = 'live' LIMIT 1").get(concept);
+  return live !== undefined || getRecord(store, "docs", docKey(concept)) !== null;
 }
 
 function fail(msg: string, code = 1): never {
@@ -143,16 +156,6 @@ type ConceptTargets = {
   thinMessage: string | null;
 };
 
-/**
- * Whether `apply` has ever ingested the concept: live code vertices, or the SKILL.md doc record a
- * docs-only concept leaves behind. Reporting only; target selection keeps its own live-vertex rule.
- */
-function conceptWasApplied(store: Store, concept: string): boolean {
-  const hasVertex = store.prepare("SELECT 1 FROM vertices WHERE concept = ? AND status = 'live' LIMIT 1").get(concept);
-  if (hasVertex) return true;
-  return store.prepare("SELECT 1 FROM docs WHERE concept = ? LIMIT 1").get(concept) !== undefined;
-}
-
 export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void {
   const config = loadConfig();
   const ast = loadAst(config.configRoot, concept);
@@ -178,7 +181,7 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
       core: t.core,
       edgesWithoutReason: t.edgesWithoutReason.length,
     }));
-    const applied = conceptWasApplied(store, concept);
+    const applied = isConceptApplied(store, concept);
     if (opts.json) {
       // Compact on purpose: the summary exists to be read inline, so it carries no indentation.
       console.log(
@@ -251,7 +254,7 @@ export function enrichTargetsRollup(opts: Pick<EnrichTargetsOptions, "json" | "a
   const store = bootstrapStore(resolveDbPath(config));
   const concepts: EnrichRollupConcept[] = [];
   for (const concept of Object.keys(config.concepts)) {
-    const applied = conceptWasApplied(store, concept);
+    const applied = isConceptApplied(store, concept);
     const astPath = join(config.configRoot, "scribe-output", `${concept}.ast.json`);
     if (!existsSync(astPath)) {
       concepts.push({
@@ -324,7 +327,7 @@ function collectTargets(
   }
 
   const core = coreVertices(ast.vertices, ast.edges, ast.skill?.body ?? null);
-  const conceptApplied = dbMap.size > 0;
+  const conceptApplied = isConceptApplied(store, concept);
   let leftOut = 0;
   const targets: EnrichTarget[] = [];
   for (const v of ast.vertices) {

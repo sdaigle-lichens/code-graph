@@ -19,6 +19,12 @@ A concept skill is an ordinary `.claude/skills/<id>/SKILL.md` whose `metadata:` 
 those lines in place and preserves the file's own line endings. When the write is blocked (EROFS/EPERM/EACCES) `skills stamp`
 exits 9 and prints the lines to set by hand (`planStamp`, `isWriteBlocked`); `--print` does that on demand.
 
+`skills stamp a b c` (`stampBatch` in `skills/commands.ts`) plans every target first
+(`planSkillStamp`; any failure exits 1 with nothing written), then writes each in turn. A blocked write
+does not stop the rest: all blocked skills' lines come back together (text: one header; `--json`:
+`{ stamped, blocked, failed }`). Exit 9 when any was blocked, 1 on another write error, 0 with `--print`.
+One target keeps the single-skill output shape.
+
 ## Freshness
 
 `skills status` counts commits and changed files since a skill's `last-update` over the concept's

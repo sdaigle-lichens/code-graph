@@ -23,6 +23,7 @@ import {
 import { formatUnextracted } from "../scribe/unextracted.js";
 import {
   blindStampWarning,
+  type BlindStampWarning,
   checkConceptSkills,
   conceptSkillsStatus,
   findConceptStatus,
@@ -40,8 +41,8 @@ import {
   writeConceptSkillsState,
 } from "./state.js";
 
-/** `skills stamp <skill>`: the stamp was computed but the SKILL.md write was blocked (read-only or
- *  sandboxed filesystem); the lines to apply by hand were printed. */
+/** `skills stamp <skill>...`: a stamp was computed but its SKILL.md write was blocked (read-only or
+ *  sandboxed filesystem); the lines to apply by hand were printed (every blocked skill's, in a batch). */
 export const EXIT_STAMP_NOT_WRITTEN = 9;
 
 /** Cap on files listed per concept in the text status view. */
@@ -62,6 +63,157 @@ function json(value: unknown): void {
 function die(msg: string): never {
   process.stderr.write(`code-graph skills: ${msg}\n`);
   process.exit(1);
+}
+
+interface StampOpts extends RootOpts {
+  bump?: string;
+  sha?: string;
+  print?: boolean;
+  json?: boolean;
+  reviewed?: boolean;
+}
+
+/** One skill's stamp, computed but not yet written. */
+interface PlannedStamp {
+  skillPath: string;
+  version: string;
+  plan: StampPlan;
+  warning: BlindStampWarning | null;
+}
+
+/** Resolves `target` and computes its stamp; throws (with the message `die` would print) when it can't. */
+async function planSkillStamp(
+  projectRoot: string,
+  target: string,
+  opts: { bump?: string; lastUpdate: string; reviewed?: boolean }
+): Promise<PlannedStamp> {
+  const skill = await findConceptSkill(projectRoot, target);
+  // An unmarked skill has no version to bump — marking it IS the initial stamp.
+  const version = nextVersion(skill?.version, opts.bump ?? (skill ? null : "initial"));
+  if (!version) throw new Error("stamp needs --bump minor|major|initial");
+  // A skill not marked YET is the create flow's normal case: fall back to a whole-tree lookup.
+  const skillPath = skill ? skill.skillPath : await resolveSkillPath(projectRoot, target);
+  if (!skillPath) throw new Error(`no skill "${target}" found under ${projectRoot}`);
+  const plan = planStamp(skillPath, { version, lastUpdate: opts.lastUpdate });
+  // A blind stamp (mapped files changed, SKILL.md untouched) is warned about, never refused.
+  const warning = skill && !opts.reviewed ? blindStampWarning(projectRoot, skill) : null;
+  return { skillPath, version, plan, warning };
+}
+
+function printBlindStampWarning(skillPath: string, warning: BlindStampWarning): void {
+  const shown = warning.files.slice(0, MAX_LISTED_FILES * 2);
+  process.stderr.write(
+    `code-graph skills: warning: ${warning.files.length} mapped file(s) changed since the last stamp but ` +
+      `${relative(process.cwd(), skillPath)} did not (committed or uncommitted). Compare them with the SKILL.md, ` +
+      `then pass --reviewed if it still holds:\n${shown.map((f) => `  ${f}\n`).join("")}` +
+      (shown.length < warning.files.length ? `  +${warning.files.length - shown.length} more\n` : "")
+  );
+}
+
+/** The instruction printed above a blocked stamp's lines: whole metadata block vs the two marker lines. */
+function applyByHandHeading(plan: StampPlan): string {
+  return plan.lines === plan.metadata
+    ? "replace the metadata block (or add it to the frontmatter) with exactly:"
+    : "set exactly these lines in its metadata block:";
+}
+
+/** Writes the stamp when it changes the file; true when written. Lets the write error through. */
+function writeStamp(skillPath: string, plan: StampPlan): boolean {
+  if (!plan.changed) return false;
+  writeFileSync(skillPath, plan.content);
+  return true;
+}
+
+/**
+ * `skills stamp a b c`: every target is resolved and planned first (any failure there exits 1 with
+ * nothing written), then each is written in turn. A blocked write (EPERM/EROFS/EACCES) does not stop
+ * the rest; every blocked skill's lines come back together, and the exit code is 9 when any was
+ * blocked (1 when another write error happened, 0 with --print).
+ */
+async function stampBatch(
+  projectRoot: string,
+  targets: string[],
+  opts: StampOpts & { lastUpdate: string }
+): Promise<void> {
+  const { lastUpdate } = opts;
+  const planned: PlannedStamp[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  for (const target of targets) {
+    try {
+      const p = await planSkillStamp(projectRoot, target, { bump: opts.bump, lastUpdate, reviewed: opts.reviewed });
+      if (seen.has(p.skillPath)) continue;
+      seen.add(p.skillPath);
+      planned.push(p);
+    } catch (err) {
+      errors.push(`${target}: ${(err as Error).message}`);
+    }
+  }
+  if (errors.length > 0) {
+    die(
+      `nothing stamped, ${errors.length} of ${targets.length} skill(s) failed:\n${errors.map((e) => `  ${e}`).join("\n")}`
+    );
+  }
+
+  const stamped: Array<{
+    path: string;
+    version: string;
+    lastUpdate: string;
+    written: boolean;
+    warning?: BlindStampWarning;
+  }> = [];
+  const blocked: Array<{
+    path: string;
+    version: string;
+    lastUpdate: string;
+    reason: string;
+    heading: string;
+    lines: string[];
+    warning?: BlindStampWarning;
+  }> = [];
+  const failed: Array<{ path: string; error: string }> = [];
+  for (const { skillPath, version, plan, warning } of planned) {
+    if (warning) printBlindStampWarning(skillPath, warning);
+    const warn = warning ? { warning } : {};
+    const block = (reason: string) =>
+      blocked.push({
+        path: skillPath,
+        version,
+        lastUpdate,
+        reason,
+        heading: applyByHandHeading(plan),
+        lines: plan.lines,
+        ...warn,
+      });
+    if (opts.print) {
+      block("--print: write skipped");
+      continue;
+    }
+    try {
+      stamped.push({ path: skillPath, version, lastUpdate, written: writeStamp(skillPath, plan), ...warn });
+    } catch (err) {
+      if (isWriteBlocked(err)) block(err.message);
+      else failed.push({ path: skillPath, error: (err as Error).message });
+    }
+  }
+
+  if (opts.json) json({ stamped, blocked, failed });
+  else {
+    for (const s of stamped) out(`stamped ${s.path}  v${s.version}  ${s.written ? "written" : "unchanged"}`);
+    if (blocked.length > 0) {
+      out(`${blocked.length} stamp(s) computed, not written; apply these lines by hand with Edit:`);
+      for (const b of blocked) {
+        out("");
+        out(`not written: ${b.path}`);
+        out(`reason: ${b.reason}`);
+        out(b.heading);
+        for (const l of b.lines) out(l);
+      }
+    }
+  }
+  for (const f of failed) process.stderr.write(`code-graph skills: ${f.path}: ${f.error}\n`);
+  if (failed.length > 0) process.exit(1);
+  if (blocked.length > 0 && !opts.print) process.exit(EXIT_STAMP_NOT_WRITTEN);
 }
 
 export function registerSkillsCommands(program: Command): void {
@@ -107,104 +259,80 @@ export function registerSkillsCommands(program: Command): void {
     });
 
   skills
-    .command("stamp [skill]")
+    .command("stamp [skills...]")
     .description(
-      "stamp one skill's marker (id, directory or SKILL.md path); with no skill, stamp the repo-level " +
-        "`skills` block of scribe.config.json"
+      "stamp skill markers (id, directory or SKILL.md path; several in one call share --bump/--sha, and a " +
+        "blocked write does not stop the rest); with no skill, stamp the repo-level `skills` block of scribe.config.json"
     )
     .option("--bump <kind>", "minor | major | initial")
     .option("--sha <sha>", "commit to record (default: HEAD)")
     .option("--print", "compute and print the lines to set without writing the SKILL.md (exit 0)")
-    .option("--json", "with a blocked write or --print: machine-readable output")
+    .option("--json", "with a blocked write, --print or several skills: machine-readable output")
     .option(
       "--reviewed",
       "silence the blind-stamp warning: only after reading the SKILL.md against the changed mapped files"
     )
     .option(rootOption, rootHelp)
-    .action(
-      async (
-        target: string | undefined,
-        opts: RootOpts & { bump?: string; sha?: string; print?: boolean; json?: boolean; reviewed?: boolean }
-      ) => {
-        const projectRoot = resolveProjectRoot(opts.root);
-        const lastUpdate = opts.sha || headSha(projectRoot);
+    .action(async (targetsArg: string[] | undefined, opts: StampOpts) => {
+      const targets = targetsArg ?? [];
+      const projectRoot = resolveProjectRoot(opts.root);
+      const lastUpdate = opts.sha || headSha(projectRoot);
 
-        if (!target) {
-          const current = readConceptSkillsState(projectRoot);
-          // No version yet: the first stamp is `initial`. An existing one is never reset implicitly;
-          // create (initial), update (minor) and deepen (major) differ, so the caller must say which.
-          if (!opts.bump && current?.version) {
-            die(
-              `stamp needs --bump minor|major (current repo-level version is ${current.version}); ` +
-                "use --bump initial to reset it to 1.0 deliberately"
-            );
-          }
-          const version = nextVersion(current?.version, opts.bump ?? "initial");
-          if (!version) die("stamp needs --bump minor|major|initial");
-          let written: boolean;
-          try {
-            written = writeConceptSkillsState(projectRoot, { version, last_update: lastUpdate });
-          } catch (err) {
-            die((err as Error).message);
-          }
-          return json({ written, version, last_update: lastUpdate, path: configPath(projectRoot) });
+      if (targets.length === 0) {
+        const current = readConceptSkillsState(projectRoot);
+        // No version yet: the first stamp is `initial`. An existing one is never reset implicitly;
+        // create (initial), update (minor) and deepen (major) differ, so the caller must say which.
+        if (!opts.bump && current?.version) {
+          die(
+            `stamp needs --bump minor|major (current repo-level version is ${current.version}); ` +
+              "use --bump initial to reset it to 1.0 deliberately"
+          );
         }
-
-        const skill = await findConceptSkill(projectRoot, target);
-        // An unmarked skill has no version to bump — marking it IS the initial stamp.
-        const version = nextVersion(skill?.version, opts.bump ?? (skill ? null : "initial"));
+        const version = nextVersion(current?.version, opts.bump ?? "initial");
         if (!version) die("stamp needs --bump minor|major|initial");
-        // A skill not marked YET is the create flow's normal case: fall back to a whole-tree lookup.
-        const skillPath = skill ? skill.skillPath : await resolveSkillPath(projectRoot, target);
-        if (!skillPath) die(`no skill "${target}" found under ${projectRoot}`);
-        let plan: StampPlan;
+        let written: boolean;
         try {
-          plan = planStamp(skillPath, { version, lastUpdate });
+          written = writeConceptSkillsState(projectRoot, { version, last_update: lastUpdate });
         } catch (err) {
           die((err as Error).message);
         }
-        // A blind stamp (mapped files changed, SKILL.md untouched) is warned about, never refused.
-        const warning = skill && !opts.reviewed ? blindStampWarning(projectRoot, skill) : null;
-        if (warning) {
-          const shown = warning.files.slice(0, MAX_LISTED_FILES * 2);
-          process.stderr.write(
-            `code-graph skills: warning: ${warning.files.length} mapped file(s) changed since the last stamp but ` +
-              `${relative(process.cwd(), skillPath)} did not (committed or uncommitted). Compare them with the SKILL.md, ` +
-              `then pass --reviewed if it still holds:\n${shown.map((f) => `  ${f}\n`).join("")}` +
-              (shown.length < warning.files.length ? `  +${warning.files.length - shown.length} more\n` : "")
-          );
-        }
-        const warn = warning ? { warning } : {};
-        // Reports a stamp that was computed but not written: the lines to apply by hand with Edit.
-        const report = (reason: string, exitCode: number): never => {
-          const blocked = { reason, lines: plan.lines };
-          if (opts.json) json({ stamped: skillPath, version, lastUpdate, written: false, blocked, ...warn });
-          else {
-            out(`stamp computed, not written: ${skillPath}`);
-            out(`reason: ${reason}`);
-            out(
-              plan.lines === plan.metadata
-                ? "replace the metadata block (or add it to the frontmatter) with exactly:"
-                : "set exactly these lines in its metadata block:"
-            );
-            for (const l of plan.lines) out(l);
-          }
-          process.exit(exitCode);
-        };
-        if (opts.print) return report("--print: write skipped", 0);
-        let written = false;
-        if (plan.changed) {
-          try {
-            writeFileSync(skillPath, plan.content);
-            written = true;
-          } catch (err) {
-            if (isWriteBlocked(err)) return report(err.message, EXIT_STAMP_NOT_WRITTEN);
-            die((err as Error).message);
-          }
-        }
-        json({ stamped: skillPath, version, lastUpdate, written, ...warn });
+        return json({ written, version, last_update: lastUpdate, path: configPath(projectRoot) });
       }
-    );
+
+      if (targets.length > 1) return stampBatch(projectRoot, targets, { ...opts, lastUpdate });
+      const target = targets[0];
+
+      let one: PlannedStamp;
+      try {
+        one = await planSkillStamp(projectRoot, target, { bump: opts.bump, lastUpdate, reviewed: opts.reviewed });
+      } catch (err) {
+        die((err as Error).message);
+      }
+      const { skillPath, version, plan, warning } = one;
+      if (warning) printBlindStampWarning(skillPath, warning);
+      const warn = warning ? { warning } : {};
+      // Reports a stamp that was computed but not written: the lines to apply by hand with Edit.
+      const report = (reason: string, exitCode: number): never => {
+        const blocked = { reason, lines: plan.lines };
+        if (opts.json) json({ stamped: skillPath, version, lastUpdate, written: false, blocked, ...warn });
+        else {
+          out(`stamp computed, not written: ${skillPath}`);
+          out(`reason: ${reason}`);
+          out(applyByHandHeading(plan));
+          for (const l of plan.lines) out(l);
+        }
+        process.exit(exitCode);
+      };
+      if (opts.print) return report("--print: write skipped", 0);
+      let written = false;
+      try {
+        written = writeStamp(skillPath, plan);
+      } catch (err) {
+        if (isWriteBlocked(err)) return report(err.message, EXIT_STAMP_NOT_WRITTEN);
+        die((err as Error).message);
+      }
+      json({ stamped: skillPath, version, lastUpdate, written, ...warn });
+    });
 
   skills
     .command("check")

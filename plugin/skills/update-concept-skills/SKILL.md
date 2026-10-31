@@ -10,7 +10,9 @@ whole list against what changed. `update-single-concept-skill` is the deep, narr
 **code-change report** in `$ARGUMENTS` makes it much cheaper.
 
 Every command is `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" …` (written `cg`). Run each
-`stamp`, `extract`, `apply` alone in its own Bash call.
+`stamp`, `extract`, `apply` alone in its own Bash call, and use their **batch forms**: one call
+names every concept (`cg extract a b c`, `cg skills stamp a b c --bump minor`), not one call per
+concept. A batch goes on past a failing concept and exits non-zero at the end, naming the failures.
 
 ## User's intention
 
@@ -76,13 +78,18 @@ For each concept with `commits > 0` or a non-zero `unextracted` count:
 
 1. **Documentation first** — `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/`. A reframed concept shows
    up here in the author's words.
-2. **The graph's drift report**, when the concept is built (a store exists and `tsconfig` is set):
+2. **The graph's drift report**, when the concept is built (a store exists and `tsconfig` is set),
+   for all those concepts in one batch:
 
    ```bash
-   cg extract <concept> && cg drift <concept> --json
+   cg extract <concept>... && cg drift <concept>... --json
    ```
 
-   Shape: `{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged }, unextracted }`.
+   With several concepts the output is one `{ concepts: [...], failed: [{ concept, error }] }` object;
+   each entry is `{ concept, new[], changed[], stale[], missing[], renameCandidates[], doc: { bodyHashChanged }, unextracted }`
+   (one concept alone prints that entry by itself). A concept that was **never applied** reads
+   `{ concept, neverApplied: true, vertices }` instead: nothing to compare, so treat it as a graph to
+   build in step 6, not as drift.
    (`drift` compares the `.ast.json` just written with the store; run `extract` first, as above, or its
    vertex lists miss unextracted edits. `unextracted` then reads zero.)
    `new`/`missing` are vertices added or gone — a concept gaining a whole directory or losing one is
@@ -133,13 +140,22 @@ more says so in the report and is left for `update-single-concept-skill`. Declar
 `scribe.config.json` (`concepts.<key>.globs` and `skill`) preserving every other key; remove a
 deleted one with `cg delete-concept <name>` (when a graph exists).
 
-For every skill you touched — **a minor bump**:
+**Before stamping, warn the user** when any skill to stamp lives under the project's own
+`.claude/skills`: the sandbox often blocks writes there, so those stamps may come back unwritten
+(exit 9) with lines to set by hand, and you will offer to apply them with Edit.
+
+Every skill you touched — **a minor bump**, all in one call:
 
 ```bash
-cg skills stamp <concept-id> --bump minor
+cg skills stamp <concept-id>... --bump minor
 ```
 
-A skill created this run gets `--bump initial`. A skill you did not touch is **not** stamped: its
+A skill created this run gets `--bump initial` (a separate call, since `--bump` covers the whole
+batch). Every target is resolved first: an unknown skill or a marked one with no `--bump` exits 1 with
+nothing stamped. A blocked write does not stop the others; the output lists the stamped skills, then
+under `N stamp(s) computed, not written; apply these lines by hand with Edit:` each blocked SKILL.md
+with its lines, and exits 9. Offer to apply them all with Edit (`--json`: `{ stamped[], blocked[{ path,
+heading, lines }], failed[] }`). A skill you did not touch is **not** stamped: its
 `last-update` states when it was last checked against code, and moving it forward for free makes a
 stale skill invisible. Then the repo-level record — always minor, even when concepts were added or
 deleted (a major is a wholesale re-derivation, `create-concept-skills`' job):
@@ -151,9 +167,9 @@ cg skills stamp --bump minor
 Stamping without editing the SKILL.md prints a blind-stamp warning naming the changed files (still exit 0).
 Pass `--reviewed` only after the comparison above, never by default. Edit the skill first when the warning is right.
 
-Exit 9 means the sandbox blocked the SKILL.md write: the output says `set exactly these lines in its
-metadata block:` (or, for an unmarked skill, `replace the metadata block (or add it to the frontmatter)
-with exactly:`) and the lines. Apply them with Edit, then re-run `cg skills status`.
+Exit 9 means the sandbox blocked a SKILL.md write: per blocked skill the output says `set exactly these
+lines in its metadata block:` (or, for an unmarked skill, `replace the metadata block (or add it to the
+frontmatter) with exactly:`) and the lines. Apply them with Edit, then re-run `cg skills status`.
 
 Never call a bare `skills stamp` without `--bump`: at repo level it refuses (exit 1) over an
 existing version; `--bump initial` would reset it to 1.0. Pass `--sha <session-start-commit>` if the session committed since it started.
@@ -176,9 +192,11 @@ Then run `extract` + `apply` for every concept whose skill you revised, every co
 `unextracted` count (even when its skill text needs no change), and every never-applied concept:
 
 ```bash
-cg extract <concept>
-cg apply <concept>
+cg extract <concept>...
+cg apply <concept>...
 ```
+
+All named in one call each (`--all` when every concept needs it).
 
 **Size the enrichment before any fan-out.** Re-run `cg enrich targets --summary --json` (after the
 applies, so the counts are current) and report: the total, each concept's `total`, and the
