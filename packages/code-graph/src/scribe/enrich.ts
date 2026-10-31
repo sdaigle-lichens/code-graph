@@ -131,11 +131,176 @@ function touchedSinceApply(v: Vertex, db: Vertex | undefined, conceptApplied: bo
   return db.contentHash !== v.contentHash || db.agent?.touched_at !== undefined || db.agent?.stale === true;
 }
 
+type Store = ReturnType<typeof bootstrapStore>;
+type Config = ReturnType<typeof loadConfig>;
+
+/** What `collectTargets` works out for one concept; both the per-concept and the roll-up output read it. */
+type ConceptTargets = {
+  targets: EnrichTarget[];
+  coreSize: number;
+  leftOut: number;
+  thin: boolean;
+  thinMessage: string | null;
+};
+
+/**
+ * Whether `apply` has ever ingested the concept: live code vertices, or the SKILL.md doc record a
+ * docs-only concept leaves behind. Reporting only; target selection keeps its own live-vertex rule.
+ */
+function conceptWasApplied(store: Store, concept: string): boolean {
+  const hasVertex = store.prepare("SELECT 1 FROM vertices WHERE concept = ? AND status = 'live' LIMIT 1").get(concept);
+  if (hasVertex) return true;
+  return store.prepare("SELECT 1 FROM docs WHERE concept = ? LIMIT 1").get(concept) !== undefined;
+}
+
 export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void {
   const config = loadConfig();
   const ast = loadAst(config.configRoot, concept);
-  const enriched = loadEnriched(join(config.configRoot, "scribe-output", `${concept}.enriched.json`), concept);
   const store = bootstrapStore(resolveDbPath(config));
+  const { targets, coreSize, leftOut, thin, thinMessage } = collectTargets(config, store, concept, ast, opts);
+  const coreInfo = { size: coreSize, leftOut, thin, ...(thinMessage ? { message: thinMessage } : {}) };
+  const leftOutLine =
+    `core: ${coreSize} vertices; ${leftOut} non-core new vertices left out` +
+    (leftOut > 0 ? " (never enriched, untouched since the last apply; --all lists them)" : "");
+  const flagsOf = (t: { reasons: TargetReason[]; core: boolean }) => [...t.reasons, t.core ? "core" : "non-core"];
+  const loc = (t: EnrichTarget) => `${t.filepath}:${t.start_line}-${t.end_line}`;
+  const edgeCount = (n: number) => `${n} edge${n === 1 ? "" : "s"} without a reason`;
+
+  if (opts.summary) {
+    const counts = countReasons(targets);
+    const edgesWithoutReason = targets.reduce((n, t) => n + t.edgesWithoutReason.length, 0);
+    const lines: EnrichTargetSummary[] = targets.map((t) => ({
+      key: t.key,
+      name: t.name,
+      type: t.type,
+      loc: loc(t),
+      reasons: t.reasons,
+      core: t.core,
+      edgesWithoutReason: t.edgesWithoutReason.length,
+    }));
+    const applied = conceptWasApplied(store, concept);
+    if (opts.json) {
+      // Compact on purpose: the summary exists to be read inline, so it carries no indentation.
+      console.log(
+        JSON.stringify({
+          concept,
+          applied,
+          total: targets.length,
+          counts,
+          core: coreInfo,
+          edgesWithoutReason,
+          targets: lines,
+        })
+      );
+      return;
+    }
+    const countText = REASONS.map((r) => `${r} ${counts[r]}`).join(", ");
+    console.log(`Concept: ${concept} — ${targets.length} vertices to enrich (${countText})`);
+    if (!applied) console.log(`  never applied: a first-time build, not an incremental update`);
+    console.log(`  ${leftOutLine}`);
+    if (thinMessage) console.log(`  ${thinMessage}`);
+    console.log(`  edges without a reason: ${edgesWithoutReason}`);
+    for (const l of lines) {
+      console.log(
+        `  ${l.key} ${l.name} (${l.type}) ${l.loc} [${flagsOf(l).join(",")}] — ${edgeCount(l.edgesWithoutReason)}`
+      );
+    }
+    return;
+  }
+
+  if (opts.json) {
+    console.log(JSON.stringify({ concept, targets, core: coreInfo }, null, 2));
+    return;
+  }
+  console.log(`Concept: ${concept} — ${targets.length} vertices to enrich`);
+  for (const t of targets) {
+    console.log(
+      `  ${t.name} (${t.type}) ${loc(t)} [${flagsOf(t).join(",")}] — ${edgeCount(t.edgesWithoutReason.length)}`
+    );
+  }
+  console.log(`  ${leftOutLine}`);
+  if (thinMessage) console.log(`  ${thinMessage}`);
+}
+
+function countReasons(targets: Array<{ reasons: TargetReason[] }>): Record<TargetReason, number> {
+  return Object.fromEntries(REASONS.map((r) => [r, targets.filter((t) => t.reasons.includes(r)).length])) as Record<
+    TargetReason,
+    number
+  >;
+}
+
+/** One concept's line in the cross-concept roll-up (`enrich targets --summary` with no concept). */
+export type EnrichRollupConcept = {
+  concept: string;
+  /** `.ast.json` exists; when false nothing could be counted (`total` is 0). */
+  extracted: boolean;
+  /** `apply` has ingested the concept at least once; false = enriching it is a first-time build. */
+  applied: boolean;
+  total: number;
+  counts: Record<TargetReason, number>;
+  core: { size: number; leftOut: number; thin: boolean };
+};
+
+/**
+ * `enrich targets --summary` with no concept: the target count of every configured concept in one
+ * call, so a caller can size a fan-out (and spot first-time builds) before launching it. Same
+ * selection rules as the per-concept listing; no per-target lines.
+ */
+export function enrichTargetsRollup(opts: Pick<EnrichTargetsOptions, "json" | "all">): void {
+  const config = loadConfig();
+  const store = bootstrapStore(resolveDbPath(config));
+  const concepts: EnrichRollupConcept[] = [];
+  for (const concept of Object.keys(config.concepts)) {
+    const applied = conceptWasApplied(store, concept);
+    const astPath = join(config.configRoot, "scribe-output", `${concept}.ast.json`);
+    if (!existsSync(astPath)) {
+      concepts.push({
+        concept,
+        extracted: false,
+        applied,
+        total: 0,
+        counts: countReasons([]),
+        core: { size: 0, leftOut: 0, thin: false },
+      });
+      continue;
+    }
+    const ast = loadAst(config.configRoot, concept);
+    const r = collectTargets(config, store, concept, ast, { vertices: [], json: false, all: opts.all });
+    concepts.push({
+      concept,
+      extracted: true,
+      applied,
+      total: r.targets.length,
+      counts: countReasons(r.targets),
+      core: { size: r.coreSize, leftOut: r.leftOut, thin: r.thin },
+    });
+  }
+  const total = concepts.reduce((n, c) => n + c.total, 0);
+  const neverApplied = concepts.filter((c) => !c.applied).map((c) => c.concept);
+  const notExtracted = concepts.filter((c) => !c.extracted).map((c) => c.concept);
+
+  if (opts.json) {
+    console.log(JSON.stringify({ total, neverApplied, notExtracted, concepts }));
+    return;
+  }
+  console.log(`All concepts — ${total} vertices to enrich across ${concepts.length} concepts`);
+  for (const c of concepts) {
+    const flags = [c.applied ? null : "never applied", c.extracted ? null : "not extracted"].filter(Boolean);
+    console.log(`  ${c.concept}: ${c.total}${flags.length ? ` (${flags.join(", ")})` : ""}`);
+  }
+  if (neverApplied.length > 0) {
+    console.log(`  never applied (first-time build, not incremental): ${neverApplied.join(", ")}`);
+  }
+}
+
+function collectTargets(
+  config: Config,
+  store: Store,
+  concept: string,
+  ast: AstDoc,
+  opts: EnrichTargetsOptions
+): ConceptTargets {
+  const enriched = loadEnriched(join(config.configRoot, "scribe-output", `${concept}.enriched.json`), concept);
   const dbMap = new Map(
     toDocs<Vertex>(
       store.prepare("SELECT doc FROM vertices WHERE concept = ? AND status = 'live'").all(concept) as { doc: string }[]
@@ -217,60 +382,7 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
 
   const thin = isThinCore(ast.vertices.length, core.keys.size);
   const thinMessage = thin ? thinCoreMessage(core.keys.size, ast.vertices.length) : null;
-  const coreInfo = { size: core.keys.size, leftOut, thin, ...(thinMessage ? { message: thinMessage } : {}) };
-  const leftOutLine =
-    `core: ${core.keys.size} vertices; ${leftOut} non-core new vertices left out` +
-    (leftOut > 0 ? " (never enriched, untouched since the last apply; --all lists them)" : "");
-  const flagsOf = (t: { reasons: TargetReason[]; core: boolean }) => [...t.reasons, t.core ? "core" : "non-core"];
-  const loc = (t: EnrichTarget) => `${t.filepath}:${t.start_line}-${t.end_line}`;
-  const edgeCount = (n: number) => `${n} edge${n === 1 ? "" : "s"} without a reason`;
-
-  if (opts.summary) {
-    const counts = Object.fromEntries(
-      REASONS.map((r) => [r, targets.filter((t) => t.reasons.includes(r)).length])
-    ) as Record<TargetReason, number>;
-    const edgesWithoutReason = targets.reduce((n, t) => n + t.edgesWithoutReason.length, 0);
-    const lines: EnrichTargetSummary[] = targets.map((t) => ({
-      key: t.key,
-      name: t.name,
-      type: t.type,
-      loc: loc(t),
-      reasons: t.reasons,
-      core: t.core,
-      edgesWithoutReason: t.edgesWithoutReason.length,
-    }));
-    if (opts.json) {
-      // Compact on purpose: the summary exists to be read inline, so it carries no indentation.
-      console.log(
-        JSON.stringify({ concept, total: targets.length, counts, core: coreInfo, edgesWithoutReason, targets: lines })
-      );
-      return;
-    }
-    const countText = REASONS.map((r) => `${r} ${counts[r]}`).join(", ");
-    console.log(`Concept: ${concept} — ${targets.length} vertices to enrich (${countText})`);
-    console.log(`  ${leftOutLine}`);
-    if (thinMessage) console.log(`  ${thinMessage}`);
-    console.log(`  edges without a reason: ${edgesWithoutReason}`);
-    for (const l of lines) {
-      console.log(
-        `  ${l.key} ${l.name} (${l.type}) ${l.loc} [${flagsOf(l).join(",")}] — ${edgeCount(l.edgesWithoutReason)}`
-      );
-    }
-    return;
-  }
-
-  if (opts.json) {
-    console.log(JSON.stringify({ concept, targets, core: coreInfo }, null, 2));
-    return;
-  }
-  console.log(`Concept: ${concept} — ${targets.length} vertices to enrich`);
-  for (const t of targets) {
-    console.log(
-      `  ${t.name} (${t.type}) ${loc(t)} [${flagsOf(t).join(",")}] — ${edgeCount(t.edgesWithoutReason.length)}`
-    );
-  }
-  console.log(`  ${leftOutLine}`);
-  if (thinMessage) console.log(`  ${thinMessage}`);
+  return { targets, coreSize: core.keys.size, leftOut, thin, thinMessage };
 }
 
 // ─── merge ────────────────────────────────────────────────────────────────────

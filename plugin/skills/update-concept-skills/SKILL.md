@@ -158,16 +158,38 @@ with exactly:`) and the lines. Apply them with Edit, then re-run `cg skills stat
 Never call a bare `skills stamp` without `--bump`: at repo level it refuses (exit 1) over an
 existing version; `--bump initial` would reset it to 1.0. Pass `--sha <session-start-commit>` if the session committed since it started.
 
-**Then the graph** (skip entirely with no tsconfig / no `concepts`). Run it for every concept whose
-skill you revised **and** every concept with a non-zero `unextracted` count, even when its skill text
-needs no change:
+**Then the graph** (skip entirely with no tsconfig / no `concepts`). First note which concepts have
+never been applied — `apply` would flip them to applied, so read this **before** any `apply`:
+
+```bash
+cg enrich targets --summary --json
+```
+
+With no concept it rolls every concept up in one call: `{ total, neverApplied[], notExtracted[],
+concepts[{ concept, extracted, applied, total, counts, core }] }`. Keep `neverApplied`. A
+never-applied concept is a **first-time build**, not an incremental update: give it
+`create-concept-skills`' graph build (its step 8: `extract` + `apply`, **no enrichment**) and leave its
+enrichment to a later `scribe` pass after `update-single-concept-skill` deepens its skill. Do not run
+`create-concept-skills` itself: it stops when a list exists.
+
+Then run `extract` + `apply` for every concept whose skill you revised, every concept with a non-zero
+`unextracted` count (even when its skill text needs no change), and every never-applied concept:
 
 ```bash
 cg extract <concept>
 cg apply <concept>
 ```
 
-for every concept whose code or SKILL.md changed. Then enrich, **incrementally by default**
+**Size the enrichment before any fan-out.** Re-run `cg enrich targets --summary --json` (after the
+applies, so the counts are current) and report: the total, each concept's `total`, and the
+never-applied concepts from the first call, called first-time builds. A first-time build's count is
+its core only; `core.leftOut` is the rest a full first pass would add. Then ask whether to go ahead —
+**with `AskUserQuestion`**: enrich the incremental concepts only, leaving first-time builds for later
+(recommended); include the first-time builds too; or stop after the graph refresh. Nothing is
+enriched before the answer. **Without it** (subagent): enrich only the incremental concepts, within
+the 20-target cap below, and list the first-time builds and the total in the report.
+
+Then enrich each concept going ahead, **incrementally by default**
 (the procedure lives in the `scribe` skill, "Incremental path"):
 
 1. Decide with `cg enrich targets <concept> --summary --json`: it lists what needs enriching,
@@ -199,7 +221,9 @@ With no tsconfig this whole step is skipped.
 ## Report
 
 Four counts — added, deleted, revised, untouched — and the concept ids behind each; which concepts
-were re-extracted and re-enriched (or that the graph step was skipped for lack of a tsconfig); any
+were re-extracted and re-enriched (or that the graph step was skipped for lack of a tsconfig); the
+enrichment total sized before the fan-out and the user's answer; the first-time builds (never-applied
+concepts given the graph build, enrichment left for later); any
 skill that needs a deep pass (including any thin core); the "left to enrich" list when a subagent
 had more than 20 targets; "core grew from N to M with this run's skill edit" when a SKILL.md revised
 in this run grew a concept's core (`core.size` before and after the edit); and what the repo-level

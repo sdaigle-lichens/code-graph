@@ -219,9 +219,9 @@ program
 const enrich = program.command("enrich").description("incremental enrichment: list targets, merge partial results");
 
 enrich
-  .command("targets <concept>")
+  .command("targets [concept]")
   .description(
-    "list vertices that need enrichment: changed, stale, and never-enriched ones that are core or new/changed since the previous apply"
+    "list vertices that need enrichment: changed, stale, and never-enriched ones that are core or new/changed since the previous apply; with --summary and no concept, the per-concept counts and total across every concept, flagging never-applied ones"
   )
   .option("--vertex <name...>", "list just these vertices (name or _key), with full details")
   .option("--all", "list every never-enriched vertex, not only core and touched ones (whole-concept enrichment)")
@@ -230,11 +230,22 @@ enrich
   .option("--json", "output JSON")
   .action(
     async (
-      concept: string,
+      concept: string | undefined,
       opts: { vertex?: string[]; json?: boolean; core?: boolean; all?: boolean; summary?: boolean }
     ) => {
       try {
+        if (concept === undefined && (!opts.summary || opts.vertex?.length)) {
+          console.error(
+            "enrich targets failed: name a concept, or pass --summary (without --vertex) for every concept"
+          );
+          process.exit(1);
+        }
         if (await skippedForNoConcepts("enrich targets")) return;
+        if (concept === undefined) {
+          const { enrichTargetsRollup } = await import("./scribe/enrich.js");
+          enrichTargetsRollup({ json: opts.json ?? false, all: opts.all ?? false });
+          return;
+        }
         const { enrichTargets } = await import("./scribe/enrich.js");
         enrichTargets(concept, {
           vertices: opts.vertex ?? [],
