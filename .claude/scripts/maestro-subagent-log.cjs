@@ -5,8 +5,9 @@
 // SubagentStart  → dispatch entry:  who was called, with the full spawning message.
 // SubagentStop   → handoff entry:   the agent's outcome, parsed from its HANDOFF: line,
 //                                   with the full final message for debugging; then (`036`)
-//                                   stamps every unstamped `.claude/channels/*/<this agent>.*`
-//                                   file this agent just wrote with the run's own id — see
+//                                   stamps every unstamped `.claude/channels/<scope>/*/<this agent>.*`
+//                                   file this agent just wrote with the run's own id — in this
+//                                   session's own channel scope only (`144`) — see
 //                                   apps/maestro/src/core/handoff-channels.ts.
 //
 // Both are no-ops when maestro.json is absent (Maestro not configured for this project).
@@ -57,6 +58,8 @@ const {
   retireResumeDeliveries,
   parseGapsHandled,
   acknowledgeGaps,
+  channelScopeOf,
+  resolveSessionId,
 } = require("./lib/maestro-session.cjs");
 
 // Resolve the loaded/referenced skills the SubagentStart hook would offer this
@@ -90,12 +93,12 @@ function readGlobalHandoff(handoffId) {
   }
 }
 
-function agentPayloadRoutes(cwd, claudeDir, agentType, sessionStatePath) {
+function agentPayloadRoutes(cwd, scope, claudeDir, agentType, sessionStatePath) {
   const cfg = readJson(path.join(claudeDir, "maestro.json"));
   if (!cfg || cfg.version !== 3) return [];
   const { searchList } = resolveSearchList(cfg, readSession(sessionStatePath));
   const routes = routesFrom(handoffRoutes(searchList, cfg.workflow_instances || []), agentType);
-  return payloadRoutes(cwd, routes, readGlobalHandoff);
+  return payloadRoutes(cwd, scope, routes, readGlobalHandoff);
 }
 
 // `108`: this agent's routes in the workflow the orchestrator recorded, or null when none was
@@ -154,6 +157,9 @@ function parseHandoff(msg) {
   // because a `run_id` minted into a shared file is exactly the cross-session bleed `064` removes.
   const sess = ensureSessionPaths(claudeDir, p);
   if (!sess) process.exit(0);
+  // `144`: this session's channel scope. Stamping, the payload check, resume retirement and gap
+  // acknowledgement below all act on this scope's lanes only.
+  const scope = channelScopeOf(cwd, resolveSessionId(p));
 
   const event = p.hook_event_name || "";
   const agentType = p.agent_type || "";
@@ -250,7 +256,7 @@ function parseHandoff(msg) {
           if (!issue) {
             try {
               const since = runStartedAt(readLogLines(sess.log), agentId);
-              issue = checkPayload(handoffMsg, agentPayloadRoutes(cwd, claudeDir, agentType, sess.state), (r) =>
+              issue = checkPayload(handoffMsg, agentPayloadRoutes(cwd, scope, claudeDir, agentType, sess.state), (r) =>
                 payloadWrittenSince(cwd, r, since)
               );
             } catch {
@@ -267,7 +273,7 @@ function parseHandoff(msg) {
           try {
             const before = readSession(sess.state);
             if (before.resume_deliveries && before.resume_deliveries[agentId]) {
-              const { session: after, retired } = retireResumeDeliveries(cwd, before, agentId, agentType);
+              const { session: after, retired } = retireResumeDeliveries(cwd, scope, before, agentId, agentType);
               writeSession(sess.state, after);
               const receiver = bareAgentName(agentType);
               for (const e of retired) {
@@ -299,7 +305,7 @@ function parseHandoff(msg) {
         if (!inMeeting && !inOwnerRun && bareAgentName(agentType) === "scribe") {
           try {
             const names = parseGapsHandled(`${lastMsg || ""}\n${handoffMsg === lastMsg ? "" : handoffMsg || ""}`);
-            const acked = names.length > 0 ? acknowledgeGaps(cwd, names) : [];
+            const acked = names.length > 0 ? acknowledgeGaps(cwd, scope, names) : [];
             for (const e of acked) {
               appendSessionLog(
                 claudeDir,
@@ -398,7 +404,7 @@ function parseHandoff(msg) {
         // ever held = nothing skipped, the pre-meeting behaviour.
         try {
           const runId = ensureSessionRunId(sess.state);
-          writeStamp(cwd, bareAgentName(agentType), runId, {
+          writeStamp(cwd, scope, bareAgentName(agentType), runId, {
             skip: [...meetingLeftovers(sessionState), ...ownerRunLeftovers(sessionState)],
           });
         } catch {

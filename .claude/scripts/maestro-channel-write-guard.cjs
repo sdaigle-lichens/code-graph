@@ -2,8 +2,10 @@
 // PreToolUse hook (matcher: Write|Edit|MultiEdit|NotebookEdit). Also refuses, for ANY caller, a
 // write into the main checkout while the session runs its task in a git worktree (`082`; logic in
 // apps/maestro/src/core/worktree-write-guard.ts). Its original job — confines the reviewer and
-// refactor agents' file writes to `<cwd>/.claude/channels/`, so they can hand a payload to the
-// next agent without being able to modify code, docs or config. Every other agent is untouched.
+// refactor agents' file writes to `<cwd>/.claude/channels/<scope>/`, this session's own channel
+// scope (`144`, resolved here from the session, never from the agent), so they can hand a payload
+// to the next agent without being able to modify code, docs or config, or another session's lanes.
+// Every other agent is untouched.
 //
 // Registered from the plugin's hooks.json AND, since `121`, from a project-local install (a
 // project can run a forked or user-tier `reviewer` with the plugin disabled, and this hook is the
@@ -36,6 +38,8 @@ const {
   meetingFor,
   meetingDirFor,
   checkWorktreeWrite,
+  channelScopeOf,
+  resolveSessionId,
 } = require("./lib/maestro-session.cjs");
 
 (async () => {
@@ -80,6 +84,8 @@ const {
       toolName: p.tool_name,
       toolInput: p.tool_input,
       meetingDir,
+      // Only a confined agent needs it; resolved lazily so nobody else pays for the session read.
+      channelScope: p.cwd && isChannelOnlyAgent(p.agent_type) ? channelScopeOf(p.cwd, resolveSessionId(p)) : null,
     });
     if (verdict.allow) verdict = worktreeVerdict;
   } catch (err) {

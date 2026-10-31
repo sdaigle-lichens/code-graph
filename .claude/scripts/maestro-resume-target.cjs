@@ -23,12 +23,12 @@
 //
 // `088` adds two kinds of line AFTER the id, each `<kind>: <project-relative file>`:
 //
-//   deliver: .claude/channels/backend/reviewer.1.md
-//       Resume only. A current-run file waiting in the target's lane. A resume never receives
+//   deliver: .claude/channels/task-144/backend/reviewer.1.md
+//       Resume only. In THIS session's channel scope (`144`), never another session's. A current-run file waiting in the target's lane. A resume never receives
 //       SubagentStart's additionalContext, so the orchestrator names this path in its SendMessage
 //       and the agent Reads it. Recorded in session.json `resume_deliveries[<agent_id>]`; the
 //       resumed run's own SubagentStop retires it (maestro-subagent-log.js).
-//   missing: .claude/channels/backend/reviewer.1.md (from reviewer)
+//   missing: .claude/channels/task-144/backend/reviewer.1.md (from reviewer)
 //       Resume OR cold. The latest workflow handoff's route to this target expects that payload and
 //       no current-run file from the sender is in the lane. Also recorded as a `missing_payload`
 //       handoff issue, so `maestro-task-status.cjs handoff-issues` reports it too. A pending
@@ -60,6 +60,8 @@ const {
   missingLoopbackPayload,
   dropResolvedMissingPayloads,
   appendHandoffIssue,
+  channelScopeOf,
+  resolveSessionId,
 } = require("./lib/maestro-session.cjs");
 
 // The global handoff tier, read exactly as the SubagentStart/Stop hooks read it: a separate sqlite
@@ -99,7 +101,9 @@ try {
         const runId = ensureSessionRunId(sess.state);
         let state = readSession(sess.state);
         let changed = false;
-        const deliveries = pendingResumeDeliveries(projectDir, agentType, runId);
+        // `144`: this session's own channel scope — another session's lane is never delivered.
+        const scope = channelScopeOf(projectDir, resolveSessionId());
+        const deliveries = pendingResumeDeliveries(projectDir, scope, agentType, runId);
         // A `missing_payload` the sender has since fixed would send the orchestrator after a file
         // that is already there: drop it before checking again.
         const pending = state.handoff_issues || [];
@@ -119,6 +123,7 @@ try {
           const { searchList } = resolveSearchList(cfg, state);
           const senderRoutes = payloadRoutes(
             projectDir,
+            scope,
             routesFrom(handoffRoutes(searchList, cfg.workflow_instances || []), latest.agentType),
             readGlobalHandoff
           );

@@ -112,6 +112,7 @@ const {
   missingDependenciesNotice,
   pendingResumeDeliveries,
   dropResolvedMissingPayloads,
+  isChannelScope,
 } = require("./lib/maestro-session.cjs");
 
 // `074`: the QUEUE root is always the main checkout — even if this runs with a worktree as its
@@ -511,7 +512,7 @@ function provisionWorktree({ sessionId, foreign, branch, wtPath, subject, pointe
     `Maestro tasks: another live session (${foreign.sessionId}) is active, so ${subject} runs in its own worktree.\n` +
       `  worktree: ${wtPath}\n  branch:   ${branch}\n` +
       "Do ALL of this session's work there: tell every subagent to use that directory as its working directory and absolute paths under it, " +
-      `and never edit the main checkout (${projectDir}). The task queue and .claude/ channels stay in the main checkout (${projectDir}/.claude/...). ` +
+      `and never edit the main checkout (${projectDir}). The task queue and this task's .claude/channels/<scope>/ lanes stay in the main checkout (${projectDir}/.claude/...). ` +
       "If edits there are denied, ask the user to allow the worktree directory (/add-dir).\n"
   );
   // `135`: a fresh checkout has no installed dependencies; stop with the user's install command.
@@ -921,16 +922,21 @@ function handoffIssuesCommand() {
   let issues = recorded;
   if (recorded.some((i) => i && i.kind === "missing_payload") && typeof state.run_id === "string" && state.run_id) {
     try {
+      // `144`: a recorded file names its scope — `.claude/channels/<scope>/<receiver>/…` — and was
+      // recorded by this session, so it is this session's scope. A legacy unscoped path matches no
+      // scope and is never looked up (it is never delivered either).
       const present = [];
-      const receivers = new Set();
+      const lanes = new Map();
       for (const i of recorded) {
         if (!i || i.kind !== "missing_payload") continue;
         for (const f of i.files || []) {
-          const m = /^\.claude\/channels\/([^/]+)\//.exec(f);
-          if (m) receivers.add(m[1]);
+          const m = /^\.claude\/channels\/([^/]+)\/([^/]+)\//.exec(f);
+          if (m && isChannelScope(m[1])) lanes.set(`${m[1]}/${m[2]}`, { scope: m[1], receiver: m[2] });
         }
       }
-      for (const r of receivers) present.push(...pendingResumeDeliveries(projectDir, r, state.run_id));
+      for (const { scope, receiver } of lanes.values()) {
+        present.push(...pendingResumeDeliveries(projectDir, scope, receiver, state.run_id));
+      }
       issues = dropResolvedMissingPayloads(recorded, present);
     } catch {
       issues = recorded;
@@ -962,14 +968,14 @@ function handoffIssuesCommand() {
   const payloadIssues = issues.filter((i) => i.kind === "missing_payload");
   // `104`: in a worktree run the agent's channel write (a cross-checkout write into the main
   // checkout) is intermittently denied by the auto-mode classifier — not by a Maestro hook, whose
-  // guard allows .claude/channels/. Resuming the agent to retry the write just meets the same
+  // guard allows this session's .claude/channels/<scope>/. Resuming the agent to retry the write just meets the same
   // judgement, so the sanctioned path is: the agent returns the payload, the orchestrator writes it.
   const worktreeNote =
     inWorktree && payloadIssues.length
       ? '\nWorktree run — the missing-payload advice above ("resume this agent and ask it to write that file") is replaced by this:\n' +
-        "  - Writing into the main checkout's .claude/channels/ from a worktree is intermittently denied by the permission classifier. The sanctioned path is that YOU write the channel file for the agent.\n" +
-        "  - Find the payload in the agent's final message (the JSON block it returned). Write its body (no stamp line) with the Write tool to the named file under the MAIN checkout's .claude/channels/ (absolute path)" +
-        `${wt.main_root ? ` — ${wt.main_root}/.claude/channels/` : ""}. This is a Maestro-sanctioned write; it needs no user approval, so do not ask the user.\n` +
+        "  - Writing into the main checkout's .claude/channels/<scope>/ from a worktree is intermittently denied by the permission classifier. The sanctioned path is that YOU write the channel file for the agent.\n" +
+        "  - Find the payload in the agent's final message (the JSON block it returned). Write its body (no stamp line) with the Write tool to exactly the named file — its .claude/channels/<scope>/<receiver>/ path, scope included — under the MAIN checkout (absolute path)" +
+        `${wt.main_root ? ` — ${wt.main_root}/<that path>` : ""}. This is a Maestro-sanctioned write; it needs no user approval, so do not ask the user.\n` +
         "  - If the agent returned no payload, resume it (SendMessage to its agent_id) and ask for the payload JSON in its final message, not for a file write. Never invent or reconstruct one yourself.\n" +
         "  - A file you write is unstamped, so the receiver's SubagentStart only mentions it. Name the file's path in the receiver's dispatch (or SendMessage) prompt and tell it to Read it first.\n"
       : "";

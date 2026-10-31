@@ -13,8 +13,10 @@
 // (`prompt_input_exit`, `other`, `resume`) nothing is removed — see `isResumableEnd`.
 // The source of truth (.claude/maestro.json) and the orchestrator skill are kept.
 //
-// Then (`036`) it SWEEPS `.claude/channels/` — retiring `.consumed/` outright and aging out
-// anything left in a live lane past the cap, via `sweep()` in
+// Then (`036`) it SWEEPS `.claude/channels/` — retiring THIS session's own scope's `.consumed/`
+// outright (`144`: never another session's; the scope is resolved BEFORE the state that names its
+// task is deleted) and aging out anything past the cap in every scope and in the legacy unscoped
+// layout, via `sweep()` in
 // apps/maestro/src/core/handoff-channels.ts (re-exported through lib/maestro-session.cjs, so this
 // script and the delivery hook cannot disagree about what "too old" means). A channel file is
 // deliberately NOT flushed here the way the three ephemeral files above are: a lane the receiving
@@ -29,7 +31,14 @@
 // Reads the hook payload on stdin; no-op when it carries no cwd.
 
 const path = require("path");
-const { readStdin, sweep, resolveSessionId, endSessionState, recordSessionRun } = require("./lib/maestro-session.cjs");
+const {
+  readStdin,
+  sweep,
+  channelScopeOf,
+  resolveSessionId,
+  endSessionState,
+  recordSessionRun,
+} = require("./lib/maestro-session.cjs");
 
 async function main() {
   let payload = {};
@@ -48,6 +57,14 @@ async function main() {
   } catch {
     // ignored
   }
+  // `144`: the scope names the session's `active_task`, which lives in the session.json that
+  // `endSessionState` may delete just below — so it is read first.
+  let scope = null;
+  try {
+    scope = channelScopeOf(cwd, resolveSessionId(payload));
+  } catch {
+    scope = null;
+  }
   try {
     // `064`: the payload's own `session_id` first, CLAUDE_CODE_SESSION_ID second, and nothing at
     // all when neither resolves. `removeSessionState` owns the "only mine, plus the legacy flat
@@ -57,7 +74,7 @@ async function main() {
     // A session file we cannot delete is not worth failing the session's exit over.
   }
   try {
-    sweep(cwd);
+    sweep(cwd, { scope });
   } catch {
     // Same discipline as the deletions above — not worth failing the session's exit over.
   }

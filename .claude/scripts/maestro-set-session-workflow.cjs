@@ -28,7 +28,13 @@
 
 const fs = require("fs");
 const path = require("path");
-const { ensureSessionPaths, closeMeeting, closeOwnerRuns } = require("./lib/maestro-session.cjs");
+const {
+  ensureSessionPaths,
+  closeMeeting,
+  closeOwnerRuns,
+  channelScopeFromState,
+  resolveSessionId,
+} = require("./lib/maestro-session.cjs");
 
 // Parse args: the first non-flag positional is the workflow name; `--task <f>`
 // (or `--task=<f>`) carries the optional task filename.
@@ -97,16 +103,20 @@ try {
     generated_instances: session.generated_instances ?? [],
   };
   // Only touch active_task when a task was passed, so re-running this mid-session
-  // to switch workflows doesn't silently forget the task being completed.
+  // to switch workflows doesn't silently forget the task being completed. `144`: active_task also
+  // sets this session's channel scope (`task-<NNN>`) from here on — recorded before any dispatch.
   if (activeTask) updated.active_task = activeTask;
+  // The meeting / owner runs being closed ran BEFORE this call, so their leftovers sit in the
+  // scope the session had until now.
+  const priorScope = channelScopeFromState(session, resolveSessionId());
   // Starting a workflow ends any team meeting in this session: a meeting participant's runs skip
   // HANDOFF routing and channel delivery, which a workflow step must never do. The one writer that
   // deliberately removes a key (see apps/maestro/src/core/meeting-mode.ts). `closeMeeting` also
   // records the participants' unstamped lane files as `meeting_leftovers`, so the sender's next
   // workflow SubagentStop never stamps one as its own payload — the same close `end` performs.
-  const { state: meetingClosed, ended: endedMeeting } = closeMeeting(updated, projectDir);
+  const { state: meetingClosed, ended: endedMeeting } = closeMeeting(updated, projectDir, priorScope);
   // Likewise an owner-run marker (`081`): a workflow step must never be treated as an owner run.
-  const { state: closed } = closeOwnerRuns(meetingClosed, projectDir);
+  const { state: closed } = closeOwnerRuns(meetingClosed, projectDir, priorScope);
 
   const tmp = sessionPath + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(closed, null, 2));

@@ -5,7 +5,8 @@
 //   1a. loaded_skills     — skills to load (Skill tool) before working,
 //   1b. referenced_skills — skills available, loaded only if the task needs them,
 //   2. the HANDOFF routing lines this agent may emit (success + condition labels), each paired
-//      with the channel file to WRITE its payload to (`.claude/channels/<receiver>/<sender>.1.md`),
+//      with the channel file to WRITE its payload to (`.claude/channels/<scope>/<receiver>/<sender>.1.md`,
+//      `<scope>` this session's own — `144`, see `channelScopeOf`),
 //      resolved across three tiers (.claude/handoffs/<sender>/<receiver>.md, then
 //      ~/.claude/maestro-handoff-defaults.sqlite, then the seed constant that ships inside
 //      lib/maestro-session.cjs) so the whole communication layer lives here rather than in
@@ -22,9 +23,11 @@
 // report.
 //
 // A THIRD, INDEPENDENT branch (`036`) delivers whatever is waiting for this agent's BARE type in
-// `.claude/channels/<bareAgentType>/` — same-run files inlined and retired, everything else only
-// mentioned; except (`112`) a stamped scribe-lane skill-gap report, inlined whatever its run and
-// kept until a scribe acknowledges it. See apps/maestro/src/core/handoff-channels.ts. Gated on nothing but the lane having
+// `.claude/channels/<scope>/<bareAgentType>/` — this session's OWN scope only (`144`: a concurrent
+// session's lanes, and the legacy unscoped layout, are never read) — same-run files inlined and
+// retired, everything else only mentioned; except (`112`) a stamped scribe-lane skill-gap report,
+// inlined whatever its run and kept until a scribe in the same scope acknowledges it. See
+// apps/maestro/src/core/handoff-channels.ts. Gated on nothing but the lane having
 // files in it: a channel is a filesystem fact, not a workflow-routing one, which is what lets a
 // gap reach `@scribe` on a later run even when this run's workflow never wired a route to it.
 //
@@ -84,6 +87,9 @@ const {
   readLane,
   retire,
   isGapReport,
+  channelScopeOf,
+  channelRelPath,
+  resolveSessionId,
   ensureSessionPaths,
   hasCompletedRun,
   meetingFor,
@@ -277,6 +283,9 @@ function collectReportContext(cfg, projectDir, agentType) {
   // log. Everything downstream takes `sess && sess.<file>` and tolerates the null.
   const claudeDir = path.join(projectDir, ".claude");
   const sess = ensureSessionPaths(claudeDir, payload);
+  // `144`: this session's channel scope — `task-<NNN>` once Step 2 recorded the claimed task, else
+  // `session-<id8>`. Every lane read, retire and payload path below is in this scope only.
+  const scope = channelScopeOf(projectDir, resolveSessionId(payload));
 
   const parts = [];
 
@@ -290,9 +299,9 @@ function collectReportContext(cfg, projectDir, agentType) {
       `Git worktree: this task runs in an isolated worktree, because another Maestro session is working in the main checkout.\n` +
         `- Work ONLY inside ${wt.path} (branch ${wt.branch || "unknown"}). Use that directory as your working directory and absolute paths under it for every read, edit and command.\n` +
         `- Never edit files under ${mainRoot} outside \`.claude/\` — that is the other session's working tree.\n` +
-        `- The shared \`.claude/\` state stays in the main checkout: the task queue (${mainRoot}/.claude/maestro-tasks/) and handoff channels (${mainRoot}/.claude/channels/) are read and written at those absolute paths, not inside the worktree. Create a channel file with the Write tool (it creates the folder); never mkdir it from Bash.\n` +
+        `- The shared \`.claude/\` state stays in the main checkout: the task queue (${mainRoot}/.claude/maestro-tasks/) and this task's handoff channels (${mainRoot}/.claude/channels/${scope}/) are read and written at those absolute paths, not inside the worktree. Write exactly the channel file your routes name, with the Write tool (it creates the folder); never mkdir it from Bash.\n` +
         `- Your shell does NOT start in the worktree; it starts in the main checkout (${mainRoot}). Aim every command at the worktree from the first one: \`pnpm --dir ${wt.path} <cmd>\`, \`git -C ${wt.path} <cmd>\`, and absolute paths under ${wt.path}. Never \`cd\` (the project's guardrails forbid it); a bare \`pnpm\` or \`git\` runs against the main checkout.\n` +
-        `- If writing your handoff payload to a channel file under ${mainRoot}/.claude/channels/ is denied, do not stall, retry in a loop or ask the user: include the full payload (the JSON block) in your final message, before your HANDOFF: line. The orchestrator writes the channel file for you from it.\n` +
+        `- If writing your handoff payload to a channel file under ${mainRoot}/.claude/channels/${scope}/ is denied, do not stall, retry in a loop or ask the user: include the full payload (the JSON block) in your final message, before your HANDOFF: line. The orchestrator writes the channel file for you from it.\n` +
         `- Do not merge, push, or remove the worktree or branch; the user does that.`
     );
   }
@@ -375,7 +384,7 @@ function collectReportContext(cfg, projectDir, agentType) {
   // reviewer`) is silently skipped, exactly as the install-time sync skips it.
   //
   // `036`: the payload no longer rides in the final-message JSON. Each route names the CHANNEL
-  // FILE to write it to instead — `.claude/channels/<receiver>/<sender>.1.md` — which the
+  // FILE to write it to instead — `.claude/channels/<scope>/<receiver>/<sender>.1.md` — which the
   // receiving agent's own SubagentStart delivers on its next invocation. The orchestrator never
   // sees the content at all.
   //
@@ -385,14 +394,14 @@ function collectReportContext(cfg, projectDir, agentType) {
   // is how task 086's second @reviewer pass ended without writing its payload — the one
   // instruction that governs the NEW hand-back must not be static.
   if (!offWorkflow && result && result.routes.length > 0) {
-    const routes = payloadRoutes(projectDir, result.routes, readGlobalHandoff);
+    const routes = payloadRoutes(projectDir, scope, result.routes, readGlobalHandoff);
     const required = payloadRequirement(routes, { withShapes: !isResume });
     if (required) parts.push(required);
   }
 
   // ── channel delivery — independent of workflow matching ────────────────
   //
-  // `036`: whatever is waiting for this agent in `.claude/channels/<bare agentType>/`, resolved
+  // `036`: whatever is waiting for this agent in `.claude/channels/<scope>/<bare agentType>/`, resolved
   // for the BARE agent type exactly like the report tier below — `maestro:test` reads the `test`
   // lane, the bug `033` fixed on both ends of a route id. Same-run deliveries are inlined and
   // retired (moved to `.consumed/`, never deleted); anything else is only mentioned, never
@@ -401,7 +410,9 @@ function collectReportContext(cfg, projectDir, agentType) {
   // agent's next workflow step is still there when that step runs.
   if (!offWorkflow) {
     const bareAgent = bareAgentName(agentType);
-    const entries = readLane(projectDir, bareAgent);
+    const entries = readLane(projectDir, scope, bareAgent);
+    const laneDir = channelRelPath(scope, bareAgent, "");
+    const fileOf = (e) => channelRelPath(scope, bareAgent, e.fileName);
     if (entries.length > 0) {
       // `064`: no session directory ⇒ no `run_id` to mint or compare against, so nothing matches
       // and every entry falls into `waiting` — MENTIONED rather than inlined. That is the same
@@ -424,14 +435,14 @@ function collectReportContext(cfg, projectDir, agentType) {
         `or found the concept has no graph. A gap file you do not name stays in your channel for the next scribe run.`;
 
       if (gaps.length > 0 && isResume) {
-        const lines = gaps.map((e) => `- from \`${e.sender}\`: \`.claude/channels/${bareAgent}/${e.fileName}\``);
+        const lines = gaps.map((e) => `- from \`${e.sender}\`: \`${fileOf(e)}\``);
         parts.push(
           `Skill-gap reports in your channel — Read each file (kept until you acknowledge it):\n${lines.join("\n")}\n\n${gapAck}`
         );
       } else if (gaps.length > 0) {
         const blocks = gaps.map((e) => `From \`${e.sender}\` (\`${e.fileName}\`):\n\n${e.body.trim()}`);
         parts.push(
-          `Skill-gap reports in your channel (\`.claude/channels/${bareAgent}/\`) — inlined verbatim, kept until you ` +
+          `Skill-gap reports in your channel (\`${laneDir}\`) — inlined verbatim, kept until you ` +
             `acknowledge them:\n\n${blocks.join("\n\n---\n\n")}\n\n${gapAck}`
         );
         for (const e of gaps) {
@@ -464,18 +475,18 @@ function collectReportContext(cfg, projectDir, agentType) {
       // agent's own SubagentStop retires them (maestro-subagent-log.js). Mentioned here only in
       // case a future Claude Code does deliver resume context.
       if (isResume && delivered.length > 0) {
-        const lines = delivered.map((e) => `- from \`${e.sender}\`: \`.claude/channels/${bareAgent}/${e.fileName}\``);
+        const lines = delivered.map((e) => `- from \`${e.sender}\`: \`${fileOf(e)}\``);
         parts.push(
           `In your channel from this run — Read each file before you start (it is retired when this run ends):\n${lines.join("\n")}`
         );
       } else if (delivered.length > 0) {
         const blocks = delivered.map((e) => `From \`${e.sender}\` (\`${e.fileName}\`):\n\n${e.body.trim()}`);
         parts.push(
-          `Delivered to your channel (\`.claude/channels/${bareAgent}/\`) — inlined verbatim, nothing to re-derive:\n\n` +
+          `Delivered to your channel (\`${laneDir}\`) — inlined verbatim, nothing to re-derive:\n\n` +
             blocks.join("\n\n---\n\n")
         );
         for (const e of delivered) {
-          retire(projectDir, bareAgent, e);
+          retire(projectDir, scope, bareAgent, e);
           try {
             appendSessionLog(
               claudeDir,
@@ -500,8 +511,7 @@ function collectReportContext(cfg, projectDir, agentType) {
       if (waiting.length > 0) {
         const days = (ms) => `${(ms / (24 * 60 * 60 * 1000)).toFixed(1)}d`;
         const lines = waiting.map(
-          (e) =>
-            `- from \`${e.sender}\`, ${days(e.ageMs)} old${e.runId ? "" : " (unstamped)"}: \`.claude/channels/${bareAgent}/${e.fileName}\``
+          (e) => `- from \`${e.sender}\`, ${days(e.ageMs)} old${e.runId ? "" : " (unstamped)"}: \`${fileOf(e)}\``
         );
         parts.push(
           `Waiting in your channel but NOT from this run (not inlined — read the file yourself if it's ` +
@@ -517,7 +527,16 @@ function collectReportContext(cfg, projectDir, agentType) {
   // resumed agent is about to write, but that message is already in its history from the first run.
   if (!offWorkflow && !isResume) {
     const reportPart = collectReportContext(cfg, projectDir, agentType);
-    if (reportPart) parts.push(reportPart);
+    if (reportPart) {
+      parts.push(reportPart);
+      // `144`: the report's skill-gap note names `.claude/channels/<scope>/scribe/…` — this is the
+      // `<scope>`, resolved here so the agent never has to work it out.
+      parts.push(
+        `Channel scope for this session: \`${scope}\`. Every channel file you write goes under ` +
+          `\`.claude/channels/${scope}/\` — a skill-gap report is ` +
+          `\`${channelRelPath(scope, "scribe", `${bareAgentName(agentType)}.1.md`)}\`.`
+      );
+    }
   }
 
   if (parts.length === 0) process.exit(0);

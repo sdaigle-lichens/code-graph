@@ -171,6 +171,7 @@ var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;
 var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;
 var HEARTBEAT_INTERVAL_MS = 60 * 1e3;
 var HEARTBEAT_STALE_MS = 3 * 60 * 1e3;
+var EMPTY_DIR_GRACE_MS = 60 * 60 * 1e3;
 
 // src/core/session-heartbeat.ts
 var import_node_fs6 = __toESM(require("node:fs"), 1);

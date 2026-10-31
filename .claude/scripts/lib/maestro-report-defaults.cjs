@@ -46,8 +46,11 @@ var import_node_os = __toESM(require("node:os"), 1);
 var import_node_path = __toESM(require("node:path"), 1);
 var import_node_sqlite = require("node:sqlite");
 var DEFAULT_REPORT_DEFAULTS_DB_PATH = import_node_path.default.join(import_node_os.default.homedir(), ".claude", "maestro-report-defaults.sqlite");
-function skillGapsChannelNote(subagent) {
+function skillGapsChannelNoteUnscoped(subagent) {
   return `If a skill you loaded was missing something you had to work out from the code yourself, write \`.claude/channels/scribe/${subagent}.1.md\` with a fenced \`json\` block: \`{ "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell you>" }] }\`. Leave it unwritten when nothing was missing \u2014 do not write a gap just to fill the file.`;
+}
+function skillGapsChannelNote(subagent) {
+  return `If a skill you loaded was missing something you had to work out from the code yourself, write \`.claude/channels/<scope>/scribe/${subagent}.1.md\` (\`<scope>\` is the channel scope named in your injected context) with a fenced \`json\` block: \`{ "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell you>" }] }\`. Leave it unwritten when nothing was missing \u2014 do not write a gap just to fill the file.`;
 }
 function conceptGapsChannelNote(subagent) {
   return `If a concept skill you loaded was missing something you had to work out from the code yourself, write \`.claude/channels/scribe/${subagent}.1.md\` with a fenced \`json\` block: \`{ "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell you>" }] }\`. Leave it unwritten when nothing was missing \u2014 do not write a gap just to fill the file.`;
@@ -61,6 +64,9 @@ function backendLikeV3(subagent) {
 }
 function backendLikeV4(subagent) {
   return backendLikeV3(subagent) + "\n\n" + VERDICT_HANDOFF_NOTE;
+}
+function backendLikeV5(subagent) {
+  return backendLikeBody(subagent, skillGapsChannelNoteUnscoped(subagent)) + "\n\n" + VERDICT_HANDOFF_NOTE;
 }
 function backendLikeBody(subagent, gapsNote) {
   return `Always return a JSON report at the end of your work. Output it as a fenced \`json\` code block:
@@ -78,13 +84,20 @@ function backendLikeBody(subagent, gapsNote) {
 }
 var SCRIBE_REPORT_V2 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "conceptSkillsUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>"\n}\n```\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.\n\n`conceptSkillsUpdated` counts concept skills you created or revised \u2014 it is a subset of `claudeFilesUpdated`, broken out because the caller usually wants to know whether the concept list moved without reading the whole summary.';
 var SCRIBE_REPORT_V1 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>"\n}\n```\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.';
-var SCRIBE_ENDING_NOTE = "End your final message with these plain-text lines, in this order:\n\n1. `SKILL_GAPS_HANDLED: <file>, <file>, \u2026` \u2014 only when you acted on skill-gap reports from `.claude/channels/scribe/`. Name every gap file you acted on, including one handled by enrichment only, one with a remainder left to enrich, and one with no graph to enrich. A gap file you do not name stays in your channel for the next scribe run.\n2. `HANDOFF: <label>` \u2014 always last. `HANDOFF: success` when the documentation is done, even if you skipped a step (a graph refresh skipped for lack of a tsconfig, targets left to enrich): report skipped steps in the report body, never through the label. `done` or `complete` is not a label \u2014 no workflow routes it. When you could not finish, end with a condition label from your injected routes when one fits, else `HANDOFF: partial` with the reason in the body: the orchestrator's unrouted check stops there and asks the user.";
-var SCRIBE_REPORT = SCRIBE_REPORT_V1 + "\n\n" + SCRIBE_ENDING_NOTE;
+function scribeEndingNote(gapsDir) {
+  return `End your final message with these plain-text lines, in this order:
+
+1. \`SKILL_GAPS_HANDLED: <file>, <file>, \u2026\` \u2014 only when you acted on skill-gap reports from \`${gapsDir}\`. Name every gap file you acted on, including one handled by enrichment only, one with a remainder left to enrich, and one with no graph to enrich. A gap file you do not name stays in your channel for the next scribe run.
+2. \`HANDOFF: <label>\` \u2014 always last. \`HANDOFF: success\` when the documentation is done, even if you skipped a step (a graph refresh skipped for lack of a tsconfig, targets left to enrich): report skipped steps in the report body, never through the label. \`done\` or \`complete\` is not a label \u2014 no workflow routes it. When you could not finish, end with a condition label from your injected routes when one fits, else \`HANDOFF: partial\` with the reason in the body: the orchestrator's unrouted check stops there and asks the user.`;
+}
+var SCRIBE_REPORT_V3 = SCRIBE_REPORT_V1 + "\n\n" + scribeEndingNote(".claude/channels/scribe/");
+var SCRIBE_REPORT = SCRIBE_REPORT_V1 + "\n\n" + scribeEndingNote(".claude/channels/<scope>/scribe/");
 function testReportBody(gapsNote) {
   return 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>"\n}\n```\n\n' + gapsNote;
 }
 var TEST_REPORT_V3 = testReportBody(conceptGapsChannelNote("test"));
 var TEST_REPORT_V4 = TEST_REPORT_V3 + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT_V5 = testReportBody(skillGapsChannelNoteUnscoped("test")) + "\n\n" + VERDICT_HANDOFF_NOTE;
 var TEST_REPORT = testReportBody(skillGapsChannelNote("test")) + "\n\n" + VERDICT_HANDOFF_NOTE;
 var SEED_REPORTS = {
   backend: backendLikeReport("backend"),
@@ -124,17 +137,30 @@ var PRIOR_SEEDS = (() => {
 ` + conceptGapsFieldNoteV2;
   const testV2 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "conceptSkillGaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell you>" }],\n  "testResult": "<N passed, N failed>",\n  "filesChanged": ["<file1>", "<file2>"],\n  "description": "<summary of what was tested>"\n}\n```\n\n' + conceptGapsFieldNoteV2;
   return {
-    backend: [backendLikeV1("backend"), backendLikeV2("backend"), backendLikeV3("backend"), backendLikeV4("backend")],
+    backend: [
+      backendLikeV1("backend"),
+      backendLikeV2("backend"),
+      backendLikeV3("backend"),
+      backendLikeV4("backend"),
+      backendLikeV5("backend")
+    ],
     frontend: [
       backendLikeV1("frontend"),
       backendLikeV2("frontend"),
       backendLikeV3("frontend"),
-      backendLikeV4("frontend")
+      backendLikeV4("frontend"),
+      backendLikeV5("frontend")
     ],
-    mobile: [backendLikeV1("mobile"), backendLikeV2("mobile"), backendLikeV3("mobile"), backendLikeV4("mobile")],
-    infra: [backendLikeV3("infra"), backendLikeV4("infra")],
-    scribe: [SCRIBE_REPORT_V2, SCRIBE_REPORT_V1],
-    test: [testV1, testV2, TEST_REPORT_V3, TEST_REPORT_V4]
+    mobile: [
+      backendLikeV1("mobile"),
+      backendLikeV2("mobile"),
+      backendLikeV3("mobile"),
+      backendLikeV4("mobile"),
+      backendLikeV5("mobile")
+    ],
+    infra: [backendLikeV3("infra"), backendLikeV4("infra"), backendLikeV5("infra")],
+    scribe: [SCRIBE_REPORT_V2, SCRIBE_REPORT_V1, SCRIBE_REPORT_V3],
+    test: [testV1, testV2, TEST_REPORT_V3, TEST_REPORT_V4, TEST_REPORT_V5]
   };
 })();
 function openDb(dbPath) {
