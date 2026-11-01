@@ -200,8 +200,12 @@ All named in one call each (`--all` when every concept needs it).
 
 **Size the enrichment before any fan-out.** Re-run `cg enrich targets --summary --json` (after the
 applies, so the counts are current) and report: the total, each concept's `total`, and the
-never-applied concepts from the first call, called first-time builds. A first-time build's count is
-its core only; `core.leftOut` is the rest a full first pass would add. Then ask whether to go ahead —
+never-applied concepts from the first call, called first-time builds. Print each first-time build with
+its `core.leftOut` beside it (from that concept's `concepts[]` entry in the re-run), e.g.
+`first-time build: <concept> — total T, core.leftOut L`. A first-time build's `total` is its core only,
+and a total of 0 can still hide its real size: a never-applied concept whose SKILL.md names no vertices
+shows total 0 while `core.leftOut` holds what a full first pass would add. Never read a 0 total as
+nothing to do. Then ask whether to go ahead —
 **with `AskUserQuestion`**: enrich the incremental concepts only, leaving first-time builds for later
 (recommended); include the first-time builds too; or stop after the graph refresh. Nothing is
 enriched before the answer. **Without it** (subagent): enrich only the incremental concepts, within
