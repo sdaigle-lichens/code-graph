@@ -301,7 +301,7 @@
     "epic": "haiku-subagents-with-graph"
   },
   "052-primer-from-the-task-text-at-haiku-subagent-start.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md"
     ],
