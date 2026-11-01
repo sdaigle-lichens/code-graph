@@ -276,6 +276,37 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
 | `code-graph eval [--tasks <path>]`    | `code-graph eval --tasks eval/tasks.json`                            | Run layer-A eval harness                                  |
 
+### Choosing the project (`--root`, `$CLAUDE_PROJECT_DIR`)
+
+Every command (`status`, `bootstrap`, `extract`, `apply`, `drift`, `enrich`, `refresh-skills`,
+`search`, `query *`, `skills *`, ...) loads `scribe.config.json` and the store of one project. The
+starting directory is chosen in this order, then the usual walk up to the nearest
+`scribe.config.json` runs from it:
+
+1. `--root <dir>` (global, works before or after the command; must be an existing directory, else
+   exit 1; an empty `--root ''` is an error too, exit 1, never a silent fallback)
+2. `$CLAUDE_PROJECT_DIR`, which must be an existing directory (a stale or deleted value is ignored
+   in every command). Beyond that, two rules:
+   - **Read commands** (the graph commands and `skills list|state|check|status|agents|agents-discover`)
+     use it only when a `scribe.config.json` sits at or above it, so a foreign value cannot redirect
+     a command that needs an existing config.
+   - **Create commands** (`skills stamp`, `skills agents-set`, which may write the first config) use
+     it even with no config yet, so the first write lands at the project root rather than in
+     whatever subdirectory the cwd happens to be.
+3. the current directory
+
+This lets a session whose cwd is the main checkout (and never `cd`s) work in a git worktree:
+`code-graph extract --all --root ../wt`. Relative `--root` resolves against the cwd. Without `--root`
+and without `$CLAUDE_PROJECT_DIR`, behaviour is the plain cwd walk.
+
+The chosen directory becomes the process's working directory before the command runs (intended: the
+config, store, git and tsconfig lookups all key off it). So **relative path arguments** (`eval --tasks`,
+`enrich merge <concept> <file>`, `query file <path>`, `catalog --tsconfig`) resolve against the chosen
+root, not the directory you invoked from, whether it came from `--root` or from
+`$CLAUDE_PROJECT_DIR`. When both the cwd and `$CLAUDE_PROJECT_DIR` hold a config, the env var wins.
+Pass absolute paths if the file lives outside the root. Only `--root` itself is resolved against the
+invoking cwd.
+
 ### `skills` commands (concept skills, no graph needed)
 
 Layer 1: these read SKILL.md markers (`metadata.type: concept-skill`, `version`, `last-update`) and

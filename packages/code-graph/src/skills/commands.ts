@@ -277,7 +277,7 @@ export function registerSkillsCommands(program: Command): void {
     .option(rootOption, rootHelp)
     .action(async (targetsArg: string[] | undefined, opts: StampOpts) => {
       const targets = targetsArg ?? [];
-      const projectRoot = resolveProjectRoot(opts.root);
+      const projectRoot = resolveProjectRoot(opts.root, process.env, "create");
       const lastUpdate = opts.sha || headSha(projectRoot);
 
       if (targets.length === 0) {
@@ -468,7 +468,7 @@ export function registerSkillsCommands(program: Command): void {
     .description("replace the agents list in the skills block (no names empties it)")
     .option(rootOption, rootHelp)
     .action((names: string[] | undefined, opts: RootOpts) => {
-      const projectRoot = resolveProjectRoot(opts.root);
+      const projectRoot = resolveProjectRoot(opts.root, process.env, "create");
       let written: boolean;
       try {
         written = writeAgentsList(projectRoot, names ?? []);

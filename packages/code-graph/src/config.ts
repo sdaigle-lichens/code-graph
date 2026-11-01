@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
+import { chooseStartDir } from "./skills/state.js";
 
 const ConceptSchema = z.object({
   globs: z.array(z.string()),
@@ -47,6 +48,20 @@ export function loadConfig(cwd: string = process.cwd()): ScribeConfig {
   }
   console.error("error: no scribe.config.json found in CWD ancestry");
   process.exit(5);
+}
+
+/**
+ * The directory every graph command starts its config walk from, chosen once before the action runs.
+ * One rule shared with `skills` (`chooseStartDir`, skills/state.ts): `--root <dir>` (empty or not an
+ * existing directory throws), then an existing `$CLAUDE_PROJECT_DIR` with a scribe.config.json at or
+ * above it (a stale, deleted or foreign value is ignored), then `cwd`.
+ */
+export function resolveStartDir(
+  root: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd()
+): string {
+  return chooseStartDir(root, env, cwd);
 }
 
 export function tryLoadConfig(cwd: string = process.cwd()): ScribeConfig | null {

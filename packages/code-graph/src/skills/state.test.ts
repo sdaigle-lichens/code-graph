@@ -260,9 +260,42 @@ describe("resolveProjectRoot", () => {
   it("prefers --root, then CLAUDE_PROJECT_DIR, then cwd", () => {
     const a = fs.mkdtempSync(path.join(tmp, "a-"));
     const b = fs.mkdtempSync(path.join(tmp, "b-"));
+    fs.writeFileSync(configPath(b), "{}");
     assert.equal(resolveProjectRoot(a, { CLAUDE_PROJECT_DIR: b }), a);
     assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: b }), b);
     assert.equal(resolveProjectRoot(null, {}), findConfigRoot(process.cwd()) ?? process.cwd());
+  });
+
+  it("ignores a CLAUDE_PROJECT_DIR with no config at or above it, or that does not exist", () => {
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), "cg-bare-"));
+    const fallback = findConfigRoot(process.cwd()) ?? process.cwd();
+    try {
+      assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: bare }), fallback);
+      fs.writeFileSync(configPath(tmp), "{}");
+      assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: path.join(tmp, "gone") }), fallback);
+    } finally {
+      fs.rmSync(bare, { recursive: true, force: true });
+    }
+  });
+
+  it("create mode: a CLAUDE_PROJECT_DIR with no config yet still wins; read mode ignores it", () => {
+    const fresh = fs.mkdtempSync(path.join(tmp, "fresh-"));
+    const fallback = findConfigRoot(process.cwd()) ?? process.cwd();
+    assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: fresh }, "create"), fresh);
+    assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: fresh }, "read"), fallback);
+  });
+
+  it("a missing CLAUDE_PROJECT_DIR falls back to the cwd walk in both modes", () => {
+    const fallback = findConfigRoot(process.cwd()) ?? process.cwd();
+    const gone = path.join(tmp, "gone");
+    for (const mode of ["read", "create"] as const) {
+      assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: gone }, mode), fallback, mode);
+    }
+    const file = path.join(tmp, "a-file");
+    fs.writeFileSync(file, "x");
+    for (const mode of ["read", "create"] as const) {
+      assert.equal(resolveProjectRoot(undefined, { CLAUDE_PROJECT_DIR: file }, mode), fallback, mode);
+    }
   });
 
   it("walks up to the nearest scribe.config.json ancestor", () => {

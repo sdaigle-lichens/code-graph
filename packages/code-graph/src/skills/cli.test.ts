@@ -827,6 +827,33 @@ for (const cli of CLIS) {
       assert.deepEqual(json(run(cli.path, ["skills", "agents"], { cwd: deep })), ["viaEnv"]);
     });
 
+    it("first write via CLAUDE_PROJECT_DIR lands at the project root when the cwd is a subdirectory of a fresh repo", () => {
+      const deep = path.join(tmp, "apps", "web");
+      fs.mkdirSync(deep, { recursive: true });
+      const r = run(cli.path, ["skills", "agents-set", "first"], { env: { CLAUDE_PROJECT_DIR: tmp }, cwd: deep });
+      assert.equal(r.code, 0, r.stderr);
+      assert.ok(fs.existsSync(path.join(tmp, "scribe.config.json")));
+      assert.ok(!fs.existsSync(path.join(deep, "scribe.config.json")));
+      // A deleted env dir is ignored by a read command: the cwd walk finds the root config.
+      const read = run(cli.path, ["skills", "agents"], {
+        env: { CLAUDE_PROJECT_DIR: path.join(tmp, "gone") },
+        cwd: deep,
+      });
+      assert.equal(read.code, 0, read.stderr);
+      assert.deepEqual(json(read), ["first"]);
+    });
+
+    it("a missing CLAUDE_PROJECT_DIR falls back to the cwd walk for a create command too", () => {
+      const deep = path.join(tmp, "apps", "web");
+      fs.mkdirSync(deep, { recursive: true });
+      const r = run(cli.path, ["skills", "agents-set", "x"], {
+        env: { CLAUDE_PROJECT_DIR: path.join(tmp, "gone") },
+        cwd: deep,
+      });
+      assert.equal(r.code, 0, r.stderr);
+      assert.ok(fs.existsSync(path.join(deep, "scribe.config.json")));
+    });
+
     // Layer 1 must not load the store or the compiler. cwd is the code-graph package, so typescript
     // and ts-morph ARE resolvable there — a lazy-import regression would load them, not just fail.
     for (const args of [

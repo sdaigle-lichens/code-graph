@@ -11,7 +11,7 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
 import { batchFailureSummary, ReportedError, resolveConceptArgs, runConceptBatch } from "./concept-batch.js";
-import { tryLoadConfig } from "./config.js";
+import { resolveStartDir, tryLoadConfig } from "./config.js";
 import { registerSkillsCommands } from "./skills/commands.js";
 import { ensureSqlite, STORE_COMMANDS } from "./sqlite-guard.js";
 import { packageRoot, packageVersion } from "./version.js";
@@ -61,6 +61,24 @@ async function skippedForNoConcepts(command: string): Promise<boolean> {
 
 const program = new Command();
 program.name("code-graph").version(packageVersion());
+program.option(
+  "--root <dir>",
+  "project to act on: --root, then $CLAUDE_PROJECT_DIR (when a scribe.config.json is at or above it), then cwd"
+);
+
+// Every command resolves its config, store and git from process.cwd(), so the chosen root is applied
+// once, here, before any action runs. `skills` reads $CLAUDE_PROJECT_DIR itself, so --root is mirrored there.
+program.hook("preAction", (thisCommand) => {
+  const root = (thisCommand.opts() as { root?: string }).root;
+  try {
+    const start = resolveStartDir(root);
+    if (start !== process.cwd()) process.chdir(start);
+    if (root) process.env.CLAUDE_PROJECT_DIR = start;
+  } catch (err) {
+    console.error(`error: ${(err as Error).message}`);
+    process.exit(1);
+  }
+});
 
 // The single catch for a Node without node:sqlite: any command that opens the store is checked here,
 // before its own lazy imports, so none of their catch blocks turns it into a bare exit 1.

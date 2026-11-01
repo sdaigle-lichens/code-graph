@@ -22,7 +22,7 @@
 //
 // Layer 1: nothing here may load `node:sqlite`, `typescript` or `ts-morph`.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
 export const CONFIG_FILE = "scribe.config.json";
@@ -59,14 +59,53 @@ export function findConfigRoot(dir: string): string | null {
 }
 
 /**
+ * The one starting-directory rule, shared by the graph commands (`resolveStartDir`, config.ts) and
+ * `skills` (`resolveProjectRoot`): `--root` (an empty string or a non-directory throws), then
+ * `$CLAUDE_PROJECT_DIR`, then `cwd`. A missing or non-directory env value is ignored in both modes.
+ *   - `read` (default; commands that need an existing config): the env dir counts only with a
+ *     `scribe.config.json` at or above it, so a foreign value cannot redirect a command.
+ *   - `create` (`skills stamp`, `agents-set`: they may write the first config): the env dir wins
+ *     even with no config yet, so a first write lands at the project root, not in a cwd subdirectory.
+ */
+export function chooseStartDir(
+  root: string | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd(),
+  mode: "read" | "create" = "read"
+): string {
+  if (root !== undefined && root !== null) {
+    if (root === "") throw new Error("--root: empty path");
+    const dir = resolve(cwd, root);
+    let isDir = false;
+    try {
+      isDir = statSync(dir).isDirectory();
+    } catch {}
+    if (!isDir) throw new Error(`--root ${root}: not a directory`);
+    return dir;
+  }
+  const fromEnv = env.CLAUDE_PROJECT_DIR;
+  if (fromEnv) {
+    const dir = resolve(cwd, fromEnv);
+    try {
+      if (statSync(dir).isDirectory() && (mode === "create" || findConfigRoot(dir))) return dir;
+    } catch {}
+  }
+  return cwd;
+}
+
+/**
  * The project a `skills` command acts on, resolved ONCE and passed down.
  *
- * The starting directory is `--root`, then `$CLAUDE_PROJECT_DIR` (what a hook or session sets),
- * then the cwd. When a `scribe.config.json` sits at or above it, that config's directory is the
- * project — the same ancestry walk every graph command does — otherwise the starting directory is.
+ * The starting directory comes from `chooseStartDir`. When a `scribe.config.json` sits at or above
+ * it, that config's directory is the project — the same ancestry walk every graph command does —
+ * otherwise the starting directory is.
  */
-export function resolveProjectRoot(root?: string | null, env: NodeJS.ProcessEnv = process.env): string {
-  const start = resolve(root || env.CLAUDE_PROJECT_DIR || process.cwd());
+export function resolveProjectRoot(
+  root?: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+  mode: "read" | "create" = "read"
+): string {
+  const start = chooseStartDir(root, env, process.cwd(), mode);
   return findConfigRoot(start) ?? start;
 }
 
