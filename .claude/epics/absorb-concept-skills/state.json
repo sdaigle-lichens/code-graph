@@ -2,8 +2,8 @@
   "slug": "absorb-concept-skills",
   "created_at": "2026-10-14T02:05:38.811Z",
   "manager": {
-    "name": "maestro-mgr-11fd3a4f",
-    "set_at": "2026-10-31T00:51:02.018Z"
+    "name": "maestro-mgr-ce310c69",
+    "set_at": "2026-11-01T01:11:56.254Z"
   },
   "workers": [
     {
@@ -896,6 +896,34 @@
       "id": "r046",
       "at": "2026-10-31T01:43:26.718Z",
       "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r047",
+      "task": "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "file": "inbox/r047-055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "at": "2026-11-01T01:09:42.404Z",
+      "from": "maestro-79ee2ebd"
+    },
+    {
+      "kind": "report",
+      "id": "r048",
+      "task": "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "file": "inbox/r048-055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "at": "2026-11-01T01:35:11.884Z",
+      "from": "maestro-79ee2ebd"
+    },
+    {
+      "kind": "ack",
+      "id": "r048",
+      "at": "2026-11-01T01:35:21.173Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "ack",
+      "id": "r047",
+      "at": "2026-11-01T01:35:22.098Z",
+      "by": "maestro-mgr-ce310c69"
     }
   ]
 }

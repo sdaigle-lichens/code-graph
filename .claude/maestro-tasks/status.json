@@ -318,7 +318,7 @@
     "epic": "haiku-subagents-with-graph"
   },
   "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md"
     ],
