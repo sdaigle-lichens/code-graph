@@ -22,6 +22,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/ast-output.ts` | reads the concept's SKILL.md, writes the `.ast.json`; `extractDocsOnly` for concepts with no code |
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants) |
 | `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `HOOK_TIMEOUT_SECONDS` (120), `takeLock`/`releaseLock`, and re-exports `EXIT_RENAMES_DEFERRED` (10, defined in `scribe/exit-codes.ts`). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
+| `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10); `apply.ts` reads it from here so the write path never imports the hook module |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
 | `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`, `refresh-skills`) |
@@ -126,6 +127,11 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 - `extract.ts` caches one ts-morph `Project` per tsconfig path for the life of the process and never
   refreshes it from disk. Fine for the CLI; a long-lived caller must call `clearProjectCache()` before
   re-extracting edited sources.
+- Known limitation (`refresh-skills` lock, `takeLock`/`releaseLock`): each rename is atomic, but the
+  link-back that restores a lock moved aside by mistake is not. In the gap between that rename and the
+  link-back a third run can create the lock; the link-back then fails and the moved file is deleted, so
+  two runs can both believe they hold it and apply the same concept. It needs a stale lock and three
+  racing runs inside that window. Not fixed: do not treat the lock as a guarantee of exclusion.
 - `pnpm format` rewrites bodies, changing `contentHash` and marking enrichment stale: re-graph after.
 - The FTS index is rebuilt wholesale at the end of every `apply`; a half-failed apply leaves a stale index.
 - Resolving a deferred concept with `--approve-drift` looks like the fix and isn't: it accepts every

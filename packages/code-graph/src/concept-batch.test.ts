@@ -10,7 +10,13 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
-import { batchFailureSummary, ReportedError, resolveConceptArgs, runConceptBatch } from "./concept-batch.js";
+import {
+  batchFailureSummary,
+  reportAndThrow,
+  ReportedError,
+  resolveConceptArgs,
+  runConceptBatch,
+} from "./concept-batch.js";
 import { bootstrapStore } from "./scribe/bootstrap.js";
 import { isConceptApplied } from "./scribe/enrich.js";
 import { docKey, putRecord } from "./scribe/rows.js";
@@ -106,6 +112,32 @@ describe("resolveConceptArgs / runConceptBatch / batchFailureSummary", () => {
     ]);
     assert.deepEqual(errors, ["apply b failed: boom"]);
     assert.equal(batchFailureSummary("apply", failed, 4), "apply: 2 of 4 concept(s) failed: b, d");
+  });
+
+  it("reportAndThrow prints every line to stderr once, throws ReportedError with the first line, and a batch does not print it again", async () => {
+    const errors: string[] = [];
+    const orig = console.error;
+    console.error = (...a: unknown[]) => void errors.push(a.join(" "));
+    let thrown: unknown;
+    let failed;
+    try {
+      try {
+        reportAndThrow("error: first line", "  second line");
+      } catch (err) {
+        thrown = err;
+      }
+      failed = await runConceptBatch("extract", ["x"], async () => reportAndThrow("error: batch line", "detail"));
+    } finally {
+      console.error = orig;
+    }
+    assert.ok(thrown instanceof ReportedError);
+    assert.equal((thrown as Error).message, "error: first line");
+    assert.deepEqual(failed, [{ concept: "x", error: "error: batch line" }]);
+    assert.deepEqual(
+      errors,
+      ["error: first line", "  second line", "error: batch line", "detail"],
+      "each line printed once"
+    );
   });
 });
 
