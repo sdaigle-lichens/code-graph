@@ -112,6 +112,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
 - Docs-only detection (`isDocsOnly`, `extractDocsOnly`) lives in `scribe/ast-output.ts`, not
   `extract.ts`: `cli.ts` checks it before importing `extract.ts`, so a docs-only `extract` never
   loads ts-morph. Keep it that way.
+- **Start directory** (`chooseStartDir`, `skills/state.ts`; `resolveStartDir` in `config.ts`): global
+  `--root`, then `$CLAUDE_PROJECT_DIR` (read mode: only with a config at or above it), then cwd. `cli.ts`'s
+  preAction hook chdirs there, so commands keep reading `process.cwd()`; code that resolves paths before
+  that hook (module load) sees the invoking directory instead.
 - A concept's SKILL.md resolves via `resolveConceptSkillPath` (`skills/concept-skills.ts`): explicit
   `skill` (returned as declared even if missing), else the marked skill whose id/dir equals the
   concept key, else `skillsDir/<concept>/SKILL.md`.

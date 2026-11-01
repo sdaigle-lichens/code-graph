@@ -3,8 +3,8 @@ name: scribe-pipeline
 description: How the code-graph write path works — extract a concept to an .ast.json, apply it into the SQLite store with drift detection, and ingest the concept's SKILL.md as a doc vertex. Read before changing packages/code-graph/src/scribe.
 metadata:
   type: concept-skill
-  version: "1.1"
-  last-update: 9f0fd699a9a8e3155bd898b5da694724574e0ef2
+  version: "1.2"
+  last-update: 25466506f6c0d9e4953dbb8bfbb75747d335da71
 ---
 
 # Scribe pipeline
@@ -133,6 +133,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   two runs can both believe they hold it and apply the same concept. It needs a stale lock and three
   racing runs inside that window. Not fixed: do not treat the lock as a guarantee of exclusion.
 - `pnpm format` rewrites bodies, changing `contentHash` and marking enrichment stale: re-graph after.
+- Which store and ast.json a write touches follows the project root (`--root`, then `$CLAUDE_PROJECT_DIR`,
+  then cwd; see `concept-skills-layer`, Project root). From a session whose cwd is another checkout, pass
+  `--root <dir>` instead of changing directory.
 - The FTS index is rebuilt wholesale at the end of every `apply`; a half-failed apply leaves a stale index.
 - Resolving a deferred concept with `--approve-drift` looks like the fix and isn't: it accepts every
   candidate unreviewed (ticket 045 cites an installing-maestro run reported as 4 inserted, 2 archived with

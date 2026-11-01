@@ -3,8 +3,8 @@ name: concept-skills-layer
 description: How the code-graph skills command group (layer 1) stamps versioned concept-skill markers, tracks git freshness, and resolves a concept's SKILL.md. Read before changing packages/code-graph/src/skills.
 metadata:
   type: concept-skill
-  version: "1.0"
-  last-update: 6a3c88c2fbdc9c5431facca80c5251b4610c9e01
+  version: "1.1"
+  last-update: 25466506f6c0d9e4953dbb8bfbb75747d335da71
 ---
 
 # Concept skills layer
@@ -57,6 +57,18 @@ files, graph? {vertices, enriched, changed, stale}`; `commits: null` = window no
 A concept's SKILL.md is its explicit `skill` path (taken as declared, even if missing), else the
 marked skill whose id or directory name equals the concept key, else `skillsDir/<concept>/SKILL.md`
 (`resolveConceptSkillPath`). `tsconfig` is optional.
+
+## Project root
+
+Every command acts on one project, chosen once by `chooseStartDir` (`skills/state.ts`): global
+`--root <dir>` (empty or not a directory exits 1), then `$CLAUDE_PROJECT_DIR` (a stale or missing value
+is ignored), then the cwd. `resolveProjectRoot(root, env, mode)` walks up from there to the nearest
+`scribe.config.json`. Mode `read` (default) uses the env dir only when a config sits at or above it;
+mode `create` (`skills stamp`, `agents-set`, which may write the first config) uses it even with none,
+so a first write lands at the project root. The graph commands share the rule through `resolveStartDir`
+(`config.ts`). The global `preAction` hook in `cli.ts` chdirs to the chosen start, so relative path
+arguments resolve against the project root. Trap: code that reads `process.cwd()` before that hook runs
+(module load) sees the invoking directory, not the project.
 
 ## Docs-only concepts
 
