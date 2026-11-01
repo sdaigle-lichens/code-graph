@@ -304,17 +304,27 @@ function readFileSafe(dir, filename) {
 }
 function buildStatusMap(dir, files, doneSet, previous = {}) {
   const fileSet = new Set(files);
+  const unmerged = unmergedSetFrom(previous, doneSet);
   const out = {};
   for (const filename of files) {
     const blockedBy = parseBlockedBy(readFileSafe(dir, filename));
+    const epic = previous[filename]?.epic;
     out[filename] = {
-      status: doneSet.has(filename) ? "done" : blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b)) ? "ready" : "blocked",
+      status: doneSet.has(filename) ? "done" : blockersSatisfied(blockedBy, epic, doneSet, fileSet, unmerged) ? "ready" : "blocked",
       blockedBy,
       // `084`: the tracker owns `epic`, the markdown never does, so a rebuild keeps what was linked.
-      ...previous[filename]?.epic ? { epic: previous[filename].epic } : {}
+      ...epic ? { epic } : {},
+      // `146`: a done task stays unmerged until `merge` / `mark-merged` clears it.
+      ...doneSet.has(filename) && unmerged.has(filename) ? { unmerged: true } : {}
     };
   }
   return out;
+}
+function blockersSatisfied(blockedBy, epic, doneSet, fileSet, unmerged) {
+  return blockedBy.every((b) => !fileSet.has(b) || doneSet.has(b) && !(epic && unmerged.has(b)));
+}
+function unmergedSetFrom(statusMap, doneSet) {
+  return new Set(Object.keys(statusMap).filter((k) => doneSet.has(k) && statusMap[k]?.unmerged === true));
 }
 function setTaskEpic(projectRoot, filenames, epic) {
   const dir = tasksDirFor(projectRoot);
@@ -345,6 +355,7 @@ function readTaskTracker(projectRoot) {
     out[name] = {
       status: entry?.status,
       epic: entry?.epic,
+      unmerged: entry?.unmerged === true,
       blockedBy: Array.isArray(entry?.blockedBy) ? entry.blockedBy : []
     };
   return out;
@@ -824,7 +835,16 @@ function readyTasks(projectRoot, slug, cap = DEFAULT_SPAWN_CAP) {
   const model = resolveWorkerModel(readConfig(root));
   const workerOf = /* @__PURE__ */ new Map();
   for (const w of state.workers) if (w.task) workerOf.set(import_node_path8.default.basename(w.task), w.name);
-  const view = { slug, cwd: root, cap, running: [], pending: [], ready: [], slots: 0 };
+  const view = {
+    slug,
+    cwd: root,
+    cap,
+    running: [],
+    pending: [],
+    ready: [],
+    waitingOnMerge: [],
+    slots: 0
+  };
   const own = Object.keys(tracker).filter((f) => tracker[f].epic === slug && tracker[f].status !== "done").sort((a, b) => a.localeCompare(b));
   for (const filename of own) {
     const claim = claims.get(filename);
@@ -838,7 +858,12 @@ function readyTasks(projectRoot, slug, cap = DEFAULT_SPAWN_CAP) {
       continue;
     }
     const entry = tracker[filename];
+    const unmerged = entry.blockedBy.filter((b) => tracker[b]?.status === "done" && tracker[b].unmerged);
     const unblocked = entry.blockedBy.every((b) => !tracker[b] || tracker[b].status === "done");
+    if (unblocked && unmerged.length) {
+      view.waitingOnMerge.push({ filename, unmergedBlockers: unmerged });
+      continue;
+    }
     if (entry.status !== "ready" || !unblocked) continue;
     const name = workerNameFor(slug, filename);
     view.ready.push({
@@ -863,6 +888,10 @@ function formatReady(view) {
   for (const r of view.running)
     lines.push(`  ${r.filename}  running in session ${r.sessionName ? `"${r.sessionName}"` : "(unnamed)"}`);
   for (const p of view.pending) lines.push(`  ${p.filename}  spawned as "${p.worker}", not claimed yet`);
+  for (const w of view.waitingOnMerge)
+    lines.push(
+      `  ${w.filename}  waiting on merge: ${w.unmergedBlockers.join(", ")} done but not merged (run merge or mark-merged)`
+    );
   return lines.join("\n");
 }
 function formatInboxEntry(entry) {

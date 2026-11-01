@@ -17,7 +17,8 @@
 // `done` is the only decided state. `ready`/`blocked` are always recomputed from
 // the dependency graph + the done-set, so the materialized values can't drift:
 // a non-done task is `ready` when every blocker is done (or no longer exists),
-// otherwise `blocked`. The cascade is therefore automatic — marking one task
+// otherwise `blocked`. `146`: for a task inside an epic, a done blocker that is
+// still `unmerged: true` does not count (it clears via `merge` / `mark-merged`). The cascade is therefore automatic — marking one task
 // done re-derives every dependent's state in a single pass.
 
 const fs = require("fs");
@@ -106,6 +107,22 @@ function writeStatus(projectDir, statusMap) {
   return ordered;
 }
 
+// `146`: whether every blocker of a task is satisfied. A blocker is satisfied when its file is gone
+// or it is done; inside an epic (`epic` set) it must also be merged, because the dependent starts
+// from a base that needs the blocker's code. Tasks outside an epic keep the plain done-or-gone
+// rule. Kept in sync with blockersSatisfied() in apps/maestro/src/core/tasks.ts.
+function blockersSatisfied(blockedBy, epic, doneSet, fileSet, unmerged) {
+  return blockedBy.every((b) => !fileSet.has(b) || (doneSet.has(b) && !(epic && unmerged.has(b))));
+}
+
+// `146`: the done tasks whose entry says `unmerged: true` (absent = merged, so legacy entries
+// need no migration).
+function unmergedSetFrom(statusMap, doneSet) {
+  return new Set(
+    Object.keys(statusMap).filter((k) => doneSet.has(k) && statusMap[k] && statusMap[k].unmerged === true)
+  );
+}
+
 // Recompute the full status map from the current task files + an authoritative
 // done-set. This is the single source of cascade logic:
 //   - markdown "## Blocked by" gives each file's blockedBy (authored input),
@@ -115,9 +132,11 @@ function writeStatus(projectDir, statusMap) {
 //     otherwise `blocked`.
 // Entries for files that no longer exist are dropped. New files appear as
 // ready/blocked. Pure single pass — readiness depends only on the done-set.
-function buildStatusMap(projectDir, doneSet, previous = {}) {
+function buildStatusMap(projectDir, doneSet, previous = {}, newlyUnmerged = new Set()) {
   const files = listTaskFiles(projectDir);
   const fileSet = new Set(files);
+  const unmerged = unmergedSetFrom(previous, doneSet);
+  for (const f of newlyUnmerged) if (doneSet.has(f)) unmerged.add(f);
   const out = {};
   for (const filename of files) {
     let content = "";
@@ -127,25 +146,25 @@ function buildStatusMap(projectDir, doneSet, previous = {}) {
       content = "";
     }
     const blockedBy = parseBlockedBy(content);
+    const epic = previous[filename] && previous[filename].epic;
     let status;
     if (doneSet.has(filename)) {
       status = "done";
     } else {
-      const satisfied = blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b));
-      status = satisfied ? "ready" : "blocked";
+      status = blockersSatisfied(blockedBy, epic, doneSet, fileSet, unmerged) ? "ready" : "blocked";
     }
     out[filename] = { status, blockedBy };
     // `084`: the tracker owns `epic` (the markdown never does), so a rebuild keeps what was linked.
-    if (previous[filename] && previous[filename].epic) out[filename].epic = previous[filename].epic;
+    if (epic) out[filename].epic = epic;
+    // `146`: a done task stays unmerged until `merge` / `mark-merged` clears it.
+    if (doneSet.has(filename) && unmerged.has(filename)) out[filename].unmerged = true;
   }
   return out;
 }
 
 // The set of filenames currently marked done, read from the existing status.json.
 function doneSetFrom(statusMap) {
-  return new Set(
-    Object.keys(statusMap).filter((k) => statusMap[k] && statusMap[k].status === "done")
-  );
+  return new Set(Object.keys(statusMap).filter((k) => statusMap[k] && statusMap[k].status === "done"));
 }
 
 // Reconcile status.json with the task files on disk: add new files, drop
@@ -158,14 +177,31 @@ function sync(projectDir) {
 
 // Mark a single task file done (idempotent), then recompute the cascade and
 // persist. Re-syncs from markdown first so the JSON is current even if files
-// changed since the last write. Returns { map, marked, known }.
-function markDone(projectDir, filename) {
+// changed since the last write. `opts.unmerged` (`146`) records that the task ran in a worktree
+// whose branch is not merged yet. Returns { map, marked, known }.
+function markDone(projectDir, filename, opts = {}) {
   const previous = readStatus(projectDir);
   const doneSet = doneSetFrom(previous);
   const known = listTaskFiles(projectDir).includes(filename);
   if (known) doneSet.add(filename);
-  const map = writeStatus(projectDir, buildStatusMap(projectDir, doneSet, previous));
+  const newly = new Set(known && opts.unmerged ? [filename] : []);
+  const map = writeStatus(projectDir, buildStatusMap(projectDir, doneSet, previous, newly));
   return { map, marked: known, known };
+}
+
+// `146`: clear a done task's `unmerged` flag (its work is merged) and recompute the cascade, so an
+// epic dependent that was waiting on it becomes ready. Returns { map, known, done, cleared }:
+// `done` is false for a task that is not done (nothing changes), `cleared` whether a flag was set.
+function markMerged(projectDir, filename) {
+  const previous = readStatus(projectDir);
+  const known = listTaskFiles(projectDir).includes(filename);
+  const done = known && !!previous[filename] && previous[filename].status === "done";
+  if (!done) return { map: previous, known, done: false, cleared: false };
+  const cleared = previous[filename].unmerged === true;
+  const next = Object.assign({}, previous, { [filename]: Object.assign({}, previous[filename]) });
+  delete next[filename].unmerged;
+  const map = writeStatus(projectDir, buildStatusMap(projectDir, doneSetFrom(next), next));
+  return { map, known, done: true, cleared };
 }
 
 module.exports = {
@@ -182,4 +218,5 @@ module.exports = {
   doneSetFrom,
   sync,
   markDone,
+  markMerged,
 };

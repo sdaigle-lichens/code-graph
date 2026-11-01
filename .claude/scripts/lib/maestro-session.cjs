@@ -171,6 +171,7 @@ __export(maestro_session_exports, {
   readStdin: () => readStdin,
   readWorktreePointer: () => readWorktreePointer,
   recentRunsLimit: () => recentRunsLimit,
+  recordActiveTask: () => recordActiveTask,
   recordResumeDeliveries: () => recordResumeDeliveries,
   recordRun: () => recordRun,
   recordSessionRun: () => recordSessionRun,
@@ -187,6 +188,7 @@ __export(maestro_session_exports, {
   resumeTarget: () => resumeTarget,
   retire: () => retire,
   retireResumeDeliveries: () => retireResumeDeliveries,
+  retireScope: () => retireScope,
   reviewFileName: () => reviewFileName,
   routesFrom: () => routesFrom,
   runStartedAt: () => runStartedAt,
@@ -885,6 +887,49 @@ function sweep(projectDir, opts = {}) {
   sweepConsumed(import_node_path3.default.join(root, CONSUMED_DIR_NAME), now, ageCapMs, false, removed);
   return { removed };
 }
+function retireScope(projectDir, scope, ownSessionId) {
+  if (!isChannelScope(scope)) return [];
+  const claudeDir = import_node_path3.default.join(projectDir, ".claude");
+  for (const id of listSessionIds(claudeDir)) {
+    if (id === ownSessionId) continue;
+    const state = sessionPathsFor(claudeDir, id)?.state;
+    if (channelScopeFromState(readSession(state ?? null), id) === scope) return [];
+  }
+  const retired = [];
+  for (const receiver of listDirs(scopeRoot(projectDir, scope))) {
+    for (const entry of readLane(projectDir, scope, receiver)) {
+      if (isGapReport(entry)) continue;
+      try {
+        retire(projectDir, scope, receiver, entry);
+        retired.push(entry.path);
+      } catch {
+      }
+    }
+  }
+  return retired;
+}
+function recordActiveTask(projectDir, sessionId, task) {
+  const paths = sessionPathsFor(import_node_path3.default.join(projectDir, ".claude"), sessionId);
+  if (!paths) return null;
+  const prior = readJsonObject(paths.state);
+  const priorScope = channelScopeFromState(prior, sessionId);
+  const next = { ...prior, active_task: import_node_path3.default.basename(task) };
+  import_node_fs5.default.mkdirSync(paths.dir, { recursive: true });
+  const tmp = paths.state + ".tmp";
+  import_node_fs5.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
+  import_node_fs5.default.renameSync(tmp, paths.state);
+  const scope = channelScopeFromState(next, sessionId);
+  const retired = scope === priorScope ? [] : retireScope(projectDir, priorScope, sessionId);
+  return { scope, priorScope, retired };
+}
+function readJsonObject(p) {
+  try {
+    const raw = JSON.parse(import_node_fs5.default.readFileSync(p, "utf8"));
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  } catch {
+    return {};
+  }
+}
 function liveRunIds(projectDir) {
   const claudeDir = import_node_path3.default.join(projectDir, ".claude");
   const ids = /* @__PURE__ */ new Set();
@@ -1160,7 +1205,17 @@ var REVIEWER_TO_SCRIBE = `\`\`\`json
 var REVIEWER_TO_TEST = '```json\n{\n  "failing_tests": ["<test name \u2014 failure reason>"],\n  "missing_coverage": ["<endpoint or behavior that lacks a test>"]\n}\n```';
 var TEST_TO_BACKEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<endpoint/function the backend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
 var TEST_TO_FRONTEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<component/page the frontend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
-var TEST_TO_REVIEWER = '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```';
+var TEST_TO_REVIEWER = `\`\`\`json
+{
+  "tests_added": ["<test name \u2014 what it verifies>"],
+  "results": ["<pass/fail summary>"],
+  "commands_run": ["<exact command> => <exit code, N passed / N failed>"],
+  "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
+  "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
+  "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "files_touched": ["<list, or 'none'>"]
+}
+\`\`\``;
 var SEED_HANDOFFS = {
   "backend/frontend": BACKEND_TO_FRONTEND,
   "backend/mobile": BACKEND_TO_MOBILE,
@@ -1268,6 +1323,8 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "failing_tests": ["<test name \u2014 behavior it expects>"],\n    "test_files_added": ["<list, or \'none\'>"],\n    "implementation_targets": ["<component/page the frontend must implement>"],\n    "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n  }\n}\n```'
   ],
   "test/reviewer": [
+    // `148`: the flat body before commands_run, negative_control and real_path_exercised.
+    '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```',
     '```json\n{\n  "handoff_details": {\n    "tests_added": ["<test name \u2014 what it verifies>"],\n    "results": ["<pass/fail summary>"],\n    "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n    "files_touched": ["<list, or \'none\'>"]\n  }\n}\n```'
   ]
 };
@@ -2070,7 +2127,7 @@ function realResolve2(p) {
 }
 var within = (target, root) => target === root || target.startsWith(root + import_node_path11.default.sep);
 function checkWorktreeWrite(input) {
-  const { cwd, toolName, toolInput, worktree } = input;
+  const { cwd, toolName, toolInput, worktree, channelScope } = input;
   const key = toolName ? WRITE_TOOL_PATH_KEYS2[toolName] : void 0;
   if (!key || !worktree) return { allow: true };
   if (typeof worktree.path !== "string" || typeof worktree.main_root !== "string") return { allow: true };
@@ -2081,6 +2138,17 @@ function checkWorktreeWrite(input) {
   const main = realResolve2(worktree.main_root);
   const target = realResolve2(import_node_path11.default.resolve(cwd || worktree.path, raw));
   if (!wt || !main || !target) return { allow: true };
+  if (isChannelScope(channelScope)) {
+    for (const base of [main, wt]) {
+      const channels = realResolve2(import_node_path11.default.join(base, ".claude", "channels"));
+      if (!channels || !within(target, channels)) continue;
+      if (within(target, import_node_path11.default.join(channels, channelScope))) break;
+      return {
+        allow: false,
+        reason: `Blocked: "${raw}" is in a channel scope that is not this session's. This session may write handoff channel files only under .claude/channels/${channelScope}/ \u2014 another task's lanes, and the legacy unscoped .claude/channels/<receiver>/ layout, are off limits.`
+      };
+    }
+  }
   if (within(target, wt)) return { allow: true };
   if (!within(target, main)) return { allow: true };
   if (MAIN_CHECKOUT_SHARED_DIRS.some((d) => within(target, import_node_path11.default.join(main, ".claude", d)))) return { allow: true };
@@ -2916,6 +2984,7 @@ function meetingNotice(meeting, agentType) {
   readStdin,
   readWorktreePointer,
   recentRunsLimit,
+  recordActiveTask,
   recordResumeDeliveries,
   recordRun,
   recordSessionRun,
@@ -2932,6 +3001,7 @@ function meetingNotice(meeting, agentType) {
   resumeTarget,
   retire,
   retireResumeDeliveries,
+  retireScope,
   reviewFileName,
   routesFrom,
   runStartedAt,

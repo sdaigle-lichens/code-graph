@@ -5,7 +5,8 @@
 // refactor agents' file writes to `<cwd>/.claude/channels/<scope>/`, this session's own channel
 // scope (`144`, resolved here from the session, never from the agent), so they can hand a payload
 // to the next agent without being able to modify code, docs or config, or another session's lanes.
-// Every other agent is untouched.
+// In a worktree session (`147`) the worktree check also confines EVERY caller's channel writes to
+// that same own scope; outside a worktree every other agent is untouched.
 //
 // Registered from the plugin's hooks.json AND, since `121`, from a project-local install (a
 // project can run a forked or user-tier `reviewer` with the plugin disabled, and this hook is the
@@ -73,6 +74,8 @@ const {
           toolName: p.tool_name,
           toolInput: p.tool_input,
           worktree: state && state.worktree,
+          // `147`: in a worktree session EVERY caller is confined to its own channel scope.
+          channelScope: state && state.worktree ? channelScopeOf(p.cwd, resolveSessionId(p)) : null,
         });
       }
     } catch {

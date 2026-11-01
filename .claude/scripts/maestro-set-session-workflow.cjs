@@ -33,6 +33,7 @@ const {
   closeMeeting,
   closeOwnerRuns,
   channelScopeFromState,
+  retireScope,
   resolveSessionId,
 } = require("./lib/maestro-session.cjs");
 
@@ -121,6 +122,15 @@ try {
   const tmp = sessionPath + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(closed, null, 2));
   fs.renameSync(tmp, sessionPath);
+
+  // `147`: a switch to another task leaves the previous scope's lanes behind — retire them now
+  // (never a scope another live session still owns), not at the 14-day age-out.
+  try {
+    const sid = resolveSessionId();
+    if (priorScope !== channelScopeFromState(closed, sid)) retireScope(projectDir, priorScope, sid);
+  } catch {
+    // Best-effort: the age-out still reaches them.
+  }
 
   const taskNote = activeTask ? `, active task "${activeTask}"` : "";
   process.stdout.write(`Maestro session: active workflow set to "${resolvedName}"${taskNote}\n`);

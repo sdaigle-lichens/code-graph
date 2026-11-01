@@ -40,6 +40,10 @@
 //       clean SessionEnd) is reaped automatically before the attempt, so a
 //       crashed session's claim never blocks a fresh one.
 //
+//       A successful claim also records the task as this session's `active_task` (`147`), which sets
+//       its channel scope to `task-<NNN>`; if that changes the scope, the scope it left has its
+//       undelivered lane files retired (never a scope another live session owns).
+//
 //       The claim records the claiming session's NAME beside its id (`084`), because cross-session
 //       messages are addressed by name. Since `113` the CLI fills it in from the name the
 //       session-name hook stored (`maestro-<id8>`, or the user's custom title); `--name <session
@@ -71,6 +75,12 @@
 //       like a task worktree; nobody else live means "no worktree needed". Writes nothing to claims/ or
 //       status.json, so a freeform worktree never shows up as a task.
 //
+//   node maestro-task-status.cjs mark-merged <filename|NNN>   (`146`)
+//       Clear a done task's `unmerged` flag after the user merged its branch by hand, and recompute the
+//       cascade. `done` sets `unmerged: true` when the task ran in a worktree, and inside an epic a
+//       dependent stays blocked until the blocker is merged (this command, or `merge` below, which
+//       clears it itself). Refuses a task that is not done. Merging is never done by this command.
+//
 //   node maestro-task-status.cjs merge <filename|NNN|freeform-<id>>
 //       FINISH a worktree task (`076`) — ONLY ever run because the user explicitly asked for it. Merges
 //       branch task-NNN into the main checkout's current branch (`git merge --no-ff`), then removes the
@@ -93,7 +103,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
-const { sync, markDone, tasksDir, mainCheckoutRoot } = require("./lib/maestro-tasks.cjs");
+const { sync, markDone, markMerged, tasksDir, mainCheckoutRoot } = require("./lib/maestro-tasks.cjs");
 const {
   resolveSessionPaths,
   sessionPathsFor,
@@ -113,6 +123,7 @@ const {
   pendingResumeDeliveries,
   dropResolvedMissingPayloads,
   isChannelScope,
+  recordActiveTask,
 } = require("./lib/maestro-session.cjs");
 
 // `074`: the QUEUE root is always the main checkout — even if this runs with a worktree as its
@@ -762,9 +773,21 @@ function mergeWorktreeTask(arg) {
     if (!del.ok) notes.push(`could not delete branch ${branch} (${del.err.split("\n")[0]})`);
   }
   if (rm.ok) dropPointersTo(wtPath);
+  // `146`: the work is merged now, so clear `unmerged` and recompute the cascade: an epic task that
+  // was waiting on this one becomes ready.
+  let cascade = "";
+  if (!freeform) {
+    try {
+      const r = markMerged(projectDir, filename);
+      if (r.done) cascade = `\n  Marked "${filename}" merged — ${summary(r.map)}`;
+    } catch (err) {
+      notes.push(`could not clear the unmerged flag (${err.message}) — run \`mark-merged ${filename}\``);
+    }
+  }
   process.stdout.write(
     `Maestro tasks: merged ${branch} into ${base.out}` +
       (rm.ok ? `; removed worktree ${wtPath} and branch ${branch}.` : ".") +
+      cascade +
       (notes.length ? `\n  note: ${notes.join("\n  note: ")}` : "") +
       "\n  Nothing was pushed.\n"
   );
@@ -1046,7 +1069,10 @@ try {
       process.stdout.write(`Maestro tasks: done REFUSED — nothing was marked done. ${doneNotice}`);
       process.exit(1);
     }
-    const { map, marked } = markDone(projectDir, filename);
+    // `146`: a task that ran in a worktree is done but not merged; it stays `unmerged` (and keeps its
+    // epic dependents blocked) until `merge` or `mark-merged` clears it.
+    const ranInWorktree = !!doneWorktree && !doneWorktree.freeform;
+    const { map, marked } = markDone(projectDir, filename, { unmerged: ranInWorktree });
     if (!marked) {
       process.stderr.write(
         `maestro-task-status: no task file "${filename}" under .claude/maestro-tasks/ — nothing marked done\n`
@@ -1058,6 +1084,11 @@ try {
     const claimedName = claimed && typeof claimed.session_name === "string" ? claimed.session_name : null;
     deleteClaimIfAny(filename); // `066`: a done task has nothing left for a claim to protect
     process.stdout.write(`Maestro tasks: marked "${filename}" done — ${summary(map)}\n`);
+    if (ranInWorktree) {
+      process.stdout.write(
+        `  "${filename}" is done but NOT merged: tasks in an epic that depend on it stay blocked until it is merged (ask the user for the merge, or run \`mark-merged ${filename}\` after a hand merge).\n`
+      );
+    }
     process.stdout.write(epicReportCommand(filename, claimedName));
     process.exit(0);
   }
@@ -1098,6 +1129,13 @@ try {
     const sessionName = storedName(path.join(projectDir, ".claude"), sessionId) || flagValue("--name");
     const result = claimTask(filename, sessionId, Date.now(), sessionName);
     if (result.outcome === "claimed") {
+      // `147`: a claim sets this session's channel scope (`task-<NNN>`) by recording active_task,
+      // retiring the scope it leaves. Best-effort: a failure must not lose the claim.
+      try {
+        recordActiveTask(projectDir, sessionId, filename);
+      } catch {
+        // The orchestrator's set-session-workflow --task still records it.
+      }
       process.stdout.write(
         `Maestro tasks: claimed "${filename}" for session ${sessionId}` +
           (sessionName ? ` (named "${sessionName}")` : " (unnamed)") +
@@ -1149,6 +1187,27 @@ try {
     process.exit(0);
   }
 
+  if (command === "mark-merged") {
+    if (!arg) {
+      process.stderr.write(
+        'maestro-task-status: "mark-merged" needs a task filename or number (e.g. mark-merged 002-add-login.md)\n'
+      );
+      process.exit(1);
+    }
+    const { filename } = resolveTaskName(arg);
+    const result = markMerged(projectDir, filename);
+    if (!result.done) {
+      process.stderr.write(
+        `maestro-task-status: "${filename}" is ${result.known ? "not done" : "not in the queue"} — mark-merged only applies to a done task\n`
+      );
+      process.exit(1);
+    }
+    process.stdout.write(
+      `Maestro tasks: "${filename}" ${result.cleared ? "marked merged" : "was already merged"} — ${summary(result.map)}\n`
+    );
+    process.exit(0);
+  }
+
   if (command === "release") {
     const target = arg || activeTaskFromSession();
     if (!target) {
@@ -1180,7 +1239,7 @@ try {
   }
 
   process.stderr.write(
-    "maestro-task-status: unknown command. Usage:\n  maestro-task-status.cjs sync\n  maestro-task-status.cjs done <filename>\n  maestro-task-status.cjs claim <filename>\n  maestro-task-status.cjs release <filename>\n  maestro-task-status.cjs worktree <filename>\n  maestro-task-status.cjs merge <filename|NNN>\n  maestro-task-status.cjs plan <step>...\n  maestro-task-status.cjs plan-step <step> <done|pending>\n  maestro-task-status.cjs plan-show\n  maestro-task-status.cjs handoff-issues\n"
+    "maestro-task-status: unknown command. Usage:\n  maestro-task-status.cjs sync\n  maestro-task-status.cjs done <filename>\n  maestro-task-status.cjs claim <filename>\n  maestro-task-status.cjs release <filename>\n  maestro-task-status.cjs worktree <filename>\n  maestro-task-status.cjs merge <filename|NNN>\n  maestro-task-status.cjs mark-merged <filename|NNN>\n  maestro-task-status.cjs plan <step>...\n  maestro-task-status.cjs plan-step <step> <done|pending>\n  maestro-task-status.cjs plan-show\n  maestro-task-status.cjs handoff-issues\n"
   );
   process.exit(1);
 } catch (err) {
