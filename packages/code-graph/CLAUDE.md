@@ -170,6 +170,15 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   bump `FTS_FORMAT` whenever the indexed text changes. `skills status --summary` is the compact form
   (`summarizeStatus`, `skills/report.ts`). `concept|impact|cross|vertex|file --json`
   (`query/run.ts`) still bypass `--max-tokens`. See the `code-graph-search` skill.
+- **Errors in `extract`/`ast-output`/`apply`** go through one helper, `reportAndThrow` (`concept-batch.ts`:
+  print to stderr, throw `ReportedError`, never `process.exit`). `extract` on a code concept whose globs
+  match no source file is that kind of error, naming the concept and its globs, and writes no `.ast.json`
+  (an empty one would make `apply` archive the concept). `extract.ts` caches one ts-morph `Project` per
+  tsconfig for the process life; long-lived callers use `clearProjectCache()`.
+- `refresh-skills` uses `isConceptApplied` (`scribe/enrich.ts`, shared with drift, apply and the enrich
+  roll-up). Its lock is owner-checked: `takeLock` returns a token, takes a stale lock over by atomic
+  rename; `releaseLock` removes only its own. `EXIT_RENAMES_DEFERRED` lives in `scribe/exit-codes.ts`
+  so `apply.ts` never imports `skill-refresh.ts`.
 - Edits to `extract.ts` change `contentHash`; drift shows "changed" until `apply` runs.
 - A repo-level `skills stamp` without `--bump` **refuses** (exit 1, nothing written) when a
   version exists (config or legacy file); `--bump initial` resets to 1.0 on purpose. Always pass `--bump`.

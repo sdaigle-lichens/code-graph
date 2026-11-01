@@ -8,6 +8,16 @@
 export class ReportedError extends Error {}
 
 /**
+ * Prints `lines` to stderr, then throws `ReportedError` carrying the first line: the one
+ * print-then-throw used by extract, ast-output and apply. Never `process.exit` (a batch must reach the
+ * next concept); the CLI exits 1 for a single concept and skips re-printing a `ReportedError`.
+ */
+export function reportAndThrow(...lines: string[]): never {
+  for (const l of lines) console.error(l);
+  throw new ReportedError(lines[0]);
+}
+
+/**
  * The concepts a graph command acts on: the named ones, or every configured concept (config order)
  * with `--all`. Throws when neither or both are given.
  */

@@ -130,10 +130,12 @@ function writeStamp(skillPath: string, plan: StampPlan): boolean {
  * the rest; every blocked skill's lines come back together, and the exit code is 9 when any was
  * blocked (1 when another write error happened, 0 with --print).
  */
-async function stampBatch(
+export async function stampBatch(
   projectRoot: string,
   targets: string[],
-  opts: StampOpts & { lastUpdate: string }
+  opts: StampOpts & { lastUpdate: string },
+  /** The file write; injectable so a test can raise an error that is not a sandbox block. */
+  write: (skillPath: string, plan: StampPlan) => boolean = writeStamp
 ): Promise<void> {
   const { lastUpdate } = opts;
   const planned: PlannedStamp[] = [];
@@ -190,7 +192,7 @@ async function stampBatch(
       continue;
     }
     try {
-      stamped.push({ path: skillPath, version, lastUpdate, written: writeStamp(skillPath, plan), ...warn });
+      stamped.push({ path: skillPath, version, lastUpdate, written: write(skillPath, plan), ...warn });
     } catch (err) {
       if (isWriteBlocked(err)) block(err.message);
       else failed.push({ path: skillPath, error: (err as Error).message });

@@ -36,8 +36,9 @@ export function enrichmentIsCurrent(
  * Whether `apply` has ever ingested the concept: a live code vertex, or the SKILL.md doc row a
  * docs-only concept leaves behind. The one definition of "applied": `enrich targets` (the `applied`
  * flag, the roll-up's `neverApplied[]`, and lazy target selection, where nothing counts as touched
- * before the first apply), `apply` (no `agent.touched_at` stamps on the first apply) and `drift` /
- * `apply --dry-run` (the one-line never-applied report).
+ * before the first apply), `apply` (no `agent.touched_at` stamps on the first apply), `drift` /
+ * `apply --dry-run` (the one-line never-applied report) and `refresh-skills` (`changedSkillConcepts`
+ * only refreshes an applied concept).
  */
 export function isConceptApplied(store: DatabaseSync, concept: string): boolean {
   const live = store.prepare("SELECT 1 FROM vertices WHERE concept = ? AND status = 'live' LIMIT 1").get(concept);

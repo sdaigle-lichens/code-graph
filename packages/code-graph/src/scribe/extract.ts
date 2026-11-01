@@ -10,7 +10,7 @@ import {
 } from "ts-morph";
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
-import { ReportedError } from "../concept-batch.js";
+import { reportAndThrow } from "../concept-batch.js";
 import { scanConceptFiles } from "./unextracted.js";
 import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
 import type { ScribeConfig } from "../config.js";
@@ -557,7 +557,18 @@ function buildEdges(
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+/**
+ * One ts-morph `Project` per tsconfig path, kept for the life of the process so a batch extract parses
+ * the tsconfig once. Never refreshed from disk: a CLI run is short, but a long-lived caller (a test
+ * that edits sources between extracts, a host process) must call `clearProjectCache()` first or it reads
+ * the files as they were when the project was first built.
+ */
 const projects = new Map<string, Project>();
+
+/** Drops the cached ts-morph projects so the next `extract` re-reads the tsconfig and sources. */
+export function clearProjectCache(): void {
+  projects.clear();
+}
 
 export async function extract(conceptName: string): Promise<void> {
   const config = loadConfig(process.cwd());
@@ -565,9 +576,7 @@ export async function extract(conceptName: string): Promise<void> {
 
   const concept = config.concepts[conceptName];
   if (!concept) {
-    const msg = `error: concept "${conceptName}" not found in scribe.config.json`;
-    console.error(msg);
-    throw new ReportedError(msg);
+    reportAndThrow(`error: concept "${conceptName}" not found in scribe.config.json`);
   }
 
   if (isDocsOnly(config, conceptName)) return extractDocsOnly(config, conceptName);
@@ -594,9 +603,13 @@ export async function extract(conceptName: string): Promise<void> {
   });
 
   if (conceptFiles.length === 0) {
-    const msg = `error: no source files matched concept "${conceptName}" globs`;
-    console.error(msg);
-    throw new ReportedError(msg);
+    // A deliberate clear error, not an empty extract: a glob that matches nothing is almost always a
+    // typo or a file the tsconfig does not include, and an empty .ast.json would make `apply` archive
+    // every vertex the concept had.
+    reportAndThrow(
+      `error: no source files matched concept "${conceptName}" (globs: ${concept.globs.join(", ")}). ` +
+        `Check the globs in scribe.config.json and that the tsconfig includes those files.`
+    );
   }
 
   const vertices: Vertex[] = [];

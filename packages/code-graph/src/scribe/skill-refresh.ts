@@ -12,18 +12,16 @@
 // apply write nothing and exit `EXIT_RENAMES_DEFERRED`; the concept is reported, never applied.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, linkSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { isBuiltin } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { tryLoadConfig, type ScribeConfig } from "../config.js";
 import { readConceptSkill } from "./ast-output.js";
+import { EXIT_RENAMES_DEFERRED } from "./exit-codes.js";
 
-/**
- * `apply --defer-renames` found rename candidates and wrote nothing: a rename needs a person's
- * decision (`apply <concept>` at a terminal), and recording it any other way loses enrichment.
- * Lives here, not in apply.ts, because this module must not load the store at import time.
- */
-export const EXIT_RENAMES_DEFERRED = 10;
+// Defined in ./exit-codes.ts (shared with apply, which must not import this hook module); re-exported.
+export { EXIT_RENAMES_DEFERRED };
 
 /**
  * The plugin hook's timeout (plugin/hooks/hooks.json `timeout`, seconds). A lock older than this
@@ -61,6 +59,7 @@ export function refreshSkipReason(config: ScribeConfig | null): string | null {
 export async function changedSkillConcepts(config: ScribeConfig, dbPath: string): Promise<ChangedSkill[]> {
   const { getStore } = await import("./db.js");
   const { docKey, getRecord } = await import("./rows.js");
+  const { isConceptApplied } = await import("./enrich.js"); // lazy: enrich.ts loads the store stack
   const store = getStore(dbPath);
   const changed: ChangedSkill[] = [];
   for (const concept of Object.keys(config.concepts)) {
@@ -71,31 +70,79 @@ export async function changedSkillConcepts(config: ScribeConfig, dbPath: string)
       continue; // declared skill path that does not exist: `extract` reports it, not a stop hook
     }
     if (!skill) continue;
+    // Only a concept already applied (`isConceptApplied`, the one definition shared with drift, apply
+    // and the enrich roll-up): a first ingest is `add-concept`'s job. A skill added after the first
+    // apply has no doc row yet, so it counts as changed.
+    if (!isConceptApplied(store, concept)) continue;
     const doc = getRecord<{ body_hash?: string }>(store, "docs", docKey(concept));
-    if (doc) {
-      if (doc.body_hash !== skill.contentHash) changed.push({ concept, skillPath: skill.path });
-      continue;
-    }
-    // No doc row: refresh only a concept that was applied before (a skill added after its first apply).
-    const applied = store.prepare("SELECT 1 FROM vertices WHERE concept = ? LIMIT 1").get(concept);
-    if (applied) changed.push({ concept, skillPath: skill.path });
+    if (!doc || doc.body_hash !== skill.contentHash) changed.push({ concept, skillPath: skill.path });
   }
   return changed;
 }
 
-/** Takes the per-store lock, or returns false when a live run holds it. */
-function takeLock(lockPath: string): boolean {
-  try {
-    writeFileSync(lockPath, String(process.pid), { flag: "wx" });
-    return true;
-  } catch {
+function lockAge(path: string): number {
+  return Date.now() - statSync(path).mtimeMs;
+}
+
+/**
+ * Takes the per-store lock. Returns an ownership token (also the lock file's content) or null when
+ * a live run holds it. A stale lock (older than the hook timeout) is taken over by renaming it to a
+ * name unique to this run: rename is atomic, so of several racing takers exactly one moves it, the rest
+ * get ENOENT. If the file moved turns out to be fresh (another run replaced the stale lock between our
+ * stat and our rename) it is hard-linked back and we report the lock as held.
+ */
+export function takeLock(lockPath: string): string | null {
+  const token = `${process.pid}-${randomBytes(6).toString("hex")}`;
+  const create = (): boolean => {
     try {
-      if (Date.now() - statSync(lockPath).mtimeMs < HOOK_TIMEOUT_SECONDS * 1000) return false;
-      writeFileSync(lockPath, String(process.pid));
+      writeFileSync(lockPath, token, { flag: "wx" });
       return true;
     } catch {
       return false;
     }
+  };
+  if (create()) return token;
+  try {
+    if (lockAge(lockPath) < HOOK_TIMEOUT_SECONDS * 1000) return null;
+    const moved = `${lockPath}.stale.${token}`;
+    renameSync(lockPath, moved); // atomic: only one racing taker succeeds
+    const wasStale = lockAge(moved) >= HOOK_TIMEOUT_SECONDS * 1000;
+    if (!wasStale) {
+      try {
+        linkSync(moved, lockPath); // put the live lock back (EEXIST if someone already took the slot)
+      } catch {
+        // another run created a lock in the meantime: that one is live, ours is gone
+      }
+    }
+    rmSync(moved, { force: true });
+    return wasStale && create() ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Removes the lock only when `token` owns it. The file is first renamed to a name unique to this run
+ * (so the check and the delete act on one file), read, and deleted only if it is ours; otherwise it
+ * is linked back untouched.
+ */
+export function releaseLock(lockPath: string, token: string): void {
+  const mine = `${lockPath}.release.${token}`;
+  try {
+    renameSync(lockPath, mine);
+  } catch {
+    return; // already gone
+  }
+  try {
+    if (readFileSync(mine, "utf-8") !== token) {
+      try {
+        linkSync(mine, lockPath);
+      } catch {
+        // a newer lock already holds the slot
+      }
+    }
+  } finally {
+    rmSync(mine, { force: true });
   }
 }
 
@@ -139,7 +186,8 @@ export async function refreshSkills(cwd: string, cliScript: string = process.arg
   if (changed.length === 0) return done({ changed: [], results: [] });
 
   const lockPath = join(dirname(dbPath), LOCK_FILE);
-  if (!takeLock(lockPath)) {
+  const lockToken = takeLock(lockPath);
+  if (!lockToken) {
     return done({
       skipped: "another refresh-skills run holds the lock",
       changed: changed.map((c) => c.concept),
@@ -169,7 +217,7 @@ export async function refreshSkills(cwd: string, cliScript: string = process.arg
       }
     }
   } finally {
-    rmSync(lockPath, { force: true });
+    releaseLock(lockPath, lockToken);
   }
   return done({ changed: changed.map((c) => c.concept), results });
 }

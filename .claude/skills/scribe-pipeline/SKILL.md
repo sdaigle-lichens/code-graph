@@ -17,14 +17,15 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 | File | Role |
 | --- | --- |
-| `concept-batch.ts` | batch forms of `extract`/`apply`/`drift` (`<concept>...` or `--all`): `resolveConceptArgs`, `runConceptBatch`, `batchFailureSummary`, `ReportedError`; loaded statically by `cli.ts`, so it imports nothing that touches the store or ts-morph |
+| `concept-batch.ts` | batch forms of `extract`/`apply`/`drift` (`<concept>...` or `--all`): `resolveConceptArgs`, `runConceptBatch`, `batchFailureSummary`, `ReportedError`, `reportAndThrow`; loaded statically by `cli.ts`, so it imports nothing that touches the store or ts-morph |
 | `scribe/extract.ts` | ts-morph walk of the concept's globs; emits vertices and edges, never touches the store; caches one `Project` per tsconfig path per process, so a batch extract parses the tsconfig once |
 | `scribe/ast-output.ts` | reads the concept's SKILL.md, writes the `.ast.json`; `extractDocsOnly` for concepts with no code |
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants) |
-| `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `EXIT_RENAMES_DEFERRED` (10) and `HOOK_TIMEOUT_SECONDS` (120). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
+| `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `HOOK_TIMEOUT_SECONDS` (120), `takeLock`/`releaseLock`, and re-exports `EXIT_RENAMES_DEFERRED` (10, defined in `scribe/exit-codes.ts`). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
+| `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10); `apply.ts` reads it from here so the write path never imports the hook module |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
-| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`) |
+| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`, `refresh-skills`) |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
@@ -43,9 +44,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   body-changed, or the new key of an approved rename (`--approve-drift` or interactive `y`) whose
   merged vertex has no purpose, but never on a concept's first apply (an empty store for it): that
   ingest is not a task, so nothing is touched before it.
-- "Applied" (`conceptWasApplied`, private in `enrich.ts`) = the concept has live vertices or a `docs`
-  row, so a docs-only concept counts. Reporting only (`applied`, `neverApplied`); `touchedSinceApply`
-  keeps its live-vertex rule. Reuse this definition rather than writing another.
+- "Applied" (`isConceptApplied`, exported from `enrich.ts`) = the concept has live vertices or a `docs`
+  row, so a docs-only concept counts. `touchedSinceApply` keeps its live-vertex rule for individual
+  vertices. Reuse this definition rather than writing another.
 - Enrichment is partial-friendly: `.enriched.json` is the only committed copy and `apply` reads it as
   the whole truth (edge reasons are re-inserted from it), so never overwrite it with a partial; use
   `enrich merge`. A changed vertex is fresh only when the entry's `hash_seen` equals its new
@@ -59,13 +60,19 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   one as new.
 - `apply --defer-renames` exits `EXIT_RENAMES_DEFERRED` (10) before any write when there are rename
   candidates (the whole concept is left unapplied, so a later interactive `apply` sees the same drift);
-  combining it with `--approve-drift` exits 1. `EXIT_RENAMES_DEFERRED` lives in `skill-refresh.ts`, not
-  `apply.ts`, so the hook path imports no store module up front.
-- `refresh-skills` only touches concepts already applied: the SKILL.md `contentHash` differs from the
-  `docs/<concept>::skill` row's `body_hash`, or vertices exist but there is no doc row. A first ingest is
-  `add-concept`'s job. Each concept runs as a child process so extract/apply's stdout and `process.exit`
-  never reach the hook's JSON stdout. Lock `.refresh-skills.lock` sits next to `graph.db` and is taken
-  over after `HOOK_TIMEOUT_SECONDS`; keep that constant equal to the `timeout` in `plugin/hooks/hooks.json`.
+  combining it with `--approve-drift` exits 1. `EXIT_RENAMES_DEFERRED` lives in `scribe/exit-codes.ts`
+  (re-exported by `skill-refresh.ts`), so `apply.ts` never imports the hook module and the hook path
+  imports no store module up front.
+- `refresh-skills` only touches concepts already applied (`isConceptApplied`, checked first): the SKILL.md
+  `contentHash` differs from the `docs/<concept>::skill` row's `body_hash`, or the concept is applied but
+  has no doc row. A first ingest is `add-concept`'s job. Decision (ticket 058): a concept whose vertices
+  are all archived and that has no doc row is not applied, so it is no longer refreshed (the old check
+  counted archived vertices); re-ingest it by hand with `extract` + `apply`. Each concept runs as a child process so
+  extract/apply's stdout and `process.exit` never reach the hook's JSON stdout. Lock
+  `.refresh-skills.lock` sits next to `graph.db`: `takeLock` returns an owner token (the file's content),
+  takes a lock older than `HOOK_TIMEOUT_SECONDS` over by an atomic rename (one racer wins; a fresh file
+  moved by mistake is linked back), and `releaseLock` deletes only a lock holding its own token. Keep
+  that constant equal to the `timeout` in `plugin/hooks/hooks.json`.
 - `refresh-skills` is deliberately outside `STORE_COMMANDS` and `skippedForNoConcepts`:
   `refreshSkipReason` returns a silent skip for no config, no concepts, no tsconfig or no `node:sqlite`
   (checked with `isBuiltin`, before any store import), and a missing store is skipped too. `--hook` always
@@ -93,12 +100,14 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   which returns its report instead of printing it, and prints one `{ concepts, failed }` line.
 - **Errors in `apply`/`extract` print, then throw `ReportedError`; never `process.exit`** (a batch must
   reach the next concept). `apply`'s `fail(...lines)` does both; the CLI skips re-printing a
-  `ReportedError`. A dry run returns instead of `process.exit(0)`.
+  `ReportedError`. A dry run returns instead of `process.exit(0)`. The one print-then-throw is
+  `reportAndThrow(...lines)` in `concept-batch.ts`, used by `extract.ts`, `ast-output.ts` and `apply.ts`
+  (as `fail`); do not write another.
 - "Applied" means `isConceptApplied(store, concept)` in `enrich.ts`: a live vertex or a docs row (a
   docs-only concept has no vertex). Use it, don't re-derive it. On a never-applied concept, `apply
   --dry-run`/`drift` print one line (`{ concept, neverApplied: true, vertices }` in JSON) instead of
   listing every vertex as new. `apply`'s `conceptWasApplied` and `enrich targets`' `conceptApplied`
-  still use their own vertex-count checks.
+  are locals holding the `isConceptApplied` result, and `refresh-skills` calls it too.
 - Re-apply replaces all AST edges; agent-authored edges are upserted separately.
 - The concept SKILL.md becomes a `docs/<concept>::skill` vertex with `documented-by` edges to every
   live vertex. A docs-only concept (no code vertices) still gets the doc vertex, which is what makes
@@ -109,6 +118,20 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 - `extract` needs `ts-morph` via `requireFromProject`: the plugin deps dir (`deps install`) first, then
   the project's node_modules; `apply` and `search` do not. With no `concepts` configured, `extract`,
   `apply` and `drift` skip with exit 0. Docs-only concepts skip ts-morph entirely.
+- A code concept whose globs match no source file (after the tsconfig filter) makes `extract` fail with
+  exit 1: `error: no source files matched concept "<name>" (globs: <glob>, ...)`, and no `.ast.json` is
+  written (in a batch the other concepts still run). Deliberately an error, not an empty extract: an
+  empty `.ast.json` would make `apply` archive every vertex the concept had. Usual causes: a glob typo
+  or files the tsconfig `include` misses. A concept with no code at all is a separate case and extracts
+  fine.
+- `extract.ts` caches one ts-morph `Project` per tsconfig path for the life of the process and never
+  refreshes it from disk. Fine for the CLI; a long-lived caller must call `clearProjectCache()` before
+  re-extracting edited sources.
+- Known limitation (`refresh-skills` lock, `takeLock`/`releaseLock`): each rename is atomic, but the
+  link-back that restores a lock moved aside by mistake is not. In the gap between that rename and the
+  link-back a third run can create the lock; the link-back then fails and the moved file is deleted, so
+  two runs can both believe they hold it and apply the same concept. It needs a stale lock and three
+  racing runs inside that window. Not fixed: do not treat the lock as a guarantee of exclusion.
 - `pnpm format` rewrites bodies, changing `contentHash` and marking enrichment stale: re-graph after.
 - The FTS index is rebuilt wholesale at the end of every `apply`; a half-failed apply leaves a stale index.
 - Resolving a deferred concept with `--approve-drift` looks like the fix and isn't: it accepts every
