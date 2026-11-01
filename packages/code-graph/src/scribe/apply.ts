@@ -3,12 +3,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
-import { ReportedError } from "../concept-batch.js";
+import { reportAndThrow as fail } from "../concept-batch.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
 import { enrichmentIsCurrent, isConceptApplied } from "./enrich.js";
 import { formatUnextracted, unextractedChanges } from "./unextracted.js";
-import { EXIT_RENAMES_DEFERRED } from "./skill-refresh.js";
+import { EXIT_RENAMES_DEFERRED } from "./exit-codes.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
 import {
   AstDocSchema,
@@ -177,12 +177,6 @@ function buildAgentUpdate(
   }
 
   return update;
-}
-
-/** Prints `lines` to stderr and throws: the CLI exits 1 (one concept) or moves on (a batch). */
-function fail(...lines: string[]): never {
-  for (const l of lines) console.error(l);
-  throw new ReportedError(lines[0]);
 }
 
 /** `drift --json` for a concept never applied: one line instead of every vertex listed as new. */

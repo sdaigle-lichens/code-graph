@@ -4,13 +4,13 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { tryLoadConfig } from "../config.js";
 import { closeStores, resolveDbPath } from "./db.js";
 import {
@@ -20,6 +20,8 @@ import {
   hookCwd,
   hookMessage,
   refreshSkipReason,
+  releaseLock,
+  takeLock,
   type RefreshReport,
 } from "./skill-refresh.js";
 
@@ -450,6 +452,130 @@ describe("refresh-skills: lock", () => {
     const { report } = refreshJson();
     assert.deepEqual(report.results, [{ concept: "guide", status: "refreshed" }]);
     assert.equal(bodyHash("guide", db), sha(GUIDE_SKILL));
+  });
+});
+
+describe("refresh-skills: lock ownership", () => {
+  const staleDate = () => new Date(Date.now() - (HOOK_TIMEOUT_SECONDS + 30) * 1000);
+
+  it("takeLock returns an owner token; a second take fails; release removes only the owner's lock", () => {
+    const lock = path.join(tmp, ".refresh-skills.lock");
+    const mine = takeLock(lock);
+    assert.ok(mine);
+    assert.equal(fs.readFileSync(lock, "utf8"), mine);
+    assert.equal(takeLock(lock), null, "a live lock is not taken");
+    releaseLock(lock, mine);
+    assert.equal(fs.existsSync(lock), false);
+    assert.deepEqual(fs.readdirSync(tmp), [], "no helper files left behind");
+  });
+
+  it("releaseLock never deletes a lock another run has since taken", () => {
+    const lock = path.join(tmp, ".refresh-skills.lock");
+    const first = takeLock(lock)!;
+    // Our run overran the timeout: the lock went stale and a second run took it over.
+    fs.utimesSync(lock, staleDate(), staleDate());
+    const second = takeLock(lock);
+    assert.ok(second && second !== first);
+    releaseLock(lock, first); // the first run finishes late
+    assert.equal(fs.readFileSync(lock, "utf8"), second, "the second run's lock is untouched");
+    releaseLock(lock, second);
+    assert.equal(fs.existsSync(lock), false);
+  });
+
+  it("a stale lock is taken over atomically: of several racing processes exactly one wins", async () => {
+    const lock = path.join(tmp, ".refresh-skills.lock");
+    fs.writeFileSync(lock, "dead-run");
+    fs.utimesSync(lock, staleDate(), staleDate());
+    const mod = pathToFileURL(path.join(PKG, "dist/scribe/skill-refresh.js")).href;
+    const go = Date.now() + 1500; // every child spins until the same instant, then races
+    const script =
+      `const { takeLock } = await import(${JSON.stringify(mod)});` +
+      `while (Date.now() < ${go}) {}` +
+      `console.log(takeLock(${JSON.stringify(lock)}) ? "won" : "lost");`;
+    const runs = Array.from(
+      { length: 6 },
+      () =>
+        new Promise<string>((resolve) => {
+          const child = spawn(process.execPath, ["--input-type=module", "-e", script], {
+            stdio: ["ignore", "pipe", "inherit"],
+          });
+          let out = "";
+          child.stdout.on("data", (d) => (out += d));
+          child.on("close", () => resolve(out.trim()));
+        })
+    );
+    const outcomes = await Promise.all(runs);
+    assert.equal(outcomes.filter((o) => o === "won").length, 1, outcomes.join(","));
+    assert.equal(outcomes.filter((o) => o === "lost").length, 5, outcomes.join(","));
+    assert.ok(fs.existsSync(lock), "the winner's lock is in place");
+    assert.deepEqual(
+      fs.readdirSync(tmp).filter((f) => f !== ".refresh-skills.lock"),
+      [],
+      "no stale/release helper files left behind"
+    );
+  });
+
+  it("two concurrent refresh-skills runs never both apply", async () => {
+    applied(["guide"]);
+    write(GUIDE_SKILL, skillBody("guide", " Edited."));
+    const go = () =>
+      new Promise<RefreshReport>((resolve, reject) => {
+        const env: NodeJS.ProcessEnv = { ...process.env };
+        delete env.CLAUDE_PROJECT_DIR;
+        delete env.NODE_OPTIONS;
+        const child = spawn(process.execPath, [DIST, "refresh-skills", "--json"], { cwd: tmp, env });
+        let out = "";
+        child.stdout.on("data", (d) => (out += d));
+        child.on("error", reject);
+        child.on("close", () => resolve(JSON.parse(out) as RefreshReport));
+      });
+    const reports = await Promise.all([go(), go()]);
+    const refreshed = reports.flatMap((r) => r.results).filter((r) => r.status === "refreshed");
+    assert.equal(refreshed.length, 1, JSON.stringify(reports));
+    assert.equal(bodyHash("guide"), sha(GUIDE_SKILL));
+    assert.equal(fs.existsSync(path.join(tmp, "scribe-output/.refresh-skills.lock")), false);
+  });
+});
+
+describe("refresh-skills: applied check", () => {
+  it("an archived-only concept (no live vertex, no doc row) counts as never applied and is left alone", async () => {
+    project();
+    assert.equal(run(["extract", "code"]).code, 0);
+    run(["bootstrap"]);
+    assert.equal(run(["apply", "code"]).code, 0);
+    const db = new DatabaseSync(DB());
+    db.exec("DELETE FROM docs");
+    for (const r of db.prepare("SELECT key, doc FROM vertices").all() as any[]) {
+      db.prepare("UPDATE vertices SET doc = ? WHERE key = ?").run(
+        JSON.stringify({ ...JSON.parse(r.doc), status: "archived" }),
+        r.key
+      );
+    }
+    db.close();
+    const config = tryLoadConfig(tmp)!;
+    const changed = await changedSkillConcepts(config, resolveDbPath(config));
+    closeStores();
+    assert.deepEqual(changed, [], "isConceptApplied is false: first ingest is add-concept's job");
+  });
+});
+
+describe("extract: a code concept whose globs match nothing", () => {
+  it("is a clear error naming the concept and its globs; nothing is written and a batch moves on", () => {
+    project({
+      concepts: {
+        code: { globs: ["src/**/*.ts"], skill: CODE_SKILL },
+        ghost: { globs: ["lib/**/*.ts", "nope/*.tsx"], skill: CODE_SKILL },
+      },
+    });
+    const one = run(["extract", "ghost"]);
+    assert.equal(one.code, 1);
+    assert.match(one.stderr, /no source files matched concept "ghost" \(globs: lib\/\*\*\/\*\.ts, nope\/\*\.tsx\)/);
+    assert.equal(fs.existsSync(path.join(tmp, "scribe-output/ghost.ast.json")), false, "no empty .ast.json");
+
+    const batch = run(["extract", "ghost", "code"]);
+    assert.equal(batch.code, 1);
+    assert.match(batch.stderr, /extract: 1 of 2 concept\(s\) failed: ghost/);
+    assert.ok(fs.existsSync(path.join(tmp, "scribe-output/code.ast.json")), "the next concept still extracted");
   });
 });
 
