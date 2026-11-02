@@ -185,6 +185,41 @@
       "name": "absorb-concept-skills-050",
       "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
       "added_at": "2026-10-31T00:51:55.695Z"
+    },
+    {
+      "name": "absorb-concept-skills-056",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "added_at": "2026-11-01T13:52:22.915Z"
+    },
+    {
+      "name": "absorb-concept-skills-059",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "added_at": "2026-11-01T23:15:14.255Z"
+    },
+    {
+      "name": "absorb-concept-skills-060",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "added_at": "2026-11-02T00:51:37.034Z"
+    },
+    {
+      "name": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "added_at": "2026-11-02T01:34:54.542Z"
+    },
+    {
+      "name": "absorb-concept-skills-057",
+      "added_at": "2026-11-02T15:20:30.311Z"
+    },
+    {
+      "name": "absorb-concept-skills-062",
+      "added_at": "2026-11-02T16:19:21.129Z"
+    },
+    {
+      "name": "absorb-concept-skills-063",
+      "added_at": "2026-11-02T16:19:21.383Z"
+    },
+    {
+      "name": "absorb-concept-skills-064",
+      "added_at": "2026-11-02T21:10:48.044Z"
     }
   ],
   "log": [
@@ -923,6 +958,302 @@
       "kind": "ack",
       "id": "r047",
       "at": "2026-11-01T01:35:22.098Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m005",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.review.md",
+      "at": "2026-11-01T14:01:18.023Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "verdict",
+      "id": "m005",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-01T14:01:37.902Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m006",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.review-2.md",
+      "at": "2026-11-01T14:22:11.148Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "verdict",
+      "id": "m006",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-01T14:22:22.063Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m007",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "round": 3,
+      "file": ".claude/maestro-tasks/056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.review-3.md",
+      "at": "2026-11-01T14:32:08.916Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "verdict",
+      "id": "m007",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-01T14:32:20.140Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r049",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "file": "inbox/r049-056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "at": "2026-11-01T23:08:11.944Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "ack",
+      "id": "r049",
+      "at": "2026-11-01T23:08:30.037Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m008",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.review.md",
+      "at": "2026-11-01T23:22:38.187Z",
+      "from": "absorb-concept-skills-059"
+    },
+    {
+      "kind": "verdict",
+      "id": "m008",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "verdict": "escalate",
+      "effective": "escalate",
+      "at": "2026-11-01T23:22:52.866Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m009",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.review-2.md",
+      "at": "2026-11-02T00:18:47.544Z",
+      "from": "absorb-concept-skills-059"
+    },
+    {
+      "kind": "verdict",
+      "id": "m009",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T00:19:05.325Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r050",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "file": "inbox/r050-059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "at": "2026-11-02T00:43:33.695Z",
+      "from": "absorb-concept-skills-059"
+    },
+    {
+      "kind": "ack",
+      "id": "r050",
+      "at": "2026-11-02T00:43:47.209Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m010",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.review.md",
+      "at": "2026-11-02T01:06:14.130Z",
+      "from": "absorb-concept-skills-060"
+    },
+    {
+      "kind": "verdict",
+      "id": "m010",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T01:06:41.956Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r051",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "file": "inbox/r051-060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "at": "2026-11-02T01:25:59.321Z",
+      "from": "absorb-concept-skills-060"
+    },
+    {
+      "kind": "ack",
+      "id": "r051",
+      "at": "2026-11-02T01:26:08.441Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m011",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.review.md",
+      "at": "2026-11-02T01:37:37.062Z",
+      "from": "absorb-concept-skills-061"
+    },
+    {
+      "kind": "verdict",
+      "id": "m011",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T01:37:50.972Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m012",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.review-2.md",
+      "at": "2026-11-02T02:12:45.265Z",
+      "from": "absorb-concept-skills-061"
+    },
+    {
+      "kind": "verdict",
+      "id": "m012",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T02:12:53.990Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r052",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "file": "inbox/r052-061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "at": "2026-11-02T02:26:48.080Z",
+      "from": "absorb-concept-skills-061"
+    },
+    {
+      "kind": "ack",
+      "id": "r052",
+      "at": "2026-11-02T02:26:57.249Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m013",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.review.md",
+      "at": "2026-11-02T15:22:03.193Z",
+      "from": "absorb-concept-skills-057"
+    },
+    {
+      "kind": "verdict",
+      "id": "m013",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T15:22:16.400Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m014",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.review-2.md",
+      "at": "2026-11-02T15:27:16.696Z",
+      "from": "absorb-concept-skills-057"
+    },
+    {
+      "kind": "verdict",
+      "id": "m014",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T15:27:24.733Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r053",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "file": "inbox/r053-057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "at": "2026-11-02T15:33:44.330Z",
+      "from": "absorb-concept-skills-057"
+    },
+    {
+      "kind": "ack",
+      "id": "r053",
+      "at": "2026-11-02T15:33:53.355Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m015",
+      "task": "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.review.md",
+      "at": "2026-11-02T16:44:29.408Z",
+      "from": "absorb-concept-skills-063"
+    },
+    {
+      "kind": "verdict",
+      "id": "m015",
+      "task": "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T16:44:51.609Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r054",
+      "task": "062-test-ensure-store-against-the-real-cli-so-a-stub-that-drifts-from-it-fails-pnpm-test.md",
+      "file": "inbox/r054-062-test-ensure-store-against-the-real-cli-so-a-stub-that-drifts-from-it-fails-pnpm-test.md",
+      "at": "2026-11-02T16:50:25.269Z",
+      "from": "absorb-concept-skills-062"
+    },
+    {
+      "kind": "ack",
+      "id": "r054",
+      "at": "2026-11-02T16:50:42.724Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r055",
+      "task": "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "file": "inbox/r055-063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "at": "2026-11-02T17:07:58.327Z",
+      "from": "absorb-concept-skills-063"
+    },
+    {
+      "kind": "ack",
+      "id": "r055",
+      "at": "2026-11-02T17:08:10.281Z",
       "by": "maestro-mgr-ce310c69"
     }
   ]

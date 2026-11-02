@@ -1058,6 +1058,34 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     145 (touched surfaces, overlap check, merge plan, review checks, re-test after merge) and 146
     (blocked until merged). Both are queued; 145 waits on 144 and 146 on 145. The missing graph
     store in fresh worktrees stays with 056/057.
+  - **Reopened (2026-11-01) for follow-ups 055–061**, managed by `maestro-mgr-ce310c69`.
+    Merge plan: workers never bump; whoever merges bumps the patch and re-runs `pnpm bundle`
+    (conflicts in the bundle: regenerate), then `pnpm check`, `pnpm test`, `just eval` on the result.
+
+    | Ticket | Result | Commit | Version |
+    |---|---|---|---|
+    | 055 | done (show left-out core size in update-concept-skills) | merged | - |
+    | 058 | done: one `isConceptApplied`, owner-checked refresh lock, `reportAndThrow` | merged | 0.3.34 |
+    | 056 | done: global `--root`, `CLAUDE_PROJECT_DIR` fallback, `chooseStartDir` read/create modes | merged | 0.3.34 |
+    | 059 | done, gate-only: `just eval` scores a stripped un-enriched copy (7/7); `just eval-as-is` informational (5/7 on a partly enriched store) | 8a07a41 | 0.3.35 |
+    | 060 | done: `apply` remaps orphaned enriched entries, one `note:` per concept, `enrich prune` (dry run, `--yes`) | 8788aab, 9b6a67f | 0.3.36 |
+    | 061 | done: `DOC_SEED_RESERVE = 2` and a whole-token name-hit multiplier (`NAME_HIT_FACTOR = 3`) in the blended score only; reviews m011, m012 on-track; check green, 689/689, `just eval` and `just eval-as-is` both 7/7 | 581d4a2, d17cc09 | 0.3.37 |
+    | 057 | done: `just eval` / `eval-as-is` run `store-fresh` (`ensure-store.mjs`, node only) first; a missing, empty or incomplete store is built for the missing concepts only, a failed build exits 3 naming `just regraph`; reviews m013, m014 on-track; check green, 702/702, `just eval` 7/7, fresh-worktree check 7/7 | 0456df4, 728c25f | 0.3.38 |
+    | 062 | done: 3 tests run `ensure-store.mjs` against the real `dist/cli.js` (build, no-op rerun, only the missing concept); mutation check (`--rooot`) fails all 3; check 6/6, 705/705, `just eval` 7/7 | bbfd84b, 578b228, e349289 | 0.3.39 |
+    | 063 | done: `--defer-renames` message says the store was not written and the enriched file was updated when a remap persisted; tests for worktree `--root` (real `git worktree`), `eval-as-is` exit 1, `clearProjectCache`; check green, 715/715, `just eval` 7/7; scribe-pipeline stamped 1.4 (68792fd) and `apply` re-enriched | 338307f, fd59f42, 5dc6901 | 0.3.40 |
+
+    Decision (2026-11-02): no concept for the top-level `src/` files, so `reportAndThrow`
+    (`concept-batch.ts`) stays outside the graph. Still parked: lock link-back race, merging the two
+    `--root` options. The first of 062/063 to merge takes 0.3.39, the second 0.3.40. After 063's
+    sentence edit lands, stamp `scribe-pipeline` and run extract + apply.
+
+    Decisions: 059 is gate-only (the user chose option a; ranking went to 061). Parked, no ticket:
+    lock link-back race, `clearProjectCache` test, `--defer-renames` message saying the enriched file
+    was updated, a worktree test for `--root`, merging the two `--root` options, a test that
+    `eval-as-is` exits non-zero on regression.
+    Pending scribe pass, held until 061 reports (user decision): extract + apply and stamp
+    `scribe-pipeline` (060 edited its SKILL.md), re-enrich `reportAndThrow` via `enrich targets` /
+    `enrich merge`. After 061 ships, send a one-line ranking note to maestro's manager.
   - Maestro task 144 (per-task channel scoping) is committed as 9250c5d on maestro's
     feat/use-code-graph, but it isn't pushed or released. Until code-graph runs a maestro plugin
     version that includes it, warn every parallel worker (055/056/058) that channel payloads can

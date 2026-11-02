@@ -325,23 +325,65 @@
     "epic": "absorb-concept-skills"
   },
   "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md"
     ],
     "epic": "absorb-concept-skills"
   },
   "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   },
   "058-one-applied-concept-check-safe-refresh-lock-and-shared-error-helper-after-045-049-050.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [
       "045-refresh-the-graph-automatically-after-skill-md-edits.md",
       "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md"
     ],
+    "epic": "absorb-concept-skills"
+  },
+  "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md": {
+    "status": "done",
+    "blockedBy": [
+      "058-one-applied-concept-check-safe-refresh-lock-and-shared-error-helper-after-045-049-050.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md": {
+    "status": "done",
+    "blockedBy": [
+      "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "061-diagnosis.md": {
+    "status": "ready",
+    "blockedBy": []
+  },
+  "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md": {
+    "status": "done",
+    "blockedBy": [
+      "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "062-test-ensure-store-against-the-real-cli-so-a-stub-that-drifts-from-it-fails-pnpm-test.md": {
+    "status": "done",
+    "blockedBy": [
+      "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md": {
+    "status": "ready",
+    "blockedBy": [],
     "epic": "absorb-concept-skills"
   }
 }
