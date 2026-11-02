@@ -59,7 +59,17 @@ afterAll(() => {
   for (const d of roots) fs.rmSync(d, { recursive: true, force: true });
 });
 
-describe("canvas model over the real store", () => {
+// scribe-output/ is gitignored, so a fresh git worktree has no graph.db on the first `pnpm test`, and turbo runs
+// this suite in parallel with `just eval` (which builds the store via ensure-store). ensure-store has no
+// cross-process lock, so building here could race it and corrupt the store; skip instead. Build the store with
+// `just store-fresh` (or `just regraph`) and rerun to exercise these tests.
+const storePath = path.join(repo, "scribe-output/graph.db");
+const hasStore = fs.existsSync(storePath);
+if (!hasStore) {
+  console.warn(`SKIPPED graph-canvas-real-store: ${storePath} is missing; run \`just store-fresh\` to build it.`);
+}
+
+describe.skipIf(!hasStore)("canvas model over the real store", () => {
   it("search concept: per-concept edge counts, default toggles, one node per vertex plus the skill doc", async () => {
     const g = await conceptGraph(projectCopy(), { concept: "code-graph-search" });
     const counts = Object.fromEntries(edgeCounts(g.edges).map((c) => [c.type, c.count]));
