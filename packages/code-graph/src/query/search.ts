@@ -228,6 +228,25 @@ function collectEdges(db: DatabaseSync, key: string, maps: EdgeMaps, addNeighbor
 
 /** Most vertices a skill-doc seed contributes per concept, ranked by degree. */
 const DOC_VERTEX_CAP = 20;
+/** Seeds kept from the mixed vertex/doc ranking. */
+const SEED_LIMIT = 10;
+/**
+ * Best skill docs kept as seeds even when they rank below SEED_LIMIT. A docs-only concept has no
+ * purpose to match, so on a partly enriched store enriched vertices push its doc out of the top 10
+ * and the concept never surfaces. A doc seed next to vertex seeds only captures its skill (or an
+ * empty docs-only cluster, appended last); it adds no vertex hits.
+ */
+const DOC_SEED_RESERVE = 2;
+/**
+ * A vertex whose name contains a query word (a whole-token match on the indexed, camelCase-split
+ * name words, never a substring: the match terms are quoted, with no prefix `*`) has its bm25
+ * multiplied by this. This is a ranking change. Without it, enrichment
+ * in one concept lets peers that match only through purpose/tags (and carry a higher degree) outrank
+ * a vertex whose name matches, so a partly enriched store ranks worse than a stripped one (eval task
+ * 2: expandDoc at 9). Multiplicative on purpose: among name-matching vertices the order is unchanged,
+ * so a stripped store (every match is a name match) ranks exactly as before. Query-time: no FTS_FORMAT bump.
+ */
+const NAME_HIT_FACTOR = 3;
 
 async function expandDoc(
   db: DatabaseSync,
@@ -292,25 +311,38 @@ export async function searchStore(
     store
       .prepare(
         `WITH seed AS (
-           SELECT ref_kind, ref_key, -bm25(search_fts, 0.0, 0.0, ${w}) AS base
+           SELECT ref_kind, ref_key, -bm25(search_fts, 0.0, 0.0, ${w}) AS raw,
+                  -bm25(search_fts, 0.0, 0.0, ${w}) * CASE WHEN -bm25(search_fts, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0) > 0 THEN ${NAME_HIT_FACTOR} ELSE 1 END AS base
              FROM search_fts
             WHERE search_fts MATCH ?
          )
-         SELECT s.ref_kind AS kind,
-                coalesce(v.doc, d.doc) AS doc,
-                CASE WHEN v.key IS NOT NULL AND lower(v.name) = lower(?) THEN 1 ELSE 0 END AS exact,
-                s.base AS base
-           FROM seed s
-           LEFT JOIN vertices v ON s.ref_kind = 'vertex' AND v.key = s.ref_key
-           LEFT JOIN docs     d ON s.ref_kind = 'doc'    AND d.key = s.ref_key
-          WHERE coalesce(v.doc, d.doc) IS NOT NULL
-          ORDER BY exact DESC, base DESC
-          LIMIT 10`
+         , scored AS (
+           SELECT s.ref_kind AS kind,
+                  coalesce(v.doc, d.doc) AS doc,
+                  CASE WHEN v.key IS NOT NULL AND lower(v.name) = lower(?) THEN 1 ELSE 0 END AS exact,
+                  s.base AS base,
+                  s.raw AS raw
+             FROM seed s
+             LEFT JOIN vertices v ON s.ref_kind = 'vertex' AND v.key = s.ref_key
+             LEFT JOIN docs     d ON s.ref_kind = 'doc'    AND d.key = s.ref_key
+            WHERE coalesce(v.doc, d.doc) IS NOT NULL
+         ), ranked AS (
+           SELECT kind, doc, exact, base, raw,
+                  ROW_NUMBER() OVER (ORDER BY exact DESC, base DESC) AS rn,
+                  ROW_NUMBER() OVER (PARTITION BY kind ORDER BY exact DESC, base DESC) AS kind_rn
+             FROM scored
+         )
+         SELECT kind, doc, exact, base, raw
+           FROM ranked
+          WHERE rn <= ${SEED_LIMIT} OR (kind = 'doc' AND kind_rn <= ${DOC_SEED_RESERVE})
+          ORDER BY exact DESC, base DESC`
       )
-      .all(match, query) as Array<{ kind: string; doc: string; exact: number; base: number }>
+      .all(match, query) as Array<{ kind: string; doc: string; exact: number; base: number; raw: number }>
   ).map((r) => ({
     kind: r.kind,
     doc: JSON.parse(r.doc) as Record<string, unknown>,
+    // Score before the name-hit factor: the low-confidence threshold was calibrated on it.
+    rawScore: r.exact ? r.raw * (5 / 3) : r.raw,
     // Keep the old 5-vs-3 ratio between an exact name hit and a token name hit,
     // so the 0.7-weighted score term keeps roughly its previous shape.
     score: r.exact ? r.base * (5 / 3) : r.base,
@@ -328,6 +360,13 @@ export async function searchStore(
   const skillDocs = new Map<string, DocVertex | null>();
 
   const vertexSeeds = seeds.filter((s) => s.kind === "vertex");
+  // Reported `bm25` (and the low-confidence threshold, calibrated on it) is the score without the
+  // name-hit factor; only the blended ranking score below uses the boosted one.
+  const boostedScores = new Map<string, number>();
+  for (const s of vertexSeeds) {
+    const k = (s.doc as unknown as Vertex)._key;
+    boostedScores.set(k, Math.max(boostedScores.get(k) ?? 0, s.score));
+  }
   const docSeeds = seeds.filter((s) => s.kind !== "vertex");
   const docLoadsVertices = vertexSeeds.length === 0;
 
@@ -339,7 +378,7 @@ export async function searchStore(
           expandVertex(
             store,
             seed.doc as unknown as Vertex,
-            seed.score,
+            seed.rawScore,
             vertexMap,
             edgesInMap,
             edgesOutMap,
@@ -376,12 +415,12 @@ export async function searchStore(
     skillDocs.set(concept, skillDoc(store, concept));
   }
 
-  const maxBm25 = Math.max(...Array.from(vertexMap.values()).map((v) => v.bm25), 1);
+  const maxBm25 = Math.max(...Array.from(boostedScores.values()), 1);
   const maxDegree = Math.max(...Array.from(incidentEdges.values()).map((s) => s.size), 1);
 
   const hits: SearchHit[] = Array.from(vertexMap.entries()).map(([key, { vertex, bm25 }]) => {
     const degree = incidentEdges.get(key)?.size ?? 0;
-    const score = (bm25 / maxBm25) * 0.7 + (degree / maxDegree) * 0.3;
+    const score = ((boostedScores.get(key) ?? bm25) / maxBm25) * 0.7 + (degree / maxDegree) * 0.3;
     return {
       vertex,
       edges_in: edgesInMap.get(key) ?? [],

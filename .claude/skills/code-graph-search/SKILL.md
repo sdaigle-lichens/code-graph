@@ -76,7 +76,22 @@ telling the user to run `code-graph reindex` when the rebuild hits a lock/busy-t
 read-only `graph.db` fails earlier, in `bootstrapStore`, so no hint). Bump `FTS_FORMAT` when the
 indexed text changes.
 
-`LIMIT 10` — top 10 seeds only. No surviving tokens, or no matches → `SearchNoResultsError`
+**Partly enriched stores (ticket 061).** Enriched peers matching only through
+`purpose`/`tags`, with a higher degree, outranked a name hit (eval task 2, `expandDoc` at rank 9).
+Column weights cannot fix that without cost (lowering `purpose`/`tags` tops out at rank 6 of 6 and pushes
+`loadConfigOrExit` in task 3 from 5th to 6th), so the seed `base` of a vertex whose name matches a query
+word is multiplied by `NAME_HIT_FACTOR` (3): `-bm25(name column only) > 0`. This is a ranking change, and the
+match is **whole-token** (quoted terms over the camelCase-split name words, no prefix `*`), never a substring. Multiplicative, so the order
+among name hits is unchanged and the expected vertices and clusters of the stripped store are unchanged (`expandDoc` lands 4th; the task-6 hit list and the top cluster of the generic query `skill` shift, still exit 7). The factor
+only feeds the blended `score`; the reported `bm25` (and the low-confidence threshold) stays unboosted. Query-time:
+no `FTS_FORMAT` bump, no reindex. A docs-only concept has no purpose,
+so enriched vertices pushed its doc past the top 10 and it never surfaced (task 6): the seed query
+keeps the top 10 **plus the best `DOC_SEED_RESERVE` (2) docs** outside it. Such a doc seed next to vertex
+seeds only captures its skill, or an empty docs-only cluster appended last; it adds no vertex hits and
+leaves `docOnly` and confidence unchanged. `just eval` and `just eval-as-is` are both 7/7;
+`query/search-partly-enriched.test.ts` pins both cases.
+
+`LIMIT 10` — top 10 seeds only (`SEED_LIMIT`; plus the reserved doc seeds above). No surviving tokens, or no matches → `SearchNoResultsError`
 (CLI exit 6).
 
 One FTS table covers both `vertices` and `docs`, because `bm25()` scores are only comparable
@@ -225,7 +240,7 @@ A non-compact `gaps` value passed to `budgetSearchJson` is opaque and never trim
 - **`expandDoc` vertex loading is conditional.** Without the `vertexSeeds.length === 0` guard, single-symbol searches return whole-concept dumps.
 - **`has-type` belongs in structural outbound.** Type-defs are useful context (one or two per function); removing it loses signal without saving meaningful tokens. Was reviewed once — stay the course.
 - **Inbound depth-2 only filters `impactTypes`.** Don't include `mounts` / `uses-hook` inbound at depth 2 — that pulls in entire component trees.
-- **Seeds are limited to 10.** Raising this multiplies expansion cost.
+- **Seeds are limited to 10** (plus the 2 reserved doc seeds). Raising this multiplies expansion cost; don't drop the doc reserve, it is what keeps a docs-only concept visible on a partly enriched store.
 - **`toMatchExpr` joins tokens with `OR`, never as a phrase or with `AND`.** Phrase or all-terms matching kills multi-word natural-language queries.
 
 ## Common refactor pitfalls
@@ -245,6 +260,7 @@ A non-compact `gaps` value passed to `budgetSearchJson` is opaque and never trim
 - `packages/code-graph/src/query/search.ts` — pipeline implementation; `search` (runs `preflight`) wraps exported `searchStore(db, query, opts)`, which tests call directly
 - `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint, not-enriched marker and budget cluster-keep tests
 - `packages/code-graph/src/query/confidence.test.ts` — `assessConfidence` thresholds and exact-hit / docs-only exemptions
+- `packages/code-graph/src/query/search-partly-enriched.test.ts` — eval tasks 2 and 6 pinned on a partly enriched fixture
 - `packages/code-graph/src/query/search-exit.test.ts` — exit code 7 and `low_confidence` JSON fields
 - `packages/code-graph/src/query/search-gaps-budget.test.ts` — compact `gaps` trimming and `dropped.gaps`
 - `packages/code-graph/src/query/index-format.test.ts` — `fts_format` stamp and one-time reindex

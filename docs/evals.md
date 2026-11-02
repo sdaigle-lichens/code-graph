@@ -4,7 +4,7 @@
 
 ## Layer-A gate (`just eval`) and enrichment
 
-`just eval` runs `eval/tasks.code-graph.json` (7 tasks) against this repo's own graph. The `*.enriched.json` files are gitignored, so a developer's store may be enriched for some concepts and not others, and enriched purposes change ranking (a machine enriched for `code-graph-search` and `scribe-pipeline` but not `concept-skills-layer` scored 5/7: task 2 `expandDoc` at rank 9, task 6 `concept-skills-layer` outside the top 3 clusters).
+`just eval` runs `eval/tasks.code-graph.json` (7 tasks) against this repo's own graph. The `*.enriched.json` files are gitignored, so a developer's store may be enriched for some concepts and not others, and enriched purposes change ranking. A machine enriched for `code-graph-search` and `scribe-pipeline` but not `concept-skills-layer` used to score 5/7 (task 2 `expandDoc` at rank 9, task 6 `concept-skills-layer` outside the top 3 clusters). Ticket 061 fixed both: search seeds the best 2 docs beyond the top 10 (a docs-only concept has no purpose, so enriched vertices pushed its doc out of the seed window), and a vertex whose name contains a query word has its bm25 multiplied by 3 (`NAME_HIT_FACTOR`; enriched peers matching only through purpose and tags, with a higher degree, outranked a name hit; the multiplier keeps the order among name hits, so the expected vertices and clusters of the stripped store are unchanged). Column weights are unchanged and nothing is reindexed. Both stores now score 7/7; a drop on `just eval-as-is` means ranking regressed, and `search-partly-enriched.test.ts` pins the two cases.
 
 Decision (ticket 059): make the gate independent of enrichment, no ranking change. By default the eval copies the store to a temp file (`VACUUM INTO`), removes `purpose` and `tags` from every vertex, rebuilds the search index and measures that copy; the real store is not touched. The output names what it measured, next to the `build:` line and again after the verdict:
 
@@ -12,7 +12,28 @@ Decision (ticket 059): make the gate independent of enrichment, no ranking chang
 store: un-enriched (stripped copy, purposes and tags removed, index rebuilt; 150 of 226 vertices carry a purpose in the real store)
 ```
 
-`just eval-as-is` (`code-graph eval --store as-is`) measures the store untouched and prints `store: enriched (as-is, ...)` or `store: un-enriched (as-is, ...)`. It is informational: its verdict follows local enrichment, and on a partly enriched store it can show 5/7. Each results file under `eval/` records the same string in `store`. The eval never writes to the real store: stripped mode rebuilds the index of its own copy, and `--store as-is` measures the store exactly as stored, so a store whose search index predates the current `fts_format` is measured with that older index (run `code-graph reindex` first to measure a current one). Whether enriched-store ranking should also pass is a separate ranking question, not done here.
+`just eval-as-is` (`code-graph eval --store as-is`) measures the store untouched and prints `store: enriched (as-is, ...)` or `store: un-enriched (as-is, ...)`. It is informational (the gate is `just eval`): its verdict follows local enrichment, but a partly enriched store scores 7/7 as well since ticket 061. Each results file under `eval/` records the same string in `store`. The eval never writes to the real store: stripped mode rebuilds the index of its own copy, and `--store as-is` measures the store exactly as stored, so a store whose search index predates the current `fts_format` is measured with that older index (run `code-graph reindex` first to measure a current one).
+### Ticket 061: ranking change and before/after sweep
+
+The name-hit multiplier is a **ranking change**, not a bug fix in the index: a vertex whose name matches a query word (whole-token match on the camelCase-split name words, not a substring) has its bm25 multiplied by 3 in the blended score only. The reported `bm25`, the low-confidence threshold and the `--json` shape are unchanged. Rank of each expected vertex (limit in brackets), baseline = column weights 3/2/1.5/1 before ticket 061:
+
+| Task | Expected vertex | Stripped before | Stripped after | Partly enriched before | Partly enriched after |
+| --- | --- | --- | --- | --- | --- |
+| 1 | truncate | 2 (3) | 2 (3) | 1 (3) | 1 (3) |
+| 1 | applyTokenBudget | 1 | 1 | 2 | 2 |
+| 1 | estimateTokens | 4 (8) | 4 (8) | 4 | 3 |
+| 2 | expandVertex | 2 (3) | 2 (3) | 1 | 1 |
+| 2 | expandDoc | 1 (6) | 1 (6) | 9 (fail) | 4 (6) |
+| 2 | queryImpact | 3 (6) | 3 (6) | 3 | 2 |
+| 3 | preflight | 2 (5) | 2 (5) | 2 | 2 |
+| 3 | checkSchemaVersion | 1 | 1 | 1 | 1 |
+| 3 | loadConfigOrExit | 4 (5) | 4 (5) | 5 | 3 |
+| 4 | apply | 2 (3) | 2 (3) | 1 | 1 |
+| 4-7 | scribe-pipeline, formatConcept, truncate, concept-skills-layer | unchanged | unchanged | unchanged | unchanged |
+
+Task 6 (`concept-skills-layer` in the top 3 clusters) fails on the partly enriched store before the change and passes after (doc seed reserve). No expected rank worsens on either store. The unscored hit lists do shift: the task-6 hit list and the top cluster of the generic query `skill` change, and that query still exits 7 (low confidence).
+
+Rejected alternative: lowering the `purpose`/`tags` column weights. It tops out at rank 6 of 6 for `expandDoc` and pushes `loadConfigOrExit` (task 3) from 5th to 6th, so it is not used.
 
 ## Layout
 

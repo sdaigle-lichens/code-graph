@@ -29,7 +29,10 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
   un-enriched temp copy** of the store (purposes/tags removed, index rebuilt), so the verdict does not
   depend on the gitignored `scribe-output/*.enriched.json` of whoever runs it; its `store:` line says so
   (and how many vertices carry a purpose in the real store). `just eval-as-is` (`--store as-is`) measures
-  the store untouched and is informational: with only some concepts enriched it scores 5/7 (tasks 2 and 6).
+  the store untouched and is informational, but it is 7/7 on a partly enriched store too (enriched for
+  code-graph-search and scribe-pipeline, not concept-skills-layer): `searchStore` reserves 2 doc seeds beyond the
+  top 10 and multiplies the bm25 of a name-matching vertex by 3 (`NAME_HIT_FACTOR`). A drop to 5/7 (tasks 2 and 6) means that ranking regressed;
+  `search-partly-enriched.test.ts` pins both cases.
 - `just eval` / `just regraph` first run `just dist-fresh` (`packages/code-graph/scripts/ensure-dist.mjs`:
   package tsc, no pnpm, sandbox-safe) to rebuild a `dist/` older than `src/`; `--check` only
   reports. Eval's `build:` line names the build it measured.

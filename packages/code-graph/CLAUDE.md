@@ -91,6 +91,10 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   at the end of every `apply`. Stopwords are stripped in JS (`toMatchExpr`, `scribe/rows.ts`).
   The `name` column holds the identifier plus its camelCase/snake words (`nameIndexText`) so
   un-enriched vertices match plain-language queries; changing that needs `code-graph reindex`.
+- Search ranking on partly enriched stores: `searchStore` seeds the top 10 plus the best 2 docs (`DOC_SEED_RESERVE`) so a docs-only
+  concept is not pushed out by enriched vertices, and multiplies the bm25 of a vertex whose name matches a query
+  word by `NAME_HIT_FACTOR` (3; query-time, no reindex, order among name hits unchanged); `just eval` and `just eval-as-is` are both 7/7, pinned by
+  `query/search-partly-enriched.test.ts`.
 - `search` exits 7 (results still printed) when the top cluster is a weak match or its concept is
   un-enriched: `assessConfidence` in `query/search.ts`, thresholds `LOW_CONFIDENCE_MIN_SCORE` /
   `LOW_CONFIDENCE_MIN_ENRICHED`. Exact name hits and docs-only concepts are exempt. `--json` adds
