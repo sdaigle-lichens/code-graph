@@ -111,9 +111,14 @@ impact:
 dist-fresh:
     @node packages/code-graph/scripts/ensure-dist.mjs
 
-# Run Layer-A eval harness against this repo's own graph (the refactor gate)
+# Run Layer-A eval harness against this repo's own graph (the refactor gate); measures an un-enriched
+# copy of the store, so the verdict does not depend on local *.enriched.json files
 eval: dist-fresh
     node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json
+
+# Same gate against the local store untouched (informational: the verdict moves with which concepts are enriched)
+eval-as-is: dist-fresh
+    node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json --store as-is
 
 # Re-extract + re-apply both of this repo's own concepts, then re-run the gate
 regraph: dist-fresh

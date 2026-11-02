@@ -478,7 +478,17 @@ program
   .command("eval")
   .description("run layer-A eval harness against eval/tasks.json")
   .option("--tasks <path>", "path to tasks.json")
-  .action(async (opts: { tasks?: string }) => {
+  .option(
+    "--store <mode>",
+    "stripped (default): measure a temp copy with purposes/tags removed, so the verdict ignores local enrichment; as-is: measure the store untouched",
+    "stripped"
+  )
+  .action(async (opts: { tasks?: string; store: string }) => {
+    const { isEvalStoreMode } = await import("./eval/store.js");
+    if (!isEvalStoreMode(opts.store)) {
+      console.error(`--store must be "stripped" or "as-is", got "${opts.store}"`);
+      process.exit(1);
+    }
     const { existsSync } = await import("node:fs");
     const { runEval } = await import("./eval/harness.js");
     const config = tryLoadConfig(process.cwd());
@@ -504,9 +514,10 @@ program
 
     console.log(`running eval from ${tasksPath}`);
     console.log(`build: ${describeBuild()}`);
-    const run = await runEval(tasksPath, outputDir);
+    const run = await runEval(tasksPath, outputDir, { store: opts.store });
     const verdict = run.regressions.length === 0 ? "green" : "REGRESSIONS";
     console.log(`\n${verdict}: ${run.passed}/${run.total} passed, ${run.skipped} skipped`);
+    console.log(run.store);
     if (run.regressions.length > 0) {
       console.log("failed:", run.regressions.join(", "));
       process.exit(1);

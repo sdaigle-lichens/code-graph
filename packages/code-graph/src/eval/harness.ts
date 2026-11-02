@@ -1,8 +1,10 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { search } from "../query/search.js";
+import type { DatabaseSync } from "node:sqlite";
+import { searchStore } from "../query/search.js";
 import { queryConcept, queryCross } from "../query/queries.js";
 import { preflight } from "../query/preflight.js";
+import { openEvalStore, type EvalStoreMode } from "./store.js";
 
 export type VertexCheck = {
   name: string;
@@ -43,13 +45,15 @@ export type EvalRun = {
   regressions: string[];
   tasks: EvalTaskResult[];
   ran_at: string;
+  /** Which store was measured, e.g. "store: un-enriched (stripped copy, ...)". */
+  store: string;
 };
 
-async function runSearchTask(task: EvalTask): Promise<EvalTaskResult> {
+async function runSearchTask(db: DatabaseSync, task: EvalTask): Promise<EvalTaskResult> {
   const start = Date.now();
   const missing: string[] = [];
 
-  const result = await search(task.prompt, { maxTokens: 6000, json: false });
+  const result = await searchStore(db, task.prompt, { maxTokens: 6000, json: false });
 
   const topKNames = result.hits.filter((h) => h.vertex !== null).map((h) => h.vertex!.name);
 
@@ -93,11 +97,9 @@ async function runSearchTask(task: EvalTask): Promise<EvalTaskResult> {
   };
 }
 
-async function runCrossTask(task: EvalTask): Promise<EvalTaskResult> {
+async function runCrossTask(db: DatabaseSync, task: EvalTask): Promise<EvalTaskResult> {
   const start = Date.now();
   const missing: string[] = [];
-  const { db } = await preflight();
-
   const conceptA = task.conceptA ?? "";
   const conceptB = task.conceptB ?? "";
   const { entries } = await queryConcept(db, conceptA).then(async () => {
@@ -122,7 +124,24 @@ async function runCrossTask(task: EvalTask): Promise<EvalTaskResult> {
   };
 }
 
-export async function runEval(tasksPath: string, outputDir: string): Promise<EvalRun> {
+export async function runEval(
+  tasksPath: string,
+  outputDir: string,
+  opts: { store?: EvalStoreMode } = {}
+): Promise<EvalRun> {
+  const { db: realDb } = await preflight();
+  // The real store is never rewritten: stripped mode rebuilds its own copy's index, and as-is
+  // measures the store exactly as stored (no ensureSearchIndexFormat).
+  const evalStore = openEvalStore(realDb, opts.store ?? "stripped");
+  console.log(evalStore.label);
+  try {
+    return await runTasks(evalStore.db, evalStore.label, tasksPath, outputDir);
+  } finally {
+    evalStore.close();
+  }
+}
+
+async function runTasks(db: DatabaseSync, storeLabel: string, tasksPath: string, outputDir: string): Promise<EvalRun> {
   const raw = readFileSync(tasksPath, "utf-8");
   const tasks: EvalTask[] = JSON.parse(raw);
 
@@ -149,9 +168,9 @@ export async function runEval(tasksPath: string, outputDir: string): Promise<Eva
     let result: EvalTaskResult;
     try {
       if (task.mode === "search") {
-        result = await runSearchTask(task);
+        result = await runSearchTask(db, task);
       } else if (task.mode === "cross") {
-        result = await runCrossTask(task);
+        result = await runCrossTask(db, task);
       } else {
         result = {
           id: task.id,
@@ -189,6 +208,7 @@ export async function runEval(tasksPath: string, outputDir: string): Promise<Eva
     regressions,
     tasks: results,
     ran_at: new Date().toISOString(),
+    store: storeLabel,
   };
 
   const iso = new Date().toISOString().replace(/[:.]/g, "-");

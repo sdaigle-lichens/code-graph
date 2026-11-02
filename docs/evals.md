@@ -2,6 +2,18 @@
 
 `plugin/evals/` is a `claude plugin eval` suite for the `code-graph-retrieval` flow. Since 0.3.29 (ticket 054) that skill is user-run and the plugin has no SessionStart hook, so the cases below no longer grade whether it fires; see "Decision (2026-10-30, ticket 054)" at the end. It is a measurement harness, not a gate: the three pilot runs below are the "before" baseline. Tickets 033 (make the skill trigger) and 034 (record cross-concept edges) are meant to change the numbers, and a full run after them is the "after".
 
+## Layer-A gate (`just eval`) and enrichment
+
+`just eval` runs `eval/tasks.code-graph.json` (7 tasks) against this repo's own graph. The `*.enriched.json` files are gitignored, so a developer's store may be enriched for some concepts and not others, and enriched purposes change ranking (a machine enriched for `code-graph-search` and `scribe-pipeline` but not `concept-skills-layer` scored 5/7: task 2 `expandDoc` at rank 9, task 6 `concept-skills-layer` outside the top 3 clusters).
+
+Decision (ticket 059): make the gate independent of enrichment, no ranking change. By default the eval copies the store to a temp file (`VACUUM INTO`), removes `purpose` and `tags` from every vertex, rebuilds the search index and measures that copy; the real store is not touched. The output names what it measured, next to the `build:` line and again after the verdict:
+
+```
+store: un-enriched (stripped copy, purposes and tags removed, index rebuilt; 150 of 226 vertices carry a purpose in the real store)
+```
+
+`just eval-as-is` (`code-graph eval --store as-is`) measures the store untouched and prints `store: enriched (as-is, ...)` or `store: un-enriched (as-is, ...)`. It is informational: its verdict follows local enrichment, and on a partly enriched store it can show 5/7. Each results file under `eval/` records the same string in `store`. The eval never writes to the real store: stripped mode rebuilds the index of its own copy, and `--store as-is` measures the store exactly as stored, so a store whose search index predates the current `fts_format` is measured with that older index (run `code-graph reindex` first to measure a current one). Whether enriched-store ranking should also pass is a separate ranking question, not done here.
+
 ## Layout
 
 Each case is a directory under `plugin/evals/`:

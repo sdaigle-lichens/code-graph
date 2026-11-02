@@ -25,7 +25,11 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
 ## Working rules
 
 - After changing `packages/code-graph/src/`, run `pnpm build` from the root (it also runs `bundle`).
-- `just eval` must stay green (**7/7**) before shipping retrieval changes.
+- `just eval` must stay green (**7/7**) before shipping retrieval changes. It measures a **stripped,
+  un-enriched temp copy** of the store (purposes/tags removed, index rebuilt), so the verdict does not
+  depend on the gitignored `scribe-output/*.enriched.json` of whoever runs it; its `store:` line says so
+  (and how many vertices carry a purpose in the real store). `just eval-as-is` (`--store as-is`) measures
+  the store untouched and is informational: with only some concepts enriched it scores 5/7 (tasks 2 and 6).
 - `just eval` / `just regraph` first run `just dist-fresh` (`packages/code-graph/scripts/ensure-dist.mjs`:
   package tsc, no pnpm, sandbox-safe) to rebuild a `dist/` older than `src/`; `--check` only
   reports. Eval's `build:` line names the build it measured.

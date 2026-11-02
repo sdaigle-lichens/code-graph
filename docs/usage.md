@@ -274,7 +274,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph catalog --json`           | `code-graph catalog --json --tsconfig tsconfig.app.json`             | Store-free ts-morph digest: units, exports, imports, fan-in/out, hubs (drives concept proposals) |
 | `code-graph deps install`             | `code-graph deps install`                                            | Install pinned ts-morph into the plugin deps directory (`deps status` shows what resolves) |
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
-| `code-graph eval [--tasks <path>]`    | `code-graph eval --tasks eval/tasks.json`                            | Run layer-A eval harness                                  |
+| `code-graph eval [--tasks <path>] [--store <stripped\|as-is>]` | `code-graph eval --store as-is`                      | Run layer-A eval harness; `stripped` (default) measures a temp copy without purposes/tags |
 
 ### Choosing the project (`--root`, `$CLAUDE_PROJECT_DIR`)
 

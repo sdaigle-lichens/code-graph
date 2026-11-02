@@ -6,7 +6,8 @@ from here.
 ## Layout notes
 
 - `src/scribe/` writes the store (bootstrap, extract, apply, enrich, delete-concept); `src/query/` reads it;
-  `src/skills/` is layer 1 (`code-graph skills *`); `src/eval/harness.ts` runs Layer-A eval.
+  `src/skills/` is layer 1 (`code-graph skills *`); `src/eval/harness.ts` runs Layer-A eval and
+  `src/eval/store.ts` opens the stripped temp copy it measures (`--store as-is` measures the store untouched).
 - `eval/tasks.json` is the default Layer-A fixture shipped in the npm `files` set — not this
   repo's own gate (that is the root `eval/`).
 
