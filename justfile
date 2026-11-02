@@ -113,12 +113,18 @@ dist-fresh:
 
 # Run Layer-A eval harness against this repo's own graph (the refactor gate); measures an un-enriched
 # copy of the store, so the verdict does not depend on local *.enriched.json files
-eval: dist-fresh
-    node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json
+eval: dist-fresh store-fresh
+    node packages/code-graph/dist/cli.js --root {{justfile_directory()}} eval --tasks eval/tasks.code-graph.json
 
 # Same gate against the local store untouched (informational: the verdict moves with which concepts are enriched)
-eval-as-is: dist-fresh
-    node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json --store as-is
+eval-as-is: dist-fresh store-fresh
+    node packages/code-graph/dist/cli.js --root {{justfile_directory()}} eval --tasks eval/tasks.code-graph.json --store as-is
+
+# Build the graph store (extract + apply) only for concepts it lacks, e.g. in a fresh worktree where
+# scribe-output/graph.db does not exist; no-op when every concept is present, never rewrites a current
+# store. A failed build exits 3 naming `just regraph`.
+store-fresh: dist-fresh
+    @node packages/code-graph/scripts/ensure-store.mjs
 
 # Re-extract + re-apply both of this repo's own concepts, then re-run the gate
 regraph: dist-fresh

@@ -36,6 +36,13 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
 - `just eval` / `just regraph` first run `just dist-fresh` (`packages/code-graph/scripts/ensure-dist.mjs`:
   package tsc, no pnpm, sandbox-safe) to rebuild a `dist/` older than `src/`; `--check` only
   reports. Eval's `build:` line names the build it measured.
+- `just eval` / `just eval-as-is` then run `just store-fresh` (`packages/code-graph/scripts/ensure-store.mjs`, node
+  only, sandbox-safe): when `graph.db` is missing, empty or lacks a concept of `scribe.config.json` (a fresh worktree:
+  the store is gitignored) it runs `extract` + `apply` for the missing concepts only and prints `store: built just
+  now from <root> (...)`. A store with every concept is never touched (no rebuild, no enriched-file rewrite); a failed
+  build exits 3 naming `just regraph`, so a missing store never shows up as 0/7. The recipes pass
+  `--root {{justfile_directory()}}`, so store and `eval/results-*.json` belong to the invoking checkout. A bare
+  `code-graph eval` (outside `just`) has no such guard: it scores whatever store it finds and prints 0/7 for an empty one.
 - **`pnpm format` invalidates the graph**: rewritten bodies change `contentHash` and mark
   enrichment stale. Run `just regraph` after any format pass.
 - **Vertex `_key` includes the filepath**: moving files rewrites keys and orphans
