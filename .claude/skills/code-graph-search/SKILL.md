@@ -4,8 +4,8 @@ description: Reference for how `code-graph search` works — BM25 seed → graph
 allowed-tools: Read
 metadata:
   type: concept-skill
-  version: "1.1"
-  last-update: 9f0fd699a9a8e3155bd898b5da694724574e0ef2
+  version: "1.2"
+  last-update: d17cc09bf51799b8d2e9981f72b67e8f7b71a866
 ---
 
 ## When to use
@@ -153,7 +153,9 @@ After expansion:
 score = 0.7 × (bm25 / maxBm25) + 0.3 × (degree / maxDegree)
 ```
 
-- `bm25` is the seed score (0 for expansion-only neighbors).
+- `bm25` is the seed score (0 for expansion-only neighbors). In this formula it includes the
+  `NAME_HIT_FACTOR` boost for name-matching vertices (see Partly enriched stores); the `bm25`
+  reported on a hit and the low-confidence threshold use the unboosted score.
 - `degree` is the count of edges incident to the vertex within the result set.
 - Weights bias toward textual relevance but reward graph centrality.
 

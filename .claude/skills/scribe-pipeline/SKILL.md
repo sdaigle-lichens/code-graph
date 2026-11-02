@@ -3,8 +3,8 @@ name: scribe-pipeline
 description: How the code-graph write path works — extract a concept to an .ast.json, apply it into the SQLite store with drift detection, and ingest the concept's SKILL.md as a doc vertex. Read before changing packages/code-graph/src/scribe.
 metadata:
   type: concept-skill
-  version: "1.2"
-  last-update: 25466506f6c0d9e4953dbb8bfbb75747d335da71
+  version: "1.3"
+  last-update: d17cc09bf51799b8d2e9981f72b67e8f7b71a866
 ---
 
 # Scribe pipeline
