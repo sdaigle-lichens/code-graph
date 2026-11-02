@@ -3,7 +3,7 @@
 // and apply must not import the hook).
 
 /**
- * `apply --defer-renames` found rename candidates and wrote nothing: a rename needs a person's
+ * `apply --defer-renames` found rename candidates and did not write the store: a rename needs a person's
  * decision (`apply <concept>` at a terminal), and recording it any other way loses enrichment.
  */
 export const EXIT_RENAMES_DEFERRED = 10;

@@ -565,7 +565,7 @@ describe("apply --defer-renames in a batch", () => {
     assert.equal(r.code, 10, r.stdout + r.stderr);
     assert.match(
       r.stdout,
-      /Deferred: 1 rename candidate\(s\) need a decision; nothing was written\.\n {2}run: code-graph apply c/
+      /Deferred: 1 rename candidate\(s\) need a decision; the store was not written\.\n {2}run: code-graph apply c/
     );
     assert.doesNotMatch(r.stdout, /Approve rename/, "never prompts");
     assert.doesNotMatch(r.stderr, /failed/);

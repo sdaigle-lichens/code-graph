@@ -166,7 +166,8 @@ describe("apply --defer-renames", () => {
     assert.equal(r.code, EXIT_RENAMES_DEFERRED, r.stdout + r.stderr);
     assert.equal(EXIT_RENAMES_DEFERRED, 10);
     assert.match(r.stdout, /Rename candidates:/);
-    assert.match(r.stdout, /Deferred: 1 rename candidate\(s\) need a decision; nothing was written\./);
+    assert.match(r.stdout, /Deferred: 1 rename candidate\(s\) need a decision; the store was not written\./);
+    assert.doesNotMatch(r.stdout, /enriched file was updated/, "no orphan was remapped, so no enriched sentence");
     assert.match(r.stdout, /run: code-graph apply code/);
     assert.doesNotMatch(r.stdout, /Approve rename/, "never prompts");
 

@@ -345,9 +345,96 @@ describe("orphan remap, store and isolation", () => {
     const r = run(["apply", "c", "--defer-renames"]);
     assert.equal(r.code, 10);
     assert.match(r.stderr, /1 remapped onto moved vertices/);
+    assert.match(
+      r.stdout,
+      /Deferred: 1 rename candidate\(s\) need a decision; the store was not written\. The enriched file was updated \(1 orphaned entry remapped in scribe-output\/c\.enriched\.json\)\./
+    );
     assert.ok(enrichedKeys().includes(newKey), "the entry follows the moved vertex");
     assert.ok(!enrichedKeys().includes(oldKey));
     assert.equal(storeDoc(oldKey).status, "live", "the deferred apply wrote nothing to the store");
+    // The drift JSON keeps its documented shape: the same keys as before, `orphans` only when some
+    // enriched entry is left over (here beta, renamed too, is one), and its three counts when present.
+    const d = JSON.parse(run(["drift", "c", "--json"]).stdout.trim());
+    assert.deepEqual(
+      Object.keys(d)
+        .filter((k) => k !== "orphans")
+        .sort(),
+      ["changed", "concept", "doc", "missing", "new", "renameCandidates", "stale", "unextracted"]
+    );
+    if (d.orphans !== undefined) {
+      assert.deepEqual(Object.keys(d.orphans).sort(), ["ambiguous", "remappable", "unmatched"]);
+    }
+    assert.equal(d.renameCandidates.length, 1);
+  });
+
+  it("apply --defer-renames with no remap says the store was not written and mentions no enriched file", () => {
+    project();
+    assert.equal(run(["extract", "c"]).code, 0);
+    assert.equal(run(["apply", "c"]).code, 0);
+    const alphaKey = keyOf("alpha");
+    // a same-file rename gives drift a candidate; nothing is enriched, so nothing is remapped
+    write("src/a.ts", ALPHA.replace("function alpha", "function alphaX"));
+    assert.equal(run(["extract", "c"]).code, 0);
+    const r = run(["apply", "c", "--defer-renames"]);
+    assert.equal(r.code, 10, r.stdout + r.stderr);
+    assert.match(
+      r.stdout,
+      /Deferred: 1 rename candidate\(s\) need a decision; the store was not written\.\n {2}run: code-graph apply c/
+    );
+    assert.doesNotMatch(r.stdout, /enriched file/);
+    assert.doesNotMatch(r.stderr, /remapped/);
+    assert.equal(storeDoc(alphaKey).status, "live", "the deferred apply left the store as it was");
+    assert.equal(fs.existsSync(path.join(tmp, ENRICHED)), false, "no enriched file was created");
+  });
+});
+
+describe("apply --defer-renames in a batch: each concept says its own thing", () => {
+  it("c (no remap) and d (remapped) each print their wording, and the batch exits 10", () => {
+    twoConceptProject();
+    write("src/d/a.ts", ALPHA);
+    write("src/d/b.ts", BETA);
+    assert.equal(run(["extract", "--all"]).code, 0);
+    assert.equal(run(["apply", "--all"]).code, 0);
+    // d: alpha is enriched and moves, so apply remaps it; beta gets a same-file rename (a candidate)
+    const dAlpha = keyAt("d", "src/d/a.ts", "alpha");
+    assert.equal(
+      run([
+        "enrich",
+        "merge",
+        "d",
+        write(
+          "partial.json",
+          JSON.stringify({ concept: "d", vertices: [{ _key: dAlpha, purpose: "adds one" }], edges: [] })
+        ),
+      ]).code,
+      0
+    );
+    assert.equal(run(["apply", "d"]).code, 0);
+    fs.rmSync(path.join(tmp, "src/d/a.ts"));
+    write("src/d/moved/a.ts", ALPHA);
+    write("src/d/b.ts", BETA.replace("function beta", "function betaX"));
+    // c: a same-file rename on an un-enriched concept
+    write("src/c/a.ts", ALPHA.replace("function alpha", "function alphaX"));
+    assert.equal(run(["extract", "c", "d"]).code, 0);
+
+    const r = run(["apply", "c", "d", "--defer-renames"]);
+    assert.equal(r.code, 10, r.stdout + r.stderr);
+    const blockOf = (name: string) => r.stdout.split(/^Concept: /m).find((b) => b.startsWith(`${name}\n`)) ?? "";
+    const cBlock = blockOf("c");
+    const dBlock = blockOf("d");
+    assert.match(
+      cBlock,
+      /Deferred: 1 rename candidate\(s\) need a decision; the store was not written\.\n {2}run: code-graph apply c/
+    );
+    assert.doesNotMatch(cBlock, /enriched file/);
+    assert.match(
+      dBlock,
+      /Deferred: 1 rename candidate\(s\) need a decision; the store was not written\. The enriched file was updated \(1 orphaned entry remapped in scribe-output\/d\.enriched\.json\)\.\n {2}run: code-graph apply d/
+    );
+    assert.deepEqual(
+      readJson("scribe-output/d.enriched.json").vertices.map((v: any) => v._key),
+      [keyAt("d", "src/d/moved/a.ts", "alpha")]
+    );
   });
 });
 

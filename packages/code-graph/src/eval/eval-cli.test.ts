@@ -204,3 +204,69 @@ describe("eval CLI --store", () => {
     assert.equal(readRows(file).fts, "1");
   });
 });
+
+describe("eval exit code: stripped copy passes, as-is store regresses", () => {
+  // alphaThing matches the task by name alone. zetaWidget matches it only through its purpose and
+  // tags, which the stripped copy removes: so the same store passes stripped and regresses as-is.
+  const FIXTURE_HINT =
+    "This fixture depends on search ranking (NAME_HIT_FACTOR): if a ranking change broke it, " +
+    "adjust the fixture's names/purpose here, not the eval exit-code wiring.";
+
+  function regressionFixtures() {
+    freshFixtures();
+    const file = path.join(project, "scribe-output", "graph.db");
+    fs.rmSync(file);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const db = new DatabaseSync(file);
+    applySchema(db);
+    const v = (key: string, name: string, extra: object) =>
+      db.prepare("INSERT INTO vertices(key, doc) VALUES(?, ?)").run(
+        key,
+        JSON.stringify({
+          _key: key,
+          concept: "c",
+          type: "function",
+          name,
+          filepath: "src/a.ts",
+          start_line: 1,
+          end_line: 2,
+          status: "live",
+          ...extra,
+        })
+      );
+    v("v1", "alphaOnly", {});
+    v("v2", "zetaWidget", { purpose: "alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta" });
+    // Filler rows keep the FTS idf positive (a two-row corpus scores every shared term at ~0).
+    for (let i = 1; i <= 5; i++) v(`f${i}`, `filler${i}Thing`, {});
+    rebuildSearchIndex(db);
+    db.close();
+    fs.writeFileSync(
+      tasks,
+      JSON.stringify([
+        {
+          id: "alpha",
+          prompt: "alpha beta gamma delta",
+          mode: "search",
+          expected: { vertices_in_top_k: [{ name: "alphaOnly", k: 1 }] },
+        },
+      ])
+    );
+  }
+
+  it("--store as-is exits non-zero and names the regressed task", () => {
+    regressionFixtures();
+    const r = eval_(["--store", "as-is"]);
+    const hint = `${FIXTURE_HINT}\n${r.out}${r.err}`;
+    assert.notEqual(r.code, 0, hint);
+    assert.equal(r.code, 1, hint);
+    assert.match(r.out, /^REGRESSIONS: /m, hint);
+    assert.match(r.out, /^failed: alpha$/m, hint);
+  });
+
+  it("the default stripped copy exits 0 on the same store", () => {
+    regressionFixtures();
+    const r = eval_([]);
+    assert.equal(r.code, 0, `${FIXTURE_HINT}\n${r.out}${r.err}`);
+    assert.match(r.out, /^green: 1\/1 passed/m);
+  });
+});
