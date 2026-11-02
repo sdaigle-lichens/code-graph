@@ -62,7 +62,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   one as new.
 - `apply --defer-renames` exits `EXIT_RENAMES_DEFERRED` (10) before any store write when there are rename
   candidates (the whole concept is left unapplied, so a later interactive `apply` sees the same drift; the
-  orphan remap in `.enriched.json` runs earlier and is kept, so the message's "nothing was written" means the store);
+  orphan remap in `.enriched.json` runs earlier and is kept: the message's "the store was not written" refers to the store, and when a remap was persisted it also reports `scribe-output/<concept>.enriched.json` was updated);
   combining it with `--approve-drift` exits 1. `EXIT_RENAMES_DEFERRED` lives in `scribe/exit-codes.ts`
   (re-exported by `skill-refresh.ts`), so `apply.ts` never imports the hook module and the hook path
   imports no store module up front.

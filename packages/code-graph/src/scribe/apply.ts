@@ -456,8 +456,15 @@ export async function apply(
   // Non-interactive mode: never prompt and never decide a rename. The whole concept is left
   // unapplied (no partial write) so the person who runs `apply <concept>` later sees the same drift.
   if (opts.deferRenames && uniqueRenames.length > 0) {
+    // The orphan remap above is already persisted to the enriched file; only the store is untouched.
+    const remapped = orphans?.remapped.length ?? 0;
+    const enrichedNote =
+      remapped > 0
+        ? ` The enriched file was updated (${remapped} orphaned entr${remapped === 1 ? "y" : "ies"} remapped in scribe-output/${concept}.enriched.json).`
+        : "";
     console.log(
-      `\nDeferred: ${uniqueRenames.length} rename candidate(s) need a decision; nothing was written.` +
+      `\nDeferred: ${uniqueRenames.length} rename candidate(s) need a decision; the store was not written.` +
+        enrichedNote +
         `\n  run: code-graph apply ${concept}`
     );
     // exitCode, not exit: a batch `apply --defer-renames` goes on to the next concept.
