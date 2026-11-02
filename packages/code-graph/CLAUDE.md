@@ -156,6 +156,14 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   Staleness: a changed vertex is fresh only if `hash_seen === contentHash`; entries with no
   `hash_seen` (pre-0.3.6) keep the `sig_seen === signature` rule (`enrichmentIsCurrent`). `gaps`
   counts a vertex as enriched only with a non-stale purpose.
+- **Orphaned enriched entries** (key not in ast.json; `orphanKeys`/`planOrphans`/`planOrphansInStore`/
+  `applyRemap`/`orphanSummary`/`enrichPrune` in `scribe/enrich.ts`): `apply` identifies an orphan from its
+  store record (live or archived, by `_key`) and remaps it onto the one unclaimed vertex of the same type
+  with the same name (narrowed by contentHash), else the same contentHash; two orphans wanting one vertex
+  are ambiguous; a key the store never saw is unmatched. Remaps are persisted (`writeEnrichedDoc`, same
+  layout as `enrich merge`) except under `--dry-run`. The rest is one stderr `note:` line, never one
+  warning per entry. Only `enrich prune <concept> [--yes]` deletes (dry run default). No file-format or
+  exit-code change; `enrich targets` shows `orphans` only when > 0, `apply --dry-run --json` likewise.
 - A concept's **core** (`scribe/core.ts`, pure `coreVertices(vertices, edges, skillBody)`) = vertices
   named in the SKILL.md (whole identifier, name 3+ chars) ∪ in-concept hubs (3+ inbound
   `calls`/`mounts` from the same concept). Shared by `enrich targets` (only "new" is

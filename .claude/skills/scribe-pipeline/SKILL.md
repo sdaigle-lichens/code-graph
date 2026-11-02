@@ -25,7 +25,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10); `apply.ts` reads it from here so the write path never imports the hook module |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
-| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`, `refresh-skills`) |
+| `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`) and `enrich prune` (orphans `apply` cannot remap; dry run unless `--yes`); orphan planning and remap live here too (`planOrphans`, `applyRemap`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`, `refresh-skills`) |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
 | `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
@@ -34,7 +34,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 ## Invariants
 
-- Vertex `_key` includes the filepath, so moving a file orphans its enrichment until remapped.
+- Vertex `_key` includes the filepath, so moving a file orphans its enrichment. `apply` remaps an unambiguous orphan itself
+  (`planOrphansInStore`, persisted except in a dry run) and prints one `note:` line for the rest; only
+  `enrich prune <concept> [--yes]` deletes (dry run by default). Back up the gitignored `.enriched.json` first.
 - Agent fields come only from enrichment and survive re-extracts; a body change sets `agent.stale`
   on every changed vertex, never-enriched ones included.
 - `enrich targets` is lazy: a never-enriched vertex is `new` only when core, touched since the
@@ -58,8 +60,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   greedy best score. An approved rename writes the new key carrying the old agent fields and archives
   the old key (counted 1 inserted + 1 archived); a rejected one archives the old key and inserts the new
   one as new.
-- `apply --defer-renames` exits `EXIT_RENAMES_DEFERRED` (10) before any write when there are rename
-  candidates (the whole concept is left unapplied, so a later interactive `apply` sees the same drift);
+- `apply --defer-renames` exits `EXIT_RENAMES_DEFERRED` (10) before any store write when there are rename
+  candidates (the whole concept is left unapplied, so a later interactive `apply` sees the same drift; the
+  orphan remap in `.enriched.json` runs earlier and is kept, so the message's "nothing was written" means the store);
   combining it with `--approve-drift` exits 1. `EXIT_RENAMES_DEFERRED` lives in `scribe/exit-codes.ts`
   (re-exported by `skill-refresh.ts`), so `apply.ts` never imports the hook module and the hook path
   imports no store module up front.

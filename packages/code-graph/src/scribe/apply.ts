@@ -6,7 +6,15 @@ import { loadConfig } from "../config.js";
 import { reportAndThrow as fail } from "../concept-batch.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
-import { enrichmentIsCurrent, isConceptApplied } from "./enrich.js";
+import {
+  applyRemap,
+  enrichmentIsCurrent,
+  isConceptApplied,
+  orphanSummary,
+  planOrphansInStore,
+  writeEnrichedDoc,
+  type OrphanPlan,
+} from "./enrich.js";
 import { formatUnextracted, unextractedChanges } from "./unextracted.js";
 import { EXIT_RENAMES_DEFERRED } from "./exit-codes.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
@@ -254,17 +262,21 @@ export async function apply(
   const astKeySet = new Set(astDoc.vertices.map((v) => v._key));
   const astVertexMap = new Map(astDoc.vertices.map((v) => [v._key, v]));
 
-  // Filter enriched vertices — drop unknown _keys
-  let enrichedVertices = enrichedDoc?.vertices ?? [];
+  // Orphaned enriched entries (key not in ast.json, e.g. a moved file): remap the unambiguous ones onto
+  // their new vertex (persisted on a real apply), report the rest in one line, delete nothing.
+  let orphans: OrphanPlan | null = null;
   if (enrichedDoc) {
-    enrichedVertices = enrichedVertices.filter((ev) => {
-      if (!astKeySet.has(ev._key)) {
-        process.stderr.write(`warning: enriched vertex "${ev._key}" not in ast.json — skipping\n`);
-        return false;
-      }
-      return true;
-    });
+    orphans = planOrphansInStore(store, concept, astDoc, enrichedDoc);
+    if (orphans.remapped.length > 0) {
+      enrichedDoc = applyRemap(enrichedDoc, orphans.remapped);
+      if (!opts.dryRun) writeEnrichedDoc(enrichedPath, enrichedDoc);
+    }
+    const line = orphanSummary(concept, orphans, opts.dryRun);
+    if (line) process.stderr.write(`${line}\n`);
   }
+
+  // Entries still unknown to ast.json (ambiguous or unmatched) stay in the file and are not applied.
+  const enrichedVertices = (enrichedDoc?.vertices ?? []).filter((ev) => astKeySet.has(ev._key));
   const enrichedVertexMap = new Map(enrichedVertices.map((ev) => [ev._key, ev]));
 
   // Split enriched edges into AST enrichments vs agent-authored
@@ -393,6 +405,17 @@ export async function apply(
         score: Number(r.score.toFixed(2)),
       })),
       doc: { bodyHashChanged: docHashDisplay === "changed" },
+      // Enriched entries not in ast.json: counts only (the stderr line names the next step).
+      // Present only when there are some, so the documented shape of a clean concept is unchanged.
+      ...(orphans && orphans.remapped.length + orphans.ambiguous.length + orphans.unmatched.length > 0
+        ? {
+            orphans: {
+              remappable: orphans.remapped.length,
+              ambiguous: orphans.ambiguous.length,
+              unmatched: orphans.unmatched.length,
+            },
+          }
+        : {}),
       // Files edited/added/removed since the last extract; null when ast.json predates `meta.files`.
       unextracted,
     };

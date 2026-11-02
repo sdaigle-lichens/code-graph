@@ -93,6 +93,18 @@ Enrichment can build up a few vertices at a time. Run `extract <concept>` first 
   written sorted by key with stable formatting, so merging N vertices changes about N entries, and
   merging the same partial twice changes nothing. Then run `apply` as usual. (`apply` has no
   `--merge`; use `enrich merge`.)
+- **Orphaned entries** (ticket 060): vertex keys include the filepath, so a moved file strands its
+  `.enriched.json` entries (key not in `ast.json`). `apply` re-keys an entry onto the moved vertex when
+  exactly one vertex without an entry has the same type and name (several same-name vertices are narrowed
+  by `contentHash`), or, when no name matches, the same type and `contentHash`; the purpose and every
+  other field are kept (`hash_seen` still decides staleness) and the file is rewritten. Entries it cannot
+  place (ambiguous, or the store never saw the key) stay in the file, and `apply` prints **one** stderr
+  line per concept: `note: <c>.enriched.json has N entries not in ast.json (R remapped, A ambiguous, U
+  unmatched; K kept in the file, review with: code-graph enrich prune <c>)`. `apply --dry-run` reports the
+  same line without writing. Nothing is deleted by `apply`. `code-graph enrich prune <concept> [--yes]
+  [--json]` lists the ambiguous and unmatched entries (key, vertex name when the store knows it, purpose)
+  and, only with `--yes`, drops them; it never drops an entry `apply` could remap. `enrich targets` adds
+  one line (and `orphans` in `--json`) when the file holds orphans; `gaps` does not mention them.
 
 **Staleness.** `hash_seen` is the vertex `contentHash` the enricher read. After a body edit, `apply`
 marks a vertex stale unless its enrichment carries the new hash, so a body-only edit (same signature)
@@ -117,11 +129,12 @@ Vertices are `{ name, type, file }`; a rename candidate is `{ from, to, score }`
 run `extract <concept>` first, then `drift`, to see pending source edits. The JSON also carries
 `unextracted: { changed, new, removed, files[] }`: source files edited, added or deleted since the last
 `extract` (counted in files, from `meta.files` in the ast.json); non-zero means run `extract` then
-`apply`. It is absent for an ast.json written before 0.3.17.
+`apply`. It is absent for an ast.json written before 0.3.17. When `<concept>.enriched.json` holds orphans
+(ticket 060), it also carries `orphans: { remappable, ambiguous, unmatched }` counts; the key is absent when there are none.
 
 With rename candidates, `apply` asks `y`/`n`/skip-all for each one; `--approve-drift` accepts them all
 without asking. `apply --defer-renames` never prompts: when there are rename candidates it prints the
-drift, writes nothing and exits 10, so a later `apply <concept>` at a terminal sees the same drift. It
+drift, writes nothing to the store and exits 10, so a later `apply <concept>` at a terminal sees the same drift. An orphan remap in `<concept>.enriched.json` is written before that check and is kept (the printed "nothing was written" refers to the store). It
 cannot be combined with `--approve-drift` (exit 1). In a batch a deferred concept does not stop the
 others; the batch exits 10 when any was deferred and none failed (a failure exits 1).
 
@@ -265,6 +278,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph refresh-skills`           | `code-graph refresh-skills --json`                                   | Extract + apply every applied concept whose SKILL.md changed; renames deferred (exit 10) |
 | `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --summary --json`         | List vertices that need enrichment (lazy; `--all`: every) |
 | `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
+| `code-graph enrich prune <c> [--yes]` | `code-graph enrich prune workorder-store`                            | List (dry run) or drop orphaned entries `apply` cannot remap |
 | `code-graph search "<query>"`         | `code-graph search "sync sends stale ops"`                           | Hybrid BM25 + multi-hop search                            |
 | `code-graph query concept <name>`     | `code-graph query concept workorder-store`                           | Query a concept subgraph                                  |
 | `code-graph query impact <symbol>`    | `code-graph query impact setWorkorderIndex`                          | Query impact of a symbol                                  |
@@ -471,7 +485,7 @@ the repo's history.
 | 7         | `search` low confidence | Results are printed, but the top cluster is a weak match or its concept is un-enriched (`LOW_CONFIDENCE_MIN_SCORE`, `LOW_CONFIDENCE_MIN_ENRICHED` in `query/search.ts`). Verify with grep or the concept's SKILL.md. `--json` sets `low_confidence: true` and `low_confidence_reason`. An exact symbol-name hit and a docs-only concept are never low confidence |
 | 8         | `node:sqlite` unavailable | Any command that opens the store (`search`, `query *`, `status`, `bootstrap`, `reindex`, `apply`, `drift`, `enrich *`, `eval`, `delete-concept`) on a Node without `node:sqlite`. One stderr line names the requirement: Node >=22.5, no `--no-experimental-sqlite`. Check with `node --version`. `skills *`, `deps *`, `extract` and `catalog` never open the store and still run |
 | 9         | `skills stamp` computed, not written | The sandbox blocked the SKILL.md write (EROFS/EPERM/EACCES). Output: `stamp computed, not written: <path>`, `reason:`, then `set exactly these lines in its metadata block:` and the lines (unmarked skill: `replace the metadata block (or add it to the frontmatter) with exactly:` and the whole block). Apply them with Edit, then re-run `skills status`. `--print` computes and prints without writing (exit 0); `--json` gives `{ stamped, version, lastUpdate, written: false, blocked: { reason, lines } }`. With several skills, every blocked skill's lines come back in one result (see **Several skills** above) |
-| 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and wrote nothing for that concept. Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
+| 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and wrote nothing to the store for that concept (an orphan remap in `.enriched.json` is still persisted). Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
 
 ## Zed editor LSP
 

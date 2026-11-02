@@ -166,6 +166,15 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
   const leftOutLine =
     `core: ${coreSize} vertices; ${leftOut} non-core new vertices left out` +
     (leftOut > 0 ? " (never enriched, untouched since the last apply; --all lists them)" : "");
+  // Entries in <concept>.enriched.json that ast.json no longer knows; `apply` remaps or reports them.
+  const orphans = orphanKeys(
+    ast,
+    loadEnriched(join(config.configRoot, "scribe-output", `${concept}.enriched.json`), concept)
+  ).length;
+  const orphanLine =
+    orphans > 0
+      ? `${orphans} orphaned enriched entr${orphans === 1 ? "y" : "ies"} not in ast.json — run: code-graph apply ${concept}, then enrich prune ${concept}`
+      : null;
   const flagsOf = (t: { reasons: TargetReason[]; core: boolean }) => [...t.reasons, t.core ? "core" : "non-core"];
   const loc = (t: EnrichTarget) => `${t.filepath}:${t.start_line}-${t.end_line}`;
   const edgeCount = (n: number) => `${n} edge${n === 1 ? "" : "s"} without a reason`;
@@ -192,6 +201,7 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
           total: targets.length,
           counts,
           core: coreInfo,
+          ...(orphans > 0 ? { orphans } : {}),
           edgesWithoutReason,
           targets: lines,
         })
@@ -203,6 +213,7 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
     if (!applied) console.log(`  never applied: a first-time build, not an incremental update`);
     console.log(`  ${leftOutLine}`);
     if (thinMessage) console.log(`  ${thinMessage}`);
+    if (orphanLine) console.log(`  ${orphanLine}`);
     console.log(`  edges without a reason: ${edgesWithoutReason}`);
     for (const l of lines) {
       console.log(
@@ -213,7 +224,7 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
   }
 
   if (opts.json) {
-    console.log(JSON.stringify({ concept, targets, core: coreInfo }, null, 2));
+    console.log(JSON.stringify({ concept, targets, core: coreInfo, ...(orphans > 0 ? { orphans } : {}) }, null, 2));
     return;
   }
   console.log(`Concept: ${concept} — ${targets.length} vertices to enrich`);
@@ -224,6 +235,7 @@ export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void
   }
   console.log(`  ${leftOutLine}`);
   if (thinMessage) console.log(`  ${thinMessage}`);
+  if (orphanLine) console.log(`  ${orphanLine}`);
 }
 
 function countReasons(targets: Array<{ reasons: TargetReason[] }>): Record<TargetReason, number> {
@@ -494,4 +506,167 @@ export function enrichMerge(concept: string, partialPath: string): void {
     `enrich merge: ${concept} — merged ${partial.vertices.length} vertices, ${partial.edges.length} edges into ${enrichedPath}`
   );
   console.log(`  next: code-graph apply ${concept}`);
+}
+
+// ─── orphaned entries ─────────────────────────────────────────────────────────
+//
+// An enriched entry whose `_key` is not in ast.json is an orphan: vertex keys include the filepath, so
+// a moved file (or a removed vertex) strands its entries. `apply` remaps the unambiguous ones onto the
+// moved vertex, reports the rest in one line and never deletes; `enrich prune` is the only way to drop.
+
+/** What the store remembers about an orphaned key (live or archived): the identity used to find its new key. */
+export type OrphanIdentity = Pick<Vertex, "name" | "type" | "contentHash">;
+
+export type OrphanPlan = {
+  /** Entries re-keyed onto the one live vertex of the same name and type (or same contentHash) that has none. */
+  remapped: Array<{ from: string; to: string }>;
+  /** Several candidates (or two orphans want the same one): left in place. */
+  ambiguous: string[];
+  /** No candidate, or the store never saw the key: left in place. */
+  unmatched: string[];
+};
+
+/** Keys of the entries in `doc` that ast.json does not know. */
+export function orphanKeys(ast: AstDoc, doc: EnrichedDoc): string[] {
+  const live = new Set(ast.vertices.map((v) => v._key));
+  return doc.vertices.filter((e) => !live.has(e._key)).map((e) => e._key);
+}
+
+/**
+ * Decide, for each orphan, whether it maps onto a vertex of the concept that has no entry yet. The match
+ * is unambiguous only when exactly one candidate fits: same type and name (narrowed by contentHash when
+ * several share the name), else same type and contentHash. A candidate wanted by two orphans is ambiguous
+ * for both. Pure: `identityOf` is the store lookup.
+ */
+export function planOrphans(
+  ast: AstDoc,
+  doc: EnrichedDoc,
+  identityOf: (key: string) => OrphanIdentity | null
+): OrphanPlan {
+  const plan: OrphanPlan = { remapped: [], ambiguous: [], unmatched: [] };
+  const orphans = orphanKeys(ast, doc);
+  if (orphans.length === 0) return plan;
+  const astKeys = new Set(ast.vertices.map((v) => v._key));
+  const claimed = new Set(doc.vertices.filter((e) => astKeys.has(e._key)).map((e) => e._key));
+  const picks = new Map<string, string>();
+  for (const from of orphans) {
+    const id = identityOf(from);
+    if (!id) {
+      plan.unmatched.push(from);
+      continue;
+    }
+    const pool = ast.vertices.filter((v) => !claimed.has(v._key) && v.type === id.type);
+    const named = pool.filter((v) => v.name === id.name);
+    let found = named;
+    if (named.length > 1) found = named.filter((v) => v.contentHash === id.contentHash);
+    else if (named.length === 0) found = pool.filter((v) => v.contentHash === id.contentHash);
+    if (found.length === 1) picks.set(from, found[0]._key);
+    else if (found.length > 1 || named.length > 1) plan.ambiguous.push(from);
+    else plan.unmatched.push(from);
+  }
+  const wanted = new Map<string, number>();
+  for (const to of picks.values()) wanted.set(to, (wanted.get(to) ?? 0) + 1);
+  for (const [from, to] of picks) {
+    if (wanted.get(to) === 1) plan.remapped.push({ from, to });
+    else plan.ambiguous.push(from);
+  }
+  return plan;
+}
+
+/** `planOrphans` against the store: the identity of an orphaned key is its vertex record, live or archived. */
+export function planOrphansInStore(store: DatabaseSync, concept: string, ast: AstDoc, doc: EnrichedDoc): OrphanPlan {
+  return planOrphans(ast, doc, (key) => {
+    const rec = getRecord<Vertex>(store, "vertices", key);
+    return rec && rec.concept === concept ? rec : null;
+  });
+}
+
+/** `doc` with each remapped entry (and agent-edge endpoint) re-keyed; every field, purpose included, is kept. */
+export function applyRemap(doc: EnrichedDoc, remapped: OrphanPlan["remapped"]): EnrichedDoc {
+  if (remapped.length === 0) return doc;
+  const to = new Map(remapped.map((r) => [r.from, r.to]));
+  const endpoint = (end: string) => {
+    const k = to.get(end.replace(/^vertices\//, ""));
+    return k ? vertexId(k) : end;
+  };
+  return {
+    concept: doc.concept,
+    vertices: doc.vertices.map((e) => (to.has(e._key) ? { ...e, _key: to.get(e._key)! } : e)),
+    edges: doc.edges.map((e) => (isAgentEdge(e) ? { ...e, _from: endpoint(e._from), _to: endpoint(e._to) } : e)),
+  };
+}
+
+/** Write `doc` in the same stable layout `enrich merge` produces (vertices sorted by key). */
+export function writeEnrichedDoc(path: string, doc: EnrichedDoc): void {
+  const out = {
+    concept: doc.concept,
+    vertices: [...doc.vertices].sort((a, b) => a._key.localeCompare(b._key)).map(orderVertex),
+    edges: doc.edges.map(orderEdge),
+  };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(out, null, 2) + "\n", "utf-8");
+}
+
+/** The single line `apply` prints for a concept's orphans; null when it has none. */
+export function orphanSummary(concept: string, plan: OrphanPlan, dryRun: boolean): string | null {
+  const left = plan.ambiguous.length + plan.unmatched.length;
+  const n = plan.remapped.length;
+  if (n + left === 0) return null;
+  const parts: string[] = [];
+  if (n > 0) parts.push(`${n} ${dryRun ? "would be remapped" : "remapped"} onto moved vertices`);
+  if (plan.ambiguous.length > 0) parts.push(`${plan.ambiguous.length} ambiguous`);
+  if (plan.unmatched.length > 0) parts.push(`${plan.unmatched.length} unmatched`);
+  const next = left > 0 ? `; ${left} kept in the file, review with: code-graph enrich prune ${concept}` : "";
+  return `note: ${concept}.enriched.json has ${n + left} entr${n + left === 1 ? "y" : "ies"} not in ast.json (${parts.join(", ")})${next}`;
+}
+
+/**
+ * `enrich prune <concept>`: list the orphaned entries `apply` cannot remap (ambiguous or unmatched) and,
+ * only with `yes`, drop them from `<concept>.enriched.json`. Dry run by default; the entries `apply`
+ * would remap are never dropped. Everything else in the file is left as it is.
+ */
+export function enrichPrune(concept: string, opts: { yes: boolean; json: boolean }): void {
+  const config = loadConfig();
+  const ast = loadAst(config.configRoot, concept);
+  const store = bootstrapStore(resolveDbPath(config));
+  const enrichedPath = join(config.configRoot, "scribe-output", `${concept}.enriched.json`);
+  const doc = loadEnriched(enrichedPath, concept);
+  const plan = planOrphansInStore(store, concept, ast, doc);
+  const byKey = new Map(doc.vertices.map((e) => [e._key, e]));
+  const entry = (key: string, reason: "ambiguous" | "unmatched") => {
+    const rec = getRecord<Vertex>(store, "vertices", key);
+    return { key, reason, name: rec?.name ?? null, purpose: byKey.get(key)?.purpose ?? null };
+  };
+  const drop = [
+    ...plan.ambiguous.map((k) => entry(k, "ambiguous")),
+    ...plan.unmatched.map((k) => entry(k, "unmatched")),
+  ].sort((a, b) => a.key.localeCompare(b.key));
+  const dropKeys = new Set(drop.map((d) => d.key));
+  const dropped = opts.yes && dropKeys.size > 0;
+  if (dropped) {
+    writeEnrichedDoc(enrichedPath, { ...doc, vertices: doc.vertices.filter((e) => !dropKeys.has(e._key)) });
+  }
+  if (opts.json) {
+    console.log(
+      JSON.stringify({ concept, dryRun: !opts.yes, dropped, remappable: plan.remapped.length, orphans: drop })
+    );
+    return;
+  }
+  if (drop.length === 0) {
+    console.log(`enrich prune: ${concept} has no orphaned entries to drop`);
+  } else {
+    const verb = dropped ? "dropped" : "would be dropped";
+    console.log(`enrich prune: ${concept} — ${drop.length} orphaned entr${drop.length === 1 ? "y" : "ies"} ${verb}`);
+    for (const d of drop) {
+      console.log(
+        `  ${d.key} ${d.name ?? "(unknown to the store)"} [${d.reason}] ${(d.purpose ?? "(no purpose)").slice(0, 80)}`
+      );
+    }
+    if (!opts.yes) console.log(`  dry run: nothing written. Re-run with --yes to drop them from ${enrichedPath}`);
+  }
+  if (plan.remapped.length > 0) {
+    console.log(
+      `  ${plan.remapped.length} more map onto a moved vertex and are not dropped: run code-graph apply ${concept}`
+    );
+  }
 }

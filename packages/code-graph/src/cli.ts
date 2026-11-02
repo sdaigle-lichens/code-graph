@@ -388,6 +388,24 @@ enrich
     }
   });
 
+enrich
+  .command("prune <concept>")
+  .description(
+    "list the orphaned entries in <concept>.enriched.json (key not in ast.json) that apply cannot remap; dry run unless --yes"
+  )
+  .option("--yes", "drop them from <concept>.enriched.json (default: only list)")
+  .option("--json", "output JSON")
+  .action(async (concept: string, opts: { yes?: boolean; json?: boolean }) => {
+    try {
+      if (await skippedForNoConcepts("enrich prune")) return;
+      const { enrichPrune } = await import("./scribe/enrich.js");
+      enrichPrune(concept, { yes: opts.yes ?? false, json: opts.json ?? false });
+    } catch (err) {
+      console.error("enrich prune failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
 program
   .command("drift [concepts...]")
   .description("show drift for one or more concepts, or --all (alias for apply --dry-run)")

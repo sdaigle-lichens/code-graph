@@ -36,7 +36,11 @@ The store is `<configRoot>/scribe-output/graph.db` (gitignored; override with `d
 - **`pnpm format` invalidates the graph**: rewritten bodies change `contentHash` and mark
   enrichment stale. Run `just regraph` after any format pass.
 - **Vertex `_key` includes the filepath**: moving files rewrites keys and orphans
-  `scribe-output/<concept>.enriched.json` (remap or re-enrich).
+  `scribe-output/<concept>.enriched.json`. `apply` remaps an entry onto the moved vertex when exactly one
+  vertex of the same type matches (same name, else same contentHash), prints one `note:` line for the rest
+  (ambiguous or unmatched, kept in the file) and deletes nothing. Drop leftovers on purpose with
+  `code-graph enrich prune <concept>` (dry run; `--yes` writes), or re-enrich them. The enriched file is
+  gitignored and unrecoverable: copy it to `$TMPDIR` before pruning.
 - Bump the version in `packages/code-graph/package.json`, `plugin/.claude-plugin/plugin.json` and
   `.claude-plugin/marketplace.json` together; `check-versions.mjs` (in `pnpm check` and `bundle`) fails on drift.
 - Pilot consumer `~/Documents/gits/lichens-ordonnancement-ui` is not on this machine; never commit
