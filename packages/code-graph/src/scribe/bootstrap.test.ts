@@ -199,13 +199,22 @@ describe("rebuildSearchIndex", () => {
     assert.deepEqual(rank('"index"'), ["v1"]); // "re-indexes" -> re, index
   });
 
-  it("does not split camelCase identifiers", () => {
-    // unicode61 tokenizes `setWorkorderIndex` whole, so a bare "workorder"
-    // reaches it only through purpose/tags/body — never through its name. The
-    // ArangoSearch text_en analyzer behaved the same way; the exact-name sort
-    // tier in search.ts is what makes a full identifier query land first.
-    assert.deepEqual(rank('"workorder"'), ["wo::skill"]);
+  it("splits camelCase identifiers into words and keeps the whole identifier searchable", () => {
+    // unicode61 tokenizes `setWorkorderIndex` whole, so rebuildSearchIndex also indexes its words
+    // (nameIndexText): a bare "workorder" reaches the vertex through its name, and the name
+    // column outweighs the skill doc body, so the vertex ranks first.
+    assert.deepEqual(rank('"workorder"'), ["v1", "wo::skill"]);
     assert.deepEqual(rank('"setworkorderindex"'), ["v1"]);
+  });
+
+  it("splits snake_case and acronym names and leaves single-word names alone", () => {
+    putVertex("s1", vertex({ _key: "s1", name: "parse_gaps_handled" }));
+    putVertex("s2", vertex({ _key: "s2", name: "HTTPServer2" }));
+    putVertex("s3", vertex({ _key: "s3", name: "solitary" }));
+    rebuildSearchIndex(db);
+    assert.deepEqual(rank('"gaps" "handled"'), ["s1"]);
+    assert.deepEqual(rank('"http"'), ["s2"]);
+    assert.deepEqual(rank('"solitary"'), ["s3"]);
   });
 
   it("orders name over purpose over body under the column weights", () => {

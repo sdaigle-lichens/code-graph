@@ -78,8 +78,8 @@
           }
         },
         {
-          "id": "human_review-1",
-          "type": "human_review",
+          "id": "manager_review-1",
+          "type": "manager_review",
           "position": {
             "x": 27.72518079965893,
             "y": 391.8708369855765
@@ -139,13 +139,13 @@
         },
         {
           "from": "frontend",
-          "to": "human_review-1",
+          "to": "manager_review-1",
           "kind": "success",
           "sourceHandle": "bottom",
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "test",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -262,10 +262,10 @@
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "backend",
           "kind": "condition",
-          "label": "human requested code corrections",
+          "label": "manager requested direction change",
           "label_offset": {
             "x": -110,
             "y": 0
@@ -274,10 +274,10 @@
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "frontend",
           "kind": "condition",
-          "label": "human requested code corrections",
+          "label": "manager requested direction change",
           "label_offset": {
             "x": 111.89395257873909,
             "y": -61.7181122833728
@@ -300,8 +300,8 @@
           }
         },
         {
-          "id": "human_review-1",
-          "type": "human_review",
+          "id": "manager_review-1",
+          "type": "manager_review",
           "position": {
             "x": 0,
             "y": 280
@@ -363,13 +363,13 @@
         },
         {
           "from": "test",
-          "to": "human_review-1",
+          "to": "manager_review-1",
           "kind": "success",
           "sourceHandle": "bottom",
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "backend",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -481,10 +481,10 @@
           }
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "test",
           "kind": "condition",
-          "label": "human requested test corrections",
+          "label": "manager requested direction change",
           "sourceHandle": "left",
           "targetHandle": "top",
           "label_offset": {
@@ -507,8 +507,8 @@
           }
         },
         {
-          "id": "human_review-1",
-          "type": "human_review",
+          "id": "manager_review-1",
+          "type": "manager_review",
           "position": {
             "x": 0,
             "y": 280
@@ -534,13 +534,13 @@
         },
         {
           "from": "use-code-architecture-design-check",
-          "to": "human_review-1",
+          "to": "manager_review-1",
           "kind": "success",
           "sourceHandle": "bottom",
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "refactor",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -724,8 +724,8 @@
           }
         },
         {
-          "id": "human_review-1",
-          "type": "human_review",
+          "id": "manager_review-1",
+          "type": "manager_review",
           "position": {
             "x": 0,
             "y": 280
@@ -778,13 +778,13 @@
         },
         {
           "from": "frontend",
-          "to": "human_review-1",
+          "to": "manager_review-1",
           "kind": "success",
           "sourceHandle": "bottom",
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "test",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -873,10 +873,10 @@
           }
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "frontend",
           "kind": "condition",
-          "label": "human requested code corrections",
+          "label": "manager requested direction change",
           "sourceHandle": "left",
           "targetHandle": "top",
           "label_offset": {
@@ -899,8 +899,8 @@
           }
         },
         {
-          "id": "human_review-1",
-          "type": "human_review",
+          "id": "manager_review-1",
+          "type": "manager_review",
           "position": {
             "x": 0,
             "y": 310
@@ -953,13 +953,13 @@
         },
         {
           "from": "backend",
-          "to": "human_review-1",
+          "to": "manager_review-1",
           "kind": "success",
           "sourceHandle": "bottom",
           "targetHandle": "top"
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "test",
           "kind": "success",
           "sourceHandle": "bottom",
@@ -1048,10 +1048,10 @@
           }
         },
         {
-          "from": "human_review-1",
+          "from": "manager_review-1",
           "to": "backend",
           "kind": "condition",
-          "label": "human requested code corrections",
+          "label": "manager requested direction change",
           "sourceHandle": "left",
           "targetHandle": "top",
           "label_offset": {
@@ -1063,42 +1063,38 @@
     }
   ],
   "rules": [],
-  "gates": {
-    "confidence_check": false,
-    "use_code_architecture_design_check": false
-  },
   "project_tags": [
     "backend",
     "frontend"
   ],
-  "runtimeVersion": "0.9.4",
+  "runtimeVersion": "0.13.15",
   "reports": {
     "backend": {
       "id": "backend",
       "syncedFrom": {
-        "version": 3,
-        "hash": "969f6afed8b4b15d29d894d333be67d0c4d7244ae41289386629db7c989c4cf9"
+        "version": 6,
+        "hash": "1902697a5fba4f79dbb89d55c8cfadff6aeb1ad0763c37edf6e885e9126c449f"
       }
     },
     "scribe": {
       "id": "scribe",
       "syncedFrom": {
-        "version": 2,
-        "hash": "524263f9a6413c3529a72a4e91471633d211b8f8fe23e92ae0d1f5f94c3cf40a"
+        "version": 7,
+        "hash": "c37d328edea692cdb5e8074de4633b9ff9e535224084fe5abb8b4b70c3044a1d"
       }
     },
     "test": {
       "id": "test",
       "syncedFrom": {
-        "version": 3,
-        "hash": "6dee3d513c6fdfd267baf4ef5e75b19abdd00511b06110c8064ea601a6a0895c"
+        "version": 6,
+        "hash": "05ac3509e15a3876e5368ccb9a0a8ea073f70d848f0168c8abe293c736fe6b3e"
       }
     },
     "frontend": {
       "id": "frontend",
       "syncedFrom": {
-        "version": 3,
-        "hash": "657324cc950f6789d28bfd31d3eaf91691fc6b890617005c6c8e6d3ef2d221ca"
+        "version": 6,
+        "hash": "30355acc4b09a46dcfeafe140803fb585b862d516b7fc3a0fdb0c2545c4c628e"
       }
     }
   },
@@ -1120,8 +1116,8 @@
     "reviewer/scribe": {
       "id": "reviewer/scribe",
       "syncedFrom": {
-        "version": 2,
-        "hash": "c05bbd04950a965c222c5d960670a60695dcef0fb1e83e41b3024f3e457e3fdf"
+        "version": 3,
+        "hash": "ebcb0a8976ab0381663644b629d4eaac8856705a990cec7222963b1774d486d9"
       }
     },
     "reviewer/refactor": {
@@ -1148,8 +1144,8 @@
     "refactor/scribe": {
       "id": "refactor/scribe",
       "syncedFrom": {
-        "version": 2,
-        "hash": "a66435395f8f1faefac4c03627a17045a384fa82541fed57707017e2e1f99a30"
+        "version": 3,
+        "hash": "c83ec99fe5ed8323826ab3cbdd658c624ae371083a511de15341008a617fa528"
       }
     },
     "refactor/backend": {
@@ -1186,6 +1182,24 @@
         "version": 2,
         "hash": "fff8e492c24e792a2fe006bbe99b107914a60501bee7361f011274ea8a0ee2ff"
       }
+    },
+    "backend/frontend": {
+      "id": "backend/frontend",
+      "syncedFrom": {
+        "version": 2,
+        "hash": "5d7e6cff4ba0fc31e0469400ff373435a566cd04b995d39261b0f481ebaea59c"
+      }
     }
-  }
+  },
+  "use_maestro_tasks": true,
+  "start_skills": {
+    "maestro": [],
+    "to_maestro_tasks": [
+      "confidence-check"
+    ]
+  },
+  "end_skills": {
+    "maestro": []
+  },
+  "worker_model": "sonnet"
 }

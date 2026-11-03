@@ -45,12 +45,18 @@ export const VertexSchema = z.object({
   tags: z.array(z.string()).optional(),
   status: z.enum(["live", "archived"]),
   archivedAt: z.string().optional(),
-  ast: z.object({ extracted_at: z.string(), extractor_version: z.string() }),
+  // `extracted_at` and `extractor_version` are stamped by apply (the latter from the .ast.json
+  // `meta`); .ast.json omits both per vertex so re-extracts stay byte-identical. Older files may carry them.
+  ast: z.object({ extracted_at: z.string().optional(), extractor_version: z.string().optional() }),
   agent: z.object({
     authored_by: z.enum(["claude"]).nullable(),
     authored_at: z.string().optional(),
     stale: z.boolean(),
     sig_seen: z.string().optional(),
+    hash_seen: z.string().optional(),
+    // Stamped by `apply` when a vertex with no purpose arrives new or with a changed body in a
+    // concept that was already in the store: a task touched it, so lazy `enrich targets` lists it.
+    touched_at: z.string().optional(),
   }),
 });
 
@@ -64,7 +70,7 @@ export const EdgeSchema = z.object({
   reason: z.string().optional(),
   lifecycle: z.enum(["useEffect", "handler", "mount", "callback"]).nullable().optional(),
   line: z.number().optional(),
-  ast: z.object({ extracted_at: z.string() }),
+  ast: z.object({ extracted_at: z.string().optional() }),
   agent: z.object({ authored_by: z.enum(["claude"]).nullable() }),
 });
 
@@ -82,6 +88,8 @@ export const AstDocSchema = z.object({
   meta: z.object({
     extractor_version: z.string(),
     extracted_at: z.string(),
+    /** Content hash per source file the globs matched at extract time (see `scribe/unextracted.ts`). */
+    files: z.record(z.string(), z.string()).optional(),
   }),
 });
 
@@ -94,6 +102,8 @@ export const EnrichedVertexSchema = z.object({
   document_ref: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
   sig_seen: z.string().optional(),
+  // contentHash the enricher read; absent in entries written before 0.3.6 (the signature rule applies)
+  hash_seen: z.string().optional(),
 });
 
 // Two flavors: AST-edge enrichment (just _key + reason) vs agent-authored

@@ -1,0 +1,140 @@
+# Impact (both, depth 2): sweep
+
+## Direct neighbors
+
+- @apps/maestro/src/core/handoff-channels.ts:366 — `listDirs`
+- @apps/maestro/src/core/handoff-channels.ts:367 — `channelDir`
+- @apps/maestro/src/core/handoff-channels.ts:355 — `listFiles`
+
+## Indirect neighbors (depth 2)
+
+- @apps/maestro/src/core/handoff-channels.ts:46 — `channelsRoot`
+
+
+# Search: "handoff channel age cap stranded files sweep"
+> 7 concepts matched, 37 vertices, 7 skill docs, ~1864 tokens
+> Low confidence: concept maestro-architecture is mostly un-enriched (4% of core vertices have a purpose), so ranking leans on names only. Do not rely on these results alone; grep, or read the concept's SKILL.md (.claude/skills/maestro-architecture/SKILL.md).
+
+## Concept: maestro-architecture
+
+> Skill: `maestro-architecture` (.claude/skills/maestro-architecture/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/handoff-channels.ts:139-182 — `writeStamp` — Stamps every unstamped channel file a sender wrote with the session run_id, skipping meeting leftovers, and moves a scribe gap report off the write slot to the next free lane file.
+  - → calls `senderOf` (maestro-architecture) (line 150)
+  - → calls `channelDir` (maestro-architecture) (line 148)
+  - → calls `listDirs` (maestro-architecture) (line 147)
+  - → calls `channelsRoot` (maestro-architecture) (line 147)
+  - → has-type `ChannelFileMark` (maestro-architecture) (line 143)
+  - → calls `hasGapBlock` (maestro-architecture) (line 168)
+  - → calls `nextFreeLanePath` (maestro-architecture) (line 169)
+  - → calls `formatStampedContent` (maestro-architecture) (line 164)
+  - → calls `listFiles` (maestro-architecture) (line 149)
+- @apps/maestro/src/core/handoff-sync.ts:38-42 — `handoffFilePath` — _not enriched_
+  - ← called by `syncProjectHandoffs` at apps/maestro/src/core/handoff-sync.ts:49 (line 75)
+  - ← called by `installRuntime` at apps/maestro/src/core/install.ts:718 (line 853)
+  - ← called by `installRuntime` at apps/maestro/src/core/install.ts:718 (line 853)
+  - ← called by `readProjectHandoffFile` at apps/maestro/src/core/handoffs.ts:21 (line 23)
+  - ← called by `getResolvedHandoff` at apps/maestro/src/core/handoffs.ts:37 (line 43)
+  - ← called by `saveProjectHandoffOverride` at apps/maestro/src/core/handoffs.ts:62 (line 64)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 810)
+  - → calls `isValidHandoffId` (maestro-architecture) (line 39)
+- @apps/maestro/src/core/handoff-channels.ts:78-82 — `ChannelFileMark` — _not enriched_
+- @apps/maestro/src/core/handoff-payload.ts:134-140 — `payloadWrittenSince` — Tells whether the sender wrote the receiver's channel file, or one of its own gap reports in that lane, at or after the run start.
+  - → calls `readLane` (maestro-architecture) (line 136)
+  - → calls `isGapReport` (maestro-architecture) (line 137)
+  - → calls `writtenSince` (maestro-architecture) (line 139)
+  - → calls `laneFor` (maestro-architecture) (line 135)
+  - → has-type `PayloadRoute` (maestro-architecture) (line 134)
+- @apps/maestro/src/core/handoffs.ts:21-28 — `readProjectHandoffFile` — _not enriched_
+  - ← called by `getResolvedHandoff` at apps/maestro/src/core/handoffs.ts:37 (line 43)
+  - ← called by `resolvedRoutesFrom` at apps/maestro/src/core/handoffs.ts:88 (line 100)
+  - → calls `handoffFilePath` (maestro-architecture) (line 23)
+- @apps/maestro/src/core/handoff-seeds.ts:581-583 — `isValidHandoffId` — _not enriched_
+- @apps/maestro/src/core/handoff-sync.ts:49-145 — `syncProjectHandoffs` — _not enriched_
+- @apps/maestro/src/core/handoffs.ts:37-54 — `getResolvedHandoff` — _not enriched_
+- @apps/maestro/src/core/handoffs.ts:62-73 — `saveProjectHandoffOverride` — _not enriched_
+- @apps/maestro/src/core/handoffs.ts:88-103 — `resolvedRoutesFrom` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:96-99 — `senderOf` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:51-53 — `channelDir` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:101-110 — `listDirs` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:46-48 — `channelsRoot` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:201-214 — `hasGapBlock` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:185-190 — `nextFreeLanePath` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:85-87 — `formatStampedContent` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:112-121 — `listFiles` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:306-323 — `readLane` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:225-227 — `isGapReport` — _not enriched_
+- @apps/maestro/src/core/handoff-payload.ts:142-152 — `writtenSince` — _not enriched_
+- @apps/maestro/src/core/handoff-channels.ts:68-70 — `laneFor` — _not enriched_
+- @apps/maestro/src/core/handoff-payload.ts:24-35 — `PayloadRoute` — _not enriched_
+
+## Concept: installing-maestro
+
+> Skill: `installing-maestro` (.claude/skills/installing-maestro/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/detect.ts:353-359 — `capLines` — _not enriched_
+  - ← called by `suppressedEvidence` at apps/maestro/src/core/detect.ts:376 (line 382)
+  - ← called by `detectImplAgents` at apps/maestro/src/core/detect.ts:400 (lines 420, 436)
+  - ← called by `toEvidence` at apps/maestro/src/core/detect.ts:362 (line 366)
+- @apps/maestro/src/renderer/src/routes/maestro.tsx:788-794 — `formatAge` — _not enriched_
+  - ← called by `ChannelsCard` at apps/maestro/src/renderer/src/routes/maestro.tsx:805 (lines 847, 848)
+- @apps/maestro/src/core/detect.ts:400-437 — `detectImplAgents` — _not enriched_
+- @apps/maestro/src/renderer/src/routes/maestro.tsx:805-855 — `ChannelsCard` — _not enriched_
+- @apps/maestro/src/core/install.ts:718-908 — `installRuntime` — _not enriched_
+- @apps/maestro/src/core/detect.ts:376-383 — `suppressedEvidence` — _not enriched_
+- @apps/maestro/src/core/detect.ts:362-367 — `toEvidence` — _not enriched_
+
+## Concept: claude-session-bridge
+
+> Skill: `claude-session-bridge` (apps/maestro/.claude/skills/claude-session-bridge/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/claude-run.ts:94-98 — `appendCapped` — _not enriched_
+  - ← called by `runPreviewedClaude` at apps/maestro/src/core/claude-run.ts:169 (lines 192, 196)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 1087)
+- @apps/maestro/src/core/claude-run.ts:169-276 — `runPreviewedClaude` — _not enriched_
+
+## Concept: agent-fork-sync
+
+> Skill: `agent-fork-sync` (apps/maestro/.claude/skills/agent-fork-sync/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/handoff-sync.ts:38-42 — `handoffFilePath` — _not enriched_
+  - ← called by `syncProjectHandoffs` at apps/maestro/src/core/handoff-sync.ts:49 (line 75)
+  - → calls `isValidHandoffId` (maestro-architecture) (line 39)
+- @apps/maestro/src/core/handoff-sync.ts:49-145 — `syncProjectHandoffs` — _not enriched_
+
+### Cross-concept side effects
+
+- → **maestro-architecture** — `handoffFilePath` calls `isValidHandoffId` (line 39)
+
+## Concept: maestro-config-model
+
+> Skill: `maestro-config-model` (apps/maestro/.claude/skills/maestro-config-model/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/contracts.ts:504-544 — `SessionLogEntry` — One line of a session's log.jsonl: a dispatch, handoff, transition, channel delivery or phase marker with its optional context fill.
+
+## Concept: electron-shell-invariants
+
+> Skill: `electron-shell-invariants` (apps/maestro/.claude/skills/electron-shell-invariants/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/main/ipc.ts:492-1272 — `registerIpc` — _not enriched_
+
+## Concept: updating-maestro
+
+> Skill: `updating-maestro` (.claude/skills/updating-maestro/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/install.ts:718-908 — `installRuntime` — _not enriched_
+

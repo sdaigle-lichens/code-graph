@@ -34,44 +34,151 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var maestro_session_exports = {};
 __export(maestro_session_exports, {
   CHANNEL_AGE_CAP_MS: () => CHANNEL_AGE_CAP_MS,
+  CHANNEL_ONLY_AGENTS: () => CHANNEL_ONLY_AGENTS,
   CLAIM_IDLE_CAP_MS: () => CLAIM_IDLE_CAP_MS,
+  DEFAULT_RECENT_RUNS: () => DEFAULT_RECENT_RUNS,
+  HANDBACK_POLL_MS: () => HANDBACK_POLL_MS,
+  HANDBACK_TOOLS: () => HANDBACK_TOOLS,
+  HANDBACK_WAIT_MS: () => HANDBACK_WAIT_MS,
+  HEARTBEAT_INTERVAL_ENV: () => HEARTBEAT_INTERVAL_ENV,
+  HEARTBEAT_INTERVAL_MS: () => HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_STALE_MS: () => HEARTBEAT_STALE_MS,
+  HUMAN_REVIEW_LABEL: () => HUMAN_REVIEW_LABEL,
   LEGACY_SESSION_FILES: () => LEGACY_SESSION_FILES,
+  MAIN_CHECKOUT_SHARED_DIRS: () => MAIN_CHECKOUT_SHARED_DIRS,
+  MANAGER_REVIEW_LABEL: () => MANAGER_REVIEW_LABEL,
+  MEETING_DIR_NAME: () => MEETING_DIR_NAME,
+  MEETING_LEFTOVERS_KEY: () => MEETING_LEFTOVERS_KEY,
+  METRICS_DIR_NAME: () => METRICS_DIR_NAME,
+  METRICS_FILE_NAME: () => METRICS_FILE_NAME,
+  NO_SESSION_SCOPE: () => NO_SESSION_SCOPE,
+  OWNER_RUNS_KEY: () => OWNER_RUNS_KEY,
+  OWNER_RUN_LEFTOVERS_KEY: () => OWNER_RUN_LEFTOVERS_KEY,
   PRIOR_HANDOFF_SEEDS: () => PRIOR_SEEDS,
+  RESUMABLE_END_REASONS: () => RESUMABLE_END_REASONS,
   SEED_HANDOFFS: () => SEED_HANDOFFS,
   SESSIONS_DIR_NAME: () => SESSIONS_DIR_NAME,
+  SESSION_HEARTBEAT_NAME: () => SESSION_HEARTBEAT_NAME,
+  SESSION_HEARTBEAT_PID_NAME: () => SESSION_HEARTBEAT_PID_NAME,
   SESSION_ID_ENV: () => SESSION_ID_ENV,
   SESSION_LOG_FILE: () => SESSION_LOG_FILE,
   SESSION_LOG_NAME: () => SESSION_LOG_NAME,
   SESSION_STATE_NAME: () => SESSION_STATE_NAME,
   SESSION_TASKS_NAME: () => SESSION_TASKS_NAME,
+  SESSION_WORKTREE_NAME: () => SESSION_WORKTREE_NAME,
+  acknowledgeGaps: () => acknowledgeGaps,
   agentRunsFromLog: () => agentRunsFromLog,
+  appendHandoffIssue: () => appendHandoffIssue,
   appendSessionLog: () => appendSessionLog,
+  awaitHandback: () => awaitHandback,
   bareAgentName: () => bareAgentName,
+  buildRunRecord: () => buildRunRecord,
   channelDir: () => channelDir,
+  channelRelPath: () => channelRelPath,
+  channelScopeFromState: () => channelScopeFromState,
+  channelScopeOf: () => channelScopeOf,
+  checkChannelWrite: () => checkChannelWrite,
+  checkHandoff: () => checkHandoff,
+  checkHumanReview: () => checkHumanReview,
+  checkPayload: () => checkPayload,
+  checkRoute: () => checkRoute,
+  checkWorktreeWrite: () => checkWorktreeWrite,
+  closeMeeting: () => closeMeeting,
+  closeOwnerRuns: () => closeOwnerRuns,
   collectAgentSkills: () => collectAgentSkills,
+  compactMetrics: () => compact,
+  compareRuntimeVersions: () => compareRuntimeVersions,
+  consumedDir: () => consumedDir,
+  currentReviewRound: () => currentReviewRound,
+  currentReviewStop: () => currentReviewStop,
+  dependencyStatus: () => dependencyStatus,
+  detectPackageManager: () => detectPackageManager,
+  dropResolvedMissingPayloads: () => dropResolvedMissingPayloads,
   duplicateAgentTypes: () => duplicateAgentTypes,
+  endMeeting: () => endMeeting,
+  endOwnerRuns: () => endOwnerRuns,
+  endSessionState: () => endSessionState,
   ensureSessionPaths: () => ensureSessionPaths,
   ensureSessionRunId: () => ensureSessionRunId,
   ensureSessionsRoot: () => ensureSessionsRoot,
+  entranceRoleFor: () => entranceRoleFor,
+  expectedLoopbackPayloads: () => expectedLoopbackPayloads,
+  foldRun: () => foldRun,
   formatStampedContent: () => formatStampedContent,
+  freeformBranchFor: () => freeformBranchFor,
+  freeformWorktreePathFor: () => freeformWorktreePathFor,
+  handbackHandoff: () => handbackHandoff,
   handoffId: () => handoffId,
   handoffPairs: () => handoffPairs,
   handoffRoutes: () => handoffRoutes,
   hasCompletedRun: () => hasCompletedRun,
+  hasHandbackCall: () => hasHandbackCall,
+  heartbeatIntervalMs: () => heartbeatIntervalMs,
+  heartbeatTargets: () => heartbeatTargets,
+  heartbeatTick: () => heartbeatTick,
+  heartbeatVerdict: () => heartbeatVerdict,
+  installCommand: () => installCommand,
+  isChannelOnlyAgent: () => isChannelOnlyAgent,
+  isChannelScope: () => isChannelScope,
+  isFreeformBranch: () => isFreeformBranch,
+  isGapReport: () => isGapReport,
+  isLinkedWorktree: () => isLinkedWorktree,
+  isProcessAlive: () => isProcessAlive,
+  isResumableEnd: () => isResumableEnd,
+  isReviewFile: () => isReviewFile,
   isRootSkillPath: () => isRootSkillPath,
   isSeededHandoff: () => isSeededHandoff,
   isValidHandoffId: () => isValidHandoffId,
   isValidSessionId: () => isValidSessionId,
   laneFor: () => laneFor,
+  lastHandoffLabel: () => lastHandoffLabel,
+  latestWorkflowHandoff: () => latestWorkflowHandoff,
   listSessionIds: () => listSessionIds,
+  mainCheckoutRoot: () => mainCheckoutRoot,
+  meetingDirFor: () => meetingDirFor,
+  meetingFor: () => meetingFor,
+  meetingLeftovers: () => meetingLeftovers,
+  meetingNotice: () => meetingNotice,
+  metricsDirFor: () => metricsDirFor,
+  metricsFileFor: () => metricsFileFor,
+  missingDependenciesNotice: () => missingDependenciesNotice,
+  missingLoopbackPayload: () => missingLoopbackPayload,
   nodeLabel: () => nodeLabel,
+  noteEntrance: () => noteEntrance,
+  ownerRunFor: () => ownerRunFor,
+  ownerRunLeftovers: () => ownerRunLeftovers,
+  ownerRunNotice: () => ownerRunNotice,
+  parentProbe: () => parentProbe,
+  parseGapsHandled: () => parseGapsHandled,
+  parsePsLine: () => parsePsLine,
   parseStampedContent: () => parseStampedContent,
+  payloadRequirement: () => payloadRequirement,
+  payloadRoutes: () => payloadRoutes,
+  payloadWrittenSince: () => payloadWrittenSince,
+  pendingLanes: () => pendingLanes,
+  pendingResumeDeliveries: () => pendingResumeDeliveries,
+  processInfo: () => processInfo,
   projectOwnsHook: () => projectOwnsHook,
+  promptEntranceRole: () => promptEntranceRole,
   readJson: () => readJson,
   readLane: () => readLane,
+  readLogLines: () => readLogLines,
+  readMeeting: () => readMeeting,
+  readMetrics: () => readMetrics,
+  readOwnerRuns: () => readOwnerRuns,
+  readProjectHandoff: () => readProjectHandoff,
   readSession: () => readSession,
   readStdin: () => readStdin,
+  readWorktreePointer: () => readWorktreePointer,
+  recentRunsLimit: () => recentRunsLimit,
+  recordActiveTask: () => recordActiveTask,
+  recordResumeDeliveries: () => recordResumeDeliveries,
+  recordRun: () => recordRun,
+  recordSessionRun: () => recordSessionRun,
+  rederiveSessionName: () => rederiveSessionName,
   removeSessionState: () => removeSessionState,
+  renderMetricsDigest: () => renderMetricsDigest,
+  reportVerdict: () => reportVerdict,
   resolveHandoff: () => resolveHandoff,
   resolveProjectSkillPath: () => resolveProjectSkillPath,
   resolveSearchList: () => resolveSearchList,
@@ -80,16 +187,36 @@ __export(maestro_session_exports, {
   resolveWorkflowName: () => resolveWorkflowName,
   resumeTarget: () => resumeTarget,
   retire: () => retire,
+  retireResumeDeliveries: () => retireResumeDeliveries,
+  retireScope: () => retireScope,
+  reviewFileName: () => reviewFileName,
   routesFrom: () => routesFrom,
+  runStartedAt: () => runStartedAt,
+  runtimeNeedsRefresh: () => runtimeNeedsRefresh,
+  sendMessageHandoff: () => sendMessageHandoff,
+  sessionDirsFor: () => sessionDirsFor,
   sessionLogPath: () => sessionLogPath,
+  sessionNameFor: () => sessionNameFor,
   sessionPathsFor: () => sessionPathsFor,
   sessionsRoot: () => sessionsRoot,
   splitHandoffId: () => splitHandoffId,
+  startMeeting: () => startMeeting,
+  startOwnerRuns: () => startOwnerRuns,
+  storedName: () => storedName,
+  storedSessionName: () => storedSessionName,
   successPathSteps: () => successPathSteps,
   sweep: () => sweep,
+  taskNumber: () => taskNumber,
+  titleFor: () => titleFor,
+  unstampedFilesOf: () => unstampedFilesOf,
   validateConfig: () => validateConfig,
   walkProjectSkillIds: () => walkProjectSkillIds,
+  watchedPid: () => watchedPid,
+  withoutMeeting: () => withoutMeeting,
   workflowNodeLabels: () => workflowNodeLabels,
+  worktreeBranchFor: () => worktreeBranchFor,
+  worktreePathFor: () => worktreePathFor,
+  writeHeartbeatPid: () => writeHeartbeatPid,
   writeSession: () => writeSession,
   writeStamp: () => writeStamp
 });
@@ -157,6 +284,7 @@ function nodeLabel(id, wf, instances) {
     return "@" + (inst?.name || n.instance || n.id);
   }
   if (n.type === "skill") return "/" + (n.skill || n.id);
+  if (n.type === "manager_review") return "manager review";
   return "human review";
 }
 function successPathSteps(wf, instances) {
@@ -232,8 +360,8 @@ var import_node_crypto = __toESM(require("node:crypto"), 1);
 
 // src/core/session-usage.ts
 var import_node_fs2 = __toESM(require("node:fs"), 1);
-var TAIL_CHUNK_BYTES = 64 * 1024;
-var MAX_TAIL_BYTES = 4 * 1024 * 1024;
+
+// src/core/text.ts
 var CONTEXT_WINDOW_TOKENS = {
   "claude-opus-5": 2e5,
   "claude-sonnet-5": 2e5,
@@ -241,6 +369,13 @@ var CONTEXT_WINDOW_TOKENS = {
   "claude-haiku-4-5-20251001": 2e5
 };
 var DEFAULT_CONTEXT_WINDOW = 2e5;
+function contextWindowFor(model) {
+  return CONTEXT_WINDOW_TOKENS[model] ?? DEFAULT_CONTEXT_WINDOW;
+}
+
+// src/core/session-usage.ts
+var TAIL_CHUNK_BYTES = 64 * 1024;
+var MAX_TAIL_BYTES = 4 * 1024 * 1024;
 function lastAssistantUsageLine(filePath) {
   const size = import_node_fs2.default.statSync(filePath).size;
   if (size === 0) return void 0;
@@ -281,7 +416,7 @@ function deriveUsage(payload) {
   if (!usage || !model) return void 0;
   const { input_tokens = 0, cache_read_input_tokens = 0, cache_creation_input_tokens = 0 } = usage;
   const used = input_tokens + cache_read_input_tokens + cache_creation_input_tokens;
-  const window = CONTEXT_WINDOW_TOKENS[model] ?? DEFAULT_CONTEXT_WINDOW;
+  const window = contextWindowFor(model);
   return { ctx_pct: Math.round(used / window * 1e3) / 10, ctx_model: model };
 }
 
@@ -292,6 +427,9 @@ var SESSIONS_DIR_NAME = "maestro_sessions";
 var SESSION_LOG_NAME = "log.jsonl";
 var SESSION_STATE_NAME = "session.json";
 var SESSION_TASKS_NAME = "tasks.json";
+var SESSION_WORKTREE_NAME = "worktree.json";
+var SESSION_HEARTBEAT_NAME = "heartbeat";
+var SESSION_HEARTBEAT_PID_NAME = "heartbeat.pid";
 var SESSION_ID_ENV = "CLAUDE_CODE_SESSION_ID";
 var LEGACY_SESSION_FILES = [
   "maestro_session.json",
@@ -312,9 +450,27 @@ function resolveSessionId(payload, env = process.env) {
 function sessionsRoot(claudeDir) {
   return import_node_path2.default.join(claudeDir, SESSIONS_DIR_NAME);
 }
+function readWorktreePointer(claudeDir, id) {
+  if (!claudeDir || !isValidSessionId(id)) return null;
+  try {
+    const raw = JSON.parse(
+      import_node_fs3.default.readFileSync(import_node_path2.default.join(sessionsRoot(claudeDir), id, SESSION_WORKTREE_NAME), "utf8")
+    );
+    const p = raw;
+    if (!p || typeof p.path !== "string" || !import_node_path2.default.isAbsolute(p.path)) return null;
+    if (!import_node_fs3.default.statSync(p.path).isDirectory()) return null;
+    return p;
+  } catch {
+    return null;
+  }
+}
+function effectiveClaudeDir(claudeDir, id) {
+  const pointer = readWorktreePointer(claudeDir, id);
+  return pointer ? import_node_path2.default.join(pointer.path, ".claude") : claudeDir;
+}
 function sessionPathsFor(claudeDir, id) {
   if (!claudeDir || !isValidSessionId(id)) return null;
-  const dir = import_node_path2.default.join(sessionsRoot(claudeDir), id);
+  const dir = import_node_path2.default.join(sessionsRoot(effectiveClaudeDir(claudeDir, id)), id);
   return {
     id,
     dir,
@@ -336,7 +492,7 @@ function ensureSessionsRoot(claudeDir) {
 function ensureSessionPaths(claudeDir, payload, env) {
   const paths = resolveSessionPaths(claudeDir, payload, env);
   if (!paths) return null;
-  ensureSessionsRoot(claudeDir);
+  ensureSessionsRoot(import_node_path2.default.dirname(import_node_path2.default.dirname(paths.dir)));
   import_node_fs3.default.mkdirSync(paths.dir, { recursive: true });
   return paths;
 }
@@ -353,7 +509,10 @@ function removeSessionState(claudeDir, sessionId) {
   const paths = sessionPathsFor(claudeDir, sessionId);
   if (!paths) return [];
   const removed = [];
-  for (const target of [paths.dir, ...LEGACY_SESSION_FILES.map((f) => import_node_path2.default.join(claudeDir, f))]) {
+  for (const target of [
+    ...sessionDirsFor(claudeDir, sessionId),
+    ...LEGACY_SESSION_FILES.map((f) => import_node_path2.default.join(claudeDir, f))
+  ]) {
     try {
       if (!import_node_fs3.default.existsSync(target)) continue;
       import_node_fs3.default.rmSync(target, { recursive: true, force: true });
@@ -362,6 +521,33 @@ function removeSessionState(claudeDir, sessionId) {
     }
   }
   return removed;
+}
+function sessionDirsFor(claudeDir, sessionId) {
+  const paths = sessionPathsFor(claudeDir, sessionId);
+  if (!paths || !isValidSessionId(sessionId)) return [];
+  const dirs = [paths.dir];
+  const own = import_node_path2.default.join(sessionsRoot(claudeDir), sessionId);
+  if (own !== paths.dir) dirs.push(own);
+  else {
+    try {
+      const state = JSON.parse(import_node_fs3.default.readFileSync(paths.state, "utf8"));
+      const wt = state?.worktree;
+      if (wt && typeof wt.main_root === "string" && import_node_path2.default.isAbsolute(wt.main_root)) {
+        const mainDir = import_node_path2.default.join(sessionsRoot(import_node_path2.default.join(wt.main_root, ".claude")), sessionId);
+        if (mainDir !== paths.dir) dirs.push(mainDir);
+      }
+    } catch {
+    }
+  }
+  return dirs;
+}
+var RESUMABLE_END_REASONS = ["prompt_input_exit", "other", "resume"];
+function isResumableEnd(reason) {
+  return typeof reason === "string" && RESUMABLE_END_REASONS.includes(reason);
+}
+function endSessionState(claudeDir, sessionId, reason) {
+  if (isResumableEnd(reason)) return [];
+  return removeSessionState(claudeDir, sessionId);
 }
 
 // src/core/session-runtime.ts
@@ -379,6 +565,24 @@ function readJson(p) {
   } catch {
     return null;
   }
+}
+function readLogLines(p) {
+  if (!p) return [];
+  let text;
+  try {
+    text = import_node_fs4.default.readFileSync(p, "utf8");
+  } catch {
+    return [];
+  }
+  const lines = [];
+  for (const raw of text.split("\n")) {
+    if (!raw.trim()) continue;
+    try {
+      lines.push(JSON.parse(raw));
+    } catch {
+    }
+  }
+  return lines;
 }
 function readSession(p) {
   return (p ? readJson(p) : null) ?? { workflow: null, generated_instances: [], run_id: null };
@@ -407,24 +611,60 @@ function appendSessionLog(claudeDir, entry, payload) {
   import_node_fs4.default.appendFileSync(paths.log, JSON.stringify(stamped) + "\n");
 }
 
+// src/core/session-heartbeat.ts
+var import_node_fs6 = __toESM(require("node:fs"), 1);
+var import_node_path4 = __toESM(require("node:path"), 1);
+
 // src/core/handoff-channels.ts
 var import_node_fs5 = __toESM(require("node:fs"), 1);
 var import_node_path3 = __toESM(require("node:path"), 1);
 var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;
 var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;
+var HEARTBEAT_INTERVAL_MS = 60 * 1e3;
+var HEARTBEAT_STALE_MS = 3 * 60 * 1e3;
+var HEARTBEAT_INTERVAL_ENV = "MAESTRO_HEARTBEAT_INTERVAL_MS";
 var CHANNELS_DIR_NAME = "channels";
 var CONSUMED_DIR_NAME = ".consumed";
+var SCRIBE_LANE = "scribe";
+var NO_SESSION_SCOPE = "session-none";
+var SCOPE_RE = /^(?:task-\d+|session-[A-Za-z0-9_-]{1,8})$/;
+var TASK_PREFIX_RE = /^(\d+)/;
+function isChannelScope(name) {
+  return typeof name === "string" && SCOPE_RE.test(name);
+}
+function channelScopeFromState(state, sessionId) {
+  const task = state && typeof state === "object" ? state.active_task : void 0;
+  if (typeof task === "string") {
+    const m = TASK_PREFIX_RE.exec(import_node_path3.default.basename(task));
+    if (m) return `task-${m[1]}`;
+  }
+  return isValidSessionId(sessionId) ? `session-${sessionId.slice(0, 8)}` : NO_SESSION_SCOPE;
+}
+function channelScopeOf(projectDir, sessionId) {
+  const paths = sessionPathsFor(import_node_path3.default.join(projectDir, ".claude"), sessionId);
+  return channelScopeFromState(paths ? readSession(paths.state) : null, sessionId);
+}
+function assertScope(scope) {
+  if (!isChannelScope(scope)) throw new Error(`not a channel scope: ${JSON.stringify(scope)}`);
+}
 function channelsRoot(projectDir) {
   return import_node_path3.default.join(projectDir, ".claude", CHANNELS_DIR_NAME);
 }
-function channelDir(projectDir, receiver) {
-  return import_node_path3.default.join(channelsRoot(projectDir), receiver);
+function scopeRoot(projectDir, scope) {
+  assertScope(scope);
+  return import_node_path3.default.join(channelsRoot(projectDir), scope);
 }
-function consumedDir(projectDir, receiver) {
-  return import_node_path3.default.join(channelsRoot(projectDir), CONSUMED_DIR_NAME, receiver);
+function channelDir(projectDir, scope, receiver) {
+  return import_node_path3.default.join(scopeRoot(projectDir, scope), receiver);
 }
-function laneFor(projectDir, sender, receiver) {
-  return import_node_path3.default.join(channelDir(projectDir, receiver), `${sender}.1.md`);
+function consumedDir(projectDir, scope, receiver) {
+  return import_node_path3.default.join(scopeRoot(projectDir, scope), CONSUMED_DIR_NAME, receiver);
+}
+function channelRelPath(scope, receiver, fileName) {
+  return `.claude/${CHANNELS_DIR_NAME}/${scope}/${receiver}/${fileName}`;
+}
+function laneFor(projectDir, scope, sender, receiver) {
+  return import_node_path3.default.join(channelDir(projectDir, scope, receiver), `${sender}.1.md`);
 }
 var STAMP_RE = /^<!-- maestro:run_id=([^\s>]+) -->\n/;
 function formatStampedContent(body, runId) {
@@ -453,28 +693,116 @@ function listFiles(dir) {
     return [];
   }
 }
-function writeStamp(projectDir, sender, runId) {
+function writeStamp(projectDir, scope, sender, runId, opts = {}) {
+  if (!isChannelScope(scope)) return [];
   const stamped = [];
-  for (const receiver of listDirs(channelsRoot(projectDir))) {
-    const dir = channelDir(projectDir, receiver);
+  const skip = new Map((opts.skip ?? []).map((m) => [m.path, m]));
+  for (const receiver of listDirs(scopeRoot(projectDir, scope))) {
+    const dir = channelDir(projectDir, scope, receiver);
     for (const fileName of listFiles(dir)) {
       if (senderOf(fileName) !== sender) continue;
       const filePath = import_node_path3.default.join(dir, fileName);
       let content;
       try {
+        const before = skip.get(filePath);
+        if (before) {
+          const st = import_node_fs5.default.statSync(filePath);
+          if (st.mtimeMs === before.mtimeMs && st.size === before.size) continue;
+        }
         content = import_node_fs5.default.readFileSync(filePath, "utf8");
       } catch {
         continue;
       }
       if (STAMP_RE.test(content)) continue;
       import_node_fs5.default.writeFileSync(filePath, formatStampedContent(content, runId));
+      if (receiver === SCRIBE_LANE && hasGapBlock(content)) {
+        const dest = nextFreeLanePath(dir, sender);
+        try {
+          import_node_fs5.default.renameSync(filePath, dest);
+          stamped.push(dest);
+          continue;
+        } catch {
+        }
+      }
       stamped.push(filePath);
     }
   }
   return stamped;
 }
-function readLane(projectDir, receiver, now = Date.now()) {
-  const dir = channelDir(projectDir, receiver);
+function nextFreeLanePath(dir, sender) {
+  for (let n = 2; ; n++) {
+    const candidate = import_node_path3.default.join(dir, `${sender}.${n}.md`);
+    if (!import_node_fs5.default.existsSync(candidate)) return candidate;
+  }
+}
+var FENCED_JSON_RE = /```json[^\n]*\n([\s\S]*?)```/g;
+function hasGapBlock(body) {
+  for (const m of body.matchAll(FENCED_JSON_RE)) {
+    let parsed;
+    try {
+      parsed = JSON.parse(m[1]);
+    } catch {
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const obj = parsed;
+    if (isNonEmptyArray(obj.skill_gaps) || isNonEmptyArray(obj.concept_skill_gaps)) return true;
+  }
+  return false;
+}
+function isNonEmptyArray(value) {
+  return Array.isArray(value) && value.length > 0;
+}
+function isGapReport(entry) {
+  return import_node_path3.default.basename(import_node_path3.default.dirname(entry.path)) === SCRIBE_LANE && hasGapBlock(entry.body);
+}
+var GAPS_HANDLED_RE = /^[ \t]*SKILL_GAPS_HANDLED:(.*)$/gm;
+function parseGapsHandled(finalMessage) {
+  const names = [];
+  for (const m of (finalMessage ?? "").matchAll(GAPS_HANDLED_RE)) {
+    for (const raw of m[1].split(",")) {
+      const name = raw.trim();
+      if (name && !names.includes(name)) names.push(name);
+    }
+  }
+  return names;
+}
+function acknowledgeGaps(projectDir, scope, fileNames) {
+  if (!isChannelScope(scope)) return [];
+  const wanted = new Set(
+    fileNames.filter((n) => n && n === import_node_path3.default.basename(n) && !n.includes("\\") && n !== "." && n !== "..")
+  );
+  if (wanted.size === 0) return [];
+  const retired = [];
+  for (const entry of readLane(projectDir, scope, SCRIBE_LANE)) {
+    if (!wanted.has(entry.fileName) || !isGapReport(entry)) continue;
+    try {
+      retire(projectDir, scope, SCRIBE_LANE, entry);
+      retired.push(entry);
+    } catch {
+    }
+  }
+  return retired;
+}
+function unstampedFilesOf(projectDir, scope, sender) {
+  if (!isChannelScope(scope)) return [];
+  const out = [];
+  for (const receiver of listDirs(scopeRoot(projectDir, scope))) {
+    const dir = channelDir(projectDir, scope, receiver);
+    for (const fileName of listFiles(dir)) {
+      if (senderOf(fileName) !== sender) continue;
+      const filePath = import_node_path3.default.join(dir, fileName);
+      try {
+        const st = import_node_fs5.default.statSync(filePath);
+        if (STAMP_RE.test(import_node_fs5.default.readFileSync(filePath, "utf8"))) continue;
+        out.push({ path: filePath, mtimeMs: st.mtimeMs, size: st.size });
+      } catch {
+      }
+    }
+  }
+  return out;
+}
+function readDirEntries(dir, now) {
   const out = [];
   for (const fileName of listFiles(dir)) {
     const filePath = import_node_path3.default.join(dir, fileName);
@@ -491,32 +819,20 @@ function readLane(projectDir, receiver, now = Date.now()) {
   }
   return out;
 }
-function retire(projectDir, receiver, entry) {
-  const dest = consumedDir(projectDir, receiver);
+function readLane(projectDir, scope, receiver, now = Date.now()) {
+  if (!isChannelScope(scope)) return [];
+  return readDirEntries(channelDir(projectDir, scope, receiver), now);
+}
+function retire(projectDir, scope, receiver, entry) {
+  const dest = consumedDir(projectDir, scope, receiver);
   import_node_fs5.default.mkdirSync(dest, { recursive: true });
   import_node_fs5.default.renameSync(entry.path, import_node_path3.default.join(dest, entry.fileName));
 }
-function sweep(projectDir, opts = {}) {
-  const now = opts.now ?? Date.now();
-  const ageCapMs = opts.ageCapMs ?? CHANNEL_AGE_CAP_MS;
-  const removed = [];
-  const root = channelsRoot(projectDir);
-  const consumedRoot = import_node_path3.default.join(root, CONSUMED_DIR_NAME);
-  for (const receiver of listDirs(consumedRoot)) {
-    const dir = import_node_path3.default.join(consumedRoot, receiver);
-    for (const fileName of listFiles(dir)) {
-      const filePath = import_node_path3.default.join(dir, fileName);
-      try {
-        import_node_fs5.default.rmSync(filePath, { force: true });
-        removed.push(filePath);
-      } catch {
-      }
-    }
-  }
-  for (const receiver of listDirs(root)) {
-    const dir = channelDir(projectDir, receiver);
-    for (const fileName of listFiles(dir)) {
-      const filePath = import_node_path3.default.join(dir, fileName);
+var EMPTY_DIR_GRACE_MS = 60 * 60 * 1e3;
+function sweepFiles(dir, now, ageCapMs, all, removed) {
+  for (const fileName of listFiles(dir)) {
+    const filePath = import_node_path3.default.join(dir, fileName);
+    if (!all) {
       let stat;
       try {
         stat = import_node_fs5.default.statSync(filePath);
@@ -524,14 +840,244 @@ function sweep(projectDir, opts = {}) {
         continue;
       }
       if (now - stat.mtimeMs <= ageCapMs) continue;
+    }
+    try {
+      import_node_fs5.default.rmSync(filePath, { force: true });
+      removed.push(filePath);
+    } catch {
+    }
+  }
+}
+function pruneEmptyDir(dir, now) {
+  try {
+    if (import_node_fs5.default.readdirSync(dir).length > 0) return;
+    if (now - import_node_fs5.default.statSync(dir).mtimeMs <= EMPTY_DIR_GRACE_MS) return;
+    import_node_fs5.default.rmdirSync(dir);
+  } catch {
+  }
+}
+function sweepConsumed(consumedRoot, now, ageCapMs, all, removed) {
+  for (const receiver of listDirs(consumedRoot)) {
+    const dir = import_node_path3.default.join(consumedRoot, receiver);
+    sweepFiles(dir, now, ageCapMs, all, removed);
+    pruneEmptyDir(dir, now);
+  }
+  pruneEmptyDir(consumedRoot, now);
+}
+function sweep(projectDir, opts = {}) {
+  const now = opts.now ?? Date.now();
+  const ageCapMs = opts.ageCapMs ?? CHANNEL_AGE_CAP_MS;
+  const removed = [];
+  const root = channelsRoot(projectDir);
+  const own = isChannelScope(opts.scope) ? opts.scope : null;
+  for (const name of listDirs(root)) {
+    const dir = import_node_path3.default.join(root, name);
+    if (isChannelScope(name)) {
+      sweepConsumed(import_node_path3.default.join(dir, CONSUMED_DIR_NAME), now, ageCapMs, name === own, removed);
+      for (const receiver of listDirs(dir)) {
+        const laneDir = import_node_path3.default.join(dir, receiver);
+        sweepFiles(laneDir, now, ageCapMs, false, removed);
+        pruneEmptyDir(laneDir, now);
+      }
+    } else {
+      sweepFiles(dir, now, ageCapMs, false, removed);
+    }
+    pruneEmptyDir(dir, now);
+  }
+  sweepConsumed(import_node_path3.default.join(root, CONSUMED_DIR_NAME), now, ageCapMs, false, removed);
+  return { removed };
+}
+function retireScope(projectDir, scope, ownSessionId) {
+  if (!isChannelScope(scope)) return [];
+  const claudeDir = import_node_path3.default.join(projectDir, ".claude");
+  for (const id of listSessionIds(claudeDir)) {
+    if (id === ownSessionId) continue;
+    const state = sessionPathsFor(claudeDir, id)?.state;
+    if (channelScopeFromState(readSession(state ?? null), id) === scope) return [];
+  }
+  const retired = [];
+  for (const receiver of listDirs(scopeRoot(projectDir, scope))) {
+    for (const entry of readLane(projectDir, scope, receiver)) {
+      if (isGapReport(entry)) continue;
       try {
-        import_node_fs5.default.rmSync(filePath, { force: true });
-        removed.push(filePath);
+        retire(projectDir, scope, receiver, entry);
+        retired.push(entry.path);
       } catch {
       }
     }
   }
-  return { removed };
+  return retired;
+}
+function recordActiveTask(projectDir, sessionId, task) {
+  const paths = sessionPathsFor(import_node_path3.default.join(projectDir, ".claude"), sessionId);
+  if (!paths) return null;
+  const prior = readJsonObject(paths.state);
+  const priorScope = channelScopeFromState(prior, sessionId);
+  const next = { ...prior, active_task: import_node_path3.default.basename(task) };
+  import_node_fs5.default.mkdirSync(paths.dir, { recursive: true });
+  const tmp = paths.state + ".tmp";
+  import_node_fs5.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
+  import_node_fs5.default.renameSync(tmp, paths.state);
+  const scope = channelScopeFromState(next, sessionId);
+  const retired = scope === priorScope ? [] : retireScope(projectDir, priorScope, sessionId);
+  return { scope, priorScope, retired };
+}
+function readJsonObject(p) {
+  try {
+    const raw = JSON.parse(import_node_fs5.default.readFileSync(p, "utf8"));
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  } catch {
+    return {};
+  }
+}
+function liveRunIds(projectDir) {
+  const claudeDir = import_node_path3.default.join(projectDir, ".claude");
+  const ids = /* @__PURE__ */ new Set();
+  for (const sessionId of listSessionIds(claudeDir)) {
+    const state = sessionPathsFor(claudeDir, sessionId)?.state;
+    const runId = readSession(state ?? null).run_id;
+    if (runId) ids.add(runId);
+  }
+  return ids;
+}
+function pendingLanes(projectDir, now = Date.now(), opts = {}) {
+  const runIds = liveRunIds(projectDir);
+  const root = channelsRoot(projectDir);
+  const only = opts.scope ?? null;
+  const lanes = [];
+  const push = (scope, receiver, entries, current) => {
+    if (entries.length === 0) return;
+    lanes.push({
+      scope,
+      receiver,
+      count: entries.length,
+      oldestAgeMs: Math.max(...entries.map((e) => e.ageMs)),
+      current,
+      stranded: entries.length - current
+    });
+  };
+  for (const name of listDirs(root)) {
+    if (isChannelScope(name)) {
+      if (only !== null && name !== only) continue;
+      for (const receiver of listDirs(import_node_path3.default.join(root, name))) {
+        const entries = readLane(projectDir, name, receiver, now);
+        push(name, receiver, entries, entries.filter((e) => e.runId != null && runIds.has(e.runId)).length);
+      }
+    } else if (only === null) {
+      push(null, name, readDirEntries(import_node_path3.default.join(root, name), now), 0);
+    }
+  }
+  return lanes;
+}
+
+// src/core/session-heartbeat.ts
+function heartbeatVerdict(dir, now = Date.now()) {
+  let mtimeMs;
+  try {
+    mtimeMs = import_node_fs6.default.statSync(import_node_path4.default.join(dir, SESSION_HEARTBEAT_NAME)).mtimeMs;
+  } catch {
+    return null;
+  }
+  return now - mtimeMs <= HEARTBEAT_STALE_MS;
+}
+function heartbeatIntervalMs(env = process.env) {
+  const raw = Number(env[HEARTBEAT_INTERVAL_ENV]);
+  return Number.isFinite(raw) && raw > 0 ? raw : HEARTBEAT_INTERVAL_MS;
+}
+function heartbeatTargets(claudeDir, sessionId) {
+  const paths = sessionPathsFor(claudeDir, sessionId);
+  return {
+    pidFile: paths ? import_node_path4.default.join(paths.dir, SESSION_HEARTBEAT_PID_NAME) : null,
+    sessionDirs: sessionDirsFor(claudeDir, sessionId)
+  };
+}
+function writeHeartbeatPid(pidFile, pid) {
+  try {
+    import_node_fs6.default.writeFileSync(pidFile, `${pid}
+`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isDir(p) {
+  try {
+    return import_node_fs6.default.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function stamp(dir, atMs) {
+  const file = import_node_path4.default.join(dir, SESSION_HEARTBEAT_NAME);
+  try {
+    import_node_fs6.default.closeSync(import_node_fs6.default.openSync(file, "a"));
+    const t = new Date(atMs);
+    import_node_fs6.default.utimesSync(file, t, t);
+  } catch {
+  }
+}
+function heartbeatTick(input) {
+  const dirs = input.sessionDirs.filter(isDir);
+  if (dirs.length === 0) return "stop";
+  if (input.pidFile) {
+    let owner = null;
+    try {
+      owner = Number.parseInt(import_node_fs6.default.readFileSync(input.pidFile, "utf8").trim(), 10);
+    } catch {
+      owner = null;
+    }
+    if (owner !== null && Number.isFinite(owner) && owner !== input.ownPid) return "stop";
+  }
+  if (!input.parentAlive) {
+    for (const dir of dirs) stamp(dir, 0);
+    return "stop";
+  }
+  for (const dir of dirs) stamp(dir, input.now);
+  return "continue";
+}
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 1) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === "EPERM";
+  }
+}
+function processInfo(pid) {
+  try {
+    const stat = import_node_fs6.default.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const open = stat.indexOf("(");
+    const close = stat.lastIndexOf(")");
+    if (open < 0 || close < open) return null;
+    const rest = stat.slice(close + 2).trim().split(" ");
+    return { ppid: Number(rest[1]), name: stat.slice(open + 1, close), startTime: rest[19] ?? null };
+  } catch {
+    return null;
+  }
+}
+function parsePsLine(out) {
+  const m = /^\s*(\d+)\s+(.+?)\s*$/.exec(out);
+  return m ? { ppid: Number(m[1]), name: import_node_path4.default.basename(m[2]), startTime: null } : null;
+}
+var SHELLS = /* @__PURE__ */ new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish", "busybox"]);
+function watchedPid(startPid, infoOf = processInfo) {
+  let pid = startPid;
+  for (let i = 0; i < 4; i++) {
+    const info = infoOf(pid);
+    if (!info || !SHELLS.has(info.name) || !Number.isInteger(info.ppid) || info.ppid <= 1) return pid;
+    pid = info.ppid;
+  }
+  return pid;
+}
+function parentProbe(pid, infoOf = processInfo) {
+  const startTime = infoOf(pid)?.startTime ?? null;
+  return () => {
+    if (!isProcessAlive(pid)) return false;
+    if (startTime === null) return true;
+    const now = infoOf(pid);
+    return now === null || now.startTime === null || now.startTime === startTime;
+  };
 }
 
 // src/core/handoff-routes.ts
@@ -630,12 +1176,13 @@ var MOBILE_TO_TEST = '```json\n{\n  "files_added_removed_renamed": ["<list, or \
 var REFACTOR_TO_BACKEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REFACTOR_TO_FRONTEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REFACTOR_TO_REVIEWER = '```json\n{\n  "summary": "<brief summary of what was delegated, for re-review>"\n}\n```';
-var REFACTOR_TO_SCRIBE = '```json\n{\n  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n  "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]\n}\n```';
+var REFACTOR_TO_SCRIBE_V2 = '```json\n{\n  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n  "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]\n}\n```';
+var REFACTOR_TO_SCRIBE = '```json\n{\n  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n  "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell the agent>" }]\n}\n```';
 var REFACTOR_TO_TEST = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REVIEWER_TO_BACKEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REVIEWER_TO_FRONTEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REVIEWER_TO_REFACTOR = '```json\n{\n  "violations": ["<file:line \u2014 pattern violation, DRY issue, or code redundancy>"]\n}\n```';
-var REVIEWER_TO_SCRIBE = `\`\`\`json
+var REVIEWER_TO_SCRIBE_V2 = `\`\`\`json
 {
   "files_added_removed_renamed": ["<list, or 'none'>"],
   "justfile_commands_changed": ["<old \u2192 new description, or 'none'>"],
@@ -645,10 +1192,30 @@ var REVIEWER_TO_SCRIBE = `\`\`\`json
   "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]
 }
 \`\`\``;
+var REVIEWER_TO_SCRIBE = `\`\`\`json
+{
+  "files_added_removed_renamed": ["<list, or 'none'>"],
+  "justfile_commands_changed": ["<old \u2192 new description, or 'none'>"],
+  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it, or 'none'>"],
+  "schema_changes": ["<new tables, columns, or constraints, or 'none'>"],
+  "workflow_or_process_changes": ["<changed agent handoff, new convention, or 'none'>"],
+  "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell the agent>" }]
+}
+\`\`\``;
 var REVIEWER_TO_TEST = '```json\n{\n  "failing_tests": ["<test name \u2014 failure reason>"],\n  "missing_coverage": ["<endpoint or behavior that lacks a test>"]\n}\n```';
 var TEST_TO_BACKEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<endpoint/function the backend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
 var TEST_TO_FRONTEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<component/page the frontend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
-var TEST_TO_REVIEWER = '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```';
+var TEST_TO_REVIEWER = `\`\`\`json
+{
+  "tests_added": ["<test name \u2014 what it verifies>"],
+  "results": ["<pass/fail summary>"],
+  "commands_run": ["<exact command> => <exit code, N passed / N failed>"],
+  "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
+  "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
+  "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "files_touched": ["<list, or 'none'>"]
+}
+\`\`\``;
 var SEED_HANDOFFS = {
   "backend/frontend": BACKEND_TO_FRONTEND,
   "backend/mobile": BACKEND_TO_MOBILE,
@@ -716,6 +1283,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "summary": "<brief summary of what was delegated, for re-review>"\n  }\n}\n```'
   ],
   "refactor/scribe": [
+    REFACTOR_TO_SCRIBE_V2,
     '```json\n{\n  "handoff_details": {\n    "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n    "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]\n  }\n}\n```'
   ],
   "refactor/test": [
@@ -731,6 +1299,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "violations": ["<file:line \u2014 pattern violation, DRY issue, or code redundancy>"]\n  }\n}\n```'
   ],
   "reviewer/scribe": [
+    REVIEWER_TO_SCRIBE_V2,
     `\`\`\`json
 {
   "handoff_details": {
@@ -754,6 +1323,8 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "failing_tests": ["<test name \u2014 behavior it expects>"],\n    "test_files_added": ["<list, or \'none\'>"],\n    "implementation_targets": ["<component/page the frontend must implement>"],\n    "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n  }\n}\n```'
   ],
   "test/reviewer": [
+    // `148`: the flat body before commands_run, negative_control and real_path_exercised.
+    '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```',
     '```json\n{\n  "handoff_details": {\n    "tests_added": ["<test name \u2014 what it verifies>"],\n    "results": ["<pass/fail summary>"],\n    "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n    "files_touched": ["<list, or \'none\'>"]\n  }\n}\n```'
   ]
 };
@@ -783,11 +1354,21 @@ function resolveHandoff(id, projectContent, globalDefault) {
 
 // src/core/agent-runs.ts
 function agentRunsFromLog(lines) {
+  const meetingIds = /* @__PURE__ */ new Set();
+  for (const line of lines ?? []) {
+    if (!line || typeof line !== "object") continue;
+    const entry = line;
+    if (entry.kind === "handoff" && isSideRun(entry) && typeof entry.agent_id === "string") {
+      meetingIds.add(entry.agent_id);
+    }
+  }
   const runs = [];
   for (const line of lines ?? []) {
     if (!line || typeof line !== "object") continue;
     const entry = line;
     if (entry.kind !== "handoff") continue;
+    if (isSideRun(entry)) continue;
+    if (typeof entry.agent_id === "string" && meetingIds.has(entry.agent_id)) continue;
     const agentType = entry.origin;
     const agentId = entry.agent_id;
     if (typeof agentType !== "string" || !agentType) continue;
@@ -795,6 +1376,9 @@ function agentRunsFromLog(lines) {
     runs.push({ agentType, agentId, ts: typeof entry.ts === "string" ? entry.ts : "" });
   }
   return runs;
+}
+function isSideRun(entry) {
+  return entry.meeting === true || entry.owner_run === true;
 }
 function hasCompletedRun(lines, agentId) {
   if (!agentId) return false;
@@ -821,12 +1405,12 @@ function resumeTarget(lines, cfg, session, agentType) {
 }
 
 // src/core/skill-resolve.ts
-var import_node_fs7 = __toESM(require("node:fs"), 1);
-var import_node_path5 = __toESM(require("node:path"), 1);
+var import_node_fs8 = __toESM(require("node:fs"), 1);
+var import_node_path6 = __toESM(require("node:path"), 1);
 
 // src/core/fs-scan.ts
-var import_node_fs6 = __toESM(require("node:fs"), 1);
-var import_node_path4 = __toESM(require("node:path"), 1);
+var import_node_fs7 = __toESM(require("node:fs"), 1);
+var import_node_path5 = __toESM(require("node:path"), 1);
 var IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".next", ".turbo", ".output"];
 var MAX_DEPTH = 4;
 function* walkDirs(root, opts = {}) {
@@ -836,7 +1420,7 @@ function* walkDirs(root, opts = {}) {
     if (depth > maxDepth) return;
     let entries;
     try {
-      entries = import_node_fs6.default.readdirSync(dir, { withFileTypes: true });
+      entries = import_node_fs7.default.readdirSync(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -844,8 +1428,8 @@ function* walkDirs(root, opts = {}) {
       if (!entry.isDirectory()) continue;
       if (ignore.includes(entry.name)) continue;
       if (opts.skipClaudeDir && entry.name === ".claude") continue;
-      const absolute = import_node_path4.default.join(dir, entry.name);
-      yield { absolute, relative: import_node_path4.default.relative(root, absolute), name: entry.name, depth };
+      const absolute = import_node_path5.default.join(dir, entry.name);
+      yield { absolute, relative: import_node_path5.default.relative(root, absolute), name: entry.name, depth };
       yield* rec(absolute, depth + 1);
     }
   }
@@ -855,9 +1439,9 @@ function ruleSearchDirs(root) {
   return [root, ...Array.from(walkDirs(root, { skipClaudeDir: true }), (d) => d.absolute)];
 }
 function skillsDirIn(dir) {
-  const skillsDir = import_node_path4.default.join(dir, ".claude", "skills");
+  const skillsDir = import_node_path5.default.join(dir, ".claude", "skills");
   try {
-    return import_node_fs6.default.statSync(skillsDir).isDirectory() ? skillsDir : null;
+    return import_node_fs7.default.statSync(skillsDir).isDirectory() ? skillsDir : null;
   } catch {
     return null;
   }
@@ -873,7 +1457,7 @@ function walkProjectSkillIds(root) {
   for (const skillsDir of skillSearchDirs(root)) {
     let entries;
     try {
-      entries = import_node_fs7.default.readdirSync(skillsDir, { withFileTypes: true });
+      entries = import_node_fs8.default.readdirSync(skillsDir, { withFileTypes: true });
     } catch {
       continue;
     }
@@ -881,12 +1465,12 @@ function walkProjectSkillIds(root) {
       if (!entry.isDirectory()) continue;
       let id = entry.name;
       try {
-        const text = import_node_fs7.default.readFileSync(import_node_path5.default.join(skillsDir, entry.name, "SKILL.md"), "utf8");
+        const text = import_node_fs8.default.readFileSync(import_node_path6.default.join(skillsDir, entry.name, "SKILL.md"), "utf8");
         const match = text.match(FRONTMATTER_NAME_RE);
         if (match) id = match[1];
       } catch {
       }
-      const relDir = import_node_path5.default.relative(root, import_node_path5.default.join(skillsDir, entry.name));
+      const relDir = import_node_path6.default.relative(root, import_node_path6.default.join(skillsDir, entry.name));
       const dirs = byId.get(id);
       if (dirs) dirs.push(relDir);
       else byId.set(id, [relDir]);
@@ -898,54 +1482,1516 @@ function resolveProjectSkillPath(root, id) {
   if (!root || !id) return null;
   const entry = walkProjectSkillIds(root).find((e) => e.id === id);
   if (!entry) return null;
-  return import_node_path5.default.join(root, entry.dirs[0], "SKILL.md");
+  return import_node_path6.default.join(root, entry.dirs[0], "SKILL.md");
 }
 function isRootSkillPath(root, skillPath) {
-  const skillDir = import_node_path5.default.dirname(skillPath);
-  const rootSkillsDir = import_node_path5.default.join(root, ".claude", "skills");
-  return import_node_path5.default.dirname(skillDir) === rootSkillsDir;
+  const skillDir = import_node_path6.default.dirname(skillPath);
+  const rootSkillsDir = import_node_path6.default.join(root, ".claude", "skills");
+  return import_node_path6.default.dirname(skillDir) === rootSkillsDir;
+}
+
+// src/core/worktree.ts
+var import_node_fs9 = __toESM(require("node:fs"), 1);
+var import_node_path7 = __toESM(require("node:path"), 1);
+function taskNumber(filename) {
+  const m = /^(\d+)-/.exec(import_node_path7.default.basename(filename));
+  return m ? m[1] : null;
+}
+function worktreeBranchFor(filename) {
+  const n = taskNumber(filename);
+  return n ? `task-${n}` : null;
+}
+function worktreePathFor(mainRoot, filename) {
+  const n = taskNumber(filename);
+  if (!n) return null;
+  return import_node_path7.default.join(import_node_path7.default.dirname(mainRoot), `${import_node_path7.default.basename(mainRoot)}-task-${n}`);
+}
+function shortSessionId(sessionId) {
+  const s = sessionId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
+  return s || null;
+}
+function freeformBranchFor(sessionId) {
+  const s = shortSessionId(sessionId);
+  return s ? `freeform-${s}` : null;
+}
+function isFreeformBranch(name) {
+  return /^freeform-[a-z0-9]{1,8}$/.test(name);
+}
+function freeformWorktreePathFor(mainRoot, sessionId) {
+  const branch = freeformBranchFor(sessionId);
+  return branch ? import_node_path7.default.join(import_node_path7.default.dirname(mainRoot), `${import_node_path7.default.basename(mainRoot)}-${branch}`) : null;
+}
+function mainCheckoutRoot(dir) {
+  const gitEntry = import_node_path7.default.join(dir, ".git");
+  try {
+    if (!import_node_fs9.default.statSync(gitEntry).isFile()) return dir;
+    const text = import_node_fs9.default.readFileSync(gitEntry, "utf8");
+    const m = /^gitdir:\s*(.+?)\s*$/m.exec(text);
+    if (!m) return dir;
+    const gitDir = import_node_path7.default.resolve(dir, m[1]);
+    if (import_node_path7.default.basename(import_node_path7.default.dirname(gitDir)) !== "worktrees") return dir;
+    const common = import_node_path7.default.dirname(import_node_path7.default.dirname(gitDir));
+    if (import_node_path7.default.basename(common) !== ".git") return dir;
+    return import_node_path7.default.dirname(common);
+  } catch {
+    return dir;
+  }
+}
+function isLinkedWorktree(dir) {
+  return mainCheckoutRoot(dir) !== dir;
+}
+
+// src/core/worktree-deps.ts
+var import_node_fs10 = __toESM(require("node:fs"), 1);
+var import_node_path8 = __toESM(require("node:path"), 1);
+var LOCKFILES = [
+  { file: "pnpm-lock.yaml", manager: "pnpm" },
+  { file: "package-lock.json", manager: "npm" },
+  { file: "yarn.lock", manager: "yarn" },
+  { file: "bun.lock", manager: "bun" },
+  { file: "bun.lockb", manager: "bun" }
+];
+function detectPackageManager(dir) {
+  const found = LOCKFILES.filter((l) => import_node_fs10.default.existsSync(import_node_path8.default.join(dir, l.file)));
+  const managers = new Set(found.map((l) => l.manager));
+  if (managers.size === 0) return { kind: "unknown" };
+  if (managers.size > 1) return { kind: "ambiguous", lockfiles: found.map((l) => l.file) };
+  return { kind: "detected", manager: found[0].manager, lockfile: found[0].file };
+}
+function installCommand(manager, dir) {
+  const q = JSON.stringify(dir);
+  switch (manager) {
+    case "pnpm":
+      return `pnpm --dir ${q} install`;
+    case "npm":
+      return `npm --prefix ${q} install`;
+    case "yarn":
+      return `yarn --cwd ${q} install`;
+    case "bun":
+      return `bun install --cwd ${q}`;
+  }
+}
+var INSTALL_MARKERS = [".modules.yaml", ".package-lock.json", ".yarn-integrity"];
+function hasInstalledModules(nodeModules) {
+  let entries;
+  try {
+    entries = import_node_fs10.default.readdirSync(nodeModules);
+  } catch {
+    return false;
+  }
+  return entries.some((e) => !e.startsWith(".") || INSTALL_MARKERS.includes(e));
+}
+function dependencyStatus(dir) {
+  if (!import_node_fs10.default.existsSync(import_node_path8.default.join(dir, "package.json"))) return { state: "not-applicable" };
+  if (hasInstalledModules(import_node_path8.default.join(dir, "node_modules"))) return { state: "installed" };
+  const detection = detectPackageManager(dir);
+  const command = detection.kind === "detected" ? installCommand(detection.manager, dir) : null;
+  return { state: "missing", detection, command };
+}
+function missingDependenciesNotice(dir) {
+  const status = dependencyStatus(dir);
+  if (status.state !== "missing") return null;
+  const head = `STOP: the worktree ${dir} has no installed dependencies (no node_modules), so tests, lint and builds cannot run there. Do NOT dispatch @test or @reviewer, and do NOT report the task as tested, until it is installed. `;
+  const tail = " Installing is the user's step (package installs cannot run in the agent sandbox). Then re-run this same command to confirm.\n";
+  const { detection, command } = status;
+  if (command && detection.kind === "detected") {
+    return `${head}Ask the user to run this (${detection.manager}, from ${detection.lockfile}):
+  ! ${command}
+${tail}`;
+  }
+  const why = detection.kind === "ambiguous" ? `More than one package manager's lockfile is present (${detection.lockfiles.join(", ")})` : "No recognised lockfile (pnpm-lock.yaml, package-lock.json, yarn.lock, bun.lock, bun.lockb) is present";
+  return `${head}${why}, so no install command is guessed. Ask the user which package manager this project uses and to install the dependencies in ${dir} with it.${tail}`;
+}
+
+// src/core/channel-write-guard.ts
+var import_node_fs11 = __toESM(require("node:fs"), 1);
+var import_node_path9 = __toESM(require("node:path"), 1);
+var CHANNEL_ONLY_AGENTS = ["reviewer", "refactor"];
+var WRITE_TOOL_PATH_KEYS = {
+  Write: "file_path",
+  Edit: "file_path",
+  MultiEdit: "file_path",
+  NotebookEdit: "notebook_path"
+};
+function isChannelOnlyAgent(agentType) {
+  return CHANNEL_ONLY_AGENTS.includes(bareAgentName(agentType));
+}
+function realResolve(p) {
+  let cur = import_node_path9.default.resolve(p);
+  const tail = [];
+  for (; ; ) {
+    let st = null;
+    try {
+      st = import_node_fs11.default.lstatSync(cur);
+    } catch {
+      st = null;
+    }
+    if (st) {
+      try {
+        return import_node_path9.default.join(import_node_fs11.default.realpathSync(cur), ...tail);
+      } catch {
+        return null;
+      }
+    }
+    const parent = import_node_path9.default.dirname(cur);
+    if (parent === cur) return cur ? import_node_path9.default.join(cur, ...tail) : null;
+    tail.unshift(import_node_path9.default.basename(cur));
+    cur = parent;
+  }
+}
+function denyMeeting(target, meetingDir) {
+  return {
+    allow: false,
+    reason: `Blocked: a Maestro team meeting is in progress and you are a participant \u2014 you may only write files under ${meetingDir}/ (the meeting directory). "${target}" is outside it (or reaches outside through a ".." segment or a symlink). Propose changes in your round file; never apply them.`
+  };
+}
+function realMeetingDir(meetingDir) {
+  const resolved = import_node_path9.default.resolve(meetingDir);
+  const sessionDir = import_node_path9.default.dirname(resolved);
+  const sessionId = import_node_path9.default.basename(sessionDir);
+  if (import_node_path9.default.basename(resolved) !== "meeting" || import_node_path9.default.basename(import_node_path9.default.dirname(sessionDir)) !== "maestro_sessions") {
+    return null;
+  }
+  const realSession = realResolve(sessionDir);
+  const real = realResolve(resolved);
+  if (!realSession || !real) return null;
+  if (real !== import_node_path9.default.join(realSession, "meeting")) return null;
+  const parts = real.split(import_node_path9.default.sep);
+  const n = parts.length;
+  if (n < 3 || parts[n - 2] !== sessionId || parts[n - 3] !== "maestro_sessions") return null;
+  return real;
+}
+function deny(target, scope) {
+  const where = isChannelScope(scope) ? `.claude/channels/${scope}/` : ".claude/channels/<this session's scope>/";
+  return {
+    allow: false,
+    reason: `Blocked: this agent may only write files under ${where} (this session's handoff channel lanes \u2014 write exactly the channel file your injected routes name). "${target}" is outside it (another session's scope, the legacy unscoped layout, or reaching outside through a ".." segment or a symlink). Report findings in your final message instead; delegate edits to the responsible agent.`
+  };
+}
+function checkChannelWrite(input) {
+  const { cwd, agentType, toolName, toolInput, meetingDir, channelScope } = input;
+  const key = toolName ? WRITE_TOOL_PATH_KEYS[toolName] : void 0;
+  if (meetingDir) {
+    if (!key) return { allow: true };
+    const raw2 = toolInput?.[key];
+    if (typeof raw2 !== "string" || raw2 === "") return denyMeeting(String(raw2 ?? ""), meetingDir);
+    if (raw2.split(/[\\/]+/).includes("..")) return denyMeeting(raw2, meetingDir);
+    const target2 = realResolve(import_node_path9.default.resolve(cwd || meetingDir, raw2));
+    const root = realMeetingDir(meetingDir);
+    if (!target2 || !root) return denyMeeting(raw2, meetingDir);
+    return target2.startsWith(root + import_node_path9.default.sep) ? { allow: true } : denyMeeting(raw2, meetingDir);
+  }
+  if (!isChannelOnlyAgent(agentType)) return { allow: true };
+  if (!key) return { allow: true };
+  const raw = toolInput?.[key];
+  if (typeof raw !== "string" || raw === "") return deny(String(raw ?? ""), channelScope);
+  if (!cwd || !isChannelScope(channelScope)) return deny(raw, channelScope);
+  if (raw.split(/[\\/]+/).includes("..")) return deny(raw, channelScope);
+  const target = realResolve(import_node_path9.default.resolve(cwd, raw));
+  const realCwd = realResolve(cwd);
+  const lane = realResolve(import_node_path9.default.join(cwd, ".claude", "channels"));
+  const scoped = realResolve(import_node_path9.default.join(cwd, ".claude", "channels", channelScope));
+  if (!target || !realCwd || !lane || !scoped) return deny(raw, channelScope);
+  if (lane !== import_node_path9.default.join(realCwd, ".claude", "channels") && !lane.startsWith(realCwd + import_node_path9.default.sep)) {
+    return deny(raw, channelScope);
+  }
+  if (scoped !== import_node_path9.default.join(lane, channelScope)) return deny(raw, channelScope);
+  return target.startsWith(scoped + import_node_path9.default.sep) ? { allow: true } : deny(raw, channelScope);
+}
+
+// src/core/human-review-gate.ts
+var HUMAN_REVIEW_LABEL = "human review";
+var MANAGER_REVIEW_LABEL = "manager review";
+var REVIEW_FILE_PATTERN = /\.review(-\d+)?\.md$/;
+var SUMMARY_PLACEMENT = (file) => `print the full summary as text above the question with the review file's path (${file}) as its first line, and ask with AskUserQuestion, putting a digest of at most 15 lines in the Approve option's preview with the review file's path as its first line (then deviations, risks and open questions, changed-file count, corrections since last round). If the digest is shortened to fit, its last line states that the full text is in the review file.`;
+function isReviewStop(label) {
+  return label === HUMAN_REVIEW_LABEL || label === MANAGER_REVIEW_LABEL;
+}
+function isReviewFile(filename) {
+  return REVIEW_FILE_PATTERN.test(filename);
+}
+function reviewFileName(taskFile, round) {
+  const base = taskFile.replace(/^.*[\\/]/, "").replace(/\.md$/, "");
+  return round <= 1 ? `${base}.review.md` : `${base}.review-${round}.md`;
+}
+function currentReviewStop(plan) {
+  if (!plan || !Array.isArray(plan.steps)) return null;
+  const steps = plan.steps;
+  const next = steps.findIndex((s) => s && s.status !== "done");
+  if (next === -1) return null;
+  const label = steps[next].label;
+  if (!isReviewStop(label)) return null;
+  const doneReviews = steps.filter((s) => s && isReviewStop(s.label) && s.status === "done").length;
+  const loopbacks = typeof plan.loopbacks === "number" && plan.loopbacks > 0 ? Math.floor(plan.loopbacks) : 0;
+  return { label, round: 1 + loopbacks + doneReviews };
+}
+function currentReviewRound(plan) {
+  return currentReviewStop(plan)?.round ?? null;
+}
+function bareRecipient(to) {
+  return typeof to === "string" ? to.replace(/\s*\[[^\]]*\]\s*$/, "").trim() : "";
+}
+var HUMAN_SECTIONS = "'## Changed' (files and areas), '## Did' (one line per agent), '## Deviations from the ticket' and, on a re-review, '## Corrections since the last round'";
+var BRIEF_SECTIONS = "'## Goal', '## Done', '## Deviations', '## Decisions', '## Touches' (files and modules by name, never a diff), '## Sibling impact' and '## Questions'";
+function checkHumanReview(input) {
+  if (input.toolName !== "AskUserQuestion" && input.toolName !== "SendMessage") return { allow: true };
+  const state = input.state;
+  if (!state || typeof state.active_task !== "string" || !state.active_task) return { allow: true };
+  const stop = currentReviewStop(state.plan);
+  if (stop === null) return { allow: true };
+  if (input.toolName === "SendMessage") {
+    if (stop.label !== MANAGER_REVIEW_LABEL) return { allow: true };
+    const manager = typeof input.managerName === "string" ? input.managerName.trim() : "";
+    if (!manager || bareRecipient(input.toolInput?.to) !== manager) return { allow: true };
+  }
+  const { round } = stop;
+  const name = reviewFileName(state.active_task, round);
+  const file = `${input.tasksDir.replace(/[\\/]+$/, "")}/${name}`;
+  if (input.exists(file)) return { allow: true };
+  if (stop.label === MANAGER_REVIEW_LABEL) {
+    return {
+      allow: false,
+      reason: `Manager review round ${round}: the review file is missing. Write ${file} first, as the direction brief with the sections ${BRIEF_SECTIONS}. Then record it with \`node .claude/scripts/maestro-epic.cjs review-request --task "${state.active_task}" --file "${file}"\` and send the manager the one line it prints. On an escalation, or the fallback to human review (no epic, no live manager), the same file is the summary: ${SUMMARY_PLACEMENT(file)}`
+    };
+  }
+  return {
+    allow: false,
+    reason: `Human review round ${round}: the review file is missing. Write ${file} first, with the sections ${HUMAN_SECTIONS}. Then ${SUMMARY_PLACEMENT(file)}`
+  };
+}
+
+// src/core/handoff-label.ts
+var HANDOFF_RE = /[`*]*HANDOFF:\s*([^\n`*]+)[`*]*/gi;
+var HANDBACK_TOOLS = ["SubagentHandback", "SendMessage"];
+function lastHandoffLabel(msg) {
+  if (typeof msg !== "string") return null;
+  const matches = [...msg.matchAll(HANDOFF_RE)];
+  if (matches.length === 0) return null;
+  return matches[matches.length - 1][1].trim() || null;
+}
+function messageText(input) {
+  if (typeof input === "string") return input;
+  if (!input || typeof input !== "object") return "";
+  const o = input;
+  for (const k of ["message", "content", "text", "summary", "report"]) {
+    if (typeof o[k] === "string" && lastHandoffLabel(o[k])) return o[k];
+  }
+  return "";
+}
+function handbackHandoff(transcript) {
+  return scanHandbacks(transcript).text;
+}
+function hasHandbackCall(transcript) {
+  return scanHandbacks(transcript).sawCall;
+}
+function scanHandbacks(transcript) {
+  let found = null;
+  let sawCall = false;
+  for (const line of transcript.split("\n")) {
+    if (!HANDBACK_TOOLS.some((t) => line.includes(t))) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const e = entry;
+    const content = e?.message?.content ?? e?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block && block.type === "tool_use" && HANDBACK_TOOLS.includes(block.name)) {
+        sawCall = true;
+        const text = messageText(block.input);
+        if (text) found = text;
+      }
+    }
+  }
+  return { text: found, sawCall };
+}
+var HANDBACK_WAIT_MS = 3e3;
+var HANDBACK_POLL_MS = 100;
+async function awaitHandback(read, sleep, waitMs = HANDBACK_WAIT_MS, pollMs = HANDBACK_POLL_MS) {
+  const attempts = Math.max(1, Math.ceil(waitMs / pollMs) + 1);
+  for (let i = 0; i < attempts; i++) {
+    const transcript = read();
+    if (transcript === null) return null;
+    const scan = scanHandbacks(transcript);
+    if (scan.sawCall) return scan.text;
+    if (i < attempts - 1) await sleep(pollMs);
+  }
+  return null;
+}
+var sendMessageHandoff = handbackHandoff;
+
+// src/core/handoff-check.ts
+var VERDICT_RE = /verdict["'*]*\s*[:=]\s*["'*]*\s*(SUCCESS|FAIL(?:URE|ED)?|PASS(?:ED)?)\b(?!\s*\|)/gi;
+function reportVerdict(msg) {
+  if (typeof msg !== "string") return null;
+  const all = [...msg.matchAll(VERDICT_RE)];
+  if (all.length === 0) return null;
+  const v = all[all.length - 1][1].toUpperCase();
+  return v.startsWith("FAIL") ? "FAIL" : "SUCCESS";
+}
+function checkHandoff(msg) {
+  const label = lastHandoffLabel(msg);
+  const verdict = reportVerdict(msg);
+  if (label === null) {
+    return {
+      kind: "missing",
+      verdict,
+      label: null,
+      message: "The subagent ended with no HANDOFF: line" + (verdict ? " (its report verdict is " + verdict + ")" : "") + ". Do not default to success: decide the route from its report, or resume it and ask for the matching HANDOFF line."
+    };
+  }
+  if (verdict === "FAIL" && label.toLowerCase() === "success") {
+    return {
+      kind: "contradiction",
+      verdict,
+      label,
+      message: "The subagent's report verdict is FAIL but it ended HANDOFF: success, which is invalid. Do not continue the success path: route to the workflow's matching condition edge for this defect, or resume the agent and ask for a corrected HANDOFF line."
+    };
+  }
+  return null;
+}
+function checkRoute(msg, routes, workflow) {
+  const label = lastHandoffLabel(msg);
+  if (label === null || label.toLowerCase() === "success") return null;
+  const want = label.toLowerCase();
+  if (routes.some((r) => r.label.toLowerCase() === want)) return null;
+  const known = routes.filter((r) => r.label.toLowerCase() !== "success").map((r) => r.label);
+  return {
+    kind: "unrouted",
+    verdict: reportVerdict(msg),
+    label,
+    message: "The subagent ended HANDOFF: " + label + ', which no condition edge in workflow "' + workflow + '" handles (its conditions: ' + (known.length ? known.join(", ") : "none") + "). Stop: tell the user what the agent could not do and let them choose (switch workflow, dispatch an agent outside it, or stop). Do not dispatch another agent on your own."
+  };
+}
+function checkPayload(msg, routes, written) {
+  const label = lastHandoffLabel(msg);
+  if (label === null) return null;
+  const want = label.toLowerCase();
+  const unwritten = routes.filter((r) => r.label.toLowerCase() === want && !written(r));
+  if (unwritten.length === 0) return null;
+  const receivers = unwritten.map((r) => r.receiver);
+  const files = unwritten.map((r) => r.channelFile);
+  return {
+    kind: "missing_payload",
+    verdict: reportVerdict(msg),
+    label,
+    receivers,
+    files,
+    message: "The subagent ended HANDOFF: " + label + " but wrote no payload to " + files.join(", ") + " during this run. Do not dispatch " + receivers.join(", ") + " without it, and do not skip it: resume this agent (SendMessage to its agent_id) and ask it to write that file, then route."
+  };
+}
+
+// src/core/handoff-payload.ts
+var import_node_fs12 = __toESM(require("node:fs"), 1);
+var import_node_path10 = __toESM(require("node:path"), 1);
+function readProjectHandoff(projectDir, handoffId2) {
+  try {
+    const [sender, receiver] = handoffId2.split("/");
+    const body = import_node_fs12.default.readFileSync(import_node_path10.default.join(projectDir, ".claude", "handoffs", sender, `${receiver}.md`), "utf8").trim();
+    return body || null;
+  } catch {
+    return null;
+  }
+}
+function payloadRoutes(projectDir, scope, routes, readGlobal) {
+  const out = [];
+  for (const r of routes) {
+    if (!r.receiver) continue;
+    const id = `${r.sender}/${r.receiver}`;
+    let global = null;
+    try {
+      global = readGlobal(id);
+    } catch {
+      global = null;
+    }
+    const resolved = resolveHandoff(id, readProjectHandoff(projectDir, id), global);
+    if (!resolved.content) continue;
+    out.push({
+      label: r.label,
+      sender: r.sender,
+      receiver: r.receiver,
+      scope,
+      channelFile: channelRelPath(scope, r.receiver, `${r.sender}.1.md`),
+      protocol: resolved.content
+    });
+  }
+  return out;
+}
+function payloadRequirement(routes, opts) {
+  if (routes.length === 0) return null;
+  const head = "REQUIRED before your HANDOFF line: write the payload for the route you take to that route's channel file. This is a step of the handoff, not a recommendation \u2014 the receiving agent starts from that file, and the stop hook checks it was written during THIS run. A missing payload is not skipped: the orchestrator resumes you to write it before the next agent is dispatched. When nothing applies, still write the file, containing an empty JSON object (`{}`). Create the file with the Write tool, which creates the folder too; do not run mkdir in Bash.";
+  if (opts.withShapes) {
+    const blocks = routes.map(
+      (r) => `Route \`HANDOFF: ${r.label}\` \u2192 \`${r.receiver}\` \u2014 write this to \`${r.channelFile}\`:
+
+${r.protocol}`
+    );
+    return `${head}
+
+${blocks.join("\n\n")}`;
+  }
+  const lines = routes.map((r) => `- \`HANDOFF: ${r.label}\` \u2192 write \`${r.channelFile}\` (for \`${r.receiver}\`)`);
+  return `${head}
+${lines.join("\n")}
+The shape for each route is the one from your first run.`;
+}
+function runStartedAt(lines, agentId) {
+  if (!agentId) return null;
+  let at = null;
+  for (const line of lines ?? []) {
+    if (!line || typeof line !== "object") continue;
+    const e = line;
+    if (e.kind !== "dispatch" || e.agent_id !== agentId || typeof e.ts !== "string") continue;
+    const t = Date.parse(e.ts);
+    if (!Number.isNaN(t)) at = t;
+  }
+  return at;
+}
+var MTIME_SLACK_MS = 1e3;
+function payloadWrittenSince(projectDir, route, sinceMs) {
+  const candidates = [laneFor(projectDir, route.scope, route.sender, route.receiver)];
+  for (const entry of readLane(projectDir, route.scope, route.receiver)) {
+    if (entry.sender === route.sender && isGapReport(entry)) candidates.push(entry.path);
+  }
+  return candidates.some((filePath) => writtenSince(filePath, sinceMs));
+}
+function writtenSince(filePath, sinceMs) {
+  let stat;
+  try {
+    stat = import_node_fs12.default.statSync(filePath);
+  } catch {
+    return false;
+  }
+  if (!stat.isFile()) return false;
+  if (sinceMs === null) return true;
+  return stat.mtimeMs >= sinceMs - MTIME_SLACK_MS;
+}
+
+// src/core/resume-delivery.ts
+function pendingResumeDeliveries(projectDir, scope, receiver, runId) {
+  if (!runId) return [];
+  const bare = bareAgentName(receiver);
+  return readLane(projectDir, scope, bare).filter((e) => e.runId === runId).map((e) => ({ file: channelRelPath(scope, bare, e.fileName), sender: e.sender, run_id: runId }));
+}
+function recordResumeDeliveries(session, agentId, deliveries) {
+  const all = { ...session.resume_deliveries ?? {} };
+  if (deliveries.length > 0) all[agentId] = deliveries;
+  else delete all[agentId];
+  const next = { ...session, resume_deliveries: all };
+  if (Object.keys(all).length === 0) delete next.resume_deliveries;
+  return next;
+}
+function retireResumeDeliveries(projectDir, scope, session, agentId, receiver) {
+  const recorded = session.resume_deliveries?.[agentId];
+  if (!agentId || !recorded || recorded.length === 0) return { session, retired: [] };
+  const bare = bareAgentName(receiver);
+  const want = new Map(recorded.map((d) => [d.file, d.run_id]));
+  const retired = [];
+  for (const e of readLane(projectDir, scope, bare)) {
+    const runId = want.get(channelRelPath(scope, bare, e.fileName));
+    if (runId === void 0 || e.runId !== runId) continue;
+    if (isGapReport(e)) continue;
+    try {
+      retire(projectDir, scope, bare, e);
+      retired.push(e);
+    } catch {
+    }
+  }
+  return { session: recordResumeDeliveries(session, agentId, []), retired };
+}
+function latestWorkflowHandoff(lines) {
+  let latest = null;
+  for (const line of lines ?? []) {
+    if (!line || typeof line !== "object") continue;
+    const e = line;
+    if (e.kind !== "handoff" || e.meeting === true || e.owner_run === true) continue;
+    if (typeof e.origin !== "string" || !e.origin || typeof e.label !== "string" || !e.label) continue;
+    latest = { agentType: e.origin, agentId: typeof e.agent_id === "string" ? e.agent_id : "", label: e.label };
+  }
+  return latest;
+}
+function expectedLoopbackPayloads(latest, senderRoutes, target) {
+  if (!latest) return [];
+  const want = latest.label.toLowerCase();
+  const receiver = bareAgentName(target);
+  return senderRoutes.filter((r) => r.label.toLowerCase() === want && r.receiver === receiver);
+}
+function missingLoopbackPayload(latest, expected, deliveries, now = /* @__PURE__ */ new Date()) {
+  const present = new Set(deliveries.map((d) => d.file));
+  const missing = expected.filter((r) => !present.has(r.channelFile));
+  if (missing.length === 0) return null;
+  const files = missing.map((r) => r.channelFile);
+  const receivers = [...new Set(missing.map((r) => r.receiver))];
+  return {
+    ts: now.toISOString(),
+    agent: latest.agentType,
+    agent_id: latest.agentId,
+    kind: "missing_payload",
+    verdict: null,
+    label: latest.label,
+    files,
+    message: `The loop-back to ${receivers.join(", ")} expects ${files.join(", ")} from this run, and it is not in the channel. Do not dispatch or resume ${receivers.join(", ")} without it: resume this agent (SendMessage to its agent_id) and ask it to write that file, then route.`
+  };
+}
+function dropResolvedMissingPayloads(issues, present) {
+  const list = Array.isArray(issues) ? issues : [];
+  const files = new Set(present.map((d) => d.file));
+  return list.filter(
+    (i) => i.kind !== "missing_payload" || !i.files || i.files.length === 0 || !i.files.every((f) => files.has(f))
+  );
+}
+function appendHandoffIssue(issues, issue) {
+  const list = Array.isArray(issues) ? issues : [];
+  const key = (i) => `${i.kind}|${i.agent_id}|${(i.files ?? []).join(",")}`;
+  return list.some((i) => key(i) === key(issue)) ? list : [...list, issue];
+}
+
+// src/core/runtime-version.ts
+var VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+function parse(v) {
+  if (typeof v !== "string") return null;
+  const m = VERSION_RE.exec(v.trim());
+  if (!m) return null;
+  return { core: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ?? null };
+}
+function comparePre(a, b) {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const as = a.split(".");
+  const bs = b.split(".");
+  for (let i = 0; i < Math.max(as.length, bs.length); i++) {
+    if (as[i] === void 0) return -1;
+    if (bs[i] === void 0) return 1;
+    const an = /^\d+$/.test(as[i]) ? Number(as[i]) : null;
+    const bn = /^\d+$/.test(bs[i]) ? Number(bs[i]) : null;
+    if (an !== null && bn !== null) {
+      if (an !== bn) return an < bn ? -1 : 1;
+    } else if (an !== null) return -1;
+    else if (bn !== null) return 1;
+    else if (as[i] !== bs[i]) return as[i] < bs[i] ? -1 : 1;
+  }
+  return 0;
+}
+function compareRuntimeVersions(projectVersion, pluginVersion) {
+  const p = parse(projectVersion);
+  const q = parse(pluginVersion);
+  if (!p || !q) return "unknown";
+  for (let i = 0; i < 3; i++) {
+    if (p.core[i] !== q.core[i]) return p.core[i] < q.core[i] ? "older" : "newer";
+  }
+  const pre = comparePre(p.pre, q.pre);
+  return pre === 0 ? "equal" : pre < 0 ? "older" : "newer";
+}
+function runtimeNeedsRefresh(projectVersion, pluginVersion) {
+  const verdict = compareRuntimeVersions(projectVersion, pluginVersion);
+  if (verdict === "unknown") return projectVersion !== pluginVersion;
+  return verdict === "older";
+}
+
+// src/core/worktree-write-guard.ts
+var import_node_fs13 = __toESM(require("node:fs"), 1);
+var import_node_path11 = __toESM(require("node:path"), 1);
+var MAIN_CHECKOUT_SHARED_DIRS = ["maestro-tasks", "channels", "maestro_sessions"];
+var WRITE_TOOL_PATH_KEYS2 = {
+  Write: "file_path",
+  Edit: "file_path",
+  MultiEdit: "file_path",
+  NotebookEdit: "notebook_path"
+};
+function realResolve2(p) {
+  let cur = import_node_path11.default.resolve(p);
+  const tail = [];
+  for (; ; ) {
+    let exists = true;
+    try {
+      import_node_fs13.default.lstatSync(cur);
+    } catch {
+      exists = false;
+    }
+    if (exists) {
+      try {
+        return import_node_path11.default.join(import_node_fs13.default.realpathSync(cur), ...tail);
+      } catch {
+        return null;
+      }
+    }
+    const parent = import_node_path11.default.dirname(cur);
+    if (parent === cur) return import_node_path11.default.join(cur, ...tail);
+    tail.unshift(import_node_path11.default.basename(cur));
+    cur = parent;
+  }
+}
+var within = (target, root) => target === root || target.startsWith(root + import_node_path11.default.sep);
+function checkWorktreeWrite(input) {
+  const { cwd, toolName, toolInput, worktree, channelScope } = input;
+  const key = toolName ? WRITE_TOOL_PATH_KEYS2[toolName] : void 0;
+  if (!key || !worktree) return { allow: true };
+  if (typeof worktree.path !== "string" || typeof worktree.main_root !== "string") return { allow: true };
+  if (!worktree.path || !worktree.main_root) return { allow: true };
+  const raw = toolInput?.[key];
+  if (typeof raw !== "string" || raw === "") return { allow: true };
+  const wt = realResolve2(worktree.path);
+  const main = realResolve2(worktree.main_root);
+  const target = realResolve2(import_node_path11.default.resolve(cwd || worktree.path, raw));
+  if (!wt || !main || !target) return { allow: true };
+  if (isChannelScope(channelScope)) {
+    for (const base of [main, wt]) {
+      const channels = realResolve2(import_node_path11.default.join(base, ".claude", "channels"));
+      if (!channels || !within(target, channels)) continue;
+      if (within(target, import_node_path11.default.join(channels, channelScope))) break;
+      return {
+        allow: false,
+        reason: `Blocked: "${raw}" is in a channel scope that is not this session's. This session may write handoff channel files only under .claude/channels/${channelScope}/ \u2014 another task's lanes, and the legacy unscoped .claude/channels/<receiver>/ layout, are off limits.`
+      };
+    }
+  }
+  if (within(target, wt)) return { allow: true };
+  if (!within(target, main)) return { allow: true };
+  if (MAIN_CHECKOUT_SHARED_DIRS.some((d) => within(target, import_node_path11.default.join(main, ".claude", d)))) return { allow: true };
+  return {
+    allow: false,
+    reason: `Blocked: this session runs its task in the git worktree ${worktree.path}, and "${raw}" resolves to ${target}, inside the main checkout (${worktree.main_root}), which another session may be using and which a merge would later refuse to overwrite. Write the file at the same relative path under ${worktree.path} instead. Only ${MAIN_CHECKOUT_SHARED_DIRS.map((d) => `.claude/${d}/`).join(", ")} stay in the main checkout.`
+  };
+}
+
+// src/core/run-metrics.ts
+var import_node_fs14 = __toESM(require("node:fs"), 1);
+var import_node_path12 = __toESM(require("node:path"), 1);
+var METRICS_DIR_NAME = "maestro-metrics";
+var METRICS_FILE_NAME = "metrics.json";
+var DEFAULT_RECENT_RUNS = 10;
+var LOCK_STALE_MS = 15e3;
+var LOCK_WAIT_MS = 1e4;
+function emptyMetrics() {
+  return { version: 1, runs: [], totals: { by_workflow: {}, by_agent: {} } };
+}
+function metricsDirFor(projectRoot) {
+  return import_node_path12.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
+}
+function metricsFileFor(projectRoot) {
+  return import_node_path12.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
+}
+function day(ts) {
+  return typeof ts === "string" ? ts.slice(0, 10) : "";
+}
+function derive(t) {
+  t.avg_duration_ms = t.runs ? Math.round(t.duration_ms_sum / t.runs) : 0;
+  t.avg_ctx_pct = t.ctx_runs ? Math.round(t.ctx_pct_sum / t.ctx_runs * 10) / 10 : null;
+  t.loop_back_rate = t.runs ? Math.round(t.loop_backs / t.runs * 1e3) / 1e3 : 0;
+  t.human_review_rate = t.runs ? Math.round(t.human_reviews / t.runs * 1e3) / 1e3 : 0;
+  return t;
+}
+function fresh(ts) {
+  return derive({
+    runs: 0,
+    success: 0,
+    failure: 0,
+    loop_backs: 0,
+    human_reviews: 0,
+    duration_ms_sum: 0,
+    ctx_pct_sum: 0,
+    ctx_runs: 0,
+    avg_duration_ms: 0,
+    avg_ctx_pct: null,
+    loop_back_rate: 0,
+    human_review_rate: 0,
+    first_seen: ts,
+    last_seen: ts
+  });
+}
+function add(map, key, seen, v) {
+  const t = map[key] ??= fresh(seen);
+  t.runs += v.runs;
+  t.success += v.success;
+  t.failure += v.failure;
+  t.loop_backs += v.loop_backs;
+  t.human_reviews += v.human_reviews;
+  t.duration_ms_sum += v.duration_ms;
+  if (v.ctx_pct != null) {
+    t.ctx_pct_sum += v.ctx_pct;
+    t.ctx_runs += 1;
+  }
+  if (seen && (!t.first_seen || seen < t.first_seen)) t.first_seen = seen;
+  if (seen && seen > t.last_seen) t.last_seen = seen;
+  derive(t);
+}
+function foldRun(totals, run) {
+  const seen = day(run.started_at);
+  add(totals.by_workflow, run.workflow, seen, {
+    runs: 1,
+    success: run.outcome === "success" ? 1 : 0,
+    failure: run.outcome === "success" ? 0 : 1,
+    loop_backs: run.loop_backs.reduce((n, l) => n + l.count, 0),
+    human_reviews: run.human_reviews.length,
+    duration_ms: run.duration_ms,
+    ctx_pct: run.ctx_pct
+  });
+  for (const a of run.agents) {
+    add(totals.by_agent, a.agent, seen, {
+      runs: a.runs,
+      success: a.success,
+      failure: a.failure,
+      loop_backs: a.loop_backs,
+      human_reviews: a.human_reviews,
+      duration_ms: a.duration_ms,
+      ctx_pct: a.ctx_pct
+    });
+  }
+}
+function compact(file, keep) {
+  const n = Math.max(1, Math.floor(Number.isFinite(keep) ? keep : DEFAULT_RECENT_RUNS));
+  if (file.runs.length <= n) return file;
+  const ordered = [...file.runs].sort((a, b) => a.ended_at < b.ended_at ? -1 : a.ended_at > b.ended_at ? 1 : 0);
+  const folded = ordered.slice(0, ordered.length - n);
+  const totals = structuredClone(file.totals);
+  for (const run of folded) foldRun(totals, run);
+  return { version: 1, runs: ordered.slice(ordered.length - n), totals };
+}
+function successOrder(cfg, workflow) {
+  const wf = cfg?.workflows?.find((w) => w.name === workflow);
+  const order = [];
+  const reviewAfter = [];
+  const skillIds = /* @__PURE__ */ new Set();
+  if (!wf) return { order, reviewAfter, skillIds };
+  for (const n of wf.nodes ?? []) if (n.type === "skill" && n.skill) skillIds.add(n.skill);
+  const agentOf = (id) => {
+    const n = wf.nodes.find((x) => x.id === id);
+    if (!n || n.type !== "agent") return null;
+    const inst = cfg?.workflow_instances?.find((i) => i.name === n.instance);
+    return bareAgentName(inst?.agent ?? n.instance ?? "") || null;
+  };
+  let cur = "main-session";
+  let lastAgent = null;
+  const seen = /* @__PURE__ */ new Set();
+  while (!seen.has(cur)) {
+    seen.add(cur);
+    const e = (wf.edges ?? []).find((x) => x.from === cur && x.kind === "success");
+    if (!e) break;
+    const node = wf.nodes.find((n) => n.id === e.to);
+    if (node?.type === "human_review" && lastAgent) reviewAfter.push(lastAgent);
+    const a = agentOf(e.to);
+    if (a) {
+      order.push(a);
+      lastAgent = a;
+    }
+    cur = e.to;
+  }
+  return { order, reviewAfter, skillIds };
+}
+function buildRunRecord(entries, session, cfg, sessionId) {
+  const log = (entries ?? []).filter((e) => !!e && typeof e === "object");
+  const teamMeeting = log.some((e) => e.meeting === true);
+  const dispatches = log.filter((e) => e.kind === "dispatch" && e.meeting !== true);
+  const handoffs = log.filter((e) => e.kind === "handoff" && e.meeting !== true);
+  const meetingTurns = log.filter((e) => e.kind === "handoff" && e.meeting === true);
+  if (dispatches.length === 0 && handoffs.length === 0 && meetingTurns.length === 0) return null;
+  const workflow = session?.workflow || "(none)";
+  const { order, reviewAfter, skillIds } = successOrder(cfg, session?.workflow ?? null);
+  const stamps = log.map((e) => e.ts).filter((t) => typeof t === "string" && !Number.isNaN(Date.parse(t)));
+  stamps.sort();
+  const started_at = stamps[0] ?? (/* @__PURE__ */ new Date()).toISOString();
+  const ended_at = stamps[stamps.length - 1] ?? started_at;
+  const duration_ms = Math.max(0, Date.parse(ended_at) - Date.parse(started_at));
+  const dispatchById = /* @__PURE__ */ new Map();
+  for (const d of dispatches) if (d.agent_id) dispatchById.set(d.agent_id, d);
+  const agents = /* @__PURE__ */ new Map();
+  const agentOfRun = (name) => {
+    let a = agents.get(name);
+    if (!a) {
+      a = {
+        agent: name,
+        runs: 0,
+        success: 0,
+        failure: 0,
+        loop_backs: 0,
+        human_reviews: 0,
+        duration_ms: 0,
+        ctx_pct: null
+      };
+      agents.set(name, a);
+    }
+    return a;
+  };
+  for (const d of dispatches) {
+    const name = bareAgentName(d.agent ?? "");
+    if (name) agentOfRun(name).runs += 1;
+  }
+  if (dispatches.length === 0 && handoffs.length === 0) {
+    for (const m of meetingTurns) {
+      const name = bareAgentName(m.origin ?? "");
+      if (name) agentOfRun(name).runs += 1;
+    }
+  }
+  const loopMap = /* @__PURE__ */ new Map();
+  const handoffList = [];
+  const reviews = [];
+  for (const h of handoffs) {
+    const name = bareAgentName(h.origin ?? "");
+    if (!name) continue;
+    const a = agentOfRun(name);
+    const ok = h.status === "success";
+    if (ok) a.success += 1;
+    else a.failure += 1;
+    if (typeof h.ctx_pct === "number") a.ctx_pct = Math.max(a.ctx_pct ?? 0, h.ctx_pct);
+    const d = h.agent_id ? dispatchById.get(h.agent_id) : void 0;
+    if (d?.ts && h.ts) a.duration_ms += Math.max(0, Date.parse(h.ts) - Date.parse(d.ts)) || 0;
+    const label = h.label || (ok ? "success" : "(none)");
+    handoffList.push({ agent: name, label });
+    if (h.status === "condition" && h.label) {
+      a.loop_backs += 1;
+      const key = `${name}\0${h.label}`;
+      const lb = loopMap.get(key) ?? { from: name, label: h.label, count: 0 };
+      lb.count += 1;
+      loopMap.set(key, lb);
+    }
+    if (ok && reviewAfter.includes(name)) {
+      const idx = log.indexOf(h);
+      const next = log.slice(idx + 1).find((e) => e.kind === "dispatch" && e.meeting !== true);
+      let outcome = "no_decision";
+      if (next) {
+        const nextPos = order.indexOf(bareAgentName(next.agent ?? ""));
+        outcome = nextPos > order.indexOf(name) ? "approved" : "changes_requested";
+      }
+      reviews.push({ after: name, outcome });
+      a.human_reviews += 1;
+    }
+  }
+  const skills = /* @__PURE__ */ new Set();
+  for (const e of log) {
+    const m = /^Skill\((.+)\)$/.exec(e.log ?? "");
+    if (m && m[1] && skillIds.has(m[1])) skills.add(m[1]);
+  }
+  const ctxs = log.map((e) => e.ctx_pct).filter((n) => typeof n === "number");
+  const last = handoffs[handoffs.length - 1];
+  return {
+    id: session?.run_id || sessionId,
+    workflow,
+    task: session?.active_task ? import_node_path12.default.basename(session.active_task) : null,
+    started_at,
+    ended_at,
+    duration_ms,
+    agents: [...agents.values()],
+    skills: [...skills],
+    handoffs: handoffList,
+    loop_backs: [...loopMap.values()],
+    human_reviews: reviews,
+    ctx_pct: ctxs.length ? Math.max(...ctxs) : null,
+    team_meeting: teamMeeting,
+    outcome: last && last.status === "success" ? "success" : "failure"
+  };
+}
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function withLock(dir, fn) {
+  import_node_fs14.default.mkdirSync(dir, { recursive: true });
+  const lock = import_node_path12.default.join(dir, "lock");
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  let held = false;
+  for (; ; ) {
+    try {
+      import_node_fs14.default.mkdirSync(lock);
+      held = true;
+      break;
+    } catch (err) {
+      if (err.code !== "EEXIST") break;
+      try {
+        if (Date.now() - import_node_fs14.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
+          import_node_fs14.default.rmSync(lock, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      if (Date.now() > deadline) break;
+      sleepSync(15 + Math.floor(Math.random() * 30));
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    if (held) import_node_fs14.default.rmSync(lock, { recursive: true, force: true });
+  }
+}
+function readMetrics(projectRoot) {
+  try {
+    const v = JSON.parse(import_node_fs14.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
+    if (v && v.version === 1 && Array.isArray(v.runs) && v.totals?.by_workflow && v.totals?.by_agent) return v;
+  } catch {
+  }
+  return emptyMetrics();
+}
+function recentRunsLimit(cfg) {
+  const n = cfg?.metrics?.recent_runs;
+  return typeof n === "number" && Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_RECENT_RUNS;
+}
+function recordRun(projectRoot, run, keep = DEFAULT_RECENT_RUNS) {
+  const dir = metricsDirFor(projectRoot);
+  withLock(dir, () => {
+    const gi = import_node_path12.default.join(dir, ".gitignore");
+    if (!import_node_fs14.default.existsSync(gi)) import_node_fs14.default.writeFileSync(gi, "*\n");
+    const file = readMetrics(projectRoot);
+    const runs = file.runs.filter((r) => r.id !== run.id);
+    runs.push(run);
+    const next = compact({ ...file, runs }, keep);
+    const target = metricsFileFor(projectRoot);
+    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    import_node_fs14.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
+    import_node_fs14.default.renameSync(tmp, target);
+  });
+}
+function recordSessionRun(projectRoot, sessionId) {
+  const claudeDir = import_node_path12.default.join(projectRoot, ".claude");
+  const paths = sessionPathsFor(claudeDir, sessionId);
+  if (!paths) return false;
+  let raw;
+  try {
+    raw = import_node_fs14.default.readFileSync(paths.log, "utf8");
+  } catch {
+    return false;
+  }
+  const entries = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      entries.push(JSON.parse(line));
+    } catch {
+    }
+  }
+  const readJson2 = (p) => {
+    try {
+      return JSON.parse(import_node_fs14.default.readFileSync(p, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const cfg = readJson2(import_node_path12.default.join(claudeDir, "maestro.json"));
+  const run = buildRunRecord(entries, readJson2(paths.state), cfg, paths.id);
+  if (!run) return false;
+  recordRun(projectRoot, run, recentRunsLimit(cfg));
+  return true;
+}
+function mins(ms) {
+  return ms >= 6e4 ? `${(ms / 6e4).toFixed(1)}m` : `${Math.round(ms / 1e3)}s`;
+}
+function totalsRow(name, t) {
+  const ctx = t.avg_ctx_pct == null ? "n/a" : `${t.avg_ctx_pct}%`;
+  return `| ${name} | ${t.runs} | ${t.success}/${t.failure} | ${Math.round(t.loop_back_rate * 100)}% | ${Math.round(t.human_review_rate * 100)}% | ${mins(t.avg_duration_ms)} | ${ctx} | ${t.first_seen} - ${t.last_seen} |`;
+}
+function renderMetricsDigest(file) {
+  const wf = Object.entries(file.totals.by_workflow);
+  const ag = Object.entries(file.totals.by_agent);
+  if (file.runs.length === 0 && wf.length === 0) return null;
+  const L = [];
+  if (file.runs.length > 0) {
+    L.push(`#### Recent runs (${file.runs.length}, newest last)`, "");
+    for (const r of file.runs) {
+      const loops = r.loop_backs.map((l) => `${l.from}:${l.label} x${l.count}`).join(", ") || "none";
+      const reviews = r.human_reviews.map((h) => `after ${h.after}: ${h.outcome}`).join(", ") || "none";
+      const ctx = r.ctx_pct == null ? "n/a" : `${r.ctx_pct}%`;
+      L.push(
+        `- ${r.started_at.slice(0, 10)} \`${r.workflow}\`${r.team_meeting ? " (team meeting)" : ""} - ${r.outcome}, ${mins(r.duration_ms)}, peak ctx ${ctx}; agents: ${r.agents.map((a) => `${a.agent} x${a.runs}`).join(", ") || "none"}; loop-backs: ${loops}; human review: ${reviews}` + (r.skills.length ? `; skills: ${r.skills.join(", ")}` : "") + (r.task ? `; task: \`.claude/maestro-tasks/${r.task}\`` : "")
+      );
+    }
+    L.push("");
+  }
+  const header = [
+    "| | runs | ok/fail | loop-backs per run | human reviews per run | avg duration | avg ctx | seen |",
+    "|---|---|---|---|---|---|---|---|"
+  ];
+  if (wf.length > 0) {
+    L.push("#### Totals of older runs, by workflow (folded, cross-session trends)", "", ...header);
+    for (const [k, t] of wf) L.push(totalsRow(k, t));
+    L.push("");
+  }
+  if (ag.length > 0) {
+    L.push("#### Totals of older runs, by agent", "", ...header);
+    for (const [k, t] of ag) L.push(totalsRow(k, t));
+    L.push("");
+  }
+  return L.join("\n");
+}
+
+// src/core/session-name.ts
+var import_node_fs16 = __toESM(require("node:fs"), 1);
+var import_node_path14 = __toESM(require("node:path"), 1);
+
+// src/core/claims.ts
+var import_node_fs15 = __toESM(require("node:fs"), 1);
+var import_node_path13 = __toESM(require("node:path"), 1);
+var CLAIMS_DIR_NAME = "claims";
+function claimsDirFor(tasksDir) {
+  return import_node_path13.default.join(tasksDir, CLAIMS_DIR_NAME);
+}
+
+// src/core/session-name.ts
+var MANAGER_PREFIX = "maestro-mgr-";
+var WORKER_PREFIX = "maestro-";
+function sessionNameFor(sessionId, role) {
+  if (!isValidSessionId(sessionId)) return null;
+  const id8 = sessionId.slice(0, 8);
+  return `${role === "manager" ? MANAGER_PREFIX : WORKER_PREFIX}${id8}`;
+}
+function entranceRoleFor(name) {
+  if (typeof name !== "string") return null;
+  const bare = name.trim().replace(/^\//, "").split(":").pop() ?? "";
+  if (bare === "maestro") return "worker";
+  if (bare === "maestro-manager") return "manager";
+  return null;
+}
+function promptEntranceRole(prompt) {
+  if (typeof prompt !== "string") return null;
+  const first = prompt.trimStart().split(/\s/, 1)[0] ?? "";
+  return first.startsWith("/") ? entranceRoleFor(first) : null;
+}
+function hasMaestroConfig(claudeDir) {
+  try {
+    return import_node_fs16.default.statSync(import_node_path14.default.join(claudeDir, "maestro.json")).isFile();
+  } catch {
+    return false;
+  }
+}
+function readState(statePath) {
+  const data = readJson(statePath);
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+}
+function storedFrom(state) {
+  const name = typeof state.session_name === "string" ? state.session_name.trim() : "";
+  if (!name) return null;
+  const role = state.session_name_role === "manager" || state.session_name_role === "worker" ? state.session_name_role : null;
+  return { name, role, custom: state.session_name_custom === true, applied: state.session_name_applied === true };
+}
+function patchState(claudeDir, sessionId, patch) {
+  const paths = ensureSessionPaths(claudeDir, { session_id: sessionId });
+  if (!paths) return;
+  const state = readState(paths.state);
+  writeSession(paths.state, { ...state, ...patch });
+}
+function storedSessionName(claudeDir, sessionId) {
+  const paths = sessionPathsFor(claudeDir, sessionId);
+  if (!paths) return null;
+  return storedFrom(readState(paths.state));
+}
+function storedName(claudeDir, sessionId) {
+  return storedSessionName(claudeDir, sessionId)?.name ?? null;
+}
+function noteEntrance(claudeDir, sessionId, role) {
+  if (!isValidSessionId(sessionId) || !hasMaestroConfig(claudeDir)) return null;
+  const existing = storedName(claudeDir, sessionId);
+  if (existing) return existing;
+  const name = sessionNameFor(sessionId, role);
+  if (!name) return null;
+  patchState(claudeDir, sessionId, { session_name: name, session_name_role: role, session_name_applied: false });
+  return name;
+}
+function listJson(dir) {
+  try {
+    return import_node_fs16.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+}
+function listDirs2(dir) {
+  try {
+    return import_node_fs16.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+function roleOfName(name) {
+  return name.startsWith(MANAGER_PREFIX) ? "manager" : "worker";
+}
+function rederiveSessionName(claudeDir, sessionId) {
+  if (!isValidSessionId(sessionId)) return null;
+  const root = mainCheckoutRoot(import_node_path14.default.dirname(claudeDir));
+  const claims = claimsDirFor(import_node_path14.default.join(root, ".claude", "maestro-tasks"));
+  for (const file of listJson(claims)) {
+    const claim = readJson(import_node_path14.default.join(claims, file));
+    if (!claim || claim.session_id !== sessionId) continue;
+    if (typeof claim.session_name === "string" && claim.session_name.trim()) {
+      const name = claim.session_name.trim();
+      return { name, role: roleOfName(name) };
+    }
+  }
+  const manager = sessionNameFor(sessionId, "manager");
+  const worker = sessionNameFor(sessionId, "worker");
+  const epicsRoot = import_node_path14.default.join(root, ".claude", "epics");
+  let asWorker = null;
+  for (const slug of listDirs2(epicsRoot)) {
+    const state = readJson(
+      import_node_path14.default.join(epicsRoot, slug, "state.json")
+    );
+    if (!state) continue;
+    if (manager && state.manager?.name === manager) return { name: manager, role: "manager" };
+    const workers = Array.isArray(state.workers) ? state.workers : [];
+    if (worker && workers.some((w) => w && w.name === worker)) asWorker = worker;
+  }
+  return asWorker ? { name: asWorker, role: "worker" } : null;
+}
+function customTitleOf(payload) {
+  return typeof payload.session_title === "string" && payload.session_title.trim() ? payload.session_title.trim() : null;
+}
+function titleFor(claudeDir, payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const event = payload.hook_event_name;
+  if (event !== "SessionStart" && event !== "UserPromptSubmit") return null;
+  const sessionId = resolveSessionId(payload);
+  if (!sessionId || !hasMaestroConfig(claudeDir)) return null;
+  const custom = customTitleOf(payload);
+  const stored = storedSessionName(claudeDir, sessionId);
+  if (!stored && event === "SessionStart") {
+    const found = rederiveSessionName(claudeDir, sessionId);
+    if (!found) return null;
+    if (custom) {
+      patchState(claudeDir, sessionId, {
+        session_name: custom,
+        session_name_role: found.role,
+        session_name_custom: custom !== found.name,
+        session_name_applied: true
+      });
+      return null;
+    }
+    patchState(claudeDir, sessionId, {
+      session_name: found.name,
+      session_name_role: found.role,
+      session_name_applied: true
+    });
+    return found.name;
+  }
+  if (!stored) return null;
+  if (custom && custom !== stored.name) {
+    patchState(claudeDir, sessionId, { session_name: custom, session_name_custom: true, session_name_applied: true });
+    return null;
+  }
+  if (custom === stored.name) {
+    if (!stored.applied) patchState(claudeDir, sessionId, { session_name_applied: true });
+    return null;
+  }
+  if (event === "UserPromptSubmit" && stored.applied) return null;
+  if (!stored.applied) patchState(claudeDir, sessionId, { session_name_applied: true });
+  return stored.name;
+}
+
+// src/core/meeting-mode.ts
+var import_node_fs17 = __toESM(require("node:fs"), 1);
+var import_node_path15 = __toESM(require("node:path"), 1);
+var MEETING_DIR_NAME = "meeting";
+var MEETING_LEFTOVERS_KEY = "meeting_leftovers";
+var MEETING_MODES = ["review", "post-mortem"];
+function meetingDirFor(sessionDir) {
+  return import_node_path15.default.join(sessionDir, MEETING_DIR_NAME);
+}
+function readMeeting(session) {
+  if (!session || typeof session !== "object") return null;
+  const m = session.meeting;
+  if (!m || typeof m !== "object") return null;
+  const v = m;
+  if (typeof v.id !== "string" || !v.id) return null;
+  if (typeof v.mode !== "string" || !MEETING_MODES.includes(v.mode)) return null;
+  if (typeof v.dir !== "string") return null;
+  if (!Array.isArray(v.participants) || !v.participants.every((p) => typeof p === "string")) return null;
+  return {
+    id: v.id,
+    mode: v.mode,
+    dir: v.dir,
+    participants: v.participants.map((p) => bareAgentName(p)).filter(Boolean),
+    started_at: typeof v.started_at === "string" ? v.started_at : ""
+  };
+}
+function meetingFor(session, agentType) {
+  const bare = bareAgentName(agentType);
+  if (!bare) return null;
+  const meeting = readMeeting(session);
+  return meeting && meeting.participants.includes(bare) ? meeting : null;
+}
+function withoutMeeting(session) {
+  const copy = { ...session };
+  delete copy.meeting;
+  return copy;
+}
+function readRawState(statePath) {
+  try {
+    const parsed = JSON.parse(import_node_fs17.default.readFileSync(statePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function writeRawState(statePath, state) {
+  import_node_fs17.default.mkdirSync(import_node_path15.default.dirname(statePath), { recursive: true });
+  const tmp = statePath + ".tmp";
+  import_node_fs17.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  import_node_fs17.default.renameSync(tmp, statePath);
+}
+function startMeeting(statePath, sessionDir, opts) {
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  const dir = meetingDirFor(sessionDir);
+  import_node_fs17.default.mkdirSync(dir, { recursive: true });
+  const meeting = {
+    id: `m-${now.getTime()}`,
+    mode: opts.mode,
+    dir,
+    participants: [...new Set(opts.participants.map((p) => bareAgentName(p)).filter(Boolean))],
+    started_at: now.toISOString()
+  };
+  writeRawState(statePath, { ...readRawState(statePath), meeting });
+  return meeting;
+}
+function meetingLeftovers(session) {
+  if (!session || typeof session !== "object") return [];
+  const raw = session[MEETING_LEFTOVERS_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (m) => !!m && typeof m === "object" && typeof m.path === "string" && typeof m.mtimeMs === "number" && typeof m.size === "number"
+  );
+}
+function closeMeeting(session, projectDir, scope) {
+  if (!("meeting" in session)) return { state: session, ended: false };
+  const participants = readMeeting(session)?.participants ?? [];
+  const byPath = new Map(meetingLeftovers(session).map((m) => [m.path, m]));
+  for (const participant of participants) {
+    for (const mark of unstampedFilesOf(projectDir, scope, participant)) byPath.set(mark.path, mark);
+  }
+  const state = withoutMeeting(session);
+  if (byPath.size > 0) state[MEETING_LEFTOVERS_KEY] = [...byPath.values()];
+  return { state, ended: true };
+}
+function projectDirOfState(statePath) {
+  return import_node_path15.default.resolve(statePath, "..", "..", "..", "..");
+}
+function scopeOfState(statePath, state) {
+  return channelScopeFromState(state, import_node_path15.default.basename(import_node_path15.default.dirname(statePath)));
+}
+function endMeeting(statePath, projectDir = projectDirOfState(statePath)) {
+  if (!import_node_fs17.default.existsSync(statePath)) return false;
+  const raw = readRawState(statePath);
+  const { state, ended } = closeMeeting(raw, projectDir, scopeOfState(statePath, raw));
+  if (ended) writeRawState(statePath, state);
+  return ended;
+}
+var OWNER_RUNS_KEY = "owner_runs";
+var OWNER_RUN_LEFTOVERS_KEY = "owner_run_leftovers";
+function readOwnerRuns(session) {
+  if (!session || typeof session !== "object") return null;
+  const v = session[OWNER_RUNS_KEY];
+  if (!v || typeof v !== "object") return null;
+  const o = v;
+  if (!Array.isArray(o.agents) || !o.agents.every((a) => typeof a === "string")) return null;
+  return {
+    meeting_id: typeof o.meeting_id === "string" ? o.meeting_id : "",
+    agents: o.agents.map((a) => bareAgentName(a)).filter(Boolean),
+    started_at: typeof o.started_at === "string" ? o.started_at : ""
+  };
+}
+function ownerRunFor(session, agentType) {
+  const bare = bareAgentName(agentType);
+  if (!bare) return null;
+  const state = readOwnerRuns(session);
+  return state && state.agents.includes(bare) ? state : null;
+}
+function startOwnerRuns(statePath, opts) {
+  const state = {
+    meeting_id: opts.meetingId,
+    agents: [...new Set(opts.agents.map((a) => bareAgentName(a)).filter(Boolean))],
+    started_at: (opts.now ?? /* @__PURE__ */ new Date()).toISOString()
+  };
+  writeRawState(statePath, { ...readRawState(statePath), [OWNER_RUNS_KEY]: state });
+  return state;
+}
+function ownerRunLeftovers(session) {
+  if (!session || typeof session !== "object") return [];
+  const raw = session[OWNER_RUN_LEFTOVERS_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (m) => !!m && typeof m === "object" && typeof m.path === "string" && typeof m.mtimeMs === "number" && typeof m.size === "number"
+  );
+}
+function closeOwnerRuns(session, projectDir, scope) {
+  if (!(OWNER_RUNS_KEY in session)) return { state: session, ended: false };
+  const agents = readOwnerRuns(session)?.agents ?? [];
+  const byPath = new Map(ownerRunLeftovers(session).map((m) => [m.path, m]));
+  for (const agent of agents) {
+    for (const mark of unstampedFilesOf(projectDir, scope, agent)) byPath.set(mark.path, mark);
+  }
+  const state = { ...session };
+  delete state[OWNER_RUNS_KEY];
+  if (byPath.size > 0) state[OWNER_RUN_LEFTOVERS_KEY] = [...byPath.values()];
+  return { state, ended: true };
+}
+function endOwnerRuns(statePath, projectDir = projectDirOfState(statePath)) {
+  if (!import_node_fs17.default.existsSync(statePath)) return false;
+  const raw = readRawState(statePath);
+  const { state, ended } = closeOwnerRuns(raw, projectDir, scopeOfState(statePath, raw));
+  if (ended) writeRawState(statePath, state);
+  return ended;
+}
+function ownerRunNotice(state, agentType) {
+  const bare = bareAgentName(agentType);
+  return `Maestro owner run (${state.meeting_id || "team meeting"}): you are applying changes a team meeting approved for you (${bare}). This is NOT a workflow step.
+- Ignore any HANDOFF routing line, handoff payload / channel-file instruction or mandatory output format from an earlier run in your history. Do not end with a HANDOFF: line and do not write anything under .claude/channels/.
+- Otherwise work as normal: use your own skills and tools, and make exactly the approved changes the moderator names \u2014 nothing more.
+- End your reply with a short summary of what you changed.`;
+}
+function meetingNotice(meeting, agentType) {
+  const bare = bareAgentName(agentType);
+  return `Maestro team meeting in progress (${meeting.mode}, ${meeting.id}). This run is a meeting turn, NOT a workflow step:
+- Ignore every HANDOFF routing line, handoff payload / channel-file instruction and mandatory output format you were given, including any from an earlier run in your history. Do not end with a HANDOFF: line.
+- Do not write anything under .claude/channels/. Your only writable location is the meeting directory: ${meeting.dir}/ \u2014 write your proposals to the round file the moderator names (e.g. round-1/${bare}.json).
+- Propose, never apply: do not edit project files, agents, skills, rules or .claude/maestro.json. Bash is for read-only checks only \u2014 never write or modify a file with it.
+- Follow the moderator's brief, and end your reply with one short line saying what you wrote.`;
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CHANNEL_AGE_CAP_MS,
+  CHANNEL_ONLY_AGENTS,
   CLAIM_IDLE_CAP_MS,
+  DEFAULT_RECENT_RUNS,
+  HANDBACK_POLL_MS,
+  HANDBACK_TOOLS,
+  HANDBACK_WAIT_MS,
+  HEARTBEAT_INTERVAL_ENV,
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_STALE_MS,
+  HUMAN_REVIEW_LABEL,
   LEGACY_SESSION_FILES,
+  MAIN_CHECKOUT_SHARED_DIRS,
+  MANAGER_REVIEW_LABEL,
+  MEETING_DIR_NAME,
+  MEETING_LEFTOVERS_KEY,
+  METRICS_DIR_NAME,
+  METRICS_FILE_NAME,
+  NO_SESSION_SCOPE,
+  OWNER_RUNS_KEY,
+  OWNER_RUN_LEFTOVERS_KEY,
   PRIOR_HANDOFF_SEEDS,
+  RESUMABLE_END_REASONS,
   SEED_HANDOFFS,
   SESSIONS_DIR_NAME,
+  SESSION_HEARTBEAT_NAME,
+  SESSION_HEARTBEAT_PID_NAME,
   SESSION_ID_ENV,
   SESSION_LOG_FILE,
   SESSION_LOG_NAME,
   SESSION_STATE_NAME,
   SESSION_TASKS_NAME,
+  SESSION_WORKTREE_NAME,
+  acknowledgeGaps,
   agentRunsFromLog,
+  appendHandoffIssue,
   appendSessionLog,
+  awaitHandback,
   bareAgentName,
+  buildRunRecord,
   channelDir,
+  channelRelPath,
+  channelScopeFromState,
+  channelScopeOf,
+  checkChannelWrite,
+  checkHandoff,
+  checkHumanReview,
+  checkPayload,
+  checkRoute,
+  checkWorktreeWrite,
+  closeMeeting,
+  closeOwnerRuns,
   collectAgentSkills,
+  compactMetrics,
+  compareRuntimeVersions,
+  consumedDir,
+  currentReviewRound,
+  currentReviewStop,
+  dependencyStatus,
+  detectPackageManager,
+  dropResolvedMissingPayloads,
   duplicateAgentTypes,
+  endMeeting,
+  endOwnerRuns,
+  endSessionState,
   ensureSessionPaths,
   ensureSessionRunId,
   ensureSessionsRoot,
+  entranceRoleFor,
+  expectedLoopbackPayloads,
+  foldRun,
   formatStampedContent,
+  freeformBranchFor,
+  freeformWorktreePathFor,
+  handbackHandoff,
   handoffId,
   handoffPairs,
   handoffRoutes,
   hasCompletedRun,
+  hasHandbackCall,
+  heartbeatIntervalMs,
+  heartbeatTargets,
+  heartbeatTick,
+  heartbeatVerdict,
+  installCommand,
+  isChannelOnlyAgent,
+  isChannelScope,
+  isFreeformBranch,
+  isGapReport,
+  isLinkedWorktree,
+  isProcessAlive,
+  isResumableEnd,
+  isReviewFile,
   isRootSkillPath,
   isSeededHandoff,
   isValidHandoffId,
   isValidSessionId,
   laneFor,
+  lastHandoffLabel,
+  latestWorkflowHandoff,
   listSessionIds,
+  mainCheckoutRoot,
+  meetingDirFor,
+  meetingFor,
+  meetingLeftovers,
+  meetingNotice,
+  metricsDirFor,
+  metricsFileFor,
+  missingDependenciesNotice,
+  missingLoopbackPayload,
   nodeLabel,
+  noteEntrance,
+  ownerRunFor,
+  ownerRunLeftovers,
+  ownerRunNotice,
+  parentProbe,
+  parseGapsHandled,
+  parsePsLine,
   parseStampedContent,
+  payloadRequirement,
+  payloadRoutes,
+  payloadWrittenSince,
+  pendingLanes,
+  pendingResumeDeliveries,
+  processInfo,
   projectOwnsHook,
+  promptEntranceRole,
   readJson,
   readLane,
+  readLogLines,
+  readMeeting,
+  readMetrics,
+  readOwnerRuns,
+  readProjectHandoff,
   readSession,
   readStdin,
+  readWorktreePointer,
+  recentRunsLimit,
+  recordActiveTask,
+  recordResumeDeliveries,
+  recordRun,
+  recordSessionRun,
+  rederiveSessionName,
   removeSessionState,
+  renderMetricsDigest,
+  reportVerdict,
   resolveHandoff,
   resolveProjectSkillPath,
   resolveSearchList,
@@ -954,16 +3000,36 @@ function isRootSkillPath(root, skillPath) {
   resolveWorkflowName,
   resumeTarget,
   retire,
+  retireResumeDeliveries,
+  retireScope,
+  reviewFileName,
   routesFrom,
+  runStartedAt,
+  runtimeNeedsRefresh,
+  sendMessageHandoff,
+  sessionDirsFor,
   sessionLogPath,
+  sessionNameFor,
   sessionPathsFor,
   sessionsRoot,
   splitHandoffId,
+  startMeeting,
+  startOwnerRuns,
+  storedName,
+  storedSessionName,
   successPathSteps,
   sweep,
+  taskNumber,
+  titleFor,
+  unstampedFilesOf,
   validateConfig,
   walkProjectSkillIds,
+  watchedPid,
+  withoutMeeting,
   workflowNodeLabels,
+  worktreeBranchFor,
+  worktreePathFor,
+  writeHeartbeatPid,
   writeSession,
   writeStamp
 });

@@ -1,0 +1,11 @@
+{
+  "note": "Reference doc fix for bench case d3-scribe-channel-age-cap (051). Never shown to a model: bench/edit-check.mjs applies it to prove the grader gives full marks to a correct fix.",
+  "edits": [
+    { "file": ".claude/skills/maestro-architecture/sub-concepts/channels.md", "from": "`CHANNEL_AGE_CAP_MS` (14 days)", "to": "`CHANNEL_AGE_CAP_MS` (7 days)" },
+    { "file": ".claude/skills/maestro-architecture/sub-concepts/channels.md", "from": "ages it out (14 days)", "to": "ages it out (7 days)" },
+    { "file": ".claude/skills/maestro-architecture/sub-concepts/channels.md", "from": "the 14-day cap", "to": "the 7-day cap" },
+    { "file": ".claude/skills/maestro-architecture/SKILL.md", "from": "or the 14-day sweep retires", "to": "or the 7-day sweep retires" },
+    { "file": ".claude/skills/maestro-architecture/SKILL.md", "from": "and the 14-day sweep. |", "to": "and the 7-day sweep. |" },
+    { "file": "plugins/maestro/docs/app/tools-tasks-runtime.md", "from": "14-day age limit", "to": "7-day age limit" }
+  ]
+}

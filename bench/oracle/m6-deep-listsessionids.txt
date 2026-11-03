@@ -1,0 +1,27 @@
+# Impact (in, depth 2): listSessionIds
+
+## Direct callers
+
+- @apps/maestro/src/core/session-log.ts:254 — `tailSessionLogs`
+- @apps/maestro/src/core/session-log.ts:21 — `newestSessionLog`
+- @apps/maestro/src/core/worktree-tabs.ts:21 — `worktreeHasLog`
+- @apps/maestro/src/core/session-log.ts:21 — `newestSessionLog`
+- @apps/maestro/src/core/session-sweep.ts:196 — `listDeletableSessions`
+- @apps/maestro/src/core/session-log.ts:254 — `tailSessionLogs`
+- @apps/maestro/src/core/session-sweep.ts:117 — `sweepStaleSessions`
+- @apps/maestro/src/core/session-log.ts:21 — `newestSessionLog`
+- @apps/maestro/src/core/session-log.ts:254 — `tailSessionLogs`
+- @apps/maestro/src/core/handoff-channels.ts:398 — `liveRunIds`
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/core/worktree-tabs.ts:79 — `createWorktreeTabs`
+- @apps/maestro/src/core/session-log.ts:44 — `sessionLogFileFor`
+- @apps/maestro/src/core/worktree-tabs.ts:28 — `describeWorktrees`
+- @apps/maestro/src/core/session-log.ts:44 — `sessionLogFileFor`
+- @apps/maestro/src/main/ipc.ts:492 — `registerIpc`
+- @apps/maestro/src/core/session-ipc.ts:54 — `sweepAndRetarget`
+- @apps/maestro/src/core/session-log.ts:44 — `sessionLogFileFor`
+- @apps/maestro/src/main/ipc.ts:293 — `startTail`
+- @apps/maestro/src/core/handoff-channels.ts:415 — `pendingLanes`
+

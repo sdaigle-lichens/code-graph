@@ -1,0 +1,20 @@
+# Impact (both, depth 2): pendingLanes
+
+## Direct neighbors
+
+- @apps/maestro/src/main/ipc.ts:1265 — `registerIpc`
+- @apps/maestro/src/core/handoff-channels.ts:418 — `channelsRoot`
+- @apps/maestro/src/core/handoff-channels.ts:419 — `readLane`
+- @apps/maestro/src/core/handoff-channels.ts:418 — `listDirs`
+- @apps/maestro/src/core/handoff-channels.ts:416 — `liveRunIds`
+
+## Indirect neighbors (depth 2)
+
+- @apps/maestro/src/core/handoff-channels.ts:51 — `channelDir`
+- @apps/maestro/src/core/handoff-channels.ts:90 — `parseStampedContent`
+- @apps/maestro/src/core/handoff-channels.ts:112 — `listFiles`
+- @apps/maestro/src/core/handoff-channels.ts:96 — `senderOf`
+- @apps/maestro/src/core/session-paths.ts:218 — `listSessionIds`
+- @apps/maestro/src/core/session-runtime.ts:68 — `readSession`
+- @apps/maestro/src/core/session-paths.ts:159 — `sessionPathsFor`
+

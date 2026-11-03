@@ -1,0 +1,21 @@
+# Cross: installing-maestro ↔ maestro-config-model
+
+- `installing-maestro::installStatus` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::readConfig`
+- `installing-maestro::refreshStaleRuntime` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installStatus` --calls--> `maestro-config-model::readJsonSafe`
+- `installing-maestro::uninstallPlan` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::duplicateAgentTypes`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::readJsonSafe`
+- `installing-maestro::purgeTargets` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::readConfig`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::writeRuntimeVersion`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::writeConfig`
+- `installing-maestro::uninstallRuntime` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::maestroConfigRefusal`
+- `installing-maestro::refreshStaleRuntime` --calls--> `maestro-config-model::readJsonSafe`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::writeConfig`
+- `installing-maestro::installRuntime` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::installStatus` --calls--> `maestro-config-model::maestroJsonPath`
+- `installing-maestro::uninstallRuntime` --calls--> `maestro-config-model::maestroJsonPath`

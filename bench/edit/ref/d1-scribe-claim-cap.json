@@ -1,0 +1,10 @@
+{
+  "note": "Reference doc fix for bench case d1-scribe-claim-cap (044). Never shown to a model: bench/edit-check.mjs applies it to prove the grader gives full marks to a correct fix.",
+  "edits": [
+    { "file": ".claude/skills/task-queue/sub-concepts/task-claims.md", "from": "`CLAIM_IDLE_CAP_MS` (15 minutes,", "to": "`CLAIM_IDLE_CAP_MS` (30 minutes," },
+    { "file": ".claude/skills/maestro-architecture/sub-concepts/session-end-reasons.md", "from": "`CLAIM_IDLE_CAP_MS` (15 min)", "to": "`CLAIM_IDLE_CAP_MS` (30 min)" },
+    { "file": "apps/maestro/.claude/skills/log-view/SKILL.md", "from": "**15 min** (`SESSION_DELETE_IDLE_CAP_MS`", "to": "**30 min** (`SESSION_DELETE_IDLE_CAP_MS`" },
+    { "file": "apps/maestro/.claude/skills/log-view/SKILL.md", "from": "The 15-minute rule", "to": "The 30-minute rule" },
+    { "file": "apps/maestro/.claude/skills/log-view/SKILL.md", "from": "a live claim is within 15 min", "to": "a live claim is within 30 min" }
+  ]
+}

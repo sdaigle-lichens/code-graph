@@ -28,8 +28,8 @@
   },
   {
     "id": "task-2-traversal-expansion",
-    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate.",
-    "prompt": "graph traversal expansion",
+    "provenance": "Expectations verified against this project's pre-migration ArangoDB output before being used as the post-migration gate. Prompt reworded in 0.3.28 (was \"graph traversal expansion\") so it passes on an un-enriched store: porter stems \"expansion\" and \"expand\" differently, and queryImpact is only reachable through \"impact\".",
+    "prompt": "expand graph traversal impact",
     "mode": "search",
     "expected": {
       "concepts_in_top_clusters": [
@@ -117,6 +117,32 @@
           "name": "truncate",
           "k": 3
         }
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-6-docs-only-concept",
+    "provenance": "Written for docs-only concepts (zero vertices, skill doc only). Expectations are NOT validated against pre-migration output.",
+    "prompt": "docs-only concept skill resolution skillsDir",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "concept-skills-layer"
+      ],
+      "skill_present": true,
+      "min_cross_concept_edges": 0
+    }
+  },
+  {
+    "id": "task-7-marker-stamped-skill",
+    "provenance": "Written for marker-stamped concept skills (scribe-pipeline's SKILL.md carries metadata.type: concept-skill). The prompt is phrased from that skill's own Traps text, so the doc vertex must surface. Expectations are NOT validated against pre-migration output.",
+    "prompt": "half-failed apply leaves stale FTS index",
+    "mode": "search",
+    "expected": {
+      "concepts_in_top_clusters": [
+        "scribe-pipeline"
       ],
       "skill_present": true,
       "min_cross_concept_edges": 0

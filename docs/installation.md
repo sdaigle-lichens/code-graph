@@ -14,16 +14,36 @@
 5. Put the CLI on PATH with `just link` (`pnpm add -g "$(pwd)/packages/code-graph"`). The workspace
    root is private and has no `bin`, so linking the root installs nothing. Requires `PNPM_HOME` /
    `pnpm bin -g` to be on PATH. Note `pnpm link --global` was removed in pnpm 10.
+   On macOS the global bin dir is `~/Library/pnpm/bin`. If `just link` fails with
+   `ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH`, run `pnpm setup` (or add
+   `export PNPM_HOME="$HOME/Library/pnpm"` and `export PATH="$PNPM_HOME/bin:$PATH"` to `~/.zshrc`),
+   then open a new shell. If `pnpm` then fails with `.../global/v11/.../node_modules/pnpm/pnpm: No
+   such file or directory`, a broken self-installed `pnpm` in that bin dir is shadowing Homebrew's:
+   check `which -a pnpm`, remove `~/Library/pnpm/bin/pnpm` and `pnpx`, run `hash -r`, and update
+   pnpm with `brew upgrade pnpm` rather than `pnpm self-update`.
 6. Verify `code-graph --version`
 7. Start a Claude Code session with the plugin loaded: `claude --plugin-dir /path/to/code-graph/plugin`
 
-Inside that session, `/graph`, `/scribe-enrich`, and the `scribe-code-graph` skill are available. The `code-graph-retrieval` skill also ships with the plugin and triggers automatically when Claude needs to understand code in a project that has a `scribe.config.json`.
+Inside that session, `/graph` and the concept-skill skills (`add-concept`, `create-concept-skills`, `update-concept-skills`, `update-single-concept-skill`, `scribe`, the design skills and the `code-graph-install|update|uninstall` trio) are available.
 
-## Make Claude prefer the graph (recommended)
+### Enable it per project
 
-The `code-graph-retrieval` skill nudges Claude to query the graph before grepping, but
-skill triggering is probabilistic. Reinforce it by adding this block to the **consumer
-project's** `CLAUDE.md` (the project being read — not this repo):
+To switch the plugin on for one project rather than passing `--plugin-dir` each time, run the
+`code-graph-install` skill in that project. It adds `"code-graph@code-graph": true` to
+`.claude/settings.json` `enabledPlugins` (every other key untouched) and, when a legacy
+`.claude/concept-skills.json` from maestro's concept-skills plugin exists, migrates it into the `skills` block of
+`scribe.config.json` with its **version unchanged** (`last_update` and `agents` too). Re-runnable.
+`code-graph-update` re-checks that setup after a plugin update; `code-graph-uninstall` removes the
+`enabledPlugins` entry and leaves every SKILL.md, `scribe.config.json` and the graph store in place.
+Then run `create-concept-skills` (new project) or `update-concept-skills` (existing list). The plugin carries its own CLI bundle (`plugin/scripts/code-graph.cjs`), so its `code-graph skills *` commands work without the global binary; its graph commands load `ts-morph` (which carries its own TypeScript compiler) from a plugin-owned deps directory first (`$CLAUDE_PLUGIN_DATA/deps/<key>` and `~/.cache/code-graph/deps/<key>`, where `<key>` names the pinned deps, e.g. `ts-morph@28.0.0`, so plugin updates reuse the install; after upgrading from 0.3.7 or earlier run `deps install` once more, and the old `deps/0.3.*` folders can be deleted), then fall back to the consumer project's own install. Populate the plugin directory once with `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" deps install` (an explicit npm download; `/code-graph-install` offers it). Without either location a graph command fails with a message naming that command. In a Claude Code Bash sandbox (`SANDBOX_RUNTIME=1`) `~/.cache` is usually unreadable, so a dir installed from your own shell can look missing. `deps status` tells the cases apart: if the cache root (or its parent) can be listed and the deps dir is not in it, it says missing (run `deps install`); if the cache root cannot be seen at all it says "not visible from this sandboxed session: it may be absent or hidden" and gives both fixes (`deps install` in your own shell, or add `~/.cache/code-graph`, absolute path, to `sandbox.filesystem.allowRead`); a dir that exists but cannot be read (EACCES/EPERM on stat or listing; the macOS sandbox allows stat on a denied `~/.cache` but not a listing) says `not loadable` and names the absolute path(s) to add to `sandbox.filesystem.allowRead`, without suggesting `deps install`. `/code-graph-install` offers that `allowRead` change when the sandbox is enabled, and both it and `/code-graph-update` check deps readability before anything runs `extract`. Graph commands other than `skills *`, `deps *`, `extract` and `catalog` need `node:sqlite` (Node >=22.5, not started with `--no-experimental-sqlite`); without it they exit 8 with one line naming that requirement. `/code-graph-install` also adds the store files (`scribe-output/graph.db*`) to `.gitignore`, leaving `.ast.json` / `.enriched.json` committable. `/code-graph-uninstall` names each of those artefacts (the `.gitignore` line, the `allowRead` entry, the `deps` cache, the gap files under `.claude/channels/scribe/`) and offers to remove each one, default no; it keeps the SKILL.md files, `scribe.config.json` `concepts`, `scribe-output/` and `tsconfig.code-graph.json`. The `code-graph-retrieval` skill also ships with the plugin, but it is user-run: it sets `disable-model-invocation`, so Claude never loads it on its own, and the plugin registers no SessionStart hook and adds no context line to your sessions. Run it with `/code-graph:code-graph-retrieval` or use `/graph` when you want a graph lookup.
+
+## Use the graph on demand (optional)
+
+Graph retrieval is on demand: the plugin does not steer sessions to it. Measurements (see
+`docs/evals.md`, "Decision: retrieval is user-run") found no gain on edit tasks and no cost cut on Opus
+read-only questions, but a real gain on Haiku read-only questions. Run `/graph <query>` or the
+`code-graph-retrieval` skill when you want it. If you want a project to default to the graph anyway,
+add this block to the **consumer project's** `CLAUDE.md` (the project being read — not this repo):
 
 ```md
 ## Code intelligence protocol
@@ -40,10 +60,7 @@ Grep/Glob only for literal text matches or when the graph exits 6 (no results). 
 reflects the last `code-graph apply`, so verify against the file if a pointer looks stale.
 ```
 
-The skill (portable, automatic) plus this rule (project-local reinforcement) together make
-graph-first retrieval the default. For deterministic enforcement, add a `PreToolUse` hook on
-Grep/Glob — but that removes Claude's judgment about graph staleness, so prefer the soft
-layers unless you measure the graph being skipped too often.
+This rule is the consumer's own opt-in; nothing in the plugin adds it.
 
 ## Install Zed editor LSP (optional)
 

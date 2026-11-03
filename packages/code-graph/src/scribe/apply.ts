@@ -3,8 +3,20 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
+import { reportAndThrow as fail } from "../concept-batch.js";
 import { resolveDbPath } from "./db.js";
 import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
+import {
+  applyRemap,
+  enrichmentIsCurrent,
+  isConceptApplied,
+  orphanSummary,
+  planOrphansInStore,
+  writeEnrichedDoc,
+  type OrphanPlan,
+} from "./enrich.js";
+import { formatUnextracted, unextractedChanges } from "./unextracted.js";
+import { EXIT_RENAMES_DEFERRED } from "./exit-codes.js";
 import { docId, docKey, getRecord, inTransaction, mergeRecord, putRecord, toDocs, vertexId } from "./rows.js";
 import {
   AstDocSchema,
@@ -90,7 +102,7 @@ function mergeVertexForInsert(
   > | null,
   now: string
 ): Record<string, unknown> {
-  const doc: Record<string, unknown> = { ...astV };
+  const doc: Record<string, unknown> = { ...astV, ast: { ...astV.ast, extracted_at: now } };
 
   // Apply inherited agent fields (from rename source)
   if (inheritedAgentFields) {
@@ -114,13 +126,15 @@ function mergeVertexForInsert(
     if (ev.cross_concept_refs !== undefined) doc.cross_concept_refs = ev.cross_concept_refs;
     if (ev.document_ref !== undefined) doc.document_ref = ev.document_ref;
     if (ev.tags !== undefined) doc.tags = ev.tags;
-    if (ev.sig_seen !== undefined) {
+    if (ev.sig_seen !== undefined || ev.hash_seen !== undefined) {
       doc.agent = {
         ...(doc.agent as Record<string, unknown>),
         authored_by: "claude",
         authored_at: now,
-        stale: false,
-        sig_seen: ev.sig_seen,
+        // A new vertex whose enrichment was written against a different body is stale on arrival.
+        stale: ev.hash_seen !== undefined && ev.hash_seen !== astV.contentHash,
+        ...(ev.sig_seen !== undefined ? { sig_seen: ev.sig_seen } : {}),
+        ...(ev.hash_seen !== undefined ? { hash_seen: ev.hash_seen } : {}),
       };
     }
   }
@@ -131,7 +145,7 @@ function mergeVertexForInsert(
 function buildAgentUpdate(
   dbV: Vertex,
   ev: EnrichedVertex | undefined,
-  newSignature: string | null,
+  changedTo: Pick<Vertex, "signature" | "contentHash"> | null,
   now: string
 ): Record<string, unknown> {
   const update: Record<string, unknown> = {};
@@ -145,26 +159,55 @@ function buildAgentUpdate(
     if (ev.tags !== undefined) update.tags = ev.tags;
   }
 
-  // For changed vertices: set stale. If sig_seen matches new sig, clear stale.
-  if (newSignature !== null) {
-    const agentUpdate: Record<string, unknown> = { ...dbV.agent, stale: true };
-    if (ev?.sig_seen && ev.sig_seen === newSignature) {
+  const seen: Record<string, unknown> = {};
+  if (ev?.sig_seen !== undefined) seen.sig_seen = ev.sig_seen;
+  if (ev?.hash_seen !== undefined) seen.hash_seen = ev.hash_seen;
+
+  // Changed vertices go stale unless the enrichment was written against the new body (hash_seen),
+  // or, for entries that predate hash_seen, the new signature.
+  if (changedTo !== null) {
+    const agentUpdate: Record<string, unknown> = { ...dbV.agent, stale: true, ...seen };
+    if (enrichmentIsCurrent(ev, changedTo)) {
       agentUpdate.stale = false;
-      agentUpdate.sig_seen = ev.sig_seen;
       agentUpdate.authored_by = "claude";
       agentUpdate.authored_at = now;
-    } else if (ev?.sig_seen) {
-      agentUpdate.sig_seen = ev.sig_seen;
     }
     update.agent = agentUpdate;
-  } else if (ev?.sig_seen !== undefined) {
-    update.agent = { ...dbV.agent, sig_seen: ev.sig_seen };
+  } else if (Object.keys(seen).length > 0) {
+    const agentUpdate: Record<string, unknown> = { ...dbV.agent, ...seen };
+    // Unchanged body: enrichment stamped with this exact hash clears a stale flag left by an earlier edit.
+    if (dbV.agent?.stale === true && ev?.hash_seen !== undefined && ev.hash_seen === dbV.contentHash) {
+      agentUpdate.stale = false;
+      agentUpdate.authored_by = "claude";
+      agentUpdate.authored_at = now;
+    }
+    update.agent = agentUpdate;
   }
 
   return update;
 }
 
-export async function apply(concept: string, opts: { dryRun: boolean; approveDrift: boolean }): Promise<void> {
+/** `drift --json` for a concept never applied: one line instead of every vertex listed as new. */
+export interface NeverAppliedDrift {
+  concept: string;
+  neverApplied: true;
+  /** Vertices in the concept's .ast.json, all of which the first apply will insert. */
+  vertices: number;
+}
+
+/** What `apply --dry-run --json` / `drift --json` reports for one concept. */
+export type DriftJson = NeverAppliedDrift | Record<string, unknown>;
+
+/**
+ * Apply a concept's .ast.json (+ .enriched.json) to the store, or with `dryRun` only report the
+ * drift. With `dryRun` + `json` the report is printed as one JSON line and returned; `collect` returns
+ * it without printing (batch `drift --json` prints all concepts as one object). Errors are printed
+ * and thrown as `ReportedError`.
+ */
+export async function apply(
+  concept: string,
+  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean; deferRenames?: boolean; collect?: boolean }
+): Promise<DriftJson | void> {
   const config = loadConfig();
   const { configRoot } = config;
   const now = nowISO();
@@ -175,8 +218,7 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
   // Load ast.json (required)
   const astPath = join(configRoot, "scribe-output", `${concept}.ast.json`);
   if (!existsSync(astPath)) {
-    console.error(`error: ${astPath} not found — run: code-graph extract ${concept}`);
-    process.exit(1);
+    fail(`error: ${astPath} not found — run: code-graph extract ${concept}`);
   }
 
   let astDoc: AstDoc;
@@ -184,14 +226,11 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     const raw = JSON.parse(readFileSync(astPath, "utf-8"));
     astDoc = AstDocSchema.parse(raw);
   } catch (err) {
-    console.error(`error: ast.json validation failed — ${fmtError(err)}`);
-    console.error(`  re-run: code-graph extract ${concept}`);
-    process.exit(1);
+    fail(`error: ast.json validation failed — ${fmtError(err)}`, `  re-run: code-graph extract ${concept}`);
   }
 
   if (astDoc.concept !== concept) {
-    console.error(`error: ast.json concept "${astDoc.concept}" !== arg "${concept}"`);
-    process.exit(1);
+    fail(`error: ast.json concept "${astDoc.concept}" !== arg "${concept}"`);
   }
 
   // Load enriched.json (optional)
@@ -202,32 +241,42 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
       const raw = JSON.parse(readFileSync(enrichedPath, "utf-8"));
       enrichedDoc = EnrichedDocSchema.parse(raw);
     } catch (err) {
-      console.error(`error: enriched.json validation failed — ${fmtError(err)}`);
-      console.error(`  re-run: /scribe-enrich ${concept}`);
-      process.exit(1);
+      fail(
+        `error: enriched.json validation failed — ${fmtError(err)}`,
+        `  re-run: ask the scribe skill to enrich ${concept}`
+      );
     }
 
     if (enrichedDoc.concept !== concept) {
-      console.error(`error: enriched.json concept "${enrichedDoc.concept}" !== arg "${concept}"`);
-      process.exit(1);
+      fail(`error: enriched.json concept "${enrichedDoc.concept}" !== arg "${concept}"`);
     }
+  }
+
+  // The .ast.json records the extractor version once in meta; the store keeps it per vertex. An older
+  // file that still carries it per vertex keeps its own value.
+  for (const v of astDoc.vertices) {
+    v.ast = { ...v.ast, extractor_version: v.ast.extractor_version ?? astDoc.meta.extractor_version };
   }
 
   // Build AST maps
   const astKeySet = new Set(astDoc.vertices.map((v) => v._key));
   const astVertexMap = new Map(astDoc.vertices.map((v) => [v._key, v]));
 
-  // Filter enriched vertices — drop unknown _keys
-  let enrichedVertices = enrichedDoc?.vertices ?? [];
+  // Orphaned enriched entries (key not in ast.json, e.g. a moved file): remap the unambiguous ones onto
+  // their new vertex (persisted on a real apply), report the rest in one line, delete nothing.
+  let orphans: OrphanPlan | null = null;
   if (enrichedDoc) {
-    enrichedVertices = enrichedVertices.filter((ev) => {
-      if (!astKeySet.has(ev._key)) {
-        process.stderr.write(`warning: enriched vertex "${ev._key}" not in ast.json — skipping\n`);
-        return false;
-      }
-      return true;
-    });
+    orphans = planOrphansInStore(store, concept, astDoc, enrichedDoc);
+    if (orphans.remapped.length > 0) {
+      enrichedDoc = applyRemap(enrichedDoc, orphans.remapped);
+      if (!opts.dryRun) writeEnrichedDoc(enrichedPath, enrichedDoc);
+    }
+    const line = orphanSummary(concept, orphans, opts.dryRun);
+    if (line) process.stderr.write(`${line}\n`);
   }
+
+  // Entries still unknown to ast.json (ambiguous or unmatched) stay in the file and are not applied.
+  const enrichedVertices = (enrichedDoc?.vertices ?? []).filter((ev) => astKeySet.has(ev._key));
   const enrichedVertexMap = new Map(enrichedVertices.map((ev) => [ev._key, ev]));
 
   // Split enriched edges into AST enrichments vs agent-authored
@@ -249,6 +298,23 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     store.prepare("SELECT doc FROM vertices WHERE concept = ? AND status = 'live'").all(concept) as { doc: string }[]
   );
   const dbMap = new Map(dbVertices.map((v) => [v._key, v]));
+  // A concept's first apply ingests every vertex at once: none of them was touched by a task, so
+  // only later applies stamp `agent.touched_at` on un-enriched new/changed vertices (lazy targets).
+  // "Applied" is `isConceptApplied` (a live vertex or a doc row), the same rule `enrich targets` uses.
+  const conceptWasApplied = isConceptApplied(store, concept);
+
+  // Never applied: every vertex would read as new, so the drift report says so in one line instead
+  // of listing them all.
+  if (opts.dryRun && !conceptWasApplied) {
+    const n = astDoc.vertices.length;
+    if (opts.json) {
+      const report: NeverAppliedDrift = { concept, neverApplied: true, vertices: n };
+      if (!opts.collect) console.log(JSON.stringify(report));
+      return report;
+    }
+    console.log(`Concept: ${concept}  never applied, ${n} vertices to insert — run: code-graph apply ${concept}`);
+    return;
+  }
 
   // Compute diff sets
   const newKeys: string[] = [];
@@ -309,12 +375,53 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     }
   }
 
-  // Compute actual stale count: changed vertices where enriched.sig_seen does NOT match new signature
-  const willBeStaleCount = changedKeys.filter((k) => {
-    const ev = enrichedVertexMap.get(k);
-    const newSig = astVertexMap.get(k)!.signature;
-    return !ev?.sig_seen || ev.sig_seen !== newSig;
-  }).length;
+  // Changed vertices whose enrichment is not current (hash_seen, or signature for pre-hash_seen entries)
+  const staleChangedKeys = changedKeys.filter(
+    (k) => !enrichmentIsCurrent(enrichedVertexMap.get(k), astVertexMap.get(k)!)
+  );
+  const willBeStaleCount = staleChangedKeys.length;
+
+  const conceptGlobs = config.concepts[concept]?.globs;
+  const unextracted = conceptGlobs ? unextractedChanges(configRoot, concept, conceptGlobs) : null;
+
+  if (opts.json && opts.dryRun) {
+    const ref = (v: Vertex) => ({ name: v.name, type: v.type, file: v.filepath });
+    // Unchanged vertices stay stale unless the enrichment now carries their exact hash.
+    const stillStale = unchangedKeys.filter((k) => {
+      const dbV = dbMap.get(k)!;
+      const ev = enrichedVertexMap.get(k);
+      return dbV.agent?.stale === true && !(ev?.hash_seen !== undefined && ev.hash_seen === dbV.contentHash);
+    });
+    const staleKeys = [...staleChangedKeys, ...stillStale];
+    const report = {
+      concept,
+      new: trueNewKeys.map((k) => ref(astVertexMap.get(k)!)),
+      changed: changedKeys.map((k) => ref(astVertexMap.get(k)!)),
+      stale: staleKeys.map((k) => ref(astVertexMap.get(k) ?? dbMap.get(k)!)),
+      missing: missingKeys.map((k) => ref(dbMap.get(k)!)),
+      renameCandidates: uniqueRenames.map((r) => ({
+        from: ref(dbMap.get(r.oldKey)!),
+        to: ref(astVertexMap.get(r.newKey)!),
+        score: Number(r.score.toFixed(2)),
+      })),
+      doc: { bodyHashChanged: docHashDisplay === "changed" },
+      // Enriched entries not in ast.json: counts only (the stderr line names the next step).
+      // Present only when there are some, so the documented shape of a clean concept is unchanged.
+      ...(orphans && orphans.remapped.length + orphans.ambiguous.length + orphans.unmatched.length > 0
+        ? {
+            orphans: {
+              remappable: orphans.remapped.length,
+              ambiguous: orphans.ambiguous.length,
+              unmatched: orphans.unmatched.length,
+            },
+          }
+        : {}),
+      // Files edited/added/removed since the last extract; null when ast.json predates `meta.files`.
+      unextracted,
+    };
+    if (!opts.collect) console.log(JSON.stringify(report));
+    return report;
+  }
 
   // Print drift report
   console.log(`Concept: ${concept}`);
@@ -328,6 +435,12 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     console.log(`  doc:        body_hash ${docHashDisplay}`);
   }
 
+  if (opts.dryRun && unextracted && unextracted.files.length > 0) {
+    console.log(`  ${formatUnextracted(unextracted)} since the last extract — vertex counts above do not include them`);
+    for (const f of unextracted.files) console.log(`    ${f.kind.padEnd(8)} ${f.path}`);
+    console.log(`  run: code-graph extract ${concept} && code-graph apply ${concept}`);
+  }
+
   if (uniqueRenames.length > 0) {
     console.log(`\nRename candidates:`);
     for (const r of uniqueRenames) {
@@ -337,9 +450,26 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     }
   }
 
-  // Dry-run: exit here
-  if (opts.dryRun) {
-    process.exit(0);
+  // Dry-run: stop here (return, not exit, so a batch drift goes on to the next concept)
+  if (opts.dryRun) return;
+
+  // Non-interactive mode: never prompt and never decide a rename. The whole concept is left
+  // unapplied (no partial write) so the person who runs `apply <concept>` later sees the same drift.
+  if (opts.deferRenames && uniqueRenames.length > 0) {
+    // The orphan remap above is already persisted to the enriched file; only the store is untouched.
+    const remapped = orphans?.remapped.length ?? 0;
+    const enrichedNote =
+      remapped > 0
+        ? ` The enriched file was updated (${remapped} orphaned entr${remapped === 1 ? "y" : "ies"} remapped in scribe-output/${concept}.enriched.json).`
+        : "";
+    console.log(
+      `\nDeferred: ${uniqueRenames.length} rename candidate(s) need a decision; the store was not written.` +
+        enrichedNote +
+        `\n  run: code-graph apply ${concept}`
+    );
+    // exitCode, not exit: a batch `apply --defer-renames` goes on to the next concept.
+    process.exitCode = EXIT_RENAMES_DEFERRED;
+    return;
   }
 
   // Interactive rename prompts
@@ -399,6 +529,10 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
         },
         now
       );
+      // A renamed vertex that was never enriched is still a task's touch: keep it an `enrich targets` target.
+      if (conceptWasApplied && !merged.purpose) {
+        merged.agent = { ...(merged.agent as Record<string, unknown>), touched_at: now };
+      }
       putRecord(store, "vertices", r.newKey, merged);
       mergeRecord(store, "vertices", r.oldKey, { status: "archived", archivedAt: now });
       insertedCount++;
@@ -409,7 +543,9 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
     for (const k of finalNewKeys) {
       const astV = astVertexMap.get(k)!;
       const ev = enrichedVertexMap.get(k);
-      putRecord(store, "vertices", k, mergeVertexForInsert(astV, ev, null, null, now));
+      const doc = mergeVertexForInsert(astV, ev, null, null, now);
+      if (conceptWasApplied && !doc.purpose) doc.agent = { ...(doc.agent as Record<string, unknown>), touched_at: now };
+      putRecord(store, "vertices", k, doc);
       insertedCount++;
     }
 
@@ -418,7 +554,10 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
       const astV = astVertexMap.get(k)!;
       const dbV = dbMap.get(k)!;
       const ev = enrichedVertexMap.get(k);
-      const agentUpdate = buildAgentUpdate(dbV, ev, astV.signature, now);
+      const agentUpdate = buildAgentUpdate(dbV, ev, astV, now);
+      if (!agentUpdate.purpose && !dbV.purpose) {
+        agentUpdate.agent = { ...(agentUpdate.agent as Record<string, unknown>), touched_at: now };
+      }
       mergeRecord(store, "vertices", k, {
         filepath: astV.filepath,
         start_line: astV.start_line,
@@ -428,7 +567,7 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
         type: astV.type,
         name: astV.name,
         displayKey: astV.displayKey,
-        ast: astV.ast,
+        ast: { ...astV.ast, extracted_at: now },
         ...agentUpdate,
       });
       updatedCount++;
@@ -478,7 +617,9 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
       const reason = enrichedEdgeReasons.get(edge._key);
       putRecord(store, "edges", edge._key, {
         ...edge,
-        crosses_concept: crossesConceptForEdge(edge._from, edge._to),
+        // extract already marks an edge into another concept's file; the target may not be applied yet
+        // (unknown to keyToConcept), so keep that flag rather than recomputing it down to false.
+        crosses_concept: edge.crosses_concept === true || crossesConceptForEdge(edge._from, edge._to),
         ...(reason !== undefined ? { reason } : {}),
       });
     }
@@ -515,7 +656,7 @@ export async function apply(concept: string, opts: { dryRun: boolean; approveDri
       // runs, matching the "update" upsert this used before.
       mergeRecord(store, "concepts", concept, {
         _key: concept,
-        owner_skill_path: config.concepts?.[concept]?.skill,
+        owner_skill_path: astDoc.skill.path,
         last_scribed_at: now,
       });
 

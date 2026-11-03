@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  declaredConcepts,
   analyzeConceptGaps,
   classifyStrength,
   buildSuccessNote,
@@ -107,7 +108,7 @@ describe("formatGapDiagnostic", () => {
     const r = analyzeConceptGaps(enrichable("workorder-store"), counts({}));
     const md = formatGapDiagnostic(r, []);
     assert.match(md, /code-graph extract workorder-store/);
-    assert.match(md, /scribe-enrich workorder-store/);
+    assert.match(md, /scribe` skill to enrich workorder-store/);
     assert.match(md, /code-graph apply workorder-store/);
   });
 
@@ -115,7 +116,7 @@ describe("formatGapDiagnostic", () => {
     const r = analyzeConceptGaps([{ name: "noskill", enrichable: false }], counts({ noskill: [2, 0] }));
     const md = formatGapDiagnostic(r, []);
     assert.match(md, /no SKILL\.md/);
-    assert.doesNotMatch(md, /scribe-enrich noskill/);
+    assert.doesNotMatch(md, /to enrich noskill/);
   });
 
   it("lists uncovered files and caps the list", () => {
@@ -124,5 +125,23 @@ describe("formatGapDiagnostic", () => {
     const md = formatGapDiagnostic(r, files, { uncoveredCap: 25 });
     assert.match(md, /covered by no concept/);
     assert.match(md, /and 5 more/);
+  });
+});
+
+describe("declaredConcepts — docs-only concepts", () => {
+  const base = { project: "p", configRoot: "/x" };
+  it("omits concepts with no tsconfig, and non-code-glob concepts even with a tsconfig", () => {
+    const noTs = { ...base, concepts: { a: { globs: ["src/**/*.ts"] } } } as any;
+    assert.deepEqual(declaredConcepts(noTs), []);
+
+    const withTs = {
+      ...base,
+      tsconfig: "t.json",
+      concepts: { code: { globs: ["src/**/*.ts"] }, docs: { globs: ["docs/**/*.md"] } },
+    } as any;
+    assert.deepEqual(
+      declaredConcepts(withTs).map((c) => c.name),
+      ["code"]
+    );
   });
 });

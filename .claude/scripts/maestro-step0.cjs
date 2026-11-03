@@ -23,7 +23,8 @@
 // Getting this backwards produces a hook that "runs fine" and injects nothing.
 //
 // THE THREE ANSWERS, and what each becomes here:
-//   continue → exit 0, no output at all. The whole point.
+//   continue → exit 0, no output at all. The whole point. (`087`: unless the check carries a
+//              `notice` — the installed plugin is older than the project — which is injected.)
 //   update   → exit 0 + the instruction as context. The model runs /maestro-update and carries on.
 //   install  → exit 2. On BOTH events that BLOCKS: the `/maestro` expansion never reaches the
 //              model, or the Skill call is refused. That is a genuine improvement on the prose it
@@ -142,6 +143,10 @@ function inject(event, text) {
   const lines = [];
   if (result.action === "update") {
     lines.push(`Maestro readiness check: ${result.reason}. ${INSTRUCTIONS.update}`);
+  } else if (result.notice) {
+    // `087`: `continue`, but the installed plugin is OLDER than the project's runtime. Never an
+    // instruction to run /maestro-update (that would downgrade); one line for the user instead.
+    lines.push(result.notice);
   }
   const forks = await forkNotice(cwd);
   if (forks) lines.push(forks);

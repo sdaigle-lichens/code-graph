@@ -2,11 +2,11 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pnpm 10 spelling. maestro's equivalent block is `allowBuilds:` — that is pnpm 11, and this
-# repo is pinned to pnpm 10.33.2, where the field is `onlyBuiltDependencies`.
-onlyBuiltDependencies:
+# pnpm 11 spelling: `allowBuilds:` replaced pnpm 10's `onlyBuiltDependencies:` list, which pnpm 11
+# no longer reads (electron and esbuild would skip their postinstall).
+allowBuilds:
   # The desktop app; electron's postinstall downloads the platform binary.
-  - electron
-  - esbuild
+  electron: true
+  esbuild: true
 overrides:
   code-graph: link:packages/code-graph

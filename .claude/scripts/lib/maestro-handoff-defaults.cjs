@@ -62,12 +62,13 @@ var MOBILE_TO_TEST = '```json\n{\n  "files_added_removed_renamed": ["<list, or \
 var REFACTOR_TO_BACKEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REFACTOR_TO_FRONTEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REFACTOR_TO_REVIEWER = '```json\n{\n  "summary": "<brief summary of what was delegated, for re-review>"\n}\n```';
-var REFACTOR_TO_SCRIBE = '```json\n{\n  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n  "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]\n}\n```';
+var REFACTOR_TO_SCRIBE_V2 = '```json\n{\n  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n  "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]\n}\n```';
+var REFACTOR_TO_SCRIBE = '```json\n{\n  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n  "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell the agent>" }]\n}\n```';
 var REFACTOR_TO_TEST = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REVIEWER_TO_BACKEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REVIEWER_TO_FRONTEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REVIEWER_TO_REFACTOR = '```json\n{\n  "violations": ["<file:line \u2014 pattern violation, DRY issue, or code redundancy>"]\n}\n```';
-var REVIEWER_TO_SCRIBE = `\`\`\`json
+var REVIEWER_TO_SCRIBE_V2 = `\`\`\`json
 {
   "files_added_removed_renamed": ["<list, or 'none'>"],
   "justfile_commands_changed": ["<old \u2192 new description, or 'none'>"],
@@ -77,10 +78,30 @@ var REVIEWER_TO_SCRIBE = `\`\`\`json
   "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]
 }
 \`\`\``;
+var REVIEWER_TO_SCRIBE = `\`\`\`json
+{
+  "files_added_removed_renamed": ["<list, or 'none'>"],
+  "justfile_commands_changed": ["<old \u2192 new description, or 'none'>"],
+  "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it, or 'none'>"],
+  "schema_changes": ["<new tables, columns, or constraints, or 'none'>"],
+  "workflow_or_process_changes": ["<changed agent handoff, new convention, or 'none'>"],
+  "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell the agent>" }]
+}
+\`\`\``;
 var REVIEWER_TO_TEST = '```json\n{\n  "failing_tests": ["<test name \u2014 failure reason>"],\n  "missing_coverage": ["<endpoint or behavior that lacks a test>"]\n}\n```';
 var TEST_TO_BACKEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<endpoint/function the backend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
 var TEST_TO_FRONTEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<component/page the frontend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
-var TEST_TO_REVIEWER = '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```';
+var TEST_TO_REVIEWER = `\`\`\`json
+{
+  "tests_added": ["<test name \u2014 what it verifies>"],
+  "results": ["<pass/fail summary>"],
+  "commands_run": ["<exact command> => <exit code, N passed / N failed>"],
+  "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
+  "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
+  "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "files_touched": ["<list, or 'none'>"]
+}
+\`\`\``;
 var SEED_HANDOFFS = {
   "backend/frontend": BACKEND_TO_FRONTEND,
   "backend/mobile": BACKEND_TO_MOBILE,
@@ -148,6 +169,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "summary": "<brief summary of what was delegated, for re-review>"\n  }\n}\n```'
   ],
   "refactor/scribe": [
+    REFACTOR_TO_SCRIBE_V2,
     '```json\n{\n  "handoff_details": {\n    "new_code_patterns_or_rules": ["<pattern and which agent/rule file should receive it>"],\n    "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell the agent>" }]\n  }\n}\n```'
   ],
   "refactor/test": [
@@ -163,6 +185,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "violations": ["<file:line \u2014 pattern violation, DRY issue, or code redundancy>"]\n  }\n}\n```'
   ],
   "reviewer/scribe": [
+    REVIEWER_TO_SCRIBE_V2,
     `\`\`\`json
 {
   "handoff_details": {
@@ -186,6 +209,8 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "failing_tests": ["<test name \u2014 behavior it expects>"],\n    "test_files_added": ["<list, or \'none\'>"],\n    "implementation_targets": ["<component/page the frontend must implement>"],\n    "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n  }\n}\n```'
   ],
   "test/reviewer": [
+    // `148`: the flat body before commands_run, negative_control and real_path_exercised.
+    '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```',
     '```json\n{\n  "handoff_details": {\n    "tests_added": ["<test name \u2014 what it verifies>"],\n    "results": ["<pass/fail summary>"],\n    "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n    "files_touched": ["<list, or \'none\'>"]\n  }\n}\n```'
   ]
 };

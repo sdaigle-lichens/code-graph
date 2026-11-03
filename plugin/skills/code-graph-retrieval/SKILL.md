@@ -1,13 +1,14 @@
 ---
 name: code-graph-retrieval
-description: Query the code-graph database to understand a TypeScript/React codebase before reading files. Use when you need to learn how a feature works, find what calls or is impacted by a function/hook/store, locate where functionality lives, or trace cross-concept relationships. Prefer this over raw Grep/Glob for "how does X work" / "what breaks if I change Y" questions in a project that has a scribe.config.json.
+description: User-run (/code-graph:code-graph-retrieval). Queries the code graph (TypeScript/React) on demand for @file:line pointers with purpose and callers, for "how does X work", "what calls X / what would break if I change Y", "how do A and B interact" or "where is X handled", in a project with a scribe.config.json (or scribe-output/). Claude does not load it on its own.
+disable-model-invocation: true
 allowed-tools: Bash, Read
 ---
 
 ## When to use
 
-Reach for this **before** grep/glob-ing whenever the task is to *understand* code in
-a project that has a `scribe.config.json` at its root — for example:
+Run this on request (the user invokes it, or asks for a graph lookup) when the task is to
+*understand* code in a project that has a `scribe.config.json` at its root — for example:
 
 - "How does <feature> work?" → `code-graph search`
 - "What calls / depends on / breaks if I change <symbol>?" → `code-graph query impact`
@@ -21,12 +22,15 @@ graph tells you *where* and *why*; you still read the source for exact detail.
 
 ## When NOT to use
 
+- A concept skill already in your context names the file or symbol the question is about → read
+  that file directly. Keep the graph for callers across concepts (`impact`), how two concepts
+  interact (`cross`), or a location no loaded skill mentions.
 - The project has no `scribe.config.json` → fall back to Grep/Glob/Read and surface:
-  *"This project isn't initialized — run `/code-graph-init` to set up the graph."*
+  *"This project isn't initialized — run `create-concept-skills` to set up the graph."*
   (Do NOT run init yourself — it is user-triggered.)
 - You need a literal text/regex match (a string, an import path, a TODO) → use Grep.
 - The graph returns exit code `6` (no results) → fall back to a raw search.
-- You are editing/enriching the graph itself → that is `/scribe-enrich`, not this skill.
+- You are editing/enriching the graph itself → that is the `scribe` skill's enrichment, not this skill.
 
 ## Procedure
 
@@ -49,11 +53,13 @@ graph tells you *where* and *why*; you still read the source for exact detail.
    | Code | Meaning | Next step |
    |------|---------|-----------|
    | `0`  | OK | Use the `@filepath:line` pointers as `Read` targets |
-   | `2`  | Server offline | Tell the user to run `code-graph up` |
-   | `3`  | DB missing | Tell the user to run `code-graph bootstrap` |
+   | `2`  | Retired — never emitted (the store is a local file, not a server) | Nothing to do; fall back to Grep/Glob if you somehow see it |
+   | `3`  | Store written by a newer code-graph | Tell the user to upgrade the CLI |
    | `4`  | Ambiguous symbol | Re-run with `concept::name` or `filepath:name` |
    | `5`  | No config | No graph here — fall back to Grep/Glob |
    | `6`  | Zero results | Rephrase once, else fall back to Grep/Glob |
+   | `7`  | Low confidence (`search` only): results are printed, but the top cluster is a weak match or its concept is un-enriched. JSON has `low_confidence: true` plus `low_confidence_reason` | Do not treat the results as authoritative. Grep for the terms, or read the concept's SKILL.md (the `> Low confidence:` line names its path), then use the graph hits only as leads |
+   | `8`  | `node:sqlite` unavailable: this Node is older than 22.5 or runs with `--no-experimental-sqlite`; the one stderr line says so | Tell the user to run `node --version` and use Node >=22.5; meanwhile fall back to Grep/Glob. `skills *` still works |
 
 4. **Read the pointed-at slices** with `Read` (`offset`/`limit`) to confirm details before
    acting. The graph reflects the last `code-graph apply`, so treat it as a fast index, not
@@ -66,10 +72,12 @@ The CLI surfaces this; your job is to interpret it without over-reacting.
 
 **The completeness note (on a successful search).** A line like
 `> ⚠ graph 4/6 concepts enriched — results may be partial` only appears when results were
-*thin*. It is **status for the user, not a cue for you to act**. Treat the returned results
-as authoritative for what is in the graph. **Do not** fall back to grep, re-run, or
+*thin*. It is **status for the user, not a cue for you to act**. Treat a confident result
+(exit `0`) as authoritative for what is in the graph. **Do not** fall back to grep, re-run, or
 second-guess a good answer because of this line. Only act on it if the user asks to improve
-coverage.
+coverage. This rule covers exit `0` only: on exit `7` (low confidence) grep or the concept's
+SKILL.md is the fallback, because most concepts stay un-enriched and a plain-language query can
+rank the wrong concept first.
 
 **The gap diagnostic (on a whiff, exit 6).** When a search finds nothing, the CLI prints a
 `## Graph completeness` block listing: declared concepts not fully built, concepts with no
@@ -84,15 +92,19 @@ SKILL.md, and source files covered by no concept. Handle it **answer-first, non-
    "Answered via grep. Concept `X` is declared but not built — want me to build it so future
    queries hit the graph?" Framed as an investment for next time, never a prerequisite.
 
+**A subagent cannot ask.** If you have no `AskUserQuestion` (you are a subagent), the offer in
+step 3 goes nowhere. After answering, report the gap to the scribe instead; see
+[Reporting the gap](#reporting-the-gap-subagents). A main session may do both: offer and report.
+
 **On "yes" — build the concept** (uniform pipeline, safe to re-run; agent fields are
 preserved across re-extract):
 
 ```sh
-code-graph extract <concept>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" extract <concept>
 ```
-then invoke `/scribe-enrich <concept>` (it spins up the enrichment subagent), then:
+then enrich `<concept>` with the `scribe` skill's whole-concept enrichment procedure. Only the main session can do that. If you are a subagent you cannot spawn agents: report the need through the gap channel ([Reporting the gap](#reporting-the-gap-subagents)) or hand it off to the scribe. Then:
 ```sh
-code-graph apply <concept>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 ```
 
 **Guards:**
@@ -102,14 +114,54 @@ code-graph apply <concept>
 - **Nag control:** if the user already declined building/enriching a given concept this
   session, do not re-offer it — proceed silently.
 
+### Reporting the gap (subagents)
+
+After you have answered, on a weak or empty search append one entry to
+`.claude/channels/scribe/<agent>.1.md`, where `<agent>` is your own bare agent name (`backend`, not
+`maestro:backend`). The shape is the scribe skill's gap contract, unchanged:
+
+```json
+{ "skill_gaps": [{ "skill": "<the concept's skill id>", "missing": "<query that failed + the vertices or files you expected>" }] }
+```
+
+- **One fenced `json` block per file.** If the file exists, read it, add your entry to the
+  `skill_gaps` array of that block (you may have written one for your own gaps) and rewrite the file.
+  Never add a second block.
+- **Keep a leading `<!-- maestro:run_id=... -->` line** as the first line, untouched. Never write a
+  `run_id` yourself; maestro stamps it when you finish.
+- **Nag control:** do not write the same gap (same skill and query) twice in a session.
+- Write nothing when the search answered the question; a gap is never written to fill the file.
+  The one exception is the "enrich only" entry below.
+- A gap written from the **main session** is never stamped, so the scribe only sees a mention of it,
+  not the file inlined. Do not promise the user otherwise.
+
+**Un-enriched hits your answer used ("enrich only").** In plain-text output a hit with no purpose
+ends in ` — _not enriched_` (`--json`: `purpose` absent or null). Code a search finds and you rely on
+is worth enriching, so after answering, if your answer **actually used** such hits, append one entry
+to the same file, under the same rules above (one block merged in place, the leading `run_id` line
+kept, no `run_id` written, your bare agent name):
+
+```json
+{ "skill_gaps": [{ "skill": "<the hit's concept skill id>", "missing": "enrich only: <name> (<filepath>), <name> (<filepath>) — found by search \"<query>\"" }] }
+```
+
+- `missing` **starts with `enrich only:`**. This is not a weak-search gap and not a request to revise
+  the SKILL.md: the scribe only enriches the named vertices and leaves the skill text alone.
+- Only hits the answer used, not every un-enriched hit in the output. Group them by concept skill:
+  one entry per skill, **at most 5 vertices per entry** (more used hits: keep the 5 you leaned on most).
+- **Dedupe per session by (skill, vertex):** never name a vertex again for the same skill, even
+  from a different query; drop it from the entry, and skip the entry when nothing is left.
+- With no graph (no tsconfig, no `scribe.config.json` concepts) there are no hits to mark: nothing
+  to report.
+
 `/graph concept <name>` and `/graph cross <a> <b>` emit the same diagnostic on exit 6 when a
 named concept is declared-but-not-built — same answer-first handling applies.
 
 ## Examples
 
 ```sh
-code-graph search "how does drag and drop reorder work"
-code-graph query impact useWorkorderActions --direction in
-code-graph query cross scheduler-store workorder-store
-code-graph query vertex src/store/workorder.store.ts:42
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" search "how does drag and drop reorder work"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query impact useWorkorderActions --direction in
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query cross scheduler-store workorder-store
+node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" query vertex src/store/workorder.store.ts:42
 ```

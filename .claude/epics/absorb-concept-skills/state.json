@@ -1,0 +1,1328 @@
+{
+  "slug": "absorb-concept-skills",
+  "created_at": "2026-10-14T02:05:38.811Z",
+  "manager": {
+    "name": "maestro-mgr-ce310c69",
+    "set_at": "2026-11-01T01:11:56.254Z"
+  },
+  "workers": [
+    {
+      "name": "code-graph-02",
+      "task": "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md",
+      "added_at": "2026-10-14T02:54:46.295Z"
+    },
+    {
+      "name": "code-graph-47",
+      "task": "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md",
+      "added_at": "2026-10-14T13:00:50.218Z"
+    },
+    {
+      "name": "code-graph-6a",
+      "task": "004-graph-layer-freshness-and-docs-only-concepts.md",
+      "added_at": "2026-10-14T13:28:53.817Z"
+    },
+    {
+      "name": "code-graph-24",
+      "task": "006-dogfood-parity-check-and-publish-the-code-graph-plugin.md",
+      "added_at": "2026-10-14T15:04:11.183Z"
+    },
+    {
+      "name": "code-graph-44",
+      "task": "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
+      "added_at": "2026-10-15T12:16:45.748Z"
+    },
+    {
+      "name": "code-graph-ca",
+      "task": "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
+      "added_at": "2026-10-15T22:38:42.894Z"
+    },
+    {
+      "name": "code-graph-4c",
+      "task": "009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
+      "added_at": "2026-10-16T19:12:07.462Z"
+    },
+    {
+      "name": "code-graph-8f",
+      "task": "010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md",
+      "added_at": "2026-10-16T19:25:56.933Z"
+    },
+    {
+      "name": "code-graph-ce",
+      "task": "011-stop-plain-text-search-from-repeating-the-same-edge-per-call-site.md",
+      "added_at": "2026-10-16T20:29:55.306Z"
+    },
+    {
+      "name": "code-graph-d6",
+      "task": "012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
+      "added_at": "2026-10-16T22:19:53.764Z"
+    },
+    {
+      "name": "code-graph-16",
+      "task": "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md",
+      "added_at": "2026-10-16T23:19:57.871Z"
+    },
+    {
+      "name": "code-graph-db",
+      "task": "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
+      "added_at": "2026-10-16T23:29:02.073Z"
+    },
+    {
+      "name": "code-graph-a7",
+      "task": "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
+      "added_at": "2026-10-17T00:18:07.805Z"
+    },
+    {
+      "name": "code-graph-6b",
+      "task": "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
+      "added_at": "2026-10-17T00:54:24.058Z"
+    },
+    {
+      "name": "code-graph-18",
+      "task": "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
+      "added_at": "2026-10-17T01:08:14.829Z"
+    },
+    {
+      "name": "code-graph-bf",
+      "task": "018-make-search-json-honour-max-tokens.md",
+      "added_at": "2026-10-17T02:05:54.527Z"
+    },
+    {
+      "name": "Keep enrich targets lazy after first touch",
+      "task": "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md",
+      "added_at": "2026-10-19T02:23:11.143Z"
+    },
+    {
+      "name": "Subagent enrichment with target limits",
+      "task": "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
+      "added_at": "2026-10-19T12:44:58.037Z"
+    },
+    {
+      "name": "maestro-905d8964",
+      "added_at": "2026-10-20T01:27:42.634Z"
+    },
+    {
+      "name": "maestro-5b4ae740",
+      "added_at": "2026-10-21T12:50:58.453Z"
+    },
+    {
+      "name": "maestro-898f8113",
+      "added_at": "2026-10-21T13:27:19.064Z"
+    },
+    {
+      "name": "maestro-27239325",
+      "added_at": "2026-10-21T13:35:07.889Z"
+    },
+    {
+      "name": "maestro-fef84d2f",
+      "added_at": "2026-10-21T15:00:41.494Z"
+    },
+    {
+      "name": "maestro-195f90c4",
+      "added_at": "2026-10-21T15:17:58.653Z"
+    },
+    {
+      "name": "maestro-6dfd54fc",
+      "added_at": "2026-10-21T19:05:14.765Z"
+    },
+    {
+      "name": "maestro-8cdc5b46",
+      "added_at": "2026-10-21T20:39:28.096Z"
+    },
+    {
+      "name": "maestro-61c322e9",
+      "added_at": "2026-10-21T21:10:05.344Z"
+    },
+    {
+      "name": "maestro-a22a5a6e",
+      "added_at": "2026-10-23T15:57:30.703Z"
+    },
+    {
+      "name": "absorb-concept-skills-032",
+      "task": "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
+      "added_at": "2026-10-25T19:38:39.851Z"
+    },
+    {
+      "name": "absorb-concept-skills-034",
+      "task": ".claude/maestro-tasks/034-record-cross-concept-calls-at-extract-time.md",
+      "added_at": "2026-10-26T00:36:06.661Z"
+    },
+    {
+      "name": "absorb-concept-skills-035",
+      "task": ".claude/maestro-tasks/035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
+      "added_at": "2026-10-26T18:44:12.689Z"
+    },
+    {
+      "name": "absorb-concept-skills-038",
+      "task": "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "added_at": "2026-10-27T14:28:15.677Z"
+    },
+    {
+      "name": "absorb-concept-skills-040",
+      "task": "040-loosen-the-impact-and-literal-eval-graders.md",
+      "added_at": "2026-10-27T14:28:16.137Z"
+    },
+    {
+      "name": "absorb-concept-skills-039",
+      "task": "039-measure-graph-impact-and-cross-questions-on-maestro.md",
+      "added_at": "2026-10-27T15:02:10.436Z"
+    },
+    {
+      "name": "absorb-concept-skills-045",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "added_at": "2026-10-31T00:51:52.356Z"
+    },
+    {
+      "name": "absorb-concept-skills-048",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "added_at": "2026-10-31T00:51:53.580Z"
+    },
+    {
+      "name": "absorb-concept-skills-049",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "added_at": "2026-10-31T00:51:54.671Z"
+    },
+    {
+      "name": "absorb-concept-skills-050",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "added_at": "2026-10-31T00:51:55.695Z"
+    },
+    {
+      "name": "absorb-concept-skills-056",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "added_at": "2026-11-01T13:52:22.915Z"
+    },
+    {
+      "name": "absorb-concept-skills-059",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "added_at": "2026-11-01T23:15:14.255Z"
+    },
+    {
+      "name": "absorb-concept-skills-060",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "added_at": "2026-11-02T00:51:37.034Z"
+    },
+    {
+      "name": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "added_at": "2026-11-02T01:34:54.542Z"
+    },
+    {
+      "name": "absorb-concept-skills-057",
+      "added_at": "2026-11-02T15:20:30.311Z"
+    },
+    {
+      "name": "absorb-concept-skills-062",
+      "added_at": "2026-11-02T16:19:21.129Z"
+    },
+    {
+      "name": "absorb-concept-skills-063",
+      "added_at": "2026-11-02T16:19:21.383Z"
+    },
+    {
+      "name": "absorb-concept-skills-064",
+      "added_at": "2026-11-02T21:10:48.044Z"
+    },
+    {
+      "name": "absorb-concept-skills-065",
+      "added_at": "2026-11-03T01:15:31.809Z"
+    }
+  ],
+  "log": [
+    {
+      "kind": "report",
+      "id": "r001",
+      "task": "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md",
+      "file": "inbox/r001-003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md",
+      "at": "2026-10-14T02:54:32.697Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r001",
+      "at": "2026-10-14T02:54:46.329Z",
+      "by": "code-graph-44"
+    },
+    {
+      "kind": "report",
+      "id": "r002",
+      "task": "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md",
+      "file": "inbox/r002-005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md",
+      "at": "2026-10-14T12:57:07.478Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r002",
+      "at": "2026-10-14T12:58:53.996Z",
+      "by": "code-graph-49"
+    },
+    {
+      "kind": "report",
+      "id": "r003",
+      "task": "004-graph-layer-freshness-and-docs-only-concepts.md",
+      "file": "inbox/r003-004-graph-layer-freshness-and-docs-only-concepts.md",
+      "at": "2026-10-14T13:28:30.323Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r003",
+      "at": "2026-10-14T13:28:53.425Z",
+      "by": "code-graph-49"
+    },
+    {
+      "kind": "report",
+      "id": "r004",
+      "task": "006-dogfood-parity-check-and-publish-the-code-graph-plugin.md",
+      "file": "inbox/r004-006-dogfood-parity-check-and-publish-the-code-graph-plugin.md",
+      "at": "2026-10-14T15:03:56.290Z",
+      "from": "code-graph-24"
+    },
+    {
+      "kind": "ack",
+      "id": "r004",
+      "at": "2026-10-14T15:04:10.635Z",
+      "by": "code-graph-49"
+    },
+    {
+      "kind": "report",
+      "id": "r005",
+      "task": "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
+      "file": "inbox/r005-007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md",
+      "at": "2026-10-15T12:16:31.499Z",
+      "from": "code-graph-44"
+    },
+    {
+      "kind": "ack",
+      "id": "r005",
+      "at": "2026-10-15T12:16:45.432Z",
+      "by": "code-graph-3d"
+    },
+    {
+      "kind": "report",
+      "id": "r006",
+      "task": "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
+      "file": "inbox/r006-008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md",
+      "at": "2026-10-15T22:23:32.679Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r006",
+      "at": "2026-10-15T22:38:42.438Z",
+      "by": "code-graph-6f"
+    },
+    {
+      "kind": "report",
+      "id": "r007",
+      "task": "009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
+      "file": "inbox/r007-009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md",
+      "at": "2026-10-16T18:59:19.417Z",
+      "from": "code-graph-4c"
+    },
+    {
+      "kind": "ack",
+      "id": "r007",
+      "at": "2026-10-16T19:12:07.067Z",
+      "by": "code-graph-72"
+    },
+    {
+      "kind": "report",
+      "id": "r008",
+      "task": "010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md",
+      "file": "inbox/r008-010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md",
+      "at": "2026-10-16T19:25:41.314Z",
+      "from": "code-graph-8f"
+    },
+    {
+      "kind": "ack",
+      "id": "r008",
+      "at": "2026-10-16T19:25:56.573Z",
+      "by": "code-graph-72"
+    },
+    {
+      "kind": "report",
+      "id": "r009",
+      "task": "011-stop-plain-text-search-from-repeating-the-same-edge-per-call-site.md",
+      "file": "inbox/r009-011-stop-plain-text-search-from-repeating-the-same-edge-per-call-site.md",
+      "at": "2026-10-16T20:29:38.173Z",
+      "from": "code-graph-ce"
+    },
+    {
+      "kind": "ack",
+      "id": "r009",
+      "at": "2026-10-16T20:29:54.916Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r010",
+      "task": "012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
+      "file": "inbox/r010-012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md",
+      "at": "2026-10-16T22:19:34.424Z",
+      "from": "code-graph-d6"
+    },
+    {
+      "kind": "ack",
+      "id": "r010",
+      "at": "2026-10-16T22:19:53.360Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r011",
+      "task": "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md",
+      "file": "inbox/r011-013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md",
+      "at": "2026-10-16T23:19:42.703Z",
+      "from": "code-graph-16"
+    },
+    {
+      "kind": "ack",
+      "id": "r011",
+      "at": "2026-10-16T23:19:57.576Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r012",
+      "task": "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
+      "file": "inbox/r012-014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md",
+      "at": "2026-10-16T23:28:47.533Z",
+      "from": "code-graph-db"
+    },
+    {
+      "kind": "ack",
+      "id": "r012",
+      "at": "2026-10-16T23:29:01.743Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r013",
+      "task": "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
+      "file": "inbox/r013-015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md",
+      "at": "2026-10-17T00:17:54.506Z",
+      "from": "code-graph-a7"
+    },
+    {
+      "kind": "ack",
+      "id": "r013",
+      "at": "2026-10-17T00:18:07.481Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r014",
+      "task": "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
+      "file": "inbox/r014-016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md",
+      "at": "2026-10-17T00:54:12.438Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r014",
+      "at": "2026-10-17T00:54:23.778Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r015",
+      "task": "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
+      "file": "inbox/r015-017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md",
+      "at": "2026-10-17T01:08:04.164Z",
+      "from": "code-graph-18"
+    },
+    {
+      "kind": "ack",
+      "id": "r015",
+      "at": "2026-10-17T01:08:14.531Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r016",
+      "task": "018-make-search-json-honour-max-tokens.md",
+      "file": "inbox/r016-018-make-search-json-honour-max-tokens.md",
+      "at": "2026-10-17T02:05:45.943Z",
+      "from": "code-graph-bf"
+    },
+    {
+      "kind": "ack",
+      "id": "r016",
+      "at": "2026-10-17T02:05:54.079Z",
+      "by": "code-graph-d1"
+    },
+    {
+      "kind": "report",
+      "id": "r017",
+      "task": "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md",
+      "file": "inbox/r017-019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md",
+      "at": "2026-10-19T02:21:13.375Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r017",
+      "at": "2026-10-19T02:23:09.734Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r018",
+      "task": "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
+      "file": "inbox/r018-020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md",
+      "at": "2026-10-19T12:35:20.991Z",
+      "from": "Subagent enrichment with target limits"
+    },
+    {
+      "kind": "ack",
+      "id": "r018",
+      "at": "2026-10-19T12:44:57.284Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r019",
+      "task": "021-report-un-enriched-search-hits-through-the-gap-channel-so-they-get-enriched.md",
+      "file": "inbox/r019-021-report-un-enriched-search-hits-through-the-gap-channel-so-they-get-enriched.md",
+      "at": "2026-10-19T14:45:43.862Z",
+      "from": "Un-enriched search hits reporting"
+    },
+    {
+      "kind": "ack",
+      "id": "r019",
+      "at": "2026-10-19T14:45:56.189Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r020",
+      "task": "022-tell-an-unreadable-deps-dir-from-a-missing-one-in-a-sandboxed-session.md",
+      "file": "inbox/r020-022-tell-an-unreadable-deps-dir-from-a-missing-one-in-a-sandboxed-session.md",
+      "at": "2026-10-20T01:28:11.730Z"
+    },
+    {
+      "kind": "ack",
+      "id": "r020",
+      "at": "2026-10-20T01:28:16.650Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r021",
+      "task": "023-keep-search-honest-while-most-concepts-are-un-enriched.md",
+      "file": "inbox/r021-023-keep-search-honest-while-most-concepts-are-un-enriched.md",
+      "at": "2026-10-21T12:40:03.398Z",
+      "from": "maestro-5b4ae740"
+    },
+    {
+      "kind": "ack",
+      "id": "r021",
+      "at": "2026-10-21T12:50:57.726Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r022",
+      "task": "024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md",
+      "file": "inbox/r022-024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md",
+      "at": "2026-10-21T13:25:05.102Z",
+      "from": "maestro-898f8113"
+    },
+    {
+      "kind": "ack",
+      "id": "r022",
+      "at": "2026-10-21T13:27:18.391Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r023",
+      "task": "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md",
+      "file": "inbox/r023-025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md",
+      "at": "2026-10-21T13:33:16.582Z",
+      "from": "maestro-27239325"
+    },
+    {
+      "kind": "ack",
+      "id": "r023",
+      "at": "2026-10-21T13:35:07.367Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r024",
+      "task": "026-name-the-fix-when-the-store-can-t-open-and-make-uninstall-list-what-install-added.md",
+      "file": "inbox/r024-026-name-the-fix-when-the-store-can-t-open-and-make-uninstall-list-what-install-added.md",
+      "at": "2026-10-21T15:00:25.930Z",
+      "from": "maestro-fef84d2f"
+    },
+    {
+      "kind": "ack",
+      "id": "r024",
+      "at": "2026-10-21T15:00:41.029Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r025",
+      "task": "027-give-the-gap-file-format-a-tested-owner-and-move-developer-rules-out-of-plugin.md",
+      "file": "inbox/r025-027-give-the-gap-file-format-a-tested-owner-and-move-developer-rules-out-of-plugin.md",
+      "at": "2026-10-21T15:17:51.368Z",
+      "from": "maestro-195f90c4"
+    },
+    {
+      "kind": "ack",
+      "id": "r025",
+      "at": "2026-10-21T15:17:58.337Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r026",
+      "task": "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md",
+      "file": "inbox/r026-028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md",
+      "at": "2026-10-21T19:04:56.178Z",
+      "from": "maestro-6dfd54fc"
+    },
+    {
+      "kind": "ack",
+      "id": "r026",
+      "at": "2026-10-21T19:05:10.384Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r027",
+      "task": "030-make-a-repo-level-skills-stamp-without-bump-refuse-instead-of-resetting-to-1-0.md",
+      "file": "inbox/r027-030-make-a-repo-level-skills-stamp-without-bump-refuse-instead-of-resetting-to-1-0.md",
+      "at": "2026-10-21T20:39:13.804Z",
+      "from": "maestro-8cdc5b46"
+    },
+    {
+      "kind": "ack",
+      "id": "r027",
+      "at": "2026-10-21T20:39:27.527Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r028",
+      "task": "029-make-stamp-only-a-checked-decision-list-what-changed-and-warn-on-a-blind-stamp.md",
+      "file": "inbox/r028-029-make-stamp-only-a-checked-decision-list-what-changed-and-warn-on-a-blind-stamp.md",
+      "at": "2026-10-21T21:09:53.836Z",
+      "from": "maestro-61c322e9"
+    },
+    {
+      "kind": "ack",
+      "id": "r028",
+      "at": "2026-10-21T21:10:04.804Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r029",
+      "task": "031-make-skills-status-skill-file-list-agree-with-its-unextracted-header.md",
+      "file": "inbox/r029-031-make-skills-status-skill-file-list-agree-with-its-unextracted-header.md",
+      "at": "2026-10-23T15:57:12.808Z",
+      "from": "maestro-a22a5a6e"
+    },
+    {
+      "kind": "ack",
+      "id": "r029",
+      "at": "2026-10-23T15:57:30.176Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r030",
+      "task": "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
+      "file": "inbox/r030-032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md",
+      "at": "2026-10-25T23:38:05.028Z",
+      "from": "absorb-concept-skills-032"
+    },
+    {
+      "kind": "ack",
+      "id": "r030",
+      "at": "2026-10-25T23:38:13.523Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r031",
+      "task": "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "file": "inbox/r031-033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "at": "2026-10-26T00:14:36.985Z",
+      "from": "absorb-concept-skills-033"
+    },
+    {
+      "kind": "ack",
+      "id": "r031",
+      "at": "2026-10-26T00:14:43.730Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r032",
+      "task": "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "file": "inbox/r032-033-make-code-graph-retrieval-trigger-on-natural-code-questions.md",
+      "at": "2026-10-26T00:24:50.206Z",
+      "from": "absorb-concept-skills-033"
+    },
+    {
+      "kind": "ack",
+      "id": "r032",
+      "at": "2026-10-26T00:24:56.930Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r033",
+      "task": "034-record-cross-concept-calls-at-extract-time.md",
+      "file": "inbox/r033-034-record-cross-concept-calls-at-extract-time.md",
+      "at": "2026-10-26T13:41:40.801Z",
+      "from": "absorb-concept-skills-034"
+    },
+    {
+      "kind": "ack",
+      "id": "r033",
+      "at": "2026-10-26T13:41:53.924Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r034",
+      "task": "035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
+      "file": "inbox/r034-035-benchmark-whether-code-graph-saves-cost-on-maestro.md",
+      "at": "2026-10-26T19:06:53.278Z",
+      "from": "absorb-concept-skills-035"
+    },
+    {
+      "kind": "ack",
+      "id": "r034",
+      "at": "2026-10-26T19:07:01.341Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r035",
+      "task": "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md",
+      "file": "inbox/r035-036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md",
+      "at": "2026-10-27T01:49:21.702Z",
+      "from": "absorb-concept-skills-036"
+    },
+    {
+      "kind": "ack",
+      "id": "r035",
+      "at": "2026-10-27T01:49:29.668Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r036",
+      "task": "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md",
+      "file": "inbox/r036-037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md",
+      "at": "2026-10-27T02:31:30.407Z",
+      "from": "absorb-concept-skills-037"
+    },
+    {
+      "kind": "ack",
+      "id": "r036",
+      "at": "2026-10-27T02:31:42.642Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r037",
+      "task": "040-loosen-the-impact-and-literal-eval-graders.md",
+      "file": "inbox/r037-040-loosen-the-impact-and-literal-eval-graders.md",
+      "at": "2026-10-27T14:29:38.926Z",
+      "from": "absorb-concept-skills-040"
+    },
+    {
+      "kind": "ack",
+      "id": "r037",
+      "at": "2026-10-27T14:29:49.311Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r038",
+      "task": "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "file": "inbox/r038-038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "at": "2026-10-27T14:54:52.099Z",
+      "from": "absorb-concept-skills-038"
+    },
+    {
+      "kind": "ack",
+      "id": "r038",
+      "at": "2026-10-27T14:54:59.443Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r039",
+      "task": "039-measure-graph-impact-and-cross-questions-on-maestro.md",
+      "file": "inbox/r039-039-measure-graph-impact-and-cross-questions-on-maestro.md",
+      "at": "2026-10-27T19:07:46.938Z",
+      "from": "absorb-concept-skills-039"
+    },
+    {
+      "kind": "ack",
+      "id": "r039",
+      "at": "2026-10-27T19:08:43.345Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r040",
+      "task": "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md",
+      "file": "inbox/r040-041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md",
+      "at": "2026-10-27T20:30:26.733Z",
+      "from": "absorb-concept-skills-041"
+    },
+    {
+      "kind": "ack",
+      "id": "r040",
+      "at": "2026-10-27T20:30:34.513Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r041",
+      "task": "042-measure-whether-concept-skills-save-cost-on-their-own.md",
+      "file": "inbox/r041-042-measure-whether-concept-skills-save-cost-on-their-own.md",
+      "at": "2026-10-28T00:34:10.998Z",
+      "from": "absorb-concept-skills-042"
+    },
+    {
+      "kind": "ack",
+      "id": "r041",
+      "at": "2026-10-28T00:34:19.627Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "report",
+      "id": "r042",
+      "task": "043-measure-whether-graph-context-lets-haiku-match-opus.md",
+      "file": "inbox/r042-043-measure-whether-graph-context-lets-haiku-match-opus.md",
+      "at": "2026-10-28T14:55:09.086Z",
+      "from": "absorb-concept-skills-043"
+    },
+    {
+      "kind": "ack",
+      "id": "r042",
+      "at": "2026-10-28T14:55:18.989Z",
+      "by": "manager-concept-skills-merge"
+    },
+    {
+      "kind": "review",
+      "id": "m001",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.review.md",
+      "at": "2026-10-31T00:59:20.485Z",
+      "from": "absorb-concept-skills-050"
+    },
+    {
+      "kind": "verdict",
+      "id": "m001",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T00:59:34.581Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "review",
+      "id": "m002",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.review.md",
+      "at": "2026-10-31T01:03:03.912Z",
+      "from": "absorb-concept-skills-048"
+    },
+    {
+      "kind": "review",
+      "id": "m003",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.review.md",
+      "at": "2026-10-31T01:03:18.930Z",
+      "from": "absorb-concept-skills-049"
+    },
+    {
+      "kind": "review",
+      "id": "m004",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/045-refresh-the-graph-automatically-after-skill-md-edits.review.md",
+      "at": "2026-10-31T01:04:50.472Z",
+      "from": "absorb-concept-skills-045"
+    },
+    {
+      "kind": "verdict",
+      "id": "m002",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T01:20:07.735Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "verdict",
+      "id": "m003",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T01:20:08.929Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "verdict",
+      "id": "m004",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-10-31T01:20:10.070Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r043",
+      "task": "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "file": "inbox/r043-050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md",
+      "at": "2026-10-31T01:21:32.797Z",
+      "from": "absorb-concept-skills-050"
+    },
+    {
+      "kind": "ack",
+      "id": "r043",
+      "at": "2026-10-31T01:21:41.251Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r044",
+      "task": "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "file": "inbox/r044-048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md",
+      "at": "2026-10-31T01:26:38.857Z",
+      "from": "absorb-concept-skills-048"
+    },
+    {
+      "kind": "ack",
+      "id": "r044",
+      "at": "2026-10-31T01:26:44.015Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r045",
+      "task": "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "file": "inbox/r045-049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md",
+      "at": "2026-10-31T01:30:47.267Z",
+      "from": "absorb-concept-skills-049"
+    },
+    {
+      "kind": "report",
+      "id": "r046",
+      "task": "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "file": "inbox/r046-045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "at": "2026-10-31T01:31:39.847Z",
+      "from": "absorb-concept-skills-045"
+    },
+    {
+      "kind": "ack",
+      "id": "r045",
+      "at": "2026-10-31T01:43:26.053Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "ack",
+      "id": "r046",
+      "at": "2026-10-31T01:43:26.718Z",
+      "by": "maestro-mgr-11fd3a4f"
+    },
+    {
+      "kind": "report",
+      "id": "r047",
+      "task": "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "file": "inbox/r047-055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "at": "2026-11-01T01:09:42.404Z",
+      "from": "maestro-79ee2ebd"
+    },
+    {
+      "kind": "report",
+      "id": "r048",
+      "task": "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "file": "inbox/r048-055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md",
+      "at": "2026-11-01T01:35:11.884Z",
+      "from": "maestro-79ee2ebd"
+    },
+    {
+      "kind": "ack",
+      "id": "r048",
+      "at": "2026-11-01T01:35:21.173Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "ack",
+      "id": "r047",
+      "at": "2026-11-01T01:35:22.098Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m005",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.review.md",
+      "at": "2026-11-01T14:01:18.023Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "verdict",
+      "id": "m005",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-01T14:01:37.902Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m006",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.review-2.md",
+      "at": "2026-11-01T14:22:11.148Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "verdict",
+      "id": "m006",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-01T14:22:22.063Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m007",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "round": 3,
+      "file": ".claude/maestro-tasks/056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.review-3.md",
+      "at": "2026-11-01T14:32:08.916Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "verdict",
+      "id": "m007",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-01T14:32:20.140Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r049",
+      "task": "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "file": "inbox/r049-056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md",
+      "at": "2026-11-01T23:08:11.944Z",
+      "from": "absorb-concept-skills-056"
+    },
+    {
+      "kind": "ack",
+      "id": "r049",
+      "at": "2026-11-01T23:08:30.037Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m008",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.review.md",
+      "at": "2026-11-01T23:22:38.187Z",
+      "from": "absorb-concept-skills-059"
+    },
+    {
+      "kind": "verdict",
+      "id": "m008",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "verdict": "escalate",
+      "effective": "escalate",
+      "at": "2026-11-01T23:22:52.866Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m009",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.review-2.md",
+      "at": "2026-11-02T00:18:47.544Z",
+      "from": "absorb-concept-skills-059"
+    },
+    {
+      "kind": "verdict",
+      "id": "m009",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T00:19:05.325Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r050",
+      "task": "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "file": "inbox/r050-059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md",
+      "at": "2026-11-02T00:43:33.695Z",
+      "from": "absorb-concept-skills-059"
+    },
+    {
+      "kind": "ack",
+      "id": "r050",
+      "at": "2026-11-02T00:43:47.209Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m010",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.review.md",
+      "at": "2026-11-02T01:06:14.130Z",
+      "from": "absorb-concept-skills-060"
+    },
+    {
+      "kind": "verdict",
+      "id": "m010",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T01:06:41.956Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r051",
+      "task": "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "file": "inbox/r051-060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md",
+      "at": "2026-11-02T01:25:59.321Z",
+      "from": "absorb-concept-skills-060"
+    },
+    {
+      "kind": "ack",
+      "id": "r051",
+      "at": "2026-11-02T01:26:08.441Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m011",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.review.md",
+      "at": "2026-11-02T01:37:37.062Z",
+      "from": "absorb-concept-skills-061"
+    },
+    {
+      "kind": "verdict",
+      "id": "m011",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T01:37:50.972Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m012",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.review-2.md",
+      "at": "2026-11-02T02:12:45.265Z",
+      "from": "absorb-concept-skills-061"
+    },
+    {
+      "kind": "verdict",
+      "id": "m012",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T02:12:53.990Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r052",
+      "task": "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "file": "inbox/r052-061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md",
+      "at": "2026-11-02T02:26:48.080Z",
+      "from": "absorb-concept-skills-061"
+    },
+    {
+      "kind": "ack",
+      "id": "r052",
+      "at": "2026-11-02T02:26:57.249Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m013",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.review.md",
+      "at": "2026-11-02T15:22:03.193Z",
+      "from": "absorb-concept-skills-057"
+    },
+    {
+      "kind": "verdict",
+      "id": "m013",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T15:22:16.400Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m014",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.review-2.md",
+      "at": "2026-11-02T15:27:16.696Z",
+      "from": "absorb-concept-skills-057"
+    },
+    {
+      "kind": "verdict",
+      "id": "m014",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T15:27:24.733Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r053",
+      "task": "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "file": "inbox/r053-057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md",
+      "at": "2026-11-02T15:33:44.330Z",
+      "from": "absorb-concept-skills-057"
+    },
+    {
+      "kind": "ack",
+      "id": "r053",
+      "at": "2026-11-02T15:33:53.355Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m015",
+      "task": "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.review.md",
+      "at": "2026-11-02T16:44:29.408Z",
+      "from": "absorb-concept-skills-063"
+    },
+    {
+      "kind": "verdict",
+      "id": "m015",
+      "task": "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T16:44:51.609Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r054",
+      "task": "062-test-ensure-store-against-the-real-cli-so-a-stub-that-drifts-from-it-fails-pnpm-test.md",
+      "file": "inbox/r054-062-test-ensure-store-against-the-real-cli-so-a-stub-that-drifts-from-it-fails-pnpm-test.md",
+      "at": "2026-11-02T16:50:25.269Z",
+      "from": "absorb-concept-skills-062"
+    },
+    {
+      "kind": "ack",
+      "id": "r054",
+      "at": "2026-11-02T16:50:42.724Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r055",
+      "task": "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "file": "inbox/r055-063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md",
+      "at": "2026-11-02T17:07:58.327Z",
+      "from": "absorb-concept-skills-063"
+    },
+    {
+      "kind": "ack",
+      "id": "r055",
+      "at": "2026-11-02T17:08:10.281Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m016",
+      "task": "064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.review.md",
+      "at": "2026-11-02T21:12:24.235Z",
+      "from": "absorb-concept-skills-064"
+    },
+    {
+      "kind": "verdict",
+      "id": "m016",
+      "task": "064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-02T21:12:40.928Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r056",
+      "task": "064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md",
+      "file": "inbox/r056-064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md",
+      "at": "2026-11-02T21:21:59.402Z",
+      "from": "absorb-concept-skills-064"
+    },
+    {
+      "kind": "ack",
+      "id": "r056",
+      "at": "2026-11-02T21:22:12.470Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "review",
+      "id": "m017",
+      "task": "065-keep-the-exact-name-vertex-in-the-top-3-on-a-partly-enriched-store-eval-as-is-task-4-fails-6-7-at-0-3-41.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/065-keep-the-exact-name-vertex-in-the-top-3-on-a-partly-enriched-store-eval-as-is-task-4-fails-6-7-at-0-3-41.review.md",
+      "at": "2026-11-03T01:29:40.938Z",
+      "from": "absorb-concept-skills-065"
+    },
+    {
+      "kind": "verdict",
+      "id": "m017",
+      "task": "065-keep-the-exact-name-vertex-in-the-top-3-on-a-partly-enriched-store-eval-as-is-task-4-fails-6-7-at-0-3-41.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-03T01:29:56.647Z",
+      "by": "maestro-mgr-ce310c69"
+    },
+    {
+      "kind": "report",
+      "id": "r057",
+      "task": "065-keep-the-exact-name-vertex-in-the-top-3-on-a-partly-enriched-store-eval-as-is-task-4-fails-6-7-at-0-3-41.md",
+      "file": "inbox/r057-065-keep-the-exact-name-vertex-in-the-top-3-on-a-partly-enriched-store-eval-as-is-task-4-fails-6-7-at-0-3-41.md",
+      "at": "2026-11-03T01:41:49.442Z",
+      "from": "absorb-concept-skills-065"
+    },
+    {
+      "kind": "ack",
+      "id": "r057",
+      "at": "2026-11-03T01:42:02.107Z",
+      "by": "maestro-mgr-ce310c69"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# Cross: electron-shell-invariants ↔ maestro-config-model
+
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::saveConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::blankConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readAgentsAvailable`
+- `electron-shell-invariants::applyProjectTagsSet` --calls--> `maestro-config-model::saveConfig`
+- `electron-shell-invariants::restartConfigWatch` --calls--> `maestro-config-model::watchConfigFile`
+- `electron-shell-invariants::RootLayout` --mounts--> `maestro-config-model::ConfigWatchProvider`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::saveConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::resolveUseMaestroTasks`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::applyProjectTagsSet` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::blankConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::saveConfig`
+- `electron-shell-invariants::applyProjectTagsSet` --calls--> `maestro-config-model::saveConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::blankConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::applyProjectTagsSet` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::readConfig`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::duplicateAgentTypes`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-config-model::resolveUseMaestroTasks`

@@ -1,0 +1,16 @@
+# Impact (in, depth 2): decideSync
+
+## Direct callers
+
+- @apps/maestro/src/core/agent-sync.ts:194 — `buildEntry`
+- @apps/maestro/src/core/report-sync.ts:110 — `syncProjectReports`
+- @apps/maestro/src/core/handoff-sync.ts:96 — `syncProjectHandoffs`
+- @apps/maestro/src/core/report-sync.ts:110 — `syncProjectReports`
+- @apps/maestro/src/core/handoff-sync.ts:96 — `syncProjectHandoffs`
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/core/agent-sync.ts:245 — `computeAgentSync`
+- @apps/maestro/src/core/install.ts:718 — `installRuntime`
+- @apps/maestro/src/core/install.ts:718 — `installRuntime`
+

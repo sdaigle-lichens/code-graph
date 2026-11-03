@@ -1,6 +1,7 @@
 {
   "project": "code-graph",
   "tsconfig": "packages/code-graph/tsconfig.json",
+  "skillsDir": ".claude/skills",
   "concepts": {
     "code-graph-search": {
       "globs": [
@@ -8,10 +9,29 @@
       ],
       "skill": ".claude/skills/code-graph-search/SKILL.md"
     },
+    "concept-skills-layer": {
+      "globs": [
+        "packages/code-graph/src/skills/**/*.md"
+      ],
+      "skill": ".claude/skills/concept-skills-layer/SKILL.md"
+    },
     "scribe-pipeline": {
       "globs": [
         "packages/code-graph/src/scribe/**/*.ts"
-      ]
+      ],
+      "skill": ".claude/skills/scribe-pipeline/SKILL.md"
     }
+  },
+  "skills": {
+    "version": "1.1",
+    "last_update": "9f0fd699a9a8e3155bd898b5da694724574e0ef2",
+    "agents": [
+      "backend",
+      "frontend",
+      "refactor",
+      "reviewer",
+      "scribe",
+      "test"
+    ]
   }
 }

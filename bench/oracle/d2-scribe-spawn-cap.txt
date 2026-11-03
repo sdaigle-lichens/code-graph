@@ -1,0 +1,112 @@
+# Impact (both, depth 2): readyTasks
+
+## Direct neighbors
+
+- @apps/maestro/src/core/claims.ts:587 — `readClaims`
+- @apps/maestro/src/core/tasks.ts:587 — `tasksDirFor`
+- @apps/maestro/src/core/epics.ts:614 — `launchCommandFor`
+- @apps/maestro/src/core/tasks.ts:586 — `readTaskTracker`
+- @apps/maestro/src/core/epics.ts:609 — `workerNameFor`
+- @apps/maestro/src/core/epics.ts:582 — `readEpicState`
+
+## Indirect neighbors (depth 2)
+
+- @apps/maestro/src/core/claims.ts:126 — `listClaimFiles`
+- @apps/maestro/src/core/claims.ts:35 — `claimsDirFor`
+- @apps/maestro/src/core/claims.ts:81 — `nameOf`
+- @apps/maestro/src/core/claims.ts:114 — `isSessionLive`
+- @apps/maestro/src/core/claims.ts:85 — `readClaimFile`
+- @apps/maestro/src/core/worktree.ts:88 — `mainCheckoutRoot`
+- @apps/maestro/src/core/epics.ts:563 — `shellQuote`
+- @apps/maestro/src/core/tasks.ts:68 — `readStatusMap`
+- @apps/maestro/src/core/epics.ts:102 — `epicDirFor`
+
+
+# Search: "epics default spawn cap workers at once"
+> 6 concepts matched, 25 vertices, 6 skill docs, ~1168 tokens
+
+## Concept: task-queue
+
+> Skill: `task-queue` (.claude/skills/task-queue/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/epics.ts:37-43 — `EpicWorker` — _not enriched_
+- @apps/maestro/src/core/epics.ts:250-259 — `addWorker` — _not enriched_
+  - → calls `updateState` (task-queue) (line 251)
+  - → calls `now` (task-queue) (line 256)
+- @apps/maestro/src/core/epics.ts:261-265 — `removeWorker` — _not enriched_
+  - → calls `updateState` (task-queue) (line 262)
+- @apps/maestro/src/core/epics.ts:557-561 — `workerNameFor` — _not enriched_
+  - ← called by `readyTasks` at apps/maestro/src/core/epics.ts:581 (line 609)
+- @apps/maestro/src/core/epics.ts:168-178 — `updateState` — Runs a mutation on an epic's state.json under the epic directory lock: it throws if the epic or its state file is missing, applies fn to the current state, then writes the state back.
+- @apps/maestro/src/core/epics.ts:107-109 — `now` — Returns the current time as an ISO 8601 string.
+- @apps/maestro/src/core/epics.ts:581-619 — `readyTasks` — _not enriched_
+
+## Concept: claude-session-bridge
+
+> Skill: `claude-session-bridge` (apps/maestro/.claude/skills/claude-session-bridge/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/claude-run.ts:133-144 — `spawnClaudeChild` — _not enriched_
+  - ← called by `openSession` at apps/maestro/src/main/claude-session.ts:374 (line 442)
+  - ← called by `continueSession` at apps/maestro/src/main/claude-session.ts:632 (line 643)
+  - ← called by `reopenWithoutPacing` at apps/maestro/src/main/claude-session.ts:595 (line 604)
+  - ← called by `resumeSession` at apps/maestro/src/main/claude-session.ts:561 (line 568)
+  - ← called by `startSession` at apps/maestro/src/main/claude-session.ts:332 (line 334)
+  - ← called by `runPreviewedClaude` at apps/maestro/src/core/claude-run.ts:169 (line 220)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 1087)
+  - → calls `claudeChildPath` (claude-session-bridge) (line 139)
+- @apps/maestro/src/core/claude-run.ts:94-98 — `appendCapped` — _not enriched_
+  - ← called by `runPreviewedClaude` at apps/maestro/src/core/claude-run.ts:169 (lines 192, 196)
+  - ← called by `registerIpc` at apps/maestro/src/main/ipc.ts:492 (line 1087)
+- @apps/maestro/src/core/claude-run.ts:169-276 — `runPreviewedClaude` — _not enriched_
+- @apps/maestro/src/core/claude-cli.ts:167-170 — `claudeChildPath` — _not enriched_
+- @apps/maestro/src/main/claude-session.ts:374-481 — `openSession` — _not enriched_
+- @apps/maestro/src/main/claude-session.ts:632-663 — `continueSession` — _not enriched_
+- @apps/maestro/src/main/claude-session.ts:595-615 — `reopenWithoutPacing` — _not enriched_
+- @apps/maestro/src/main/claude-session.ts:561-573 — `resumeSession` — _not enriched_
+- @apps/maestro/src/main/claude-session.ts:332-335 — `startSession` — _not enriched_
+
+## Concept: installing-maestro
+
+> Skill: `installing-maestro` (.claude/skills/installing-maestro/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/detect.ts:353-359 — `capLines` — _not enriched_
+  - ← called by `suppressedEvidence` at apps/maestro/src/core/detect.ts:376 (line 382)
+  - ← called by `detectImplAgents` at apps/maestro/src/core/detect.ts:400 (lines 420, 436)
+  - ← called by `toEvidence` at apps/maestro/src/core/detect.ts:362 (line 366)
+- @apps/maestro/src/core/detect.ts:400-437 — `detectImplAgents` — _not enriched_
+- @apps/maestro/src/core/detect.ts:376-383 — `suppressedEvidence` — _not enriched_
+- @apps/maestro/src/core/detect.ts:362-367 — `toEvidence` — _not enriched_
+
+## Concept: create-skills-architecture
+
+> Skill: `create-skills-architecture` (apps/maestro/.claude/skills/create-skills-architecture/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/renderer/src/routes/create-marketplace.tsx:63-67 — `defaultParent` — _not enriched_
+  - ← called by `CreateMarketplace` at apps/maestro/src/renderer/src/routes/create-marketplace.tsx:69 (line 90)
+- @apps/maestro/src/renderer/src/routes/create-marketplace.tsx:69-274 — `CreateMarketplace` — _not enriched_
+
+## Concept: maestro-config-model
+
+> Skill: `maestro-config-model` (apps/maestro/.claude/skills/maestro-config-model/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/core/contracts.ts:380-384 — `ReportDefault` — _not enriched_
+- @apps/maestro/src/core/contracts.ts:394-398 — `HandoffDefault` — _not enriched_
+
+## Concept: electron-shell-invariants
+
+> Skill: `electron-shell-invariants` (apps/maestro/.claude/skills/electron-shell-invariants/SKILL.md)
+
+### Relevant code
+
+- @apps/maestro/src/main/ipc.ts:492-1272 — `registerIpc` — _not enriched_
+

@@ -1,0 +1,66 @@
+# Epic: haiku-subagents-with-graph
+
+## Goal
+
+Make code-graph context lift Haiku subagents (maestro's test and scribe already run on Haiku) toward Sonnet-quality work at Haiku cost, and get the plugin's retrieval as close to frictionless as the oracle ceiling measured in absorb-concept-skills.
+
+## Background
+
+This epic starts from the measurements of epic `absorb-concept-skills` (tickets 039, 041, 042
+and 043). Its `EPIC.md` "Status: closed" section holds the summary, and `docs/evals.md` has the
+details. Go there for more context.
+
+- On Opus 5.5 the graph doesn't cut cost on read-only questions.
+- On Haiku 5.5, on m1–m7:
+  - the oracle (best-case graph output pasted in) scored 108/108;
+  - the plugin as shipped scored 107/108;
+  - without the graph it scored 91/108;
+  - all at about 3% of Opus's cost.
+- What's left between the plugin and the oracle is cost (+24%), mostly from 10–15k-char CLI output
+  on cross-concept questions.
+- In `~/gits/maestro`, `.claude/agents/test.md` and `scribe.md` set `model: claude-haiku-5-5`.
+
+## Scope
+
+In:
+1. Measure whether the graph improves Haiku's test and scribe work, with Sonnet 5.5 as the
+   reference.
+2. Cut retrieval friction toward the oracle ceiling: trim cross-concept CLI output, then possibly a
+   primer built from the task text at subagent start. Measure each step.
+3. Recommend, per agent, Haiku with the graph or Sonnet.
+
+Out: changes in `~/gits/maestro` (any model switch there is its own ticket in that repo);
+embedding ranking; an MCP server.
+
+## Decisions
+
+- The reference model is Sonnet 5.5, not Opus (user, 2026-10-28).
+- Paid bench runs are user-run from a plain terminal, each with a cap and a decision rule written
+  into `docs/evals.md` before the run.
+- Ticket 044 first: no friction work until edit-style tasks show a gain.
+- Tickets that change `packages/code-graph/src/` must say the plugin bundle is regenerated
+  (`pnpm bundle`) even when the bundle is otherwise out of scope (046, report r001).
+- `just eval` and `just regraph` rebuild a stale `dist/` themselves (046).
+- 044 verdict (user, 2026-10-30): no gain from the graph on edit tasks, and Haiku without the graph
+  already matches Sonnet; but the set saturated and the graph arm never called the CLI. Next: a
+  harder edit set with arms `haiku-noskills`, `haiku-nograph`, `haiku-oracle`, `sonnet-nograph`,
+  which also tests concept skills on Haiku edits (041 only covered Opus questions). A primer only
+  if the oracle shows a gain. Output trimming is dropped for now: Haiku never ran the CLI on edits.
+- Bench tests run as `node --test bench/*.test.mjs` (the directory form fails on Node 25), and
+  the maestro path comes from `bench/maestro-dir.mjs` (`maestroFor`), never a new default (053).
+- 051 decision rule (pre-registered): an arm helps when it recovers at least a third of the
+  baseline's missed points and at least 3; under 3 missed is inconclusive; verdicts per group
+  (test, scribe) and overall, the overall never overriding a group.
+- Scribe-side limit found in 051: docs outside every concept's globs never appear in graph
+  output, and `search` reaches a concept's SKILL.md but not the stale lines in it. A primer
+  (052) can only give what the oracle shows.
+- 051 result (paid run bdfb1d2, $1.43 incl. pilot; Sonnet dropped from the paid run): oracle ties
+  Haiku without the graph (100 vs 100 of 120, ~11% costlier), so no support for the 052 primer;
+  skills effect not shown (test group saturated, scribe confounded by the strip deleting the
+  edited SKILL.md files); no gap to Sonnet.
+- After 051 (user, 2026-10-30): 052 stays on hold. The tracker shows it ready, but it is not to
+  be spawned until a later measurement shows a gain. A fair scribe-side skills test (edited
+  SKILL.md files kept on disk but not loadable as skills) is not filed for now.
+- Concept skills stay; the push to use the graph before grep goes (user, 2026-10-30, ticket 054):
+  no SessionStart context line, and code-graph-retrieval becomes user-run only, so the 043
+  read-only gain stays one command away.

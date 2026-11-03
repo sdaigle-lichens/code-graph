@@ -4,12 +4,15 @@
     "name": "Samuel Daigle",
     "email": "daigles@lichens.ai"
   },
+  "metadata": {
+    "description": "code-graph: graph-based code intelligence and concept skills for Claude Code"
+  },
   "plugins": [
     {
       "name": "code-graph",
       "source": "./plugin",
       "description": "Graph-based code intelligence — scribe + hybrid BM25/multi-hop retrieval over TS/React, in an embedded SQLite store",
-      "version": "0.1.0",
+      "version": "0.3.42",
       "keywords": ["code-graph", "scribe", "ast", "sqlite", "retrieval"]
     }
   ]

@@ -2,6 +2,10 @@
 name: code-graph-search
 description: Reference for how `code-graph search` works — BM25 seed → graph expansion → score → cluster. Read before refactoring packages/code-graph/src/query/search.ts.
 allowed-tools: Read
+metadata:
+  type: concept-skill
+  version: "1.4"
+  last-update: 0006bf3e82c64fe0fed6212c906eb367436628e2
 ---
 
 ## When to use
@@ -23,7 +27,7 @@ query string
 [3] Expand vertex seeds  ← graph traversal, depth-bounded
    │
    ▼
-[4] Expand doc seeds     ← capture skill doc; load concept vertices ONLY if no vertex seeds
+[4] Expand doc seeds     ← capture skill doc; load top-20 (by degree) concept vertices ONLY if no vertex seeds
    │
    ▼
 [5] Score         ← 0.7 × (bm25/max) + 0.3 × (degree/max)
@@ -59,11 +63,44 @@ match long `body_md` far more often than short `name` — without the filter, sk
 above the vertices a natural-language query is actually about. Every token is also quoted,
 because a bare `AND` / `OR` / `NEAR` / `*` / `-` / `:` in user input is an FTS5 syntax error.
 
-`unicode61` does **not** split camelCase: `setWorkorderIndex` is one token, so a bare
-`workorder` reaches it only through purpose/tags/body. The `text_en` analyzer behaved the
-same way.
+`unicode61` does **not** split camelCase, so the `name` column is indexed as the identifier
+**plus its words** (`nameIndexText`, `rows.ts`: `parseGapsHandled parse gaps handled`, written by
+`rebuildSearchIndex`). A bare `gaps handled` therefore reaches an un-enriched vertex by name; an
+exact identifier query still matches the whole token. `toMatchExpr` also offers the words of a
+`SCREAMING_SNAKE` token alongside the phrase. Why: in a consumer where most concepts are
+un-enriched, only enriched purposes matched plain-language queries, so the two enriched concepts
+crowded out everything else (maestro eval 2/8 -> 7/8). The row format is `FTS_FORMAT`
+(`bootstrap.ts`), stored in the `meta` table by `rebuildSearchIndex`; `search` calls
+`ensureSearchIndexFormat` and rebuilds once when it is missing or older, or prints one stderr line
+telling the user to run `code-graph reindex` when the rebuild hits a lock/busy-type write failure (a truly
+read-only `graph.db` fails earlier, in `bootstrapStore`, so no hint). Bump `FTS_FORMAT` when the
+indexed text changes.
 
-`LIMIT 10` — top 10 seeds only. No surviving tokens, or no matches → `SearchNoResultsError`
+**Partly enriched stores (ticket 061).** Enriched peers matching only through
+`purpose`/`tags`, with a higher degree, outranked a name hit (eval task 2, `expandDoc` at rank 9).
+Column weights cannot fix that without cost (lowering `purpose`/`tags` tops out at rank 6 of 6 and pushes
+`loadConfigOrExit` in task 3 from 5th to 6th), so the seed `base` of a vertex whose name matches a query
+word is multiplied by `NAME_HIT_FACTOR` (3): `-bm25(name column only) > 0`. This is a ranking change, and the
+match is **whole-token** (quoted terms over the camelCase-split name words, no prefix `*`), never a substring. Multiplicative, so the order
+among name hits is unchanged and the expected vertices and clusters of the stripped store are unchanged (`expandDoc` lands 4th; the task-6 hit list and the top cluster of the generic query `skill` shift, still exit 7). The factor
+only feeds the blended `score`; the reported `bm25` (and the low-confidence threshold) stays unboosted. Query-time:
+no `FTS_FORMAT` bump, no reindex. A docs-only concept has no purpose,
+so enriched vertices pushed its doc past the top 10 and it never surfaced (task 6): the seed query
+keeps the top 10 **plus the best `DOC_SEED_RESERVE` (2) docs** outside it. Such a doc seed next to vertex
+seeds only captures its skill, or an empty docs-only cluster appended last; it adds no vertex hits and
+leaves `docOnly` and confidence unchanged.
+
+**Whole-name equals a query word (ticket 065).** On the real partly enriched store `scribe apply drift detection` ranked `apply`
+(bm25 3.12, degree 51) 4th behind `NeverAppliedDrift`, `DriftJson` and `isConceptApplied`: their names and purposes hit several
+query words, so a plain name-hit factor cannot separate them. A structural signal does: when a seed's whole name (lowercased)
+equals a query token (`queryTokens`, `rows.ts`) and it is not a `type-def` and not already an exact whole-query hit, its blended
+score is multiplied by `NAME_EQUALS_TOKEN_FACTOR` (3) more. It is kept out of the `maxBm25` normaliser (otherwise the boosted vertex
+squashes every other bm25 term and eval task 3 loses `loadConfigOrExit`), so other hits keep their order; the blended score of the
+boosted vertex can exceed 1, and no consumer assumes at most 1. Reported `bm25` and the low-confidence threshold stay unboosted; query-time, no `FTS_FORMAT` bump.
+Real store: `just eval-as-is` 6/7 -> 7/7 (`apply` 1st); `just eval` stays 7/7;
+`query/search-partly-enriched.test.ts` pins both cases.
+
+`LIMIT 10` — top 10 seeds only (`SEED_LIMIT`; plus the reserved doc seeds above). No surviving tokens, or no matches → `SearchNoResultsError`
 (CLI exit 6).
 
 One FTS table covers both `vertices` and `docs`, because `bm25()` scores are only comparable
@@ -96,7 +133,7 @@ vertex reachable more than one way once results are de-duplicated, so changing i
 `impact` and `vertex` output.
 
 The inbound traversal attributes **depth-2 rows to the seed as well**, inflating its degree.
-That is a quirk of the original pipeline that the scores and the rendered "triggered by" list
+That is a quirk of the original pipeline that the scores and the rendered inbound-edge list
 both depend on — reproduced deliberately, not a bug to fix in passing.
 
 Neighbors discovered here are added to `vertexMap` with `bm25 = 0` (they didn't BM25-match; they got pulled in by structure). They are **not themselves expanded** — depth caps at the values above.
@@ -109,7 +146,11 @@ Skill doc for the seed's concept is loaded into `skillDocs` map.
 
 Always: capture the skill doc into `skillDocs`.
 
-Conditionally (`loadVertices === true`, i.e. zero vertex seeds): load **all** live vertices of the doc's concept with `bm25 = 0`. This is the discoverability fallback for pure-concept queries like "drag and drop" that only hit a skill body.
+Conditionally (`loadVertices === true`, i.e. zero vertex seeds): load the doc's concept's live vertices with `bm25 = 0`, **capped at `DOC_VERTEX_CAP = 20`**. This is the discoverability fallback for pure-concept queries like "drag and drop" that only hit a skill body.
+
+- Each candidate gets its one-hop edges via `collectEdges(db, key, maps, addNeighbors=false)` (the same helper `expandVertex` uses with `true`), so it has a real `degree` but pulls in no neighbors.
+- Candidates are sorted by degree desc (stable; ties keep `type, key` order) and only the top 20 enter `vertexMap`. A concept can hold hundreds of vertices.
+- `SearchResult.docOnly` is `vertexSeeds.length === 0`. `formatSearch` then adds a one-line hint under the totals: matched only through skill docs, enrich the concept with the `scribe` skill so its vertices match by purpose/tags.
 
 **Why the conditional**: when vertex seeds exist, loading all concept vertices floods the result with unrelated symbols (the original "35-vertex bloat" bug). Vertex seeds + their structural/impact expansions already cover the relevant subgraph.
 
@@ -121,7 +162,10 @@ After expansion:
 score = 0.7 × (bm25 / maxBm25) + 0.3 × (degree / maxDegree)
 ```
 
-- `bm25` is the seed score (0 for expansion-only neighbors).
+- `bm25` is the seed score (0 for expansion-only neighbors). In this formula it includes the
+  `NAME_HIT_FACTOR` boost for name-matching vertices and the `NAME_EQUALS_TOKEN_FACTOR` boost for a vertex whose whole
+  name equals a query word (see Partly enriched stores; `maxBm25` excludes the latter); the `bm25`
+  reported on a hit and the low-confidence threshold use the unboosted score.
 - `degree` is the count of edges incident to the vertex within the result set.
 - Weights bias toward textual relevance but reward graph centrality.
 
@@ -133,19 +177,74 @@ Hits grouped by `vertex.concept`. Each cluster gets the matching skill doc (full
 
 Markdown sections per cluster:
 - `### Skill` — full body if `skillMode === "full"`, else one-liner pointer
-- `### Relevant code` — vertex hits with edges_in/edges_out enumerated
+- `### Relevant code` — vertex hits with edges_in/edges_out enumerated. A hit with no (or empty)
+  `purpose` ends in ` — _not enriched_` instead of ` — <purpose>`, so an agent can tell "not enriched"
+  from "nothing to say"; the `code-graph-retrieval` skill reports the ones an answer used as an
+  `enrich only:` gap. Plain text only: `--json` keeps `purpose` absent/null and adds no field. Inbound lines are labelled
+  by edge type through `INBOUND_LABELS` (`← called by`, `← mounted by`, `← triggered by` only for
+  `triggers`; unknown types fall back to `<type> from`); outbound lines show the type. `--json` is
+  unchanged. Only `calls`/`triggers`/`delegates-to` reach `edges_in` through `searchStore`, so test
+  other labels through `formatSearch` directly.
 - `### Cross-concept side effects` — deduped `crosses_concept` edges
+
+**Edge grouping (plain text only).** `formatSearch` runs edges through `groupEdges`, which collapses
+edges sharing `(other vertex, type)` into one line (the store holds one edge per call site).
+`callSiteSuffix` renders ` (line 5)` / ` (lines 5, 9)` when edges carry `line`, else ` ×N`; distinct
+reasons are all kept. `--json` is untouched: one entry per stored edge. Don't group in `expandVertex`
+or `collectEdges` — `degree` counts raw edges.
+
+**Totals figure.** `formatSearch` emits a `__TOTALS_PLACEHOLDER__` line; `withTotals` fills it and
+iterates (max 3) until `~N tokens` equals the size of the text containing it, also setting
+`result.totals.tokens`. `applyTokenBudget` trims afterwards, so its `done()` calls `restateTokens`
+(regex `TOTALS_LINE_RE`) to re-state the figure for the trimmed output.
+
+## Low confidence (exit 7)
+
+`searchStore` sets `result.confidence` via `assessConfidence` for the top cluster: low when its best
+raw seed score is under `LOW_CONFIDENCE_MIN_SCORE` (4), or its concept is un-enriched / under
+`LOW_CONFIDENCE_MIN_ENRICHED` (0.5) of its core (`analyzeConceptGaps` ratio). Never low for an exact
+symbol-name hit or a docs-only concept (no live vertices). `formatSearch` prints a
+`> Low confidence: ...` line naming grep or the SKILL.md path; `cli.ts` sets exit code 7 (results
+still printed) and `--json` adds `low_confidence` + `low_confidence_reason` (as `extra`, so
+`budgetSearchJson` always keeps them). The `confidence` object itself is also in the JSON.
 
 ## Token budget (`applyTokenBudget`)
 
 Three-step degradation if markdown exceeds `maxTokens`:
 
 1. Strip ` — why: "..."` reason strings from edges.
-2. Drop low-degree leaves (`degree ≤ 1` AND `bm25 === 0`).
+2. Drop low-degree leaves (`degree ≤ 1` AND `bm25 === 0`). A cluster that would be emptied (doc-seeded concepts) keeps its top 5 hits instead, so trimming never removes the concept.
 3. Truncate skill body between `<!--SKILL_START-->` / `<!--SKILL_END-->` sentinels to first ~2000 chars.
 4. Hard-truncate.
 
 Skill sentinels are stripped from final output regardless.
+
+`cli.ts` calls `applyTokenBudget` first, then (only when strength is `thin`) appends the
+enrichment-gap warning. That note sits **outside** the totals figure (~14 tokens); don't move it
+before the budget step or the figure and `--max-tokens` both shift.
+
+### `--json` budget (`budgetSearchJson`)
+
+`search --json` is trimmed to `--max-tokens` (default 3000, same 4-chars-per-token estimate, sized on
+the pretty-printed JSON), and the budget bounds the whole payload. `strength` (`extra`) is always kept;
+`gaps` is the compact `CompactGaps` from `gaps.ts` (`enriched`, `enrichable`, and one `concepts` line
+per concept with a gap, in declaration order; the full `GapReport` bucketed every concept twice and is
+no longer emitted). Under budget the payload is unchanged. When it trims it adds `truncated: true` and
+`dropped { hits, edges, clusters, skillBodiesTruncated, gaps }`; same shape otherwise.
+
+Trim order, stopping at the first that fits: (0) cut `gaps` lines to those of the result's concepts
+(else the first 3), then to none (counts only; `dropped.gaps` counts the cut lines); (1) drop lowest-ranked hits (and their edges) down to the
+top 5, then try keeping only the best 1; (2) truncate skill `body_md` to 2000, 500, then 0 chars;
+(3) compact the surviving hits: cap each edge list at 10, 3, then 0 and slim vertices/edges to key
+fields (the cap tries come before more hits are dropped, so several compacted hits beat one full hit);
+(4) last resort: drop the best hit and emptied clusters.
+
+**Floor ~150 tokens** (was ~405 before gaps were compactable). Strength, the gap counts and the empty
+skeleton are fixed cost; a smaller `--max-tokens` cannot be honoured and returns the skeleton anyway.
+A non-compact `gaps` value passed to `budgetSearchJson` is opaque and never trimmed.
+
+**Bypass.** `concept`, `impact`, `cross`, `vertex` and `file` `--json` (`query/run.ts`) still ignore
+`--max-tokens`; only `search --json` is budgeted.
 
 ## Critical invariants — don't break these
 
@@ -153,8 +252,8 @@ Skill sentinels are stripped from final output regardless.
 - **`expandDoc` vertex loading is conditional.** Without the `vertexSeeds.length === 0` guard, single-symbol searches return whole-concept dumps.
 - **`has-type` belongs in structural outbound.** Type-defs are useful context (one or two per function); removing it loses signal without saving meaningful tokens. Was reviewed once — stay the course.
 - **Inbound depth-2 only filters `impactTypes`.** Don't include `mounts` / `uses-hook` inbound at depth 2 — that pulls in entire component trees.
-- **Seeds are limited to 10.** Raising this multiplies expansion cost.
-- **The view uses `TOKENS(...)` not `PHRASE(...)`.** Phrase matching kills multi-word natural-language queries.
+- **Seeds are limited to 10** (plus the 2 reserved doc seeds). Raising this multiplies expansion cost; don't drop the doc reserve, it is what keeps a docs-only concept visible on a partly enriched store.
+- **`toMatchExpr` joins tokens with `OR`, never as a phrase or with `AND`.** Phrase or all-terms matching kills multi-word natural-language queries.
 
 ## Common refactor pitfalls
 
@@ -170,7 +269,13 @@ Skill sentinels are stripped from final output regardless.
 
 ## Files
 
-- `packages/code-graph/src/query/search.ts` — pipeline implementation
+- `packages/code-graph/src/query/search.ts` — pipeline implementation; `search` (runs `preflight`) wraps exported `searchStore(db, query, opts)`, which tests call directly
+- `packages/code-graph/src/query/search.test.ts` — doc-only cap, edges, hint, not-enriched marker and budget cluster-keep tests
+- `packages/code-graph/src/query/confidence.test.ts` — `assessConfidence` thresholds and exact-hit / docs-only exemptions
+- `packages/code-graph/src/query/search-partly-enriched.test.ts` — eval tasks 2 and 6 pinned on a partly enriched fixture
+- `packages/code-graph/src/query/search-exit.test.ts` — exit code 7 and `low_confidence` JSON fields
+- `packages/code-graph/src/query/search-gaps-budget.test.ts` — compact `gaps` trimming and `dropped.gaps`
+- `packages/code-graph/src/query/index-format.test.ts` — `fts_format` stamp and one-time reindex
 - `packages/code-graph/src/scribe/bootstrap.ts` — `search_fts` definition, `FTS_WEIGHTS`, `rebuildSearchIndex`
 - `packages/code-graph/src/scribe/rows.ts` — `toMatchExpr` (tokenizer + stopwords + quoting), doc-column helpers
 - `packages/code-graph/src/query/queries.ts` — sibling query functions (`queryConcept`, `queryImpact`, `queryVertex`, `queryFile`, `queryCross`)

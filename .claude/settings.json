@@ -27,6 +27,15 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-post-mortem-context.cjs\""
           }
         ]
+      },
+      {
+        "matcher": "^(maestro|(maestro:)?maestro-manager)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-name.cjs\""
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -44,6 +53,10 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-post-mortem-context.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-name.cjs\""
           }
         ]
       },
@@ -57,11 +70,20 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/scripts/bash-validation.sh"
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-channel-write-guard.cjs\""
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion|SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-human-review-gate.cjs\""
           }
         ]
       }
@@ -113,6 +135,37 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-name.cjs\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-name.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/scripts/maestro-session-heartbeat.cjs\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Write(/.claude/channels/**)"
     ]
   }
 }

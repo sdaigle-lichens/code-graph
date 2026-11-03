@@ -1,0 +1,554 @@
+{
+  "cases": [
+    {
+      "id": "02-impact-movetask",
+      "question": "What would break if I change the signature of `moveTask`?",
+      "setup": "bash {REPO}/plugin/evals/02-impact-movetask/scaffold.sh",
+      "must": ["useDragReorder", "notifyOverdue"]
+    },
+    {
+      "id": "m1-impact-readallprojecttags",
+      "group": "maestro@3814a30",
+      "kind": "impact",
+      "sets": ["043"],
+      "question": "I'm about to change `readAllProjectTags` so it returns a Set<string> instead of a string[]. Which functions call it directly, and which functions call those in turn? Give names and files.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["buildUpdateSkillTags", "applyUpdateSkillTagsIfAny", "installRuntime", "registerIpc", "refreshStaleRuntime", "openSession"],
+      "expected": "Direct callers: registerIpc (main/ipc.ts, the templateProjectTagsList handler), buildUpdateSkillTags (core/claude-preview.ts), applyUpdateSkillTagsIfAny (main/claude-session.ts), installRuntime (core/install.ts). One level up: build (claude-preview.ts) calls buildUpdateSkillTags, openSession (claude-session.ts) calls applyUpdateSkillTagsIfAny, refreshStaleRuntime (install.ts) calls installRuntime. Callers sit in electron-shell-invariants, installing-maestro, updating-maestro, claude-session-bridge and create-skills-architecture; the function itself is in global-stores.",
+      "why_grep_expensive": "The name is easy to grep, but the answer is the enclosing function of each hit and then that function's callers. Each hit lands in a large file (ipc.ts 1289 lines, claude-session.ts 1056, install.ts 970, claude-preview.ts 545), so Grep needs a Read per hit to name the enclosing function and another Grep per caller for the second level. Other hits are re-exports (index.ts, plugin-entries) and tests that must be filtered out.",
+      "proxy": "code-graph query impact readAllProjectTags --direction in (792 chars, complete: same output with --max 100)",
+      "proxy_cmd": ["query", "impact", "readAllProjectTags", "--direction", "in"]
+    },
+    {
+      "id": "m2-impact-duplicateagenttypes",
+      "group": "maestro@3814a30",
+      "kind": "impact",
+      "sets": ["042", "043"],
+      "question": "If I change what `duplicateAgentTypes` in config-validate.ts returns, what breaks? List the direct callers and the callers one level up.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["validateConfig", "applyWorkflowSpec", "registerIpc", "installRuntime", "refreshStaleRuntime"],
+      "expected": "Direct callers: validateConfig (core/config-validate.ts), applyWorkflowSpec (core/workflow-spec.ts), registerIpc (main/ipc.ts, the config-load handler that returns configIssues), installRuntime (core/install.ts, which reports the issues). One level up: refreshStaleRuntime calls installRuntime. validateConfig has no TypeScript caller besides the plugin-entries re-export. The name also appears in comments (workflow-spec.ts, contracts.ts, ipc.ts) and re-exports (index.ts, plugin-entries/maestro-session.ts) that are not calls.",
+      "why_grep_expensive": "Nine files mention the name, but most hits are doc comments or re-exports; only four are calls. Grep has to read around each hit to tell calls from comments and to name the enclosing function, then search again for callers of installRuntime and applyWorkflowSpec. The name is also defined in two concepts (maestro-config-model and plugin-libs-parity), which the graph disambiguates with exit 4 and one retry.",
+      "proxy": "code-graph query impact maestro-config-model::duplicateAgentTypes --direction in (635 chars, complete); the unqualified name exits 4 with two candidates",
+      "proxy_cmd": ["query", "impact", "maestro-config-model::duplicateAgentTypes", "--direction", "in"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["maestro-architecture", "maestro-config-model"],
+      "skill_note": "maestro-architecture (root, listed at init) names duplicateAgentTypes in its description and its Q&A table says it runs from three call sites: the app's config load, /maestro-update and install.ts. maestro-config-model (apps/maestro/.claude/skills, nested, not in the init list) says where each call site computes it. It gives the model the three non-comment callers up front, so it can skip sorting calls from doc comments and re-exports."
+    },
+    {
+      "id": "m3-impact-readallagenttypes",
+      "group": "maestro@3814a30",
+      "kind": "impact",
+      "sets": ["043"],
+      "question": "What breaks if I change the signature of `readAllAgentTypes`? Name the direct callers and who calls those.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["seededAgentAttrs", "copyAgentAttributeRows", "installRuntime", "registerIpc", "skillMapForSeed", "forkAgent", "refreshStaleRuntime"],
+      "expected": "Direct callers: seededAgentAttrs and registerIpc (main/ipc.ts), copyAgentAttributeRows (core/agent-fork.ts), installRuntime (core/install.ts). One level up: skillMapForSeed (ipc.ts) calls seededAgentAttrs, forkAgent (agent-fork.ts) calls copyAgentAttributeRows, refreshStaleRuntime calls installRuntime. Callers span electron-shell-invariants, agent-fork-sync and installing-maestro; the function lives in global-stores.",
+      "why_grep_expensive": "Callers are in three different layers (main process, fork logic, installer) and the name also appears in re-exports and comments. Naming the second level needs three more Greps (seededAgentAttrs, copyAgentAttributeRows, installRuntime) plus Reads of 1000-line files to find enclosing functions.",
+      "proxy": "code-graph query impact readAllAgentTypes --direction in (632 chars, complete)",
+      "proxy_cmd": ["query", "impact", "readAllAgentTypes", "--direction", "in"]
+    },
+    {
+      "id": "m4-cross-install-config",
+      "group": "maestro@3814a30",
+      "kind": "cross",
+      "sets": ["042", "043"],
+      "question": "How do the install/uninstall code and the maestro.json config model interact? Which config functions do the install and uninstall functions call, and which functions make those calls?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["installRuntime", "installStatus", "uninstallRuntime", "refreshStaleRuntime", "maestroJsonPath", "writeConfig", "readJsonSafe", "writeRuntimeVersion", "maestroConfigRefusal"],
+      "expected": "installing-maestro (install.ts, uninstall.ts) calls into maestro-config-model (config.ts) in 19 edges: installRuntime calls readConfig, writeConfig (twice), readJsonSafe, writeRuntimeVersion, maestroConfigRefusal, duplicateAgentTypes and maestroJsonPath; installStatus calls maestroJsonPath and readJsonSafe; refreshStaleRuntime calls maestroJsonPath and readJsonSafe; uninstallPlan, purgeTargets and uninstallRuntime call maestroJsonPath.",
+      "why_grep_expensive": "Grep must scan install.ts (about 1000 lines) and uninstall.ts for every import from config.js, then map each call site to its enclosing function across two files. The imports alone do not say which function calls what. The installing-maestro skill names only some of these (readConfig, maestroConfigRefusal), not the per-function map.",
+      "proxy": "code-graph query cross installing-maestro maestro-config-model (1758 chars, 19 edges, complete)",
+      "proxy_cmd": ["query", "cross", "installing-maestro", "maestro-config-model"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["installing-maestro"],
+      "skill_note": "installing-maestro (root, listed at init): its Files table maps install.ts (installStatus, installRuntime, refreshStaleRuntime) and uninstall.ts (uninstallPlan, purgeTargets, uninstallRuntime) and names readConfig, maestroConfigRefusal and maestroJsonPath. It does not give the per-function call map, so the model still reads the two files. In 039 the graph arm that loaded it was 16% cheaper than the arm that did not."
+    },
+    {
+      "id": "m5-cross-ipc-config",
+      "group": "maestro@3814a30",
+      "kind": "cross",
+      "sets": ["043"],
+      "question": "How does the Electron main-process IPC layer use the maestro.json config model? Which config functions are called, and from which handlers or functions?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["registerIpc", "applyProjectTagsSet", "saveConfig", "readConfig", "blankConfig", "readAgentsAvailable", "resolveUseMaestroTasks", "watchConfigFile", "restartConfigWatch"],
+      "expected": "electron-shell-invariants calls into maestro-config-model in 22 edges: registerIpc calls readConfig, saveConfig, blankConfig, readAgentsAvailable, resolveUseMaestroTasks and duplicateAgentTypes; applyProjectTagsSet calls readConfig and saveConfig; restartConfigWatch calls watchConfigFile; the renderer RootLayout mounts ConfigWatchProvider.",
+      "why_grep_expensive": "registerIpc is one very large function in main/ipc.ts (over 1000 lines) holding dozens of handlers; Grep can list the config.js imports but not which handler uses which function without reading most of the file. The renderer mount (RootLayout) is in a different part of the tree.",
+      "proxy": "code-graph query cross electron-shell-invariants maestro-config-model (2117 chars, 22 edges, complete)",
+      "proxy_cmd": ["query", "cross", "electron-shell-invariants", "maestro-config-model"]
+    },
+    {
+      "id": "m6-deep-listsessionids",
+      "group": "maestro@3814a30",
+      "kind": "deep",
+      "sets": ["043"],
+      "question": "I'm about to change what `listSessionIds` (apps/maestro/src/core/session-paths.ts) returns. Which functions call it directly, and which functions call those in turn? Give names and files.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["newestSessionLog", "tailSessionLogs", "worktreeHasLog", "sweepStaleSessions", "listDeletableSessions", "liveRunIds", "sessionLogFileFor", "startTail", "createWorktreeTabs", "describeWorktrees", "sweepAndRetarget", "registerIpc", "pendingLanes"],
+      "expected": "Direct callers (6): newestSessionLog and tailSessionLogs (core/session-log.ts), worktreeHasLog (core/worktree-tabs.ts), sweepStaleSessions and listDeletableSessions (core/session-sweep.ts), liveRunIds (core/handoff-channels.ts). One level up (7): sessionLogFileFor (session-log.ts) calls newestSessionLog; startTail (main/ipc.ts) and createWorktreeTabs (worktree-tabs.ts) call tailSessionLogs; describeWorktrees (worktree-tabs.ts) calls worktreeHasLog; sweepAndRetarget (core/session-ipc.ts) calls sweepStaleSessions; registerIpc (main/ipc.ts, the sessionsDeletable handler) calls listDeletableSessions; pendingLanes (handoff-channels.ts) calls liveRunIds. Checked against Grep of every call site in apps/maestro/src (tests, re-exports and the .cjs copies excluded).",
+      "why_grep_expensive": "Six direct callers in four files, then six more names to chase for the second level, across six files (seven distinct callers). Each hit needs a Read to name its enclosing function (tailSessionLogs is called inside startTail in the 1289-line ipc.ts and inside a closure of createWorktreeTabs). The name also hits two tests, two re-exports (index.ts, plugin-entries/maestro-session.ts), the compiled .claude/scripts/lib/maestro-session.cjs and plugins/maestro/scripts copies, and two nested concept skills. Twice as wide as m1-m3 at both levels.",
+      "proxy": "code-graph query impact listSessionIds --direction in (1307 chars, complete: same output with --max 100; every direct and depth-2 caller matches the Grep check)",
+      "proxy_cmd": ["query", "impact", "listSessionIds", "--direction", "in"]
+    },
+    {
+      "id": "m7-deep-decidesync",
+      "group": "maestro@3814a30",
+      "kind": "deep",
+      "sets": ["043"],
+      "question": "Which TypeScript functions call `decideSync` (apps/maestro/src/core/sync-decision.ts) directly, and which functions call those in turn? Ignore tests and the compiled .cjs/.js copies under plugins/ and .claude/scripts/. Give names and files.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "must": ["buildEntry", "syncProjectReports", "syncProjectHandoffs", "computeAgentSync", "installRuntime"],
+      "expected": "Direct callers (3): buildEntry (core/agent-sync.ts), syncProjectReports (core/report-sync.ts), syncProjectHandoffs (core/handoff-sync.ts). One level up: computeAgentSync (agent-sync.ts) calls buildEntry; installRuntime (core/install.ts) calls both syncProjectReports and syncProjectHandoffs. Checked against Grep of every call site in apps/maestro/src.",
+      "why_grep_expensive": "A common name with many non-call hits: `grep -rw decideSync` returns 85 lines in 31 files, and only 3 are TypeScript calls. The rest are doc comments (contracts.ts, types.ts, shared/ipc.ts, agent-fork-record.ts, the sync files themselves), re-exports (index.ts, plugin-entries), 12 lines of sync-decision.test.ts, compiled .cjs/.js copies with their own callers (maestro-install.js, maestro-agent-sync.cjs) and concept-skill and task prose. buildEntry is a private helper, so its caller needs a second Grep and a Read of agent-sync.ts.",
+      "proxy": "code-graph query impact decideSync --direction in (598 chars, complete: same output with --max 100; the 3 direct and 2 depth-2 callers match the Grep check)",
+      "proxy_cmd": ["query", "impact", "decideSync", "--direction", "in"]
+    },
+    {
+      "id": "s1-concept-session-state",
+      "group": "maestro@3814a30",
+      "kind": "concept",
+      "sets": ["042"],
+      "question": "Where does Maestro keep a Claude Code session's ephemeral state on disk, which files are in it, and how does a hook or CLI script work out which session it belongs to? What happens when it cannot tell?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["maestro-architecture"],
+      "must": ["maestro_sessions", "log\\.jsonl", "session\\.json", "tasks\\.json", "CLAUDE_CODE_SESSION_ID", "session-paths", "resolveSessionId"],
+      "expected": "One directory per session: <project>/.claude/maestro_sessions/<session_id>/ holding log.jsonl (append-only session log), session.json ({workflow, generated_instances, run_id}, plus meeting/worktree/session-name keys) and tasks.json (success-path steps that already have a TaskCreate); maestro_sessions/ gets a .gitignore containing `*`. apps/maestro/src/core/session-paths.ts owns the question: resolveSessionId takes payload.session_id when the caller is a hook with a stdin payload, else the CLAUDE_CODE_SESSION_ID env var (the !-injected gate scripts and CLIs with no stdin), else null. The id is validated against ^[A-Za-z0-9_-]{1,128}$, never sanitised, and an invalid id from either source is null without falling through to the other. With no session the caller writes nothing and exits 0, which looks like Maestro not being installed. A subagent's hook payload carries the main session's session_id, so one workflow run is one directory.",
+      "skill_note": "maestro-architecture (root, listed at init): its description already names the directory, the three files and the resolution order (payload session_id -> CLAUDE_CODE_SESSION_ID -> null); its session-state sub-concept names session-paths.ts, the validation rule and the silent exit-0 degradation. The model can answer from the skill and open one file to confirm instead of searching for where session files are written."
+    },
+    {
+      "id": "s2-concept-uninstall-purge",
+      "group": "maestro@3814a30",
+      "kind": "concept",
+      "sets": ["042"],
+      "question": "What does uninstalling Maestro from a project remove by default, what does a purge remove on top of that, and what is still on disk after a purge? Cover both the desktop app's uninstall and the terminal uninstaller.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["installing-maestro"],
+      "must": ["maestro\\.json", "settings\\.json", "maestro_sessions", "claims", "\\.claude/scripts", "SKILL\\.md|orchestrator skill", "handoffs", "reports", "delete-maestro-tasks|deleteMaestroTasks"],
+      "expected": "Default (apps/maestro/src/core/uninstall.ts uninstallRuntime, plugins/maestro/scripts/maestro-uninstall.js): removes only Maestro's own hook registrations from .claude/settings.json (a command that points into .claude/scripts/ and names a script the install registers; other hooks and keys stay; the settings file is parsed before the first deletion), the whole .claude/maestro_sessions/ directory plus the three legacy flat session files, .claude/maestro-tasks/claims/ and a legacy agent: \"maestro\" key. It keeps maestro.json. Purge adds the orchestrator skill (.claude/skills/maestro/SKILL.md and its .bak), the copied runtime scripts under .claude/scripts/ (manifest plus a sweep of maestro-* names and RETIRED_HOOK_SCRIPTS), the legacy .claude/templates/handoffs/, and maestro.json (purgeTargets lists the most consequential first, so maestro.json leads the confirmation); the terminal purge also removes the marked .claude/ line from .git/info/exclude. After a purge these stay: .claude/maestro-tasks/ (needs its own opt-in on top of purge: deleteMaestroTasks in the app, --delete-maestro-tasks in the terminal), .claude/handoffs/ and .claude/reports/ (the user's tracked overrides; never touched by the app, deletable only through the terminal's --delete-materialized-handoffs/--delete-materialized-reports, each requiring --purge), the .gitignore # Maestro block, and the user's own hooks and settings keys. On a machine with the maestro plugin, a plain uninstall hands the hooks back to the plugin's copies, which keep firing.",
+      "skill_note": "installing-maestro (root, listed at init): its uninstall-and-purge sub-concept is this answer in one place: the two levels, the SESSION_FILES and claims/ removal at every level, what purge adds, the three directories that survive and their separate opt-in flags (terminal only for reports/ and handoffs/), and the git-exclude line. Without it the model has to read uninstall.ts (465 lines) and maestro-uninstall.js (351 lines) and reconcile the two."
+    },
+    {
+      "id": "s3-concept-task-cascade",
+      "group": "maestro@3814a30",
+      "kind": "concept",
+      "sets": ["042"],
+      "question": "I want to change the rule that decides when a task in `.claude/maestro-tasks/` becomes ready once its blockers are closed. Where is that rule implemented, and what do I have to change so a close from the desktop app and a close from the orchestrator never disagree about which tasks are ready?",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "covering_skills": ["task-queue"],
+      "must": ["tasks\\.ts", "maestro-tasks\\.cjs", "buildStatusMap", "status\\.json", "(not|never|isn[’']t)[\\s*_]+(auto[- ]?)?generated|hand[- ]?(maintained|written|edited)|by hand|manually|no (plugin-entries |tasks\\.ts )?source|(except(ion|ed)?|excluded|exempt)(?:(?!\\.\\s)[^\\n]){0,80}?(generat|plugin-entries|plugin-libs|lib build)|(generat|plugin-entries|plugin-libs|lib build)(?:(?!\\.\\s)[^\\n]){0,80}?(except(ion|ed)?|excluded|exempt)"],
+      "expected": "The rule is implemented twice and the two must agree: apps/maestro/src/core/tasks.ts (buildStatusMap, also applied in tasksFromFiles; parseBlockedBy reads the task file's ## Blocked by section; listTasks, closeTask) for the desktop app, and plugins/maestro/scripts/lib/maestro-tasks.cjs (buildStatusMap, behind sync and markDone) for the orchestrator via maestro-task-status.cjs (also used by maestro-write-tasks.cjs). Today a non-done task is ready when every blockedBy entry is done or no longer exists as a file, else blocked; only done is stored as a decision, the rest is recomputed into .claude/maestro-tasks/status.json ({status, blockedBy}). maestro-tasks.cjs is the one plugin lib that is NOT generated from apps/maestro/src/core/plugin-entries (it has no source there), so build:plugin-libs will not carry a tasks.ts change into it: edit both by hand in the same way. It is also a STATIC_ASSET with a tracked mirror at .claude/scripts/lib/maestro-tasks.cjs (copy it over, run parity.test.ts), and a change under plugins/maestro bumps plugin.json's version.",
+      "skill_note": "task-queue (root, listed at init): its first section says the cascade lives in tasks.ts and maestro-tasks.cjs, that maestro-tasks.cjs is the one lib file NOT generated (no plugin-entries source, hand-maintained) and why (a UI close and an orchestrator close must not disagree). The code says only that the two are kept in sync; the root rule plugin-publishing.md also says maestro-tasks.cjs is the exception to generation, so that part reaches both arms."
+    },
+    {
+      "id": "t1-test-close-task",
+      "group": "maestro@3814a30",
+      "kind": "test",
+      "agent": "test",
+      "sets": ["044"],
+      "question": "Handoff from the backend agent: `closeTask` in `apps/maestro/src/core/tasks.ts` is done and needs tests. Behaviors to test:\n1. Closing a task cascades: a task whose only blocker was the closed task becomes ready; a task that still has another open blocker stays blocked.\n2. A blocker whose task file no longer exists counts as satisfied.\n3. Closing keeps every task's epic link in the queue's status file.\n4. Closing releases the claim on the closed task, even when the session holding it is still live; a live claim on another task is left alone.\n5. Called from inside a linked git worktree, closing updates the main checkout's queue, not the worktree's.\n\nWrite the tests in `apps/maestro/test/core/close-task.node.test.ts`. Environment: this checkout has no node_modules and no network, so vitest, lint and the package scripts cannot run and nothing can be installed. Use `node:test` and `node:assert/strict`, import the code under test with relative `.js` specifiers, build every fixture in a fresh temporary directory, and run the file from the repository root with `node --import ./.bench/ts-resolve.mjs --test apps/maestro/test/core/close-task.node.test.ts`. Do not modify application code. Finish with the file passing.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "test": "apps/maestro/test/core/close-task.node.test.ts",
+        "remove": ["apps/maestro/test/core/tasks.test.ts", "apps/maestro/test/core/claims.test.ts", "apps/maestro/test/core/task-claims-cli.test.ts", "apps/maestro/test/core/worktree-isolation.test.ts", "apps/maestro/test/core/epics-cli.test.ts", "apps/maestro/test/core/per-session-state.test.ts"],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "mutants": [
+          {
+            "id": "M1-deleted-blocker",
+            "file": "apps/maestro/src/core/tasks.ts",
+            "from": ": blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b))\n",
+            "to": ": blockedBy.every((b) => doneSet.has(b))\n"
+          },
+          {
+            "id": "M2-epic-dropped",
+            "file": "apps/maestro/src/core/tasks.ts",
+            "from": "      ...(previous[filename]?.epic ? { epic: previous[filename].epic } : {}),\n",
+            "to": ""
+          },
+          {
+            "id": "M3-claim-kept",
+            "file": "apps/maestro/src/core/tasks.ts",
+            "from": "  writeStatusMap(dir, statusMap);\n  deleteClaimIfAny(dir, base);\n",
+            "to": "  writeStatusMap(dir, statusMap);\n"
+          },
+          {
+            "id": "M4-worktree-root",
+            "file": "apps/maestro/src/core/worktree.ts",
+            "from": "    return path.dirname(common);\n",
+            "to": "    return dir;\n"
+          }
+        ]
+      },
+      "graph_contribution": "The prompt names only closeTask. Behaviors 4 and 5 need code outside tasks.ts: how a claim is made and when it counts as live (claimTask and readClaims in claims.ts, isSessionLive: a session dir under .claude/maestro_sessions/<id>/ with a log.jsonl touched within CLAIM_IDLE_CAP_MS from handoff-channels.ts, via session-paths.ts), that readClaims reaps dead claims (so only a LIVE claim proves the release, mutant M3), and what makes a directory a linked worktree for mainCheckoutRoot (worktree.ts: a .git FILE with gitdir: <main>/.git/worktrees/<name>, mutant M4). `code-graph query impact closeTask` / `query cross closeTask isSessionLive` should hand these over as @file:line pointers instead of a Grep-and-Read walk across four modules. The task-queue concept skill (task-claims sub-concept) describes claim liveness in prose to every arm."
+    },
+    {
+      "id": "t2-test-epic-ready",
+      "group": "maestro@3814a30",
+      "kind": "test",
+      "agent": "test",
+      "sets": ["044"],
+      "question": "Handoff from the backend agent: `readyTasks` in `apps/maestro/src/core/epics.ts` (the epic's spawn list) is done and needs tests. Behaviors to test:\n1. A task the queue's status file marks ready while one of its blockers is not done is never listed as ready.\n2. A task claimed by a live session is listed as running, not ready; a task whose claiming session is gone is listed as ready.\n3. A claim whose session has been idle longer than the claim idle cap does not count as running.\n4. A task already recorded on a spawned worker but not claimed yet is pending and takes a slot: `slots = max(0, cap - running - pending)`.\n\nWrite the tests in `apps/maestro/test/core/epic-ready.node.test.ts`. Environment: this checkout has no node_modules and no network, so vitest, lint and the package scripts cannot run and nothing can be installed. Use `node:test` and `node:assert/strict`, import the code under test with relative `.js` specifiers, build every fixture in a fresh temporary directory, and run the file from the repository root with `node --import ./.bench/ts-resolve.mjs --test apps/maestro/test/core/epic-ready.node.test.ts`. Do not modify application code. Finish with the file passing.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "test": "apps/maestro/test/core/epic-ready.node.test.ts",
+        "remove": ["apps/maestro/test/core/tasks.test.ts", "apps/maestro/test/core/claims.test.ts", "apps/maestro/test/core/task-claims-cli.test.ts", "apps/maestro/test/core/worktree-isolation.test.ts", "apps/maestro/test/core/epics-cli.test.ts", "apps/maestro/test/core/per-session-state.test.ts"],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "mutants": [
+          {
+            "id": "M1-stale-ready",
+            "file": "apps/maestro/src/core/epics.ts",
+            "from": "const unblocked = entry.blockedBy.every((b) => !tracker[b] || tracker[b].status === \"done\");",
+            "to": "const unblocked = true;"
+          },
+          {
+            "id": "M2-dead-claim-runs",
+            "file": "apps/maestro/src/core/epics.ts",
+            "from": "    if (claim?.live) {\n",
+            "to": "    if (claim) {\n"
+          },
+          {
+            "id": "M3-pending-free",
+            "file": "apps/maestro/src/core/epics.ts",
+            "from": "view.slots = Math.max(0, cap - view.running.length - view.pending.length);",
+            "to": "view.slots = Math.max(0, cap - view.running.length);"
+          },
+          {
+            "id": "M4-no-idle-cap",
+            "file": "apps/maestro/src/core/claims.ts",
+            "from": "    return now - stat.mtimeMs <= CLAIM_IDLE_CAP_MS;\n",
+            "to": "    return true;\n"
+          }
+        ]
+      },
+      "graph_contribution": "readyTasks only reads state other modules write. A test must create an epic and link tasks (createEpic, linkTasks, addWorker in epics.ts), write task files whose `## Blocked by` the tracker parses and edit status.json (tasks.ts: parseBlockedBy, buildStatusMap, the {status, blockedBy, epic} shape), make a claim live or idle (claimTask in claims.ts, isSessionLive, the .claude/maestro_sessions/<id>/log.jsonl layout from session-paths.ts, CLAIM_IDLE_CAP_MS = 15 min in handoff-channels.ts) and record a pending worker. `code-graph query impact readyTasks` and the epics/claims neighbourhood should give those entry points as @file:line pointers. The task-queue concept skill (epics and task-claims sub-concepts) documents the same rules in prose to every arm."
+    },
+    {
+      "id": "d1-scribe-claim-cap",
+      "group": "maestro@3814a30",
+      "kind": "scribe",
+      "agent": "scribe",
+      "sets": ["044"],
+      "question": "Trigger 1 (feature completed). Scribe Handoff from the reviewer:\n- Change: the task-claim idle cap `CLAIM_IDLE_CAP_MS` (`apps/maestro/src/core/handoff-channels.ts`) went from 15 to 30 minutes, so a session parked on a long human review keeps its task claim. The generated plugin libs (`plugins/maestro/scripts/lib/maestro-session.cjs`, `maestro-epic.cjs`) and their mirrors under `.claude/scripts/lib/` were regenerated with the new value.\n- Files added/removed/renamed: none. Justfile or command changes: none. Schema changes: none.\n- Code patterns, rules, workflow changes: none beyond the new value.\n\nThe code change is already made and reviewed: update the documentation and skills it affects. Do not touch application code or tests.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "plant": [
+          {
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "export const CLAIM_IDLE_CAP_MS = 15 * 60 * 1000;",
+            "to": "export const CLAIM_IDLE_CAP_MS = 30 * 60 * 1000;"
+          },
+          {
+            "file": "plugins/maestro/scripts/lib/maestro-session.cjs",
+            "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;",
+            "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;"
+          },
+          {
+            "file": "plugins/maestro/scripts/lib/maestro-epic.cjs",
+            "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;",
+            "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;"
+          },
+          {
+            "file": ".claude/scripts/lib/maestro-session.cjs",
+            "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;",
+            "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;"
+          },
+          {
+            "file": ".claude/scripts/lib/maestro-epic.cjs",
+            "from": "var CLAIM_IDLE_CAP_MS = 15 * 60 * 1e3;",
+            "to": "var CLAIM_IDLE_CAP_MS = 30 * 60 * 1e3;"
+          }
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts", ".claude/scripts"],
+        "docs": {
+          ".claude/skills/task-queue/sub-concepts/task-claims.md": {
+            "must": ["\\b(30|thirty)[ -]?min(ute)?s?\\b|half an hour|\\b30 \\* 60\\b"],
+            "must_not": ["CLAIM_IDLE_CAP_MS`?\\s*\\(\\s*15[ -]?min"]
+          },
+          ".claude/skills/maestro-architecture/sub-concepts/session-end-reasons.md": {
+            "must": ["\\b(30|thirty)[ -]?min(ute)?s?\\b|half an hour|\\b30 \\* 60\\b"],
+            "must_not": ["CLAIM_IDLE_CAP_MS`?\\s*\\(\\s*15[ -]?min"]
+          },
+          "apps/maestro/.claude/skills/log-view/SKILL.md": {
+            "must": ["\\b(30|thirty)[ -]?min(ute)?s?\\b|half an hour|\\b30 \\* 60\\b"],
+            "must_not": ["\\*\\*15 min\\*\\*\\s*\\(`?SESSION_DELETE_IDLE_CAP_MS", "\\bThe 15-minute rule\\b", "live claim is within 15 min"]
+          }
+        }
+      },
+      "graph_contribution": "The handoff names only CLAIM_IDLE_CAP_MS. The stale docs are reached through what depends on it: claims.ts (isSessionLive) is documented by task-queue's task-claims sub-concept, the session-end story by maestro-architecture's session-end-reasons, and session-sweep.ts (claude-session-bridge concept) derives SESSION_DELETE_IDLE_CAP_MS = CLAIM_IDLE_CAP_MS, used by deleteSession and documented as the tab-delete cap in apps/maestro's log-view skill. `code-graph query impact CLAIM_IDLE_CAP_MS` should list isSessionLive and the session-sweep constant and its callers with their concepts, so the scribe finds the second-order doc (whether the graph links the log-view doc itself depends on its doc vertex; the pilot transcript shows it), which a grep for the constant's name also finds in only two of the three files (log-view states the value as \"15 min\" next to SESSION_DELETE_IDLE_CAP_MS). The graph is built from the tree before the plant, as a real scribe run would see it."
+    },
+    {
+      "id": "d2-scribe-spawn-cap",
+      "group": "maestro@3814a30",
+      "kind": "scribe",
+      "agent": "scribe",
+      "sets": ["044", "051"],
+      "question": "Trigger 1 (feature completed). Scribe Handoff from the reviewer:\n- Change: the default spawn cap of an epic, `DEFAULT_SPAWN_CAP` (`apps/maestro/src/core/epics.ts`), went from 5 to 3 concurrent worker sessions, because five parallel workers kept hitting the account rate limit. `--cap <n>` still overrides it. The generated plugin lib `plugins/maestro/scripts/lib/maestro-epic.cjs`, the `maestro-epic.cjs` entry script and their mirrors under `.claude/scripts/` were regenerated.\n- Files added/removed/renamed: none. Justfile or command changes: none. Schema changes: none.\n- Code patterns, rules, workflow changes: none beyond the new default.\n\nThe code change is already made and reviewed: update the documentation and skills it affects, including the plugin's own skills. Do not touch application code or tests.",
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "edit": {
+        "plant": [
+          {
+            "file": "apps/maestro/src/core/epics.ts",
+            "from": "export const DEFAULT_SPAWN_CAP = 5;",
+            "to": "export const DEFAULT_SPAWN_CAP = 3;"
+          },
+          {
+            "file": "plugins/maestro/scripts/lib/maestro-epic.cjs",
+            "from": "var DEFAULT_SPAWN_CAP = 5;",
+            "to": "var DEFAULT_SPAWN_CAP = 3;"
+          },
+          {
+            "file": ".claude/scripts/lib/maestro-epic.cjs",
+            "from": "var DEFAULT_SPAWN_CAP = 5;",
+            "to": "var DEFAULT_SPAWN_CAP = 3;"
+          },
+          {
+            "file": "plugins/maestro/scripts/maestro-epic.cjs",
+            "from": "cap (default 5) leaves",
+            "to": "cap (default 3) leaves"
+          },
+          {
+            "file": ".claude/scripts/maestro-epic.cjs",
+            "from": "cap (default 5) leaves",
+            "to": "cap (default 3) leaves"
+          }
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts", ".claude/scripts"],
+        "docs": {
+          ".claude/skills/task-queue/sub-concepts/epics.md": {
+            "must": ["DEFAULT_SPAWN_CAP`?\\**\\s*(is|=|of|defaults to|:)\\s*\\**`?(3|three)\\b"],
+            "must_not": ["DEFAULT_SPAWN_CAP`?\\s*is\\s*5\\b"]
+          },
+          "plugins/maestro/skills/maestro-manager/SKILL.md": {
+            "must": ["\\b(up to|at most|max(imum)?( of)?|no more than)\\s+\\**(3|three)\\**\\s+(at once|at a time|concurrent|in parallel|parallel|workers|worker sessions|sessions|tabs)\\b", "default\\s*(is|of|cap is|cap of|:|=)?\\s*`?(3|three)\\b|\\b(3|three)`?\\s*(by default|is the default)"],
+            "must_not": ["up to 5 at once", "the default is 5\\b"]
+          },
+          "plugins/maestro/skills/maestro-install/references/herdr.md": {
+            "must": ["\\b(up to|at most|max(imum)?( of)?|no more than)\\s+(3|three)\\s+at\\s+(a\\s+time|once)"],
+            "must_not": ["up to 5 at\\s+a\\s+time"]
+          }
+        }
+      },
+      "graph_contribution": "The handoff names DEFAULT_SPAWN_CAP. `code-graph query impact DEFAULT_SPAWN_CAP` reaches readyTasks and the plugin entry (plugin-entries/maestro-epic.ts, the `ready` command) and the task-queue concept whose epics sub-concept states the value. The two plugin docs (the maestro-manager skill, the herdr install reference) are NOT in the graph: they are plugin markdown outside every concept's globs, so the graph cannot point at them and both arms must find them by searching for the behaviour (\"up to 5\", \"--cap\"). This case measures whether the graph's partial coverage helps or distracts when half the stale docs sit outside it. Constants are not graph vertices (`query impact <CONSTANT>` exits 6), so the stored graph output is the impact of the function that reads the constant; it does not reach the docs.",
+      "proxy_cmd": ["query", "impact", "readyTasks"],
+      "proxy_extra": [
+        ["search", "epics default spawn cap workers at once"]
+      ]
+    },
+    {
+      "id": "t3-test-session-sweep",
+      "group": "maestro@3814a30",
+      "sets": ["051"],
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "kind": "test",
+      "agent": "test",
+      "question": "Handoff from the backend agent: `sweepStaleSessions` and `deleteSession` in `apps/maestro/src/core/session-sweep.ts` are done and need tests. Behaviors to test:\n1. `sweepStaleSessions` removes a session directory idle for more than 24 hours and keeps one idle for 2 hours.\n2. Idleness is the newest mtime among the directory and its direct files: an old `log.jsonl` next to a fresh `session.json` keeps the session.\n3. The calling session (its id comes from `options.env`) is never removed, however old.\n4. A session whose mtimes lie in the future (clock skew) is kept.\n5. A session that moved into a git worktree (the main checkout holds a pointer to the worktree, which holds the session's real state) is judged on the worktree's files, and when it is swept both session directories go and the worktree itself stays.\n6. `deleteSession` (the explicit delete) refuses a session that is only 5 minutes idle with reason `running` but removes one idle for 1 hour, which the sweep would keep; it also refuses the calling session, a project root outside `allowedRoots`, an invalid id, and a missing session, each with its own reason.\n\nWrite the tests in `apps/maestro/test/core/session-sweep.node.test.ts`. Environment: this checkout has no node_modules and no network, so vitest, lint and the package scripts cannot run and nothing can be installed. Use `node:test` and `node:assert/strict`, import the code under test with relative `.js` specifiers, build every fixture in a fresh temporary directory, and run the file from the repository root with `node --import ./.bench/ts-resolve.mjs --test apps/maestro/test/core/session-sweep.node.test.ts`. Do not modify application code. Finish with the file passing.",
+      "edit": {
+        "test": "apps/maestro/test/core/session-sweep.node.test.ts",
+        "remove": ["apps/maestro/test/core/session-sweep.test.ts", "apps/maestro/test/core/worktree-isolation.test.ts", "apps/maestro/test/core/session-paths.test.ts"],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "mutants": [
+          {
+            "id": "M1-children-ignored",
+            "file": "apps/maestro/src/core/session-sweep.ts",
+            "from": "newest = Math.max(newest, fs.lstatSync(path.join(dir, name)).mtimeMs);",
+            "to": "fs.lstatSync(path.join(dir, name));"
+          },
+          {
+            "id": "M2-own-session",
+            "file": "apps/maestro/src/core/session-sweep.ts",
+            "from": "if (!isValidSessionId(sessionId) || sessionId === ownId) continue;",
+            "to": "if (!isValidSessionId(sessionId)) continue;"
+          },
+          {
+            "id": "M3-future-mtime",
+            "file": "apps/maestro/src/core/session-sweep.ts",
+            "from": "return idle > idleCapMs; // negative (future mtime) is never > cap",
+            "to": "return Math.abs(idle) > idleCapMs;"
+          },
+          {
+            "id": "M4-worktree-dirs",
+            "file": "apps/maestro/src/core/session-paths.ts",
+            "from": "  if (own !== paths.dir) dirs.push(own);\n  else {",
+            "to": "  if (false) dirs.push(own);\n  else {"
+          },
+          {
+            "id": "M5-delete-cap",
+            "file": "apps/maestro/src/core/session-sweep.ts",
+            "from": "options.idleCapMs ?? SESSION_DELETE_IDLE_CAP_MS;\n  const ownId = (options.env ?? (process.env as SessionIdEnv))?.[SESSION_ID_ENV];\n  if (!allowedRoots",
+            "to": "options.idleCapMs ?? SESSION_SWEEP_IDLE_CAP_MS;\n  const ownId = (options.env ?? (process.env as SessionIdEnv))?.[SESSION_ID_ENV];\n  if (!allowedRoots"
+          }
+        ]
+      },
+      "graph_contribution": "The prompt names sweepStaleSessions and deleteSession. Behavior 5 needs session-paths.ts (sessionPathsFor follows a worktree.json pointer, sessionDirsFor returns both directories, readWorktreePointer requires an existing absolute path) and behavior 6 needs CLAIM_IDLE_CAP_MS from handoff-channels.ts (SESSION_DELETE_IDLE_CAP_MS aliases it). `code-graph query impact sweepStaleSessions` (it reaches sessionDirsFor, sessionPathsFor, listSessionIds) should hand these over as @file:line pointers. The maestro-architecture and log-view concept skills describe the caps and the liveness rule in prose to every arm.",
+      "proxy_cmd": ["query", "impact", "sweepStaleSessions"]
+    },
+    {
+      "id": "t4-test-channel-lanes",
+      "group": "maestro@3814a30",
+      "sets": ["051"],
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "kind": "test",
+      "agent": "test",
+      "question": "Handoff from the backend agent: `pendingLanes` and `sweep` in `apps/maestro/src/core/handoff-channels.ts` are done and need tests. Behaviors to test:\n1. `pendingLanes` reports one entry per receiver lane that holds files, with `count`, and splits them into `current` (the file's run stamp equals the `run_id` of a live session) and `stranded` (everything else, including a file with no stamp and a file stamped with a run nobody is running).\n2. With no live session every file is stranded. The `run_id` of every live session counts, not just the first, and a session with no `run_id` adds nothing.\n3. `oldestAgeMs` is the age of the oldest file in the lane. A lane directory with no files, and the `.consumed` directory, produce no entry.\n4. `sweep` empties `.consumed/` outright, removes lane files older than the age cap and keeps fresher ones, and reports what it removed.\n5. `sweep` honours an injected `ageCapMs`.\n\nWrite the tests in `apps/maestro/test/core/channel-lanes.node.test.ts`. Environment: this checkout has no node_modules and no network, so vitest, lint and the package scripts cannot run and nothing can be installed. Use `node:test` and `node:assert/strict`, import the code under test with relative `.js` specifiers, build every fixture in a fresh temporary directory, and run the file from the repository root with `node --import ./.bench/ts-resolve.mjs --test apps/maestro/test/core/channel-lanes.node.test.ts`. Do not modify application code. Finish with the file passing.",
+      "edit": {
+        "test": "apps/maestro/test/core/channel-lanes.node.test.ts",
+        "remove": ["apps/maestro/test/core/handoff-channels.test.ts", "apps/maestro/test/core/scribe-gap-retention.test.ts", "apps/maestro/test/core/worktree-channel-delivery.test.ts"],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "mutants": [
+          {
+            "id": "M1-current-any-stamp",
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "e.runId != null && runIds.has(e.runId)",
+            "to": "e.runId != null"
+          },
+          {
+            "id": "M2-consumed-kept",
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "for (const receiver of listDirs(consumedRoot)) {",
+            "to": "for (const receiver of [] as string[]) {"
+          },
+          {
+            "id": "M3-age-cap-ignored",
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "      if (now - stat.mtimeMs <= ageCapMs) continue;\n",
+            "to": ""
+          },
+          {
+            "id": "M4-oldest-min",
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "Math.max(...entries.map((e) => e.ageMs))",
+            "to": "Math.min(...entries.map((e) => e.ageMs))"
+          },
+          {
+            "id": "M5-first-session-only",
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "if (runId) ids.add(runId);",
+            "to": "if (runId && ids.size === 0) ids.add(runId);"
+          }
+        ]
+      },
+      "graph_contribution": "The prompt names pendingLanes and sweep. \"Live session\" is not defined in handoff-channels.ts: liveRunIds reads each session directory through listSessionIds and sessionPathsFor (session-paths.ts) and readSession (session-runtime.ts), whose session.json carries run_id. The stamp format is formatStampedContent / parseStampedContent. `code-graph query impact pendingLanes` (it reaches liveRunIds, readSession, listSessionIds, parseStampedContent) should hand over the layout and the stamp as @file:line pointers instead of a Grep-and-Read walk.",
+      "proxy_cmd": ["query", "impact", "pendingLanes"]
+    },
+    {
+      "id": "d3-scribe-channel-age-cap",
+      "group": "maestro@3814a30",
+      "sets": ["051"],
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "kind": "scribe",
+      "agent": "scribe",
+      "question": "Trigger 1 (feature completed). Scribe Handoff from the reviewer:\n- Change: `CHANNEL_AGE_CAP_MS` (`apps/maestro/src/core/handoff-channels.ts`), the age after which `SessionEnd`'s `sweep()` removes an unconsumed channel file, went from 14 days to 7 days, because stale lane files were being delivered to runs weeks later. The generated plugin libs `plugins/maestro/scripts/lib/maestro-session.cjs` and `maestro-epic.cjs` and their mirrors under `.claude/scripts/` were regenerated.\n- Files added/removed/renamed: none. Justfile or command changes: none. Schema changes: none.\n- Code patterns, rules, workflow changes: none beyond the new value.\n\nThe code change is already made and reviewed: update the documentation and skills it affects, including the plugin's own docs. Do not touch application code or tests.",
+      "edit": {
+        "plant": [
+          {
+            "file": "apps/maestro/src/core/handoff-channels.ts",
+            "from": "export const CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1000;",
+            "to": "export const CHANNEL_AGE_CAP_MS = 7 * 24 * 60 * 60 * 1000;"
+          },
+          {
+            "file": "plugins/maestro/scripts/lib/maestro-session.cjs",
+            "from": "var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;",
+            "to": "var CHANNEL_AGE_CAP_MS = 7 * 24 * 60 * 60 * 1e3;"
+          },
+          {
+            "file": "plugins/maestro/scripts/lib/maestro-epic.cjs",
+            "from": "var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;",
+            "to": "var CHANNEL_AGE_CAP_MS = 7 * 24 * 60 * 60 * 1e3;"
+          },
+          {
+            "file": ".claude/scripts/lib/maestro-session.cjs",
+            "from": "var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;",
+            "to": "var CHANNEL_AGE_CAP_MS = 7 * 24 * 60 * 60 * 1e3;"
+          },
+          {
+            "file": ".claude/scripts/lib/maestro-epic.cjs",
+            "from": "var CHANNEL_AGE_CAP_MS = 14 * 24 * 60 * 60 * 1e3;",
+            "to": "var CHANNEL_AGE_CAP_MS = 7 * 24 * 60 * 60 * 1e3;"
+          }
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts", ".claude/scripts"],
+        "docs": {
+          ".claude/skills/maestro-architecture/sub-concepts/channels.md": {
+            "must": ["CHANNEL_AGE_CAP_MS`?\\s*\\((7|seven)[ -]days?\\)"],
+            "must_not": ["CHANNEL_AGE_CAP_MS`?\\s*\\(14 days\\)", "ages it out \\(14 days\\)", "the 14-day cap"]
+          },
+          ".claude/skills/maestro-architecture/SKILL.md": {
+            "must": ["\\b(7|seven)[ -]day sweep"],
+            "must_not": ["or the 14-day sweep retires", "and the 14-day sweep\\."]
+          },
+          "plugins/maestro/docs/app/tools-tasks-runtime.md": {
+            "must": ["\\b(7|seven)[ -]day\\s+age limit"],
+            "must_not": ["14-day\\s+age limit"]
+          }
+        }
+      },
+      "graph_contribution": "The handoff names CHANNEL_AGE_CAP_MS. `code-graph query impact CHANNEL_AGE_CAP_MS` reaches sweep and the plugin entry (plugin-entries/maestro-session.ts) and the maestro-architecture concept, whose channels sub-concept states the value three times (and the SKILL.md twice, once as a table row). The plugin doc plugins/maestro/docs/app/tools-tasks-runtime.md (\"a 14-day age limit\", split across a line break and never naming the constant) is outside every concept's globs, so the graph cannot point at it and a grep for the constant misses it. Constants are not graph vertices (`query impact <CONSTANT>` exits 6), so the stored graph output is the impact of the function that reads the constant; it does not reach the docs.",
+      "proxy_cmd": ["query", "impact", "sweep"],
+      "proxy_extra": [
+        ["search", "handoff channel age cap stranded files sweep"]
+      ]
+    },
+    {
+      "id": "d4-scribe-sweep-idle-cap",
+      "group": "maestro@3814a30",
+      "sets": ["051"],
+      "setup": "bash {REPO}/bench/maestro-setup.sh {REPO} {MAESTRO} 3814a30 {ARM}",
+      "skills": ["task-queue", "installing-maestro", "updating-maestro", "maestro-architecture"],
+      "keep_skills": ["maestro"],
+      "kind": "scribe",
+      "agent": "scribe",
+      "question": "Trigger 1 (feature completed). Scribe Handoff from the reviewer:\n- Change: `SESSION_SWEEP_IDLE_CAP_MS` (`apps/maestro/src/core/session-sweep.ts`), the idle time after which `sweepStaleSessions` treats a session directory as abandoned, went from 24 hours to 48 hours, because sessions parked over a weekend on a human review were being swept. `deleteSession`'s cap (`CLAIM_IDLE_CAP_MS`, 15 minutes) is unchanged. The cap is also named in the Clean up sessions button's tooltip in the renderer; that string is already updated.\n- Files added/removed/renamed: none. Justfile or command changes: none. Schema changes: none.\n- Code patterns, rules, workflow changes: none beyond the new value.\n\nThe code change is already made and reviewed: update the documentation and skills it affects, including the plugin's own docs. Do not touch application code or tests.",
+      "edit": {
+        "plant": [
+          {
+            "file": "apps/maestro/src/core/session-sweep.ts",
+            "from": "export const SESSION_SWEEP_IDLE_CAP_MS = 24 * 60 * 60 * 1000;",
+            "to": "export const SESSION_SWEEP_IDLE_CAP_MS = 48 * 60 * 60 * 1000;"
+          }
+        ],
+        "protect": ["apps/maestro/src", "plugins/maestro/scripts"],
+        "docs": {
+          ".claude/skills/maestro-architecture/sub-concepts/session-end-reasons.md": {
+            "must": ["(48 ?h|48 hours?|two days|2 days)\\s+idle cap"],
+            "must_not": ["24 ?h idle cap"]
+          },
+          "apps/maestro/.claude/skills/log-view/SKILL.md": {
+            "must": ["\\*\\*(48 ?h|48 hours?|2 days|two days)\\*\\*\\s*\\(`SESSION_SWEEP_IDLE_CAP_MS`\\)", "Why (48 ?h|48 hours?|2 days|two days) for the sweep"],
+            "must_not": ["\\*\\*24 ?h\\*\\*\\s*\\(`SESSION_SWEEP_IDLE_CAP_MS`\\)", "Why 24 ?h for the sweep", "removable a day later"]
+          }
+        }
+      },
+      "graph_contribution": "The handoff names SESSION_SWEEP_IDLE_CAP_MS. `code-graph query impact SESSION_SWEEP_IDLE_CAP_MS` reaches sweepStaleSessions, registerIpc and the log-view concept (apps/maestro/.claude/skills/log-view, whose table and \"Why 24h\" bullet state the value) plus maestro-architecture's session-end-reasons sub-concept. The reasoning line \"as removable a day later\" does not contain the number, so a grep for \"24h\" misses it. Constants are not graph vertices (`query impact <CONSTANT>` exits 6), so the stored graph output is the impact of the function that reads the constant; it does not reach the docs.",
+      "proxy_cmd": ["query", "impact", "sweepStaleSessions"],
+      "proxy_extra": [
+        ["search", "session sweep idle cap abandoned sessions deleted"]
+      ]
+    }
+  ]
+}

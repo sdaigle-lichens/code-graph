@@ -34,8 +34,9 @@
 //   5. Its <!-- Maestro:HANDOFFS --> table matches   → else `update`
 //      what maestro.json renders to TODAY.
 //   6. maestro.json's stamped `runtimeVersion`      → else `update`
-//      matches the plugin the marketplace last
-//      pulled.
+//      is not OLDER than the plugin the marketplace
+//      last pulled (`087`: semantic compare; a newer
+//      project continues with a `notice` instead).
 //
 // Check 4 exists for one script in particular. `maestro-step1-gates.cjs` is named by the
 // orchestrator's Step 1 as an INJECTED command (!`node …`), and an injected command that exits
@@ -88,6 +89,7 @@ try {
 // missing either script fails on EVERY /maestro invocation, not just one that reaches Step 4.
 const SKILL_INVOKED_SCRIPTS = [
   "maestro-step1-gates.cjs",
+  "maestro-end-skills.cjs",
   "maestro-step4-gate.cjs",
   "maestro-set-session-workflow.cjs",
   "maestro-task-status.cjs",
@@ -219,18 +221,55 @@ function checkRuntime(projectDir) {
     });
   }
 
-  const stale = config.runtimeVersion !== match.version;
+  // `087`: compared semantically, not for equality. A project stamped NEWER than the plugin (its
+  // runtime came from a newer app or plugin checkout) is not behind: /maestro-update would
+  // DOWNGRADE it. That case continues, with a notice telling the user to update the plugin.
+  // Unstamped or unparseable versions keep the old answer: any difference means `update`.
+  const { verdict, stale } = versionVerdict(config.runtimeVersion, match.version);
+  const pluginBehind = verdict === "newer";
   return answer({
     action: stale ? "update" : "continue",
     ok: true,
     stale,
+    ...(pluginBehind ? { pluginBehind: true, notice: pluginBehindNotice(config.runtimeVersion, match.version) } : {}),
     reason: stale
       ? `project runtime ${config.runtimeVersion || "(unstamped)"} is behind plugin ${match.version}`
-      : undefined,
+      : pluginBehind
+        ? `project runtime ${config.runtimeVersion} is newer than the installed plugin ${match.version}`
+        : undefined,
     installedVersion: config.runtimeVersion || null,
     runtimeVersion: match.version,
     pluginRoot: match.installPath,
   });
+}
+
+// `compareRuntimeVersions` and `runtimeNeedsRefresh` live in the generated session lib
+// (apps/maestro/src/core/runtime-version.ts, shared with the app's refreshStaleRuntime so both
+// reach the same verdict). Required lazily and defensively: a copy whose lib predates them answers
+// "unknown", stale on any difference — the old equality check.
+function versionVerdict(projectVersion, pluginVersion) {
+  try {
+    const { compareRuntimeVersions, runtimeNeedsRefresh } = require("./lib/maestro-session.cjs");
+    if (typeof compareRuntimeVersions === "function" && typeof runtimeNeedsRefresh === "function") {
+      return {
+        verdict: compareRuntimeVersions(projectVersion, pluginVersion),
+        stale: runtimeNeedsRefresh(projectVersion, pluginVersion),
+      };
+    }
+  } catch {
+    /* fall through */
+  }
+  return { verdict: "unknown", stale: projectVersion !== pluginVersion };
+}
+
+// Addressed to the model, which relays it: the plugin is the stale half, so the fix is on the
+// plugin side, and /maestro-update is exactly the wrong command.
+function pluginBehindNotice(projectVersion, pluginVersion) {
+  return (
+    `Maestro: this project's runtime (${projectVersion}) is newer than the installed maestro plugin (${pluginVersion}). ` +
+    `Tell the user in one line that the installed plugin is older and should be updated (e.g. \`/plugin\` → update maestro). ` +
+    `Do NOT run /maestro-update — it would downgrade the project. Carry on with the workflow.`
+  );
 }
 
 module.exports = { checkRuntime, INSTRUCTIONS };

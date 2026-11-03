@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative } from "node:path";
 import {
   Node,
   Project,
@@ -12,6 +10,10 @@ import {
 } from "ts-morph";
 import { minimatch } from "minimatch";
 import { loadConfig } from "../config.js";
+import { reportAndThrow } from "../concept-batch.js";
+import { scanConceptFiles } from "./unextracted.js";
+import { extractDocsOnly, isDocsOnly, readConceptSkill, sha256hex, writeAstOutput } from "./ast-output.js";
+import type { ScribeConfig } from "../config.js";
 import type { Edge, Vertex } from "../schema.js";
 
 // ─── Key helpers ─────────────────────────────────────────────────────────────
@@ -22,10 +24,6 @@ function vKey(concept: string, filepath: string, name: string, type: string): st
 
 function eKey(from: string, to: string, type: string, line: number): string {
   return createHash("sha1").update(`${from}|${to}|${type}|${line}`).digest("hex").slice(0, 32);
-}
-
-function sha256hex(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
 }
 
 // ─── Signature extraction ────────────────────────────────────────────────────
@@ -162,6 +160,24 @@ function classifyFunction(name: string, node: Node): "hook" | "component" | "fun
 
 type MakeVertex = (type: Vertex["type"], name: string, filepath: string, node: Node) => Vertex;
 
+function createVertex(concept: string, type: Vertex["type"], name: string, filepath: string, node: Node): Vertex {
+  return {
+    _key: vKey(concept, filepath, name, type),
+    displayKey: `${concept}::${type}::${name}`,
+    concept,
+    type,
+    name,
+    filepath,
+    start_line: node.getStartLineNumber(),
+    end_line: node.getEndLineNumber(),
+    signature: signatureFromNode(name, node),
+    contentHash: sha256hex(node.getText()),
+    status: "live",
+    ast: {},
+    agent: { authored_by: null, stale: false },
+  };
+}
+
 function walkSourceFile(
   sf: SourceFile,
   fp: string,
@@ -257,17 +273,81 @@ function walkSourceFile(
 
 // ─── Build edges ──────────────────────────────────────────────────────────────
 
+/**
+ * Resolves a declaration outside the concept being extracted to the vertex another concept would
+ * emit for it. Returns undefined when no other concept owns the declaration's file.
+ */
+type ForeignResolver = (decl: Node) => Vertex | undefined;
+
+/**
+ * Cross-concept resolver. A declaration in a file matched by another concept's globs resolves to that
+ * concept's vertex; the key is deterministic (`vKey`), so the other concept's ast.json is never read.
+ *
+ * Rule for a file matched by several concepts: the first in `scribe.config.json` order wins, the concept
+ * being extracted excluded (a file it matches itself resolves locally before this runs). Docs-only
+ * concepts own no code and are skipped. Whether the target concept is applied yet, or its vertex later
+ * archived, is not known here: the edge is written anyway with `crosses_concept: true` and queries
+ * ignore an edge whose far end is missing or not live.
+ */
+function makeForeignResolver(
+  config: ScribeConfig,
+  conceptName: string,
+  relPathOf: (abs: string) => string
+): ForeignResolver {
+  const owners = Object.entries(config.concepts).filter(([name]) => name !== conceptName && !isDocsOnly(config, name));
+  const ownerByFile = new Map<string, string | null>();
+  const walked = new Map<string, Map<Node, string>>(); // `${concept}::${file}` → node→key
+  const byKey = new Map<string, Vertex>();
+
+  function ownerOf(relPath: string, absPath: string): string | null {
+    const hit = ownerByFile.get(absPath);
+    if (hit !== undefined) return hit;
+    const found =
+      owners.find(([, c]) =>
+        c.globs.some((g) => minimatch(relPath, g, { dot: true }) || minimatch(absPath, g, { dot: true }))
+      )?.[0] ?? null;
+    ownerByFile.set(absPath, found);
+    return found;
+  }
+
+  return (decl) => {
+    const sf = decl.getSourceFile();
+    const abs = sf.getFilePath();
+    const rel = relPathOf(abs);
+    const owner = ownerOf(rel, abs);
+    if (!owner) return undefined;
+    const id = `${owner}::${abs}`;
+    let nodes = walked.get(id);
+    if (!nodes) {
+      nodes = new Map<Node, string>();
+      const scratch: Vertex[] = [];
+      walkSourceFile(sf, rel, owner, scratch, nodes, new Map(), (type, name, filepath, node) => {
+        const v = createVertex(owner, type, name, filepath, node);
+        nodes!.set(node, v._key);
+        byKey.set(v._key, v);
+        return v;
+      });
+      walked.set(id, nodes);
+    }
+    const key = nodes.get(decl);
+    return key ? byKey.get(key) : undefined;
+  };
+}
+
 function buildEdges(
   vertices: Vertex[],
   keyToNode: Map<string, Node>,
   nodeToKey: Map<Node, string>,
   vertexToStore: Map<string, string>,
   conceptName: string,
-  extractedAt: string
+  resolveForeign?: ForeignResolver
 ): Edge[] {
   const edges: Edge[] = [];
   const emitted = new Set<string>();
   const keyToVertex = new Map(vertices.map((v) => [v._key, v] as const));
+  // Other concepts' vertices met while resolving; kept apart so local-only lookups (has-type, store
+  // state) never see them.
+  const foreignByKey = new Map<string, Vertex>();
 
   function tryEmit(fromKey: string, toKey: string, type: Edge["type"], line: number): void {
     if (fromKey === toKey) return;
@@ -280,9 +360,9 @@ function buildEdges(
       _to: `vertices/${toKey}`,
       type,
       concept: conceptName,
-      crosses_concept: false,
+      crosses_concept: foreignByKey.has(toKey),
       line,
-      ast: { extracted_at: extractedAt },
+      ast: {},
       agent: { authored_by: null },
     });
   }
@@ -310,6 +390,12 @@ function buildEdges(
     for (const decl of sym.getDeclarations()) {
       const k = nodeToKey.get(decl);
       if (k) return k;
+
+      const fv = resolveForeign?.(decl);
+      if (fv) {
+        foreignByKey.set(fv._key, fv);
+        return fv._key;
+      }
 
       // Destructured binding: `const { foo } = useStore()`
       if (Node.isBindingElement(decl)) {
@@ -366,7 +452,7 @@ function buildEdges(
         const ident = Node.isPropertyAccessExpression(callee) ? callee.getNameNode() : callee;
         const toKey = resolveToVertexKey(ident);
         if (!toKey) continue;
-        const toVertex = keyToVertex.get(toKey);
+        const toVertex = keyToVertex.get(toKey) ?? foreignByKey.get(toKey);
         if (!toVertex) continue;
         const line = call.getStartLineNumber();
         if (toVertex.type === "hook") {
@@ -471,21 +557,40 @@ function buildEdges(
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
+/**
+ * One ts-morph `Project` per tsconfig path, kept for the life of the process so a batch extract parses
+ * the tsconfig once. Never refreshed from disk: a CLI run is short, but a long-lived caller (a test
+ * that edits sources between extracts, a host process) must call `clearProjectCache()` first or it reads
+ * the files as they were when the project was first built.
+ */
+const projects = new Map<string, Project>();
+
+/** Drops the cached ts-morph projects so the next `extract` re-reads the tsconfig and sources. */
+export function clearProjectCache(): void {
+  projects.clear();
+}
+
 export async function extract(conceptName: string): Promise<void> {
   const config = loadConfig(process.cwd());
   const { configRoot } = config;
 
   const concept = config.concepts[conceptName];
   if (!concept) {
-    console.error(`error: concept "${conceptName}" not found in scribe.config.json`);
-    process.exit(1);
+    reportAndThrow(`error: concept "${conceptName}" not found in scribe.config.json`);
   }
 
-  const tsconfigPath = join(configRoot, config.tsconfig);
-  const project = new Project({
-    tsConfigFilePath: tsconfigPath,
-    skipAddingFilesFromTsConfig: false,
-  });
+  if (isDocsOnly(config, conceptName)) return extractDocsOnly(config, conceptName);
+
+  const tsconfigPath = join(configRoot, config.tsconfig!);
+  // One parse of the tsconfig per process: a batch extract reads the same files for every concept.
+  let project = projects.get(tsconfigPath);
+  if (!project) {
+    project = new Project({
+      tsConfigFilePath: tsconfigPath,
+      skipAddingFilesFromTsConfig: false,
+    });
+    projects.set(tsconfigPath, project);
+  }
 
   // Filter source files to those matching the concept's globs
   const allSourceFiles = project.getSourceFiles();
@@ -498,16 +603,14 @@ export async function extract(conceptName: string): Promise<void> {
   });
 
   if (conceptFiles.length === 0) {
-    console.error(`error: no source files matched concept "${conceptName}" globs`);
-    process.exit(1);
+    // A deliberate clear error, not an empty extract: a glob that matches nothing is almost always a
+    // typo or a file the tsconfig does not include, and an empty .ast.json would make `apply` archive
+    // every vertex the concept had.
+    reportAndThrow(
+      `error: no source files matched concept "${conceptName}" (globs: ${concept.globs.join(", ")}). ` +
+        `Check the globs in scribe.config.json and that the tsconfig includes those files.`
+    );
   }
-
-  const pkgRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-  const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as {
-    version: string;
-  };
-  const extractedAt = new Date().toISOString();
-  const extractorVersion = `code-graph@${pkg.version}`;
 
   const vertices: Vertex[] = [];
   const nodeToKey = new Map<Node, string>();
@@ -519,25 +622,9 @@ export async function extract(conceptName: string): Promise<void> {
   }
 
   const makeVertex: MakeVertex = (type, name, filepath, node) => {
-    const key = vKey(conceptName, filepath, name, type);
-    const text = node.getText();
-    const v: Vertex = {
-      _key: key,
-      displayKey: `${conceptName}::${type}::${name}`,
-      concept: conceptName,
-      type,
-      name,
-      filepath,
-      start_line: node.getStartLineNumber(),
-      end_line: node.getEndLineNumber(),
-      signature: signatureFromNode(name, node),
-      contentHash: sha256hex(text),
-      status: "live",
-      ast: { extracted_at: extractedAt, extractor_version: extractorVersion },
-      agent: { authored_by: null, stale: false },
-    };
-    nodeToKey.set(node, key);
-    keyToNode.set(key, node);
+    const v = createVertex(conceptName, type, name, filepath, node);
+    nodeToKey.set(node, v._key);
+    keyToNode.set(v._key, node);
     return v;
   };
 
@@ -546,34 +633,25 @@ export async function extract(conceptName: string): Promise<void> {
     walkSourceFile(sf, fp, conceptName, vertices, nodeToKey, vertexToStore, makeVertex);
   }
 
-  const edges = buildEdges(vertices, keyToNode, nodeToKey, vertexToStore, conceptName, extractedAt);
+  const edges = buildEdges(
+    vertices,
+    keyToNode,
+    nodeToKey,
+    vertexToStore,
+    conceptName,
+    makeForeignResolver(config, conceptName, relPathOf)
+  );
 
   // Skill
-  let skillField: { path: string; body: string; contentHash: string } | undefined;
-  if (concept.skill) {
-    const skillPath = join(configRoot, concept.skill);
-    const body = readFileSync(skillPath, "utf-8");
-    skillField = { path: concept.skill, body, contentHash: "sha256:" + sha256hex(body) };
-  }
+  const skillField = await readConceptSkill(config, conceptName);
 
   // Sort for determinism
   vertices.sort((a, b) => a._key.localeCompare(b._key));
   edges.sort((a, b) => a._key.localeCompare(b._key));
 
-  // Write output
-  const outputDir = join(configRoot, "scribe-output");
-  mkdirSync(outputDir, { recursive: true });
-  const outputPath = join(outputDir, `${conceptName}.ast.json`);
-
-  const output = {
-    concept: conceptName,
-    vertices,
-    edges,
-    ...(skillField && { skill: skillField }),
-    meta: { extractor_version: extractorVersion, extracted_at: extractedAt },
-  };
-
-  writeFileSync(outputPath, JSON.stringify(output, null, 2), "utf-8");
+  // Record what the globs matched now (not just the tsconfig files) so `skills status` / `drift` can see
+  // source edits made after this extract, using the same scan.
+  writeAstOutput(config, conceptName, vertices, edges, skillField, scanConceptFiles(configRoot, concept.globs));
 
   const skillChars = skillField?.body.length ?? 0;
   process.stderr.write(`${vertices.length} vertices, ${edges.length} edges, skill body ${skillChars} chars\n`);

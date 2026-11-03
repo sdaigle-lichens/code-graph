@@ -17,7 +17,7 @@ export function renderHover(entry: FileVertexEntry, result: FileResult, workspac
   if (v.purpose) {
     lines.push(v.purpose);
   } else {
-    lines.push(`_unenriched — run \`/scribe-enrich ${v.concept}\`_`);
+    lines.push(`_unenriched — ask the \`scribe\` skill to enrich ${v.concept}_`);
   }
   lines.push("");
 

@@ -46,10 +46,36 @@ var import_node_os = __toESM(require("node:os"), 1);
 var import_node_path = __toESM(require("node:path"), 1);
 var import_node_sqlite = require("node:sqlite");
 var DEFAULT_REPORT_DEFAULTS_DB_PATH = import_node_path.default.join(import_node_os.default.homedir(), ".claude", "maestro-report-defaults.sqlite");
+function skillGapsChannelNoteUnscoped(subagent) {
+  return `If a skill you loaded was missing something you had to work out from the code yourself, write \`.claude/channels/scribe/${subagent}.1.md\` with a fenced \`json\` block: \`{ "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell you>" }] }\`. Leave it unwritten when nothing was missing \u2014 do not write a gap just to fill the file.`;
+}
+function skillGapsChannelNote(subagent) {
+  return `If a skill you loaded was missing something you had to work out from the code yourself, write \`.claude/channels/<scope>/scribe/${subagent}.1.md\` (\`<scope>\` is the channel scope named in your injected context) with a fenced \`json\` block: \`{ "skill_gaps": [{ "skill": "<skill-id>", "missing": "<what it did not tell you>" }] }\`. Leave it unwritten when nothing was missing \u2014 do not write a gap just to fill the file.`;
+}
 function conceptGapsChannelNote(subagent) {
   return `If a concept skill you loaded was missing something you had to work out from the code yourself, write \`.claude/channels/scribe/${subagent}.1.md\` with a fenced \`json\` block: \`{ "concept_skill_gaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell you>" }] }\`. Leave it unwritten when nothing was missing \u2014 do not write a gap just to fill the file.`;
 }
+var VERDICT_HANDOFF_NOTE = 'Your `"verdict"` and your final `HANDOFF:` line must agree. A real defect must end with the matching condition-edge label when the workflow has one. A verdict of FAIL with `HANDOFF: success` is invalid, and so is ending with no `HANDOFF:` line \u2014 the orchestrator is told about both and never treats either as success.';
 function backendLikeReport(subagent) {
+  return backendLikeBody(subagent, skillGapsChannelNote(subagent)) + "\n\n" + VERDICT_HANDOFF_NOTE;
+}
+function backendLikeV3(subagent) {
+  return backendLikeBody(subagent, conceptGapsChannelNote(subagent));
+}
+function backendLikeV4(subagent) {
+  return backendLikeV3(subagent) + "\n\n" + VERDICT_HANDOFF_NOTE;
+}
+function backendLikeV5(subagent) {
+  return backendLikeBody(subagent, skillGapsChannelNoteUnscoped(subagent)) + "\n\n" + VERDICT_HANDOFF_NOTE;
+}
+function backendLikeV6(subagent) {
+  return backendLikeReport(subagent);
+}
+var BACKEND_TEST_TARGETS_NOTE = "## Test targets (mandatory)\n\nThe report feeds the backend -> test handoff, so the `testTargets` section is required, never omitted. For each behavior you changed, name the failure mode to test (empty or closed input, missing file, stale generated copy, edge input) and the files the tests must touch. List every pre-handoff check you ran, copied verbatim with its result, and mark one `n/a` only when it does not apply to your change. You must run the project's own static check yourself before handing off; do not leave it to the test agent.";
+function backendReport() {
+  return 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "backend",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "description": "<summary of what was implemented>",\n  "testTargets": {\n    "behaviors": [\n      {\n        "behavior": "<behavior you changed>",\n        "failureModes": ["<empty/closed input | missing file | stale generated copy | edge input | ...>"],\n        "files": ["<files the tests must touch>"]\n      }\n    ],\n    "preHandoffChecks": [\n      { "command": "<exact command run>", "result": "pass | fail | n/a" }\n    ]\n  }\n}\n```\n\n' + BACKEND_TEST_TARGETS_NOTE + "\n\n" + skillGapsChannelNote("backend") + "\n\n" + VERDICT_HANDOFF_NOTE;
+}
+function backendLikeBody(subagent, gapsNote) {
   return `Always return a JSON report at the end of your work. Output it as a fenced \`json\` code block:
 
 \`\`\`json
@@ -61,12 +87,29 @@ function backendLikeReport(subagent) {
 }
 \`\`\`
 
-` + conceptGapsChannelNote(subagent);
+` + gapsNote;
 }
-var SCRIBE_REPORT = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "conceptSkillsUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>"\n}\n```\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.\n\n`conceptSkillsUpdated` counts concept skills you created or revised \u2014 it is a subset of `claudeFilesUpdated`, broken out because the caller usually wants to know whether the concept list moved without reading the whole summary.';
-var TEST_REPORT = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>"\n}\n```\n\n' + conceptGapsChannelNote("test");
+var SCRIBE_REPORT_V2 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "conceptSkillsUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>"\n}\n```\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.\n\n`conceptSkillsUpdated` counts concept skills you created or revised \u2014 it is a subset of `claudeFilesUpdated`, broken out because the caller usually wants to know whether the concept list moved without reading the whole summary.';
+var SCRIBE_REPORT_V1 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>"\n}\n```\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.';
+function scribeEndingNote(gapsDir) {
+  return `End your final message with these plain-text lines, in this order:
+
+1. \`SKILL_GAPS_HANDLED: <file>, <file>, \u2026\` \u2014 only when you acted on skill-gap reports from \`${gapsDir}\`. Name every gap file you acted on, including one handled by enrichment only, one with a remainder left to enrich, and one with no graph to enrich. A gap file you do not name stays in your channel for the next scribe run.
+2. \`HANDOFF: <label>\` \u2014 always last. \`HANDOFF: success\` when the documentation is done, even if you skipped a step (a graph refresh skipped for lack of a tsconfig, targets left to enrich): report skipped steps in the report body, never through the label. \`done\` or \`complete\` is not a label \u2014 no workflow routes it. When you could not finish, end with a condition label from your injected routes when one fits, else \`HANDOFF: partial\` with the reason in the body: the orchestrator's unrouted check stops there and asks the user.`;
+}
+var SCRIBE_REPORT_V3 = SCRIBE_REPORT_V1 + "\n\n" + scribeEndingNote(".claude/channels/scribe/");
+var SCRIBE_REPORT_V4 = SCRIBE_REPORT_V1 + "\n\n" + scribeEndingNote(".claude/channels/<scope>/scribe/");
+var SCRIBE_REPORT = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>",\n  "files": [\n    {\n      "path": "<file path>",\n      "action": "edited | stamped-only",\n      "verifiedAgainstCode": ["<source file(s) actually read to support the claims>"],\n      "stampFailures": ["<exact error text, or omit if none>"]\n    }\n  ],\n  "changelogEntryAdded": "yes | no (<why>)",\n  "intentionallyNotTouched": ["<published, generated or changelog files left alone>"]\n}\n```\n\nAfter the JSON block, add these lines in plain text:\n\n- `Verified against code: <source file(s) read>` for each edited file.\n- `CHANGELOG entry added: yes/no (<why>)`.\n- `Files: <path> \u2014 edited | stamped only` per file, then `Stamp failures: <path> \u2014 <exact error>` (or `none`).\n- `Intentionally NOT touched: <files left alone>` (or `none`).\n\nThe scribe is read-only on application code and on published or generated files: never edit them.\n\n' + scribeEndingNote(".claude/channels/<scope>/scribe/") + '\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.';
+function testReportBody(gapsNote) {
+  return 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>"\n}\n```\n\n' + gapsNote;
+}
+var TEST_REPORT_V3 = testReportBody(conceptGapsChannelNote("test"));
+var TEST_REPORT_V4 = TEST_REPORT_V3 + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT_V5 = testReportBody(skillGapsChannelNoteUnscoped("test")) + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT_V6 = testReportBody(skillGapsChannelNote("test")) + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>",\n  "gates": [{ "command": "<exact command run>", "result": "<exit code, N passed / N failed>" }],\n  "gatesSkipped": [{ "command": "<command not run>", "reason": "<why>" }],\n  "notCaught": ["<one line per new test: what this test would NOT catch>"]\n}\n```\n\n`gates` lists the exact verify commands you ran, copied verbatim with their result: the project test suite, lint, static check or typecheck, and any parity or generated-artifact check the change touches. Any of those you did not run goes in `gatesSkipped` with a reason. A verdict of SUCCESS is invalid if any of them was skipped without a stated reason.\n\nThe implementing agent\'s "Test targets" are the minimum, not the scope: cover every one, then add your own adversarial cases that it did not name, and list in `notCaught` what neither side covered.\n\nFor each new test you write, add one line to `notCaught` saying what that test would NOT catch, for example closed or empty input, a copy of a file that no test compares, or a missing feature rather than a wrong one.\n\n' + skillGapsChannelNote("test") + "\n\n" + VERDICT_HANDOFF_NOTE;
 var SEED_REPORTS = {
-  backend: backendLikeReport("backend"),
+  backend: backendReport(),
   frontend: backendLikeReport("frontend"),
   mobile: backendLikeReport("mobile"),
   infra: backendLikeReport("infra"),
@@ -85,7 +128,6 @@ var PRIOR_SEEDS = (() => {
   "description": "<summary of what was implemented>"
 }
 \`\`\``;
-  const scribeV1 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "scribe",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "agentsMdUpdated": 0,\n  "docsUpdated": 0,\n  "claudeFilesUpdated": 0,\n  "changelogUpdated": false,\n  "description": "<summary of what was updated>"\n}\n```\n\n"Claude files" covers any file under `.claude/agents/`, `.claude/rules/`, or `.claude/skills/`. Use the counts to keep the handoff message small \u2014 do not list individual file names unless the caller asks.';
   const testV1 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "filesChanged": ["<file1>", "<file2>"],\n  "description": "<summary of what was tested>"\n}\n```';
   const conceptGapsFieldNoteV2 = "`conceptSkillGaps` is how a concept skill gets better: if one of the concept skills you loaded was missing something you had to work out from the code yourself, say which skill and what was missing, so the main session knows to hand it to the scribe. Leave the array empty when nothing was missing \u2014 do not invent a gap to fill the field.";
   const backendLikeV2 = (subagent) => `Always return a JSON report at the end of your work. Output it as a fenced \`json\` code block:
@@ -104,11 +146,31 @@ var PRIOR_SEEDS = (() => {
 ` + conceptGapsFieldNoteV2;
   const testV2 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "conceptSkillGaps": [{ "skill": "<concept-skill-id>", "missing": "<what it did not tell you>" }],\n  "testResult": "<N passed, N failed>",\n  "filesChanged": ["<file1>", "<file2>"],\n  "description": "<summary of what was tested>"\n}\n```\n\n' + conceptGapsFieldNoteV2;
   return {
-    backend: [backendLikeV1("backend"), backendLikeV2("backend")],
-    frontend: [backendLikeV1("frontend"), backendLikeV2("frontend")],
-    mobile: [backendLikeV1("mobile"), backendLikeV2("mobile")],
-    scribe: [scribeV1],
-    test: [testV1, testV2]
+    backend: [
+      backendLikeV1("backend"),
+      backendLikeV2("backend"),
+      backendLikeV3("backend"),
+      backendLikeV4("backend"),
+      backendLikeV5("backend"),
+      backendLikeV6("backend")
+    ],
+    frontend: [
+      backendLikeV1("frontend"),
+      backendLikeV2("frontend"),
+      backendLikeV3("frontend"),
+      backendLikeV4("frontend"),
+      backendLikeV5("frontend")
+    ],
+    mobile: [
+      backendLikeV1("mobile"),
+      backendLikeV2("mobile"),
+      backendLikeV3("mobile"),
+      backendLikeV4("mobile"),
+      backendLikeV5("mobile")
+    ],
+    infra: [backendLikeV3("infra"), backendLikeV4("infra"), backendLikeV5("infra")],
+    scribe: [SCRIBE_REPORT_V2, SCRIBE_REPORT_V1, SCRIBE_REPORT_V3, SCRIBE_REPORT_V4],
+    test: [testV1, testV2, TEST_REPORT_V3, TEST_REPORT_V4, TEST_REPORT_V5, TEST_REPORT_V6]
   };
 })();
 function openDb(dbPath) {

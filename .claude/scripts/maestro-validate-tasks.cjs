@@ -36,6 +36,8 @@ function heuristicMatch(subject, description, expectedLabels) {
   for (const label of expectedLabels) {
     if (label === "human review") {
       if (/human.?review|review.?checkpoint/i.test(text)) return label;
+    } else if (label === "manager review") {
+      if (/manager.?review/i.test(text)) return label;
     } else if (label.startsWith("@")) {
       // Agent instance — match the bare name (without @).
       const name = label.slice(1).toLowerCase();
@@ -116,9 +118,7 @@ function writeTasks(tasksFile, data) {
     // --- Resolve the created task's step label ---
     const ti = p.tool_input || {};
     let resolvedLabel =
-      (ti.metadata && ti.metadata.maestro_step) ||
-      heuristicMatch(ti.subject, ti.description, [...allLabels]) ||
-      null;
+      (ti.metadata && ti.metadata.maestro_step) || heuristicMatch(ti.subject, ti.description, [...allLabels]) || null;
 
     // "mark-task-done" is a synthetic terminal step the orchestrator appends when
     // the run came from a task-queue file (it runs maestro-task-status.cjs done at

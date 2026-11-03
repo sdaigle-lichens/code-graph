@@ -1,0 +1,19 @@
+# Impact (in, depth 2): readAllProjectTags
+
+## Direct callers
+
+- @apps/maestro/src/main/ipc.ts:862 — `registerIpc`
+- @apps/maestro/src/core/claude-preview.ts:269 — `buildUpdateSkillTags`
+- @apps/maestro/src/core/claude-preview.ts:269 — `buildUpdateSkillTags`
+- @apps/maestro/src/main/claude-session.ts:314 — `applyUpdateSkillTagsIfAny`
+- @apps/maestro/src/core/install.ts:812 — `installRuntime`
+- @apps/maestro/src/core/install.ts:812 — `installRuntime`
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/core/claude-preview.ts:380 — `build`
+- @apps/maestro/src/core/claude-preview.ts:380 — `build`
+- @apps/maestro/src/main/claude-session.ts:374 — `openSession`
+- @apps/maestro/src/core/install.ts:946 — `refreshStaleRuntime`
+- @apps/maestro/src/core/install.ts:946 — `refreshStaleRuntime`
+

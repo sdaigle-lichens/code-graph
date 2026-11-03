@@ -6,11 +6,28 @@ No server and no Docker: the graph is a single file in your project's `scribe-ou
 
 One query returns: the SKILL.md invariants, precisely scoped code vertices with file/line, and cross-concept side effects — as a single dense markdown dump that Claude Code can act on immediately.
 
+## Install
+
+In Claude Code:
+
+```
+/plugin marketplace add sdaigle-lichens/code-graph
+/plugin install code-graph@code-graph
+```
+
+Or from a shell:
+
+```
+claude plugin marketplace add sdaigle-lichens/code-graph
+claude plugin install code-graph@code-graph
+```
+
 ## Docs
 
 - [Installation](docs/installation.md) — prerequisites, dev install (`pnpm link --global`), Claude Code plugin registration.
 - [Usage](docs/usage.md) — `scribe.config.json`, bootstrap → extract → enrich → apply → search.
 - [Development](docs/development.md) — repo layout, build, link, test loop.
+- [Plugin evals](docs/evals.md) — `claude plugin eval` suite for the retrieval skill: run command, cases, fixture refresh, pilot baseline.
 - [Implementation phases](docs/implementation/) — phase-by-phase build plan ([plan.md](docs/implementation/plan.md), [phase-1](docs/implementation/phase-1.md) … [phase-11](docs/implementation/phase-11.md)).
 
 ## Eval harness

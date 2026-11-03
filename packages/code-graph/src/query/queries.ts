@@ -40,7 +40,7 @@ export function oneHop(
   const rows = store
     .prepare(
       `SELECT e.doc AS edoc, v.doc AS vdoc
-         FROM edges e JOIN vertices v ON v.key = e.${h.next}
+         FROM edges e JOIN vertices v ON v.key = e.${h.next} AND v.status = 'live'
         WHERE e.${h.match} = ? ${typeClause} ${crossClause}
         ORDER BY e.rowid ${EDGE_SCAN_ORDER}`
     )
@@ -75,14 +75,14 @@ export function twoHops(
           WHERE e.${h.match} = ? AND e.type IN (${ph})
        )
        SELECT 1 AS depth, d1.edoc AS edoc, v.doc AS vdoc, d1.erow AS r1, 0 AS r2
-         FROM d1 JOIN vertices v ON v.key = d1.next_key
+         FROM d1 JOIN vertices v ON v.key = d1.next_key AND v.status = 'live'
        UNION ALL
        SELECT 2, e2.doc, v2.doc, d1.erow, e2.rowid
          FROM d1
          JOIN edges e2 ON e2.${h.match} = d1.next_id
                       AND e2.type IN (${ph})
                       AND e2.key <> d1.ekey
-         JOIN vertices v2 ON v2.key = e2.${h.next}
+         JOIN vertices v2 ON v2.key = e2.${h.next} AND v2.status = 'live'
         -- Depth-first: each depth-1 edge is followed immediately by the
         -- depth-2 edges reached through it. This is the order ArangoDB
         -- traversed in, and LIMIT is applied to these raw rows before the
@@ -121,7 +121,7 @@ function oneHopAnyTable(
     .prepare(
       `SELECT e.doc AS edoc, coalesce(v.doc, d.doc, c.doc) AS ndoc
          FROM edges e
-         LEFT JOIN vertices v ON v.key = e.${h.next} AND e.${h.nextId} LIKE 'vertices/%'
+         LEFT JOIN vertices v ON v.key = e.${h.next} AND e.${h.nextId} LIKE 'vertices/%' AND v.status = 'live'
          LEFT JOIN docs     d ON d.key = e.${h.next} AND e.${h.nextId} LIKE 'docs/%'
          LEFT JOIN concepts c ON c.key = e.${h.next} AND e.${h.nextId} LIKE 'concepts/%'
         WHERE e.${h.match} = ? AND coalesce(v.doc, d.doc, c.doc) IS NOT NULL
@@ -255,7 +255,17 @@ export async function queryConcept(store: DatabaseSync, concept: string): Promis
       .all(concept) as Row[]
   );
   const edges = toDocs<Edge>(
-    store.prepare("SELECT doc FROM edges WHERE concept = ? ORDER BY rowid").all(concept) as Row[]
+    // A cross-concept edge written at extract time may point at a vertex that is not applied yet (no row)
+    // or has since been archived: hide it until the target is live.
+    store
+      .prepare(
+        `SELECT e.doc AS doc FROM edges e
+          WHERE e.concept = ?
+            AND (e.crosses_concept = 0
+                 OR EXISTS (SELECT 1 FROM vertices v WHERE v.key = e.to_key AND v.status = 'live'))
+          ORDER BY e.rowid`
+      )
+      .all(concept) as Row[]
   );
   return { vertices, edges, doc: skillDoc(store, concept) };
 }
@@ -301,8 +311,8 @@ export async function queryCross(store: DatabaseSync, a: string, b: string): Pro
     .prepare(
       `SELECT e.doc AS edoc, f.doc AS fdoc, t.doc AS tdoc
          FROM edges e
-         JOIN vertices f ON f.key = e.from_key
-         JOIN vertices t ON t.key = e.to_key
+         JOIN vertices f ON f.key = e.from_key AND f.status = 'live'
+         JOIN vertices t ON t.key = e.to_key AND t.status = 'live'
         WHERE e.crosses_concept = 1
           AND ((f.concept = ? AND t.concept = ?) OR (f.concept = ? AND t.concept = ?))
         ORDER BY e.rowid`

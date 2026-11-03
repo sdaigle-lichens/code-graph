@@ -24,6 +24,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var maestro_workflow_spec_exports = {};
 __export(maestro_workflow_spec_exports, {
   applyWorkflowSpec: () => applyWorkflowSpec,
+  deleteWorkflow: () => deleteWorkflow,
   workflowToSpec: () => workflowToSpec
 });
 module.exports = __toCommonJS(maestro_workflow_spec_exports);
@@ -51,7 +52,7 @@ function padY(b, pad) {
 }
 function nodeBox(n, skillCount) {
   const { x, y } = n.position ?? { x: 0, y: 0 };
-  if (n.type === "human_review") return { x, y, w: HUMAN_W, h: HUMAN_H };
+  if (n.type === "human_review" || n.type === "manager_review") return { x, y, w: HUMAN_W, h: HUMAN_H };
   const skills = n.type === "agent" ? skillCount(n.instance ?? n.id) : 0;
   return { x, y, w: NODE_W, h: NODE_H + skills * SKILL_CHIP_H };
 }
@@ -210,8 +211,10 @@ function duplicateAgentTypes(cfg) {
 
 // src/core/workflow-spec.ts
 var SIDE_COLUMN_X = 360;
+var MANAGER_REVIEW_ID = /^manager_review-\d+$/;
 function parseStep(step) {
   if (step === "human_review-1") return { id: step, type: "human_review" };
+  if (MANAGER_REVIEW_ID.test(step)) return { id: step, type: "manager_review" };
   if (step.startsWith("skill:")) {
     const skill = step.slice("skill:".length);
     return { id: skill, type: "skill", skill };
@@ -273,8 +276,8 @@ function applyWorkflowSpec(cfg, spec, mode) {
     const parsed = parseStep(token);
     const already = nodeById.get(parsed.id);
     if (already) return already;
-    if (parsed.type === "human_review" || parsed.type === "skill") {
-      const node2 = parsed.type === "human_review" ? { id: parsed.id, type: "human_review", position: existingPositions.get(parsed.id) ?? { x, y } } : {
+    if (parsed.type === "human_review" || parsed.type === "manager_review" || parsed.type === "skill") {
+      const node2 = parsed.type === "human_review" || parsed.type === "manager_review" ? { id: parsed.id, type: parsed.type, position: existingPositions.get(parsed.id) ?? { x, y } } : {
         id: parsed.id,
         type: "skill",
         skill: parsed.skill,
@@ -367,7 +370,7 @@ function workflowToSpec(wf, _instances) {
   function tokenFor(nodeId) {
     const node = nodeById.get(nodeId);
     if (!node) return nodeId;
-    if (node.type === "human_review") return node.id;
+    if (node.type === "human_review" || node.type === "manager_review") return node.id;
     if (node.type === "skill") return `skill:${node.skill ?? node.id}`;
     return node.instance ?? node.id;
   }
@@ -384,8 +387,33 @@ function workflowToSpec(wf, _instances) {
   const conditions = wf.edges.filter((e) => e.kind === "condition" && e.label).map((e) => ({ from: tokenFor(e.from), to: tokenFor(e.to), label: e.label }));
   return { name: wf.name, steps, conditions: conditions.length > 0 ? conditions : void 0 };
 }
+function deleteWorkflow(cfg, name) {
+  const target = cfg.workflows.find((w) => w.name === name);
+  if (!target) {
+    const available = cfg.workflows.map((w) => w.name);
+    return {
+      config: cfg,
+      unplacedInstances: [],
+      errors: [`No workflow named "${name}". Available: ${available.length > 0 ? available.join(", ") : "(none)"}.`]
+    };
+  }
+  if (cfg.workflows.length === 1) {
+    return {
+      config: cfg,
+      unplacedInstances: [],
+      errors: [`"${name}" is the only workflow; a project needs at least one.`]
+    };
+  }
+  const workflows = cfg.workflows.filter((w) => w.name !== name);
+  const stillPlaced = new Set(workflows.flatMap((w) => w.nodes.map((n) => n.instance).filter(Boolean)));
+  const unplacedInstances = [
+    ...new Set(target.nodes.map((n) => n.instance).filter((i) => !!i && !stillPlaced.has(i)))
+  ];
+  return { config: { ...cfg, workflows }, unplacedInstances, errors: [] };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   applyWorkflowSpec,
+  deleteWorkflow,
   workflowToSpec
 });

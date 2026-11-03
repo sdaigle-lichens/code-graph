@@ -7,31 +7,86 @@ process.on("warning", (w) => {
   if (w.name !== "ExperimentalWarning") console.warn(w);
 });
 
-import { readFileSync, statSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { Command } from "commander";
-import { resolveDbPath } from "./scribe/db.js";
-import { tryLoadConfig } from "./config.js";
-import { bootstrapStore, rebuildSearchIndex, SCHEMA_VERSION } from "./scribe/bootstrap.js";
-import { extract } from "./scribe/extract.js";
-import { apply } from "./scribe/apply.js";
-import { runConcept, runImpact, runCross, runVertex, runFile } from "./query/run.js";
-import { search, applyTokenBudget, SearchNoResultsError } from "./query/search.js";
-import { preflight } from "./query/preflight.js";
-import {
-  classifyStrength,
-  computeGapReport,
-  buildSuccessNote,
-  formatGapDiagnostic,
-  uncoveredSourceFiles,
-} from "./query/gaps.js";
+import { batchFailureSummary, ReportedError, resolveConceptArgs, runConceptBatch } from "./concept-batch.js";
+import { resolveStartDir, tryLoadConfig } from "./config.js";
+import { registerSkillsCommands } from "./skills/commands.js";
+import { ensureSqlite, STORE_COMMANDS } from "./sqlite-guard.js";
+import { packageRoot, packageVersion } from "./version.js";
 
-const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as { version: string };
+// Everything that touches the store (node:sqlite) or the TypeScript compiler (ts-morph) is imported
+// lazily, inside the command that needs it. The `skills` group is layer 1 — it runs in repos with
+// no graph and no TypeScript, on any supported Node — so loading this file must pull in neither,
+// and the bundled plugin script resolves ts-morph from the project only when a graph command asks.
+const lazy = {
+  db: () => import("./scribe/db.js"),
+  bootstrap: () => import("./scribe/bootstrap.js"),
+  run: () => import("./query/run.js"),
+  search: () => import("./query/search.js"),
+  preflight: () => import("./query/preflight.js"),
+  gaps: () => import("./query/gaps.js"),
+};
+
+/** `search` printed results but the top cluster is weak or un-enriched; the caller should verify (grep, SKILL.md). */
+const EXIT_LOW_CONFIDENCE = 7;
+
+/**
+ * The build this process runs: version plus the running script's path and mtime (`dist/cli.js` or
+ * the plugin bundle), so a gate result can be tied to the code it measured. Uses `process.argv[1]`
+ * because `import.meta.url` is empty in the CJS bundle.
+ */
+function describeBuild(): string {
+  const script = process.argv[1];
+  if (!script) return `code-graph ${packageVersion()}`;
+  try {
+    return `code-graph ${packageVersion()}, ${script} built ${statSync(script).mtime.toISOString()}`;
+  } catch {
+    return `code-graph ${packageVersion()}, ${script}`;
+  }
+}
+
+/**
+ * True (after printing why) when the config declares no concepts: graph commands that iterate
+ * concepts then exit 0 without loading typescript, ts-morph or the store. A missing config still
+ * exits 5 inside `loadConfig`.
+ */
+async function skippedForNoConcepts(command: string): Promise<boolean> {
+  const { loadConfig } = await import("./config.js");
+  if (Object.keys(loadConfig(process.cwd()).concepts).length > 0) return false;
+  console.log(`${command}: no concepts configured in scribe.config.json, skipped`);
+  return true;
+}
 
 const program = new Command();
-program.name("code-graph").version(pkg.version);
+program.name("code-graph").version(packageVersion());
+program.option(
+  "--root <dir>",
+  "project to act on: --root, then $CLAUDE_PROJECT_DIR (when a scribe.config.json is at or above it), then cwd"
+);
+
+// Every command resolves its config, store and git from process.cwd(), so the chosen root is applied
+// once, here, before any action runs. `skills` reads $CLAUDE_PROJECT_DIR itself, so --root is mirrored there.
+program.hook("preAction", (thisCommand) => {
+  const root = (thisCommand.opts() as { root?: string }).root;
+  try {
+    const start = resolveStartDir(root);
+    if (start !== process.cwd()) process.chdir(start);
+    if (root) process.env.CLAUDE_PROJECT_DIR = start;
+  } catch (err) {
+    console.error(`error: ${(err as Error).message}`);
+    process.exit(1);
+  }
+});
+
+// The single catch for a Node without node:sqlite: any command that opens the store is checked here,
+// before its own lazy imports, so none of their catch blocks turns it into a bare exit 1.
+program.hook("preAction", (_program, action) => {
+  let top = action;
+  while (top.parent && top.parent !== program) top = top.parent;
+  if (STORE_COMMANDS.has(top.name())) ensureSqlite();
+});
 
 program
   .command("status")
@@ -47,6 +102,8 @@ program
     }
     ok(`scribe.config.json found (project: ${config.project})`);
 
+    const { resolveDbPath } = await lazy.db();
+    const { bootstrapStore, SCHEMA_VERSION } = await lazy.bootstrap();
     const dbPath = resolveDbPath(config);
     let bytes: number | null = null;
     try {
@@ -97,6 +154,8 @@ program
       console.error(`no scribe.config.json found above ${process.cwd()}`);
       process.exit(5);
     }
+    const { resolveDbPath } = await lazy.db();
+    const { bootstrapStore } = await lazy.bootstrap();
     const dbPath = resolveDbPath(config);
     try {
       bootstrapStore(dbPath);
@@ -116,6 +175,8 @@ program
       console.error(`no scribe.config.json found above ${process.cwd()}`);
       process.exit(5);
     }
+    const { resolveDbPath } = await lazy.db();
+    const { bootstrapStore, rebuildSearchIndex } = await lazy.bootstrap();
     try {
       const store = bootstrapStore(resolveDbPath(config));
       rebuildSearchIndex(store);
@@ -127,45 +188,237 @@ program
     }
   });
 
-program
-  .command("extract <concept>")
-  .description("extract AST for a concept")
-  .action(async (concept: string) => {
-    try {
-      await extract(concept);
-    } catch (err) {
-      console.error("extract failed:", (err as Error).message);
+/**
+ * Shared driver of `extract` / `apply` / `drift`. One named concept (no `--all`) runs exactly as the
+ * single-concept command always has: the first failure exits 1. Several names or `--all` run each
+ * concept in turn, a failure does not stop the rest, and the batch exits 1 when any failed. `--json`
+ * (drift) gathers every concept's report into one `{ concepts, failed }` line.
+ */
+async function runForConcepts(
+  command: string,
+  named: string[] | undefined,
+  opts: { all?: boolean; json?: boolean },
+  one: (concept: string, batch: { collect: boolean }) => Promise<unknown>
+): Promise<void> {
+  const list = named ?? [];
+  try {
+    if (await skippedForNoConcepts(command)) return;
+    if (list.length === 1 && !opts.all) {
+      await one(list[0], { collect: false });
+      return;
+    }
+    const { loadConfig } = await import("./config.js");
+    const concepts = resolveConceptArgs(Object.keys(loadConfig(process.cwd()).concepts), list, opts.all ?? false);
+    if (concepts.length === 1) {
+      await one(concepts[0], { collect: false });
+      return;
+    }
+    const reports: unknown[] = [];
+    const failed = await runConceptBatch(command, concepts, async (concept) => {
+      const report = await one(concept, { collect: opts.json === true });
+      if (report !== undefined) reports.push(report);
+    });
+    if (opts.json) console.log(JSON.stringify({ concepts: reports, failed }));
+    if (failed.length > 0) {
+      console.error(batchFailureSummary(command, failed, concepts.length));
       process.exit(1);
     }
+  } catch (err) {
+    // Already printed (missing ast.json, unknown concept, ...): exit 1 without repeating it.
+    if (!(err instanceof ReportedError)) console.error(`${command} failed:`, (err as Error).message);
+    process.exit(1);
+  }
+}
+
+program
+  .command("extract [concepts...]")
+  .description("extract AST for one or more concepts (or --all); a batch goes on past a failing concept")
+  .option("--all", "every concept in scribe.config.json, in config order")
+  .action(async (concepts: string[] | undefined, opts: { all?: boolean }) => {
+    const batch = (concepts?.length ?? 0) > 1 || opts.all === true;
+    await runForConcepts("extract", concepts, opts, async (concept) => {
+      // In a batch, the per-concept stderr summary ("N vertices, ...") is prefixed with its concept.
+      if (batch) process.stderr.write(`${concept}: `);
+      // A docs-only concept needs no TypeScript compiler, so it must not load ts-morph.
+      const { loadConfig } = await import("./config.js");
+      const { isDocsOnly, extractDocsOnly } = await import("./scribe/ast-output.js");
+      const config = loadConfig(process.cwd());
+      if (config.concepts[concept] && isDocsOnly(config, concept)) {
+        await extractDocsOnly(config, concept);
+        return;
+      }
+      const { extract } = await import("./scribe/extract.js");
+      await extract(concept);
+    });
   });
 
 program
-  .command("apply <concept>")
-  .description("apply enriched doc to graph")
+  .command("apply [concepts...]")
+  .description("apply enriched doc to graph, for one or more concepts (or --all)")
+  .option("--all", "every concept in scribe.config.json, in config order")
   .option("--dry-run")
   .option("--approve-drift")
-  .action(async (concept: string, opts: { dryRun?: boolean; approveDrift?: boolean }) => {
-    try {
-      await apply(concept, {
-        dryRun: opts.dryRun ?? false,
-        approveDrift: opts.approveDrift ?? false,
+  .option("--json", "with --dry-run: emit the drift as JSON (names and files)")
+  .option(
+    "--defer-renames",
+    "non-interactive: never prompt; a concept with rename candidates is left unwritten and the command exits 10"
+  )
+  .action(
+    async (
+      concepts: string[] | undefined,
+      opts: { all?: boolean; dryRun?: boolean; approveDrift?: boolean; json?: boolean; deferRenames?: boolean }
+    ) => {
+      if (opts.json && !opts.dryRun) {
+        console.error("apply failed: --json needs --dry-run");
+        process.exit(1);
+      }
+      if (opts.deferRenames && opts.approveDrift) {
+        console.error("apply failed: --defer-renames and --approve-drift are mutually exclusive");
+        process.exit(1);
+      }
+      let first = true;
+      await runForConcepts("apply", concepts, opts, async (concept, { collect }) => {
+        // Blank line between concepts' text reports in a batch.
+        if (!first && !opts.json) console.log("");
+        first = false;
+        const { apply } = await import("./scribe/apply.js");
+        return apply(concept, {
+          dryRun: opts.dryRun ?? false,
+          approveDrift: opts.approveDrift ?? false,
+          json: opts.json ?? false,
+          deferRenames: opts.deferRenames ?? false,
+          collect,
+        });
       });
+    }
+  );
+
+// Not in STORE_COMMANDS: as the plugin's Stop/SubagentStop hook it must be a silent no-op on a Node
+// without node:sqlite (refreshSkipReason checks it) rather than exit 8.
+program
+  .command("refresh-skills")
+  .description(
+    "extract + apply every concept whose SKILL.md changed since its last apply; renames are deferred, never decided"
+  )
+  .option("--hook", "Claude Code hook mode: read the hook payload on stdin, print only a systemMessage JSON, exit 0")
+  .option("--json", "print the report as JSON")
+  .action(async (opts: { hook?: boolean; json?: boolean }) => {
+    const { refreshSkills, hookMessage, hookCwd, readHookStdin, EXIT_RENAMES_DEFERRED } =
+      await import("./scribe/skill-refresh.js");
+    if (opts.hook) {
+      // A hook never fails the stop: every outcome, errors included, is a message or silence.
+      try {
+        const message = hookMessage(await refreshSkills(hookCwd(readHookStdin())));
+        if (message) console.log(JSON.stringify({ systemMessage: message }));
+      } catch (err) {
+        console.log(JSON.stringify({ systemMessage: `code-graph: refresh-skills failed: ${(err as Error).message}` }));
+      }
+      return;
+    }
+    try {
+      const report = await refreshSkills(process.cwd());
+      if (opts.json) console.log(JSON.stringify(report));
+      else if (report.skipped) console.log(`refresh-skills: skipped (${report.skipped})`);
+      else if (report.changed.length === 0) console.log("refresh-skills: no SKILL.md changed since the last apply");
+      else console.log(hookMessage(report) ?? "refresh-skills: nothing to report");
+      if (report.results.some((r) => r.status === "failed")) process.exitCode = 1;
+      else if (report.results.some((r) => r.status === "deferred")) process.exitCode = EXIT_RENAMES_DEFERRED;
     } catch (err) {
-      console.error("apply failed:", (err as Error).message);
+      console.error("refresh-skills failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+const enrich = program.command("enrich").description("incremental enrichment: list targets, merge partial results");
+
+enrich
+  .command("targets [concept]")
+  .description(
+    "list vertices that need enrichment: changed, stale, and never-enriched ones that are core or new/changed since the previous apply; with --summary and no concept, the per-concept counts and total across every concept, flagging never-applied ones"
+  )
+  .option("--vertex <name...>", "list just these vertices (name or _key), with full details")
+  .option("--all", "list every never-enriched vertex, not only core and touched ones (whole-concept enrichment)")
+  .option("--summary", "counts per reason, the core block and one short line per target (no edge arrays)")
+  .option("--core", "no-op: core-first is the default (kept for older skills)")
+  .option("--json", "output JSON")
+  .action(
+    async (
+      concept: string | undefined,
+      opts: { vertex?: string[]; json?: boolean; core?: boolean; all?: boolean; summary?: boolean }
+    ) => {
+      try {
+        if (concept === undefined && (!opts.summary || opts.vertex?.length)) {
+          console.error(
+            "enrich targets failed: name a concept, or pass --summary (without --vertex) for every concept"
+          );
+          process.exit(1);
+        }
+        if (await skippedForNoConcepts("enrich targets")) return;
+        if (concept === undefined) {
+          const { enrichTargetsRollup } = await import("./scribe/enrich.js");
+          enrichTargetsRollup({ json: opts.json ?? false, all: opts.all ?? false });
+          return;
+        }
+        const { enrichTargets } = await import("./scribe/enrich.js");
+        enrichTargets(concept, {
+          vertices: opts.vertex ?? [],
+          json: opts.json ?? false,
+          all: opts.all ?? false,
+          summary: opts.summary ?? false,
+          core: opts.core ?? false,
+        });
+      } catch (err) {
+        console.error("enrich targets failed:", (err as Error).message);
+        process.exit(1);
+      }
+    }
+  );
+
+enrich
+  .command("merge <concept> <partial>")
+  .description("merge a partial enrichment into <concept>.enriched.json (upsert by _key), then run apply")
+  .action(async (concept: string, partial: string) => {
+    try {
+      if (await skippedForNoConcepts("enrich merge")) return;
+      const { enrichMerge } = await import("./scribe/enrich.js");
+      enrichMerge(concept, partial);
+    } catch (err) {
+      console.error("enrich merge failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+enrich
+  .command("prune <concept>")
+  .description(
+    "list the orphaned entries in <concept>.enriched.json (key not in ast.json) that apply cannot remap; dry run unless --yes"
+  )
+  .option("--yes", "drop them from <concept>.enriched.json (default: only list)")
+  .option("--json", "output JSON")
+  .action(async (concept: string, opts: { yes?: boolean; json?: boolean }) => {
+    try {
+      if (await skippedForNoConcepts("enrich prune")) return;
+      const { enrichPrune } = await import("./scribe/enrich.js");
+      enrichPrune(concept, { yes: opts.yes ?? false, json: opts.json ?? false });
+    } catch (err) {
+      console.error("enrich prune failed:", (err as Error).message);
       process.exit(1);
     }
   });
 
 program
-  .command("drift <concept>")
-  .description("show drift for a concept (alias for apply --dry-run)")
-  .action(async (concept: string) => {
-    try {
-      await apply(concept, { dryRun: true, approveDrift: false });
-    } catch (err) {
-      console.error("drift failed:", (err as Error).message);
-      process.exit(1);
-    }
+  .command("drift [concepts...]")
+  .description("show drift for one or more concepts, or --all (alias for apply --dry-run)")
+  .option("--all", "every concept in scribe.config.json, in config order")
+  .option("--json", "emit the drift as JSON (names and files); several concepts: one { concepts, failed } object")
+  .action(async (concepts: string[] | undefined, opts: { all?: boolean; json?: boolean }) => {
+    let first = true;
+    await runForConcepts("drift", concepts, opts, async (concept, { collect }) => {
+      if (!first && !opts.json) console.log("");
+      first = false;
+      const { apply } = await import("./scribe/apply.js");
+      return apply(concept, { dryRun: true, approveDrift: false, json: opts.json ?? false, collect });
+    });
   });
 
 program
@@ -175,6 +428,16 @@ program
   .option("--json", "output JSON")
   .option("--full-skill", "include full skill body in output (default: skill name only)")
   .action(async (query: string, opts: { maxTokens?: string; json?: boolean; fullSkill?: boolean }) => {
+    const { search, applyTokenBudget, budgetSearchJson, SearchNoResultsError } = await lazy.search();
+    const { preflight } = await lazy.preflight();
+    const {
+      classifyStrength,
+      computeGapReport,
+      compactGaps,
+      buildSuccessNote,
+      formatGapDiagnostic,
+      uncoveredSourceFiles,
+    } = await lazy.gaps();
     try {
       const maxTokens = parseInt(opts.maxTokens ?? "3000", 10);
       const json = opts.json ?? false;
@@ -183,10 +446,18 @@ program
       const strength = classifyStrength(result);
 
       if (json) {
-        // JSON mode is the contract for the eval harness — always include gaps.
+        // Always include strength and gaps; trim the rest to --max-tokens (the eval harness calls search() directly).
         const { db, config } = await preflight();
-        const gaps = await computeGapReport(db, config);
-        console.log(JSON.stringify({ ...result, strength, gaps }, null, 2));
+        const gaps = compactGaps(await computeGapReport(db, config));
+        const low = result.confidence?.low === true;
+        const extra = {
+          strength,
+          gaps,
+          low_confidence: low,
+          ...(low ? { low_confidence_reason: result.confidence?.reason } : {}),
+        };
+        console.log(JSON.stringify(budgetSearchJson(result, extra, maxTokens), null, 2));
+        if (low) process.exitCode = EXIT_LOW_CONFIDENCE;
         return;
       }
 
@@ -199,6 +470,7 @@ program
         if (note) md += `\n\n${note}`;
       }
       console.log(md);
+      if (result.confidence?.low) process.exitCode = EXIT_LOW_CONFIDENCE;
     } catch (err) {
       if (err instanceof SearchNoResultsError) {
         // Whiff: surface what's missing before falling back. Best-effort.
@@ -224,18 +496,29 @@ program
   .command("eval")
   .description("run layer-A eval harness against eval/tasks.json")
   .option("--tasks <path>", "path to tasks.json")
-  .action(async (opts: { tasks?: string }) => {
+  .option(
+    "--store <mode>",
+    "stripped (default): measure a temp copy with purposes/tags removed, so the verdict ignores local enrichment; as-is: measure the store untouched",
+    "stripped"
+  )
+  .action(async (opts: { tasks?: string; store: string }) => {
+    const { isEvalStoreMode } = await import("./eval/store.js");
+    if (!isEvalStoreMode(opts.store)) {
+      console.error(`--store must be "stripped" or "as-is", got "${opts.store}"`);
+      process.exit(1);
+    }
     const { existsSync } = await import("node:fs");
     const { runEval } = await import("./eval/harness.js");
     const config = tryLoadConfig(process.cwd());
 
     let tasksPath = opts.tasks;
+    const pkgRoot = packageRoot();
     if (!tasksPath) {
       const configRootTasks = config ? join(config.configRoot, "eval", "tasks.json") : null;
-      const pkgTasks = join(pkgRoot, "eval", "tasks.json");
+      const pkgTasks = pkgRoot ? join(pkgRoot, "eval", "tasks.json") : null;
       if (configRootTasks && existsSync(configRootTasks)) {
         tasksPath = configRootTasks;
-      } else if (existsSync(pkgTasks)) {
+      } else if (pkgTasks && existsSync(pkgTasks)) {
         tasksPath = pkgTasks;
       } else {
         console.error("no eval/tasks.json found; pass --tasks <path>");
@@ -243,14 +526,16 @@ program
       }
     }
 
-    const outputDir = config ? join(config.configRoot, "eval") : join(pkgRoot, "eval");
+    const outputDir = join(config?.configRoot ?? pkgRoot ?? process.cwd(), "eval");
     const { mkdirSync } = await import("node:fs");
     mkdirSync(outputDir, { recursive: true });
 
     console.log(`running eval from ${tasksPath}`);
-    const run = await runEval(tasksPath, outputDir);
+    console.log(`build: ${describeBuild()}`);
+    const run = await runEval(tasksPath, outputDir, { store: opts.store });
     const verdict = run.regressions.length === 0 ? "green" : "REGRESSIONS";
     console.log(`\n${verdict}: ${run.passed}/${run.total} passed, ${run.skipped} skipped`);
+    console.log(run.store);
     if (run.regressions.length > 0) {
       console.log("failed:", run.regressions.join(", "));
       process.exit(1);
@@ -267,6 +552,7 @@ query
   .option("--no-skill", "omit skill context")
   .action(async (name: string, opts: { maxTokens?: string; json?: boolean; skill?: boolean }) => {
     try {
+      const { runConcept } = await lazy.run();
       await runConcept(name, {
         maxTokens: parseInt(opts.maxTokens ?? "3000", 10),
         json: opts.json ?? false,
@@ -288,6 +574,7 @@ query
   .action(async (symbol: string, opts: { direction?: string; max?: string; maxTokens?: string; json?: boolean }) => {
     const dir = (opts.direction ?? "both") as "in" | "out" | "both";
     try {
+      const { runImpact } = await lazy.run();
       await runImpact(symbol, {
         direction: dir,
         max: parseInt(opts.max ?? "20", 10),
@@ -307,6 +594,7 @@ query
   .option("--json", "output JSON")
   .action(async (conceptA: string, conceptB: string, opts: { maxTokens?: string; json?: boolean }) => {
     try {
+      const { runCross } = await lazy.run();
       await runCross(conceptA, conceptB, {
         maxTokens: parseInt(opts.maxTokens ?? "3000", 10),
         json: opts.json ?? false,
@@ -324,6 +612,7 @@ query
   .option("--json", "output JSON")
   .action(async (location: string, opts: { maxTokens?: string; json?: boolean }) => {
     try {
+      const { runVertex } = await lazy.run();
       await runVertex(location, {
         maxTokens: parseInt(opts.maxTokens ?? "3000", 10),
         json: opts.json ?? false,
@@ -341,6 +630,7 @@ query
   .option("--json", "output JSON")
   .action(async (filepath: string, opts: { maxTokens?: string; json?: boolean }) => {
     try {
+      const { runFile } = await lazy.run();
       await runFile(filepath, {
         maxTokens: parseInt(opts.maxTokens ?? "5000", 10),
         json: opts.json ?? false,
@@ -391,4 +681,29 @@ program
     await deleteConcept(name, { yes: opts.yes ?? false });
   });
 
-program.parse();
+const deps = program.command("deps").description("manage the plugin-owned ts-morph install used by graph commands");
+
+deps
+  .command("install")
+  .description("install pinned ts-morph into the plugin deps directory (downloads from the npm registry)")
+  .action(async () => {
+    const { depsInstall } = await import("./deps.js");
+    process.exitCode = depsInstall();
+  });
+
+deps
+  .command("status")
+  .description("show where ts-morph resolves from: plugin deps directory, then the project")
+  .action(async () => {
+    const { depsStatus } = await import("./deps.js");
+    depsStatus();
+  });
+
+registerSkillsCommands(program);
+
+program.parseAsync().catch((err: Error) => {
+  // The bundled plugin script resolves ts-morph from the plugin deps directory, then the project;
+  // when neither has it the error lands here, and that message (naming `deps install`) is the diagnosis.
+  console.error(`code-graph: ${err?.message ?? err}`);
+  process.exit(1);
+});

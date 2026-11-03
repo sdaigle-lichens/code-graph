@@ -7,9 +7,10 @@ the repo root and turbo orders the packages by `dependsOn`.
 
 ```sh
 pnpm install
-pnpm build      # turbo run build — tsc → packages/*/dist
+pnpm build      # turbo run build bundle — tsc → packages/*/dist, + plugin/scripts/code-graph.cjs
+pnpm bundle     # just the plugin bundle (also `just bundle`)
 pnpm typecheck  # tsc --noEmit across the workspace
-pnpm test       # node:test (CLI) + vitest (desktop app)
+pnpm test       # node:test (CLI) + vitest (desktop app); the desktop real-store suite skips until scribe-output/graph.db exists (`just store-fresh`)
 pnpm check      # prettier --check; scope lives in the root .prettierignore
 pnpm verify     # check + typecheck + test, the pre-push gate
 ```
@@ -60,6 +61,9 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
         cli.ts              entry point
         index.ts            programmatic surface — the pure read path, no process.exit
         config.ts           scribe.config.json loader
+        version.ts          package version/root, from dist/ or the bundle
+        project-deps.ts     requireFromProject — plugin deps dir first, then the project's own ts-morph
+        deps.ts             deps install|status — npm-installs pinned ts-morph into the plugin deps dir
         schema.ts           Zod types (Vertex, Edge, …)
         catalog/
           catalog.ts        repo-wide symbol catalog (ts-morph)
@@ -76,8 +80,11 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
           run.ts            CLI runners for query subcommands
           format.ts         markdown formatters (concept/impact/cross/vertex)
           search.ts         BM25 + expansion + ranking + search formatter
+        skills/             layer 1 — `code-graph skills *` (markers, state, check/status, agents)
         eval/
           harness.ts        layer-A eval runner
+      scripts/
+        build-plugin.mjs    esbuild → plugin/scripts/code-graph.cjs
       eval/
         tasks.json          default eval fixture, shipped in the npm `files` set
     lsp/                    code-graph-lsp — LSP server, spawns the CLI (deliberately decoupled)
@@ -87,9 +94,17 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
   plugin/                   the Claude Code plugin (--plugin-dir target)
     commands/
       graph.md              /graph slash command
-      scribe-enrich.md      /scribe-enrich slash command
-    skills/
-      scribe-code-graph/SKILL.md
+    hooks/
+      hooks.json            Stop + SubagentStop run `refresh-skills --hook` (120 s); no session context
+    skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
+      create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
+      scribe                placement rule, extract+apply rule, gap channel, enrichment procedure
+      cleanup-skill, load-concept-skills, explore-concept-skills                    building blocks
+      code-architecture-design, use-code-architecture-design-check                  design gate + brief
+      code-graph-install, code-graph-update, code-graph-uninstall                   per-project setup
+      add-concept, code-graph-retrieval                                            graph-side skills (retrieval is user-run, model invocation disabled)
+    scripts/
+      code-graph.cjs        GENERATED bundle of src/cli.ts, committed — do not edit
   editor/zed-code-graph/    Zed extension (Rust → wasm; cargo, not pnpm)
   eval/
     tasks.code-graph.json   this repo's own dogfood fixture — the regression gate
@@ -114,6 +129,25 @@ Those belong to the CLI. A host process that exits because a config was missing 
 in-process consumers take `tryLoadConfig` and compose the pure pieces. `scribe/extract.ts` and
 `catalog/catalog.ts` are omitted too — they are the only modules that pull in `ts-morph`, and
 keeping them off the surface keeps a bundler from following the TypeScript compiler into a build.
+
+## The plugin bundle
+
+Plugin skills run `node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs"`, a self-contained esbuild
+bundle of `src/cli.ts` that is **committed** because the plugin ships by file copy with no
+`node_modules`. `pnpm build` regenerates it; after touching `src/` or `scripts/build-plugin.mjs`,
+read `git diff plugin/scripts/` — a broken build script leaves the old bundle working while source
+changes silently stop reaching the plugin.
+
+- `typescript` and `ts-morph` are not bundled: `requireFromProject` loads `ts-morph` from the
+  plugin-owned deps dir (`code-graph deps install`) first, then the consumer project's own copy; with
+  neither, the error names `deps install` (or, when a deps dir exists but is unreadable or hidden in a
+  sandbox, the absolute path(s) for `sandbox.filesystem.allowRead`; `probeDepsDir` stats and then
+  lists `node_modules`, since macOS Seatbelt allows stat on a denied dir).
+- The `skills` command group (layer 1) must never load `node:sqlite`, `typescript` or `ts-morph`, so
+  it runs in any repo on any supported Node. `cli.ts` imports every graph module lazily, inside its
+  command — keep new ones that way.
+- Read the version through `version.ts` (`packageVersion()` / `packageRoot()`); in the bundle the
+  version is baked in and `packageRoot()` is null.
 
 ## Desktop app
 
@@ -142,11 +176,12 @@ in-process through the library surface above.
 
 ## This repo's own graph
 
-code-graph dogfoods itself: `scribe.config.json` at the root declares two concepts over its own
-source, and `eval/tasks.code-graph.json` is the Layer-A gate.
+code-graph dogfoods itself: `scribe.config.json` at the root declares three concepts over its own
+source (`code-graph-search`, `scribe-pipeline`, `concept-skills-layer`), and
+`eval/tasks.code-graph.json` is the Layer-A gate.
 
 ```sh
-just regraph   # extract + apply both concepts, then run the eval gate (expects 5/5)
+just regraph   # extract + apply all three concepts, then run the eval gate (expects 7/7)
 ```
 
 Run that after anything that changes the body text of a graphed function — including a

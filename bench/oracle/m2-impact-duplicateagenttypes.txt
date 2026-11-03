@@ -1,0 +1,16 @@
+# Impact (in, depth 2): maestro-config-model::duplicateAgentTypes
+
+## Direct callers
+
+- @apps/maestro/src/core/workflow-spec.ts:267 — `applyWorkflowSpec`
+- @apps/maestro/src/core/config-validate.ts:65 — `validateConfig`
+- @apps/maestro/src/main/ipc.ts:549 — `registerIpc`
+- @apps/maestro/src/core/workflow-spec.ts:267 — `applyWorkflowSpec`
+- @apps/maestro/src/core/install.ts:859 — `installRuntime`
+- @apps/maestro/src/core/install.ts:859 — `installRuntime`
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/core/install.ts:946 — `refreshStaleRuntime`
+- @apps/maestro/src/core/install.ts:946 — `refreshStaleRuntime`
+

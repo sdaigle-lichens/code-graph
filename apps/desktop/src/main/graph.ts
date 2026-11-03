@@ -201,7 +201,7 @@ export function graphStatus(root: string): GraphStatus {
     path: configPathOf(config),
     configRoot: config.configRoot,
     project: config.project,
-    tsconfig: config.tsconfig,
+    tsconfig: config.tsconfig ?? "",
   };
   let opened: OpenedStore;
   try {

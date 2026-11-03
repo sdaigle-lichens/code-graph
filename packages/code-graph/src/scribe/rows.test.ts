@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toDoc, toDocs, vertexId, docKey, docId, keyOf, toMatchExpr } from "./rows.js";
+import { toDoc, toDocs, vertexId, docKey, docId, keyOf, toMatchExpr, splitIdentifier, nameIndexText } from "./rows.js";
 
 describe("document handles", () => {
   it("builds and splits vertex handles", () => {
@@ -77,5 +77,26 @@ describe("toMatchExpr", () => {
 
   it("keeps short but meaningful tokens", () => {
     assert.equal(toMatchExpr("db ui"), '"db" OR "ui"');
+  });
+
+  it("also offers the words of a SCREAMING_SNAKE token", () => {
+    assert.equal(toMatchExpr("GAP_ACK"), '"gap_ack" OR "gap" OR "ack"');
+    assert.equal(toMatchExpr("the_end store"), '"the_end" OR "end" OR "store"', "stopword parts are dropped");
+  });
+});
+
+describe("splitIdentifier / nameIndexText", () => {
+  it("splits camelCase, snake_case, kebab and acronym boundaries into lower-case words", () => {
+    assert.deepEqual(splitIdentifier("parseGapsHandled"), ["parse", "gaps", "handled"]);
+    assert.deepEqual(splitIdentifier("parse_gaps_handled"), ["parse", "gaps", "handled"]);
+    assert.deepEqual(splitIdentifier("HTTPServer2"), ["http", "server2"]);
+    assert.deepEqual(splitIdentifier("gantt-render"), ["gantt", "render"]);
+    assert.deepEqual(splitIdentifier(""), []);
+  });
+
+  it("indexes the identifier followed by its words, and a one-word name unchanged", () => {
+    assert.equal(nameIndexText("parseGapsHandled"), "parseGapsHandled parse gaps handled");
+    assert.equal(nameIndexText("store"), "store");
+    assert.equal(nameIndexText("Store"), "Store");
   });
 });

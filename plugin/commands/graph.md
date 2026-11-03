@@ -34,16 +34,15 @@ After the CLI run, check the exit code:
 
 | Code | Meaning | Suggestion |
 |------|---------|-----------|
-| `2`  | *Retired* — no longer emitted (the graph is a local file, not a server) |
-| `3`  | Database missing | Run `code-graph bootstrap` to initialize the database |
+| `2`  | *Retired* — never emitted (the graph is a local file, not a server) | Nothing to do; use the Explore agent |
+| `3`  | Store written by a newer code-graph | Upgrade the CLI |
 | `4`  | Ambiguous symbol | Disambiguate by concept (`/graph impact <concept>::<name>`) or filepath qualifier |
 | `5`  | No config found | Create a `scribe.config.json` in your project root |
 | `6`  | Zero results | Try rephrasing your query, or use the Explore agent for a broader search |
 
 On exit code `6`, the CLI may first print a `## Graph completeness` diagnostic to stdout
 (declared-but-unbuilt concepts, concepts missing a SKILL.md, source files no concept covers).
-When present, follow the `code-graph-retrieval` skill's answer-first handling: answer via the
-fallback, then offer to build the missing concept for future queries. A successful search may
+When present, answer-first: answer via the fallback, then offer to build the missing concept for future queries. A successful search may
 also append a thin-result completeness note (`> ⚠ graph N/M concepts enriched …`) — that is
 FYI for the user, not a reason to re-search.
 

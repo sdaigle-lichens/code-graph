@@ -14,6 +14,10 @@ install:
 build:
     pnpm build
 
+# Regenerate the committed plugin bundle (plugin/scripts/code-graph.cjs); `build` runs it too
+bundle:
+    pnpm bundle
+
 # Type-check without emit, across the workspace
 typecheck:
     pnpm typecheck
@@ -102,16 +106,34 @@ impact:
 
 # ─── Eval ────────────────────────────────────────────────────────────────────
 
-# Run Layer-A eval harness against this repo's own graph (the refactor gate)
-eval:
-    node packages/code-graph/dist/cli.js eval --tasks eval/tasks.code-graph.json
+# Rebuild packages/code-graph/dist with tsc when any src/ file is newer than its output (no-op
+# otherwise). Calls tsc directly, not `pnpm build`, so it also runs inside Claude Code's sandbox.
+dist-fresh:
+    @node packages/code-graph/scripts/ensure-dist.mjs
+
+# Run Layer-A eval harness against this repo's own graph (the refactor gate); measures an un-enriched
+# copy of the store, so the verdict does not depend on local *.enriched.json files
+eval: dist-fresh store-fresh
+    node packages/code-graph/dist/cli.js --root {{justfile_directory()}} eval --tasks eval/tasks.code-graph.json
+
+# Same gate against the local store untouched (informational: the verdict moves with which concepts are enriched)
+eval-as-is: dist-fresh store-fresh
+    node packages/code-graph/dist/cli.js --root {{justfile_directory()}} eval --tasks eval/tasks.code-graph.json --store as-is
+
+# Build the graph store (extract + apply) only for concepts it lacks, e.g. in a fresh worktree where
+# scribe-output/graph.db does not exist; no-op when every concept is present, never rewrites a current
+# store. A failed build exits 3 naming `just regraph`.
+store-fresh: dist-fresh
+    @node packages/code-graph/scripts/ensure-store.mjs
 
 # Re-extract + re-apply both of this repo's own concepts, then re-run the gate
-regraph:
+regraph: dist-fresh
     node packages/code-graph/dist/cli.js extract code-graph-search
     node packages/code-graph/dist/cli.js apply code-graph-search
     node packages/code-graph/dist/cli.js extract scribe-pipeline
     node packages/code-graph/dist/cli.js apply scribe-pipeline
+    node packages/code-graph/dist/cli.js extract concept-skills-layer
+    node packages/code-graph/dist/cli.js apply concept-skills-layer
     just eval
 
 # Run Layer-A eval harness from the pilot dir instead

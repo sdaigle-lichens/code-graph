@@ -1,10 +1,20 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  // Strict env mode drops TMPDIR; Node then falls back to /tmp, which a sandboxed session cannot write
+  // (vitest in apps/desktop failed with `mkdir /tmp/<id>/ssr`). Pass it through, unhashed.
+  "globalPassThroughEnv": ["TMPDIR"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", "out/**", ".output/**"]
+    },
+    // packages/code-graph → the COMMITTED plugin/scripts/code-graph.cjs (an esbuild bundle of src/cli.ts).
+    // Run by the root `pnpm build` too, so a source change cannot quietly stop reaching the plugin.
+    // Self-contained: it bundles source, not dist/, so it needs no `build` first.
+    "bundle": {
+      "inputs": ["src/**", "!src/**/*.test.ts", "scripts/build-plugin.mjs", "package.json", "tsconfig.json"],
+      "outputs": ["$TURBO_ROOT$/plugin/scripts/code-graph.cjs"]
     },
     "lint": {},
     "check": {

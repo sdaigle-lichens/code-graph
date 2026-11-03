@@ -1,0 +1,9 @@
+{
+  "note": "Reference doc fix for bench case d2-scribe-spawn-cap (044). Never shown to a model: bench/edit-check.mjs applies it to prove the grader gives full marks to a correct fix.",
+  "edits": [
+    { "file": ".claude/skills/task-queue/sub-concepts/epics.md", "from": "`DEFAULT_SPAWN_CAP` is 5;", "to": "`DEFAULT_SPAWN_CAP` is 3;" },
+    { "file": "plugins/maestro/skills/maestro-manager/SKILL.md", "from": "(up to 5 at once;", "to": "(up to 3 at once;" },
+    { "file": "plugins/maestro/skills/maestro-manager/SKILL.md", "from": "the default is 5)", "to": "the default is 3)" },
+    { "file": "plugins/maestro/skills/maestro-install/references/herdr.md", "from": "(up to 5 at a\ntime)", "to": "(up to 3 at a\ntime)" }
+  ]
+}

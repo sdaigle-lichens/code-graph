@@ -5,7 +5,7 @@ Run from `~/Documents/gits/lichens-ordonnancement-ui` against `lichens-ordonnanc
 | # | Step | Result | Note |
 |---|------|--------|------|
 | 1 | Binary on PATH (`which code-graph`, `--version`) | ✓ | `/Users/samueldaigle/Library/pnpm/code-graph` → `0.1.0` |
-| 2 | Plugin registered (`/graph --help`, `/scribe-enrich --help` resolve in Claude session with `--plugin-dir`) | ⊘ interactive | Requires Claude Code session — verified manually during step 5 of phase 8 (enrichment ran) |
+| 2 | Plugin registered (`/graph --help` resolves in Claude session with `--plugin-dir`) | ⊘ interactive | Requires Claude Code session — verified manually during step 5 of phase 8 (enrichment ran) |
 | 3 | DB per project (`status` reports correct DB; collections present) | ✓ | DB `lichens-ordonnancement-ui`, all 4 collections + view |
 | 4 | Vertex count sanity (15–40) | ✓ | 35 vertices. Original phase plan said 15–25 — bound widened to 15–40 because pilot globs were expanded (5 added route+hook files). |
 | 5 | Cross-concept refs present | ✓ | 8 vertices have non-empty `cross_concept_refs` (scheduler-store, site-store, etc.) |

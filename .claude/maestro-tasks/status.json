@@ -8,5 +8,387 @@
     "blockedBy": [
       "001-desktop-app-shell-with-project-and-concept-management.md"
     ]
+  },
+  "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "004-graph-layer-freshness-and-docs-only-concepts.md": {
+    "status": "done",
+    "blockedBy": [
+      "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md": {
+    "status": "done",
+    "blockedBy": [
+      "003-concept-skills-layer-1-in-the-code-graph-cli-shipped-as-a-bundled-plugin-script.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "006-dogfood-parity-check-and-publish-the-code-graph-plugin.md": {
+    "status": "done",
+    "blockedBy": [
+      "004-graph-layer-freshness-and-docs-only-concepts.md",
+      "005-concept-skill-design-and-lifecycle-skills-in-the-code-graph-plugin.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "007-retire-superseded-plugin-commands-and-document-the-full-plugin-surface.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "008-make-the-graph-layer-run-in-consumer-repos-that-don-t-install-typescript-or-ts-morph.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "009-fix-search-when-a-term-only-matches-a-concept-s-skill-doc.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "010-report-the-real-version-and-make-ast-json-byte-stable-across-re-extracts.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "011-stop-plain-text-search-from-repeating-the-same-edge-per-call-site.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "012-keep-committed-ast-json-unchanged-across-plugin-upgrades.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "014-enrich-incrementally-from-the-update-flows-and-route-search-gaps-to-the-scribe.md": {
+    "status": "done",
+    "blockedBy": [
+      "013-let-enrichment-merge-per-vertex-and-go-stale-on-body-edits.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md": {
+    "status": "done",
+    "blockedBy": [
+      "015-key-the-plugin-deps-cache-by-the-pinned-deps-not-the-code-graph-version.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md": {
+    "status": "done",
+    "blockedBy": [
+      "016-enrich-core-vertices-first-and-measure-gaps-over-the-core.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "018-make-search-json-honour-max-tokens.md": {
+    "status": "done",
+    "blockedBy": [
+      "017-let-a-subagent-scribe-enrich-small-target-sets-inline-and-use-core-first-on-first-touch.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md": {
+    "status": "done",
+    "blockedBy": [
+      "019-keep-enrich-targets-lazy-after-the-first-touch-and-give-it-a-summary-form.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "021-report-un-enriched-search-hits-through-the-gap-channel-so-they-get-enriched.md": {
+    "status": "done",
+    "blockedBy": [
+      "020-let-a-subagent-enrich-up-to-20-targets-and-leave-the-rest-and-read-targets-in-summary-form.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "022-tell-an-unreadable-deps-dir-from-a-missing-one-in-a-sandboxed-session.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "023-keep-search-honest-while-most-concepts-are-un-enriched.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "024-make-graph-freshness-see-source-changes-nobody-has-extracted-yet.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md": {
+    "status": "done",
+    "blockedBy": [
+      "023-keep-search-honest-while-most-concepts-are-un-enriched.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "026-name-the-fix-when-the-store-can-t-open-and-make-uninstall-list-what-install-added.md": {
+    "status": "done",
+    "blockedBy": [
+      "023-keep-search-honest-while-most-concepts-are-un-enriched.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "027-give-the-gap-file-format-a-tested-owner-and-move-developer-rules-out-of-plugin.md": {
+    "status": "done",
+    "blockedBy": [
+      "025-bring-the-scribe-s-default-load-back-near-its-pre-merge-size-and-stop-budget-leaks.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "029-make-stamp-only-a-checked-decision-list-what-changed-and-warn-on-a-blind-stamp.md": {
+    "status": "done",
+    "blockedBy": [
+      "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "030-make-a-repo-level-skills-stamp-without-bump-refuse-instead-of-resetting-to-1-0.md": {
+    "status": "done",
+    "blockedBy": [
+      "028-let-skills-stamp-print-the-marker-when-the-sandbox-blocks-the-skill-md-write.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "031-make-skills-status-skill-file-list-agree-with-its-unextracted-header.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md": {
+    "status": "done",
+    "blockedBy": [
+      "032-add-a-claude-plugin-eval-suite-for-code-graph-retrieval.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "034-record-cross-concept-calls-at-extract-time.md": {
+    "status": "done",
+    "blockedBy": [
+      "033-make-code-graph-retrieval-trigger-on-natural-code-questions.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "035-benchmark-whether-code-graph-saves-cost-on-maestro.md": {
+    "status": "done",
+    "blockedBy": [
+      "034-record-cross-concept-calls-at-extract-time.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md": {
+    "status": "done",
+    "blockedBy": [
+      "034-record-cross-concept-calls-at-extract-time.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md": {
+    "status": "done",
+    "blockedBy": [
+      "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md": {
+    "status": "done",
+    "blockedBy": [
+      "036-make-the-desktop-canvas-test-count-cross-concept-edges-from-the-store.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "039-measure-graph-impact-and-cross-questions-on-maestro.md": {
+    "status": "done",
+    "blockedBy": [
+      "038-a-claude-p-runner-that-measures-graph-vs-no-graph-with-working-bash.md",
+      "037-stop-the-retrieval-skill-loading-when-a-concept-skill-already-locates-the-answer.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "040-loosen-the-impact-and-literal-eval-graders.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "042-measure-whether-concept-skills-save-cost-on-their-own.md": {
+    "status": "done",
+    "blockedBy": [
+      "041-measure-the-best-case-saving-if-graph-answers-were-free-to-get.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "043-measure-whether-graph-context-lets-haiku-match-opus.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "044-measure-whether-the-graph-improves-haiku-test-and-scribe-work-against-sonnet.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "045-refresh-the-graph-automatically-after-skill-md-edits.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "046-make-regraph-and-eval-refuse-or-rebuild-a-stale-cli-build.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "047-make-check-versions-run-directly-check-symlink-safe.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "048-tell-an-unreadable-ts-morph-deps-dir-apart-from-a-missing-one-in-the-macos-sandbox.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "052-primer-from-the-task-text-at-haiku-subagent-start.md": {
+    "status": "done",
+    "blockedBy": [
+      "051-measure-concept-skills-and-graph-answers-on-harder-haiku-edit-tasks.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "053-default-the-bench-s-maestro-path-to-one-that-exists-on-this-machine.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "054-stop-steering-claude-code-to-code-graph-before-grep-keep-retrieval-user-run.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "055-show-the-left-out-core-size-beside-first-time-builds-in-update-concept-skills.md": {
+    "status": "done",
+    "blockedBy": [
+      "050-warn-about-first-time-enrichment-size-in-update-concept-skills-before-fanning-out.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "056-let-code-graph-commands-target-a-worktree-s-config-root-without-cd.md": {
+    "status": "done",
+    "blockedBy": [
+      "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "058-one-applied-concept-check-safe-refresh-lock-and-shared-error-helper-after-045-049-050.md": {
+    "status": "done",
+    "blockedBy": [
+      "045-refresh-the-graph-automatically-after-skill-md-edits.md",
+      "049-batch-the-per-concept-stamp-extract-apply-and-drift-steps.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md": {
+    "status": "done",
+    "blockedBy": [
+      "058-one-applied-concept-check-safe-refresh-lock-and-shared-error-helper-after-045-049-050.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md": {
+    "status": "done",
+    "blockedBy": [
+      "059-make-just-eval-pass-on-both-enriched-and-un-enriched-graph-stores.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "061-diagnosis.md": {
+    "status": "ready",
+    "blockedBy": []
+  },
+  "061-make-search-rank-partly-enriched-stores-as-well-as-un-enriched-ones-eval-tasks-2-and-6.md": {
+    "status": "done",
+    "blockedBy": [
+      "060-stop-orphaned-enriched-entries-from-warning-forever-remap-prune-or-report-them-once.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "062-test-ensure-store-against-the-real-cli-so-a-stub-that-drifts-from-it-fails-pnpm-test.md": {
+    "status": "done",
+    "blockedBy": [
+      "057-make-just-eval-build-the-graph-store-in-a-fresh-worktree-instead-of-scoring-0-7.md"
+    ],
+    "epic": "absorb-concept-skills"
+  },
+  "063-pin-the-worktree-eval-as-is-and-clearprojectcache-behaviours-with-tests-and-fix-the-defer-renames-message.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
+  },
+  "065-keep-the-exact-name-vertex-in-the-top-3-on-a-partly-enriched-store-eval-as-is-task-4-fails-6-7-at-0-3-41.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "absorb-concept-skills"
   }
 }

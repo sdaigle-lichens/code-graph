@@ -50,7 +50,9 @@ function invokesPostMortem(p) {
 /** Emit `text` as context for this event, which is not the same call on both — see header. */
 function inject(event, text) {
   if (event === "PreToolUse") {
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: text } }));
+    process.stdout.write(
+      JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: text } })
+    );
     return;
   }
   process.stdout.write(text + "\n");
