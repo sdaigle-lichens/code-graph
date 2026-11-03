@@ -382,7 +382,7 @@
     "epic": "absorb-concept-skills"
   },
   "064-make-the-desktop-real-store-test-skip-or-build-the-store-when-graph-db-is-missing-so-the-first-pnpm-test-in-a-fresh-worktree-passes.md": {
-    "status": "ready",
+    "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
   }

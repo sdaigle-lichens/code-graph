@@ -7,9 +7,11 @@ concept SKILL.md files; create/update/scribe flows; install lifecycle; design sk
 can drop concept-skills and point its scribe and subagents at `code-graph:*` skills. Source plan:
 `plan.md` at the repo root.
 
-## Status: closed (2026-10-28)
+## Status: closed (2026-11-03)
 
-Closed after 043 (committed in 6d685fa). Follow-up epic: `haiku-subagents-with-graph`, which
+Closed 2026-10-28 after 043 (committed in 6d685fa), reopened 2026-10-30 and 2026-11-01 for follow-ups
+045–064, re-closed 2026-11-03 at 0.3.41 (all tickets merged; check green, 715/715, `just eval` 7/7).
+Follow-up epic: `haiku-subagents-with-graph`, which
 takes these findings as its starting point.
 
 Findings from the measurement tickets (039, 041, 042, 043; details in `docs/evals.md`):
@@ -1073,6 +1075,7 @@ Out: anything in `~/gits/maestro` (its cutover is maestro tasks 105–107, epic
     | 057 | done: `just eval` / `eval-as-is` run `store-fresh` (`ensure-store.mjs`, node only) first; a missing, empty or incomplete store is built for the missing concepts only, a failed build exits 3 naming `just regraph`; reviews m013, m014 on-track; check green, 702/702, `just eval` 7/7, fresh-worktree check 7/7 | 0456df4, 728c25f | 0.3.38 |
     | 062 | done: 3 tests run `ensure-store.mjs` against the real `dist/cli.js` (build, no-op rerun, only the missing concept); mutation check (`--rooot`) fails all 3; check 6/6, 705/705, `just eval` 7/7 | bbfd84b, 578b228, e349289 | 0.3.39 |
     | 063 | done: `--defer-renames` message says the store was not written and the enriched file was updated when a remap persisted; tests for worktree `--root` (real `git worktree`), `eval-as-is` exit 1, `clearProjectCache`; check green, 715/715, `just eval` 7/7; scribe-pipeline stamped 1.4 (68792fd) and `apply` re-enriched | 338307f, fd59f42, 5dc6901 | 0.3.40 |
+    | 064 | done: the desktop real-store suite is `describe.skipIf(!hasStore)` with a warning naming `just store-fresh` (skip, not build, because `ensure-store` has no lock); review m016 on-track; check green, 715/715, `just eval` 7/7 | 16741a1, 640d56a | 0.3.41 |
 
     Decision (2026-11-02): no concept for the top-level `src/` files, so `reportAndThrow`
     (`concept-batch.ts`) stays outside the graph. Still parked: lock link-back race, merging the two
