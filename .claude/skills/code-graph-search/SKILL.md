@@ -4,8 +4,8 @@ description: Reference for how `code-graph search` works — BM25 seed → graph
 allowed-tools: Read
 metadata:
   type: concept-skill
-  version: "1.3"
-  last-update: 482276d1daa911be72c0724a57dfe85046c26657
+  version: "1.4"
+  last-update: 0006bf3e82c64fe0fed6212c906eb367436628e2
 ---
 
 ## When to use
