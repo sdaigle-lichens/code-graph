@@ -10,7 +10,7 @@ pnpm install
 pnpm build      # turbo run build bundle — tsc → packages/*/dist, + plugin/scripts/code-graph.cjs
 pnpm bundle     # just the plugin bundle (also `just bundle`)
 pnpm typecheck  # tsc --noEmit across the workspace
-pnpm test       # node:test (CLI) + vitest (desktop app)
+pnpm test       # node:test (CLI) + vitest (desktop app); the desktop real-store suite skips until scribe-output/graph.db exists (`just store-fresh`)
 pnpm check      # prettier --check; scope lives in the root .prettierignore
 pnpm verify     # check + typecheck + test, the pre-push gate
 ```
