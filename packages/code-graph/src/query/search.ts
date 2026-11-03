@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { preflight } from "./preflight.js";
 import type { Vertex, Edge } from "../schema.js";
 import { oneHop, twoHops, skillDoc, type DocVertex } from "./queries.js";
-import { toDocs, toMatchExpr, vertexId } from "../scribe/rows.js";
+import { queryTokens, toDocs, toMatchExpr, vertexId } from "../scribe/rows.js";
 import { FTS_WEIGHTS, ensureSearchIndexFormat } from "../scribe/bootstrap.js";
 import { analyzeConceptGaps, fetchConceptCounts, isCompactGaps, type CompactGaps, type ConceptGap } from "./gaps.js";
 
@@ -247,6 +247,21 @@ const DOC_SEED_RESERVE = 2;
  * so a stripped store (every match is a name match) ranks exactly as before. Query-time: no FTS_FORMAT bump.
  */
 const NAME_HIT_FACTOR = 3;
+/**
+ * A vertex whose whole name equals a query word (`apply` for "scribe apply drift detection") is a
+ * stronger name hit than one that merely contains the word among others (`NeverAppliedDrift`),
+ * whose enriched purpose repeats several query words. Its blended-score bm25 is multiplied by this on
+ * top of NAME_HIT_FACTOR. Structural (whole-name equality, case-insensitive), blended score only:
+ * reported bm25 and the low-confidence threshold stay unboosted. Query-time: no FTS_FORMAT bump.
+ */
+const NAME_EQUALS_TOKEN_FACTOR = 3;
+
+function nameEqualsToken(kind: string, rawDoc: string, tokens: Set<string>): boolean {
+  if (kind !== "vertex") return false;
+  const { name, type } = JSON.parse(rawDoc) as { name?: unknown; type?: unknown };
+  // A type-def named like a query word (`Config`) is a weaker lead than a function with that name.
+  return type !== "type-def" && typeof name === "string" && tokens.has(name.toLowerCase());
+}
 
 async function expandDoc(
   db: DatabaseSync,
@@ -301,6 +316,7 @@ export async function searchStore(
 ): Promise<SearchResult> {
   const match = toMatchExpr(query);
   if (match === null) throw new SearchNoResultsError(query);
+  const tokens = new Set(queryTokens(query));
 
   // The ArangoSearch view scored five boosted clauses at once. FTS5 has no
   // per-clause boost, so the four token boosts become bm25() column weights and
@@ -346,6 +362,10 @@ export async function searchStore(
     // Keep the old 5-vs-3 ratio between an exact name hit and a token name hit,
     // so the 0.7-weighted score term keeps roughly its previous shape.
     score: r.exact ? r.base * (5 / 3) : r.base,
+    // Whole-name equality with a query word. Kept out of the normaliser (maxBm25) below: it lifts this
+    // vertex without squashing everyone else's bm25 term, so the relative order of the rest is unchanged.
+    // An exact whole-query name hit already leads (sort tier + 5/3), so it is not boosted twice.
+    tokenBoost: !r.exact && nameEqualsToken(r.kind, r.doc, tokens) ? NAME_EQUALS_TOKEN_FACTOR : 1,
   }));
 
   if (seeds.length === 0) {
@@ -365,7 +385,7 @@ export async function searchStore(
   const boostedScores = new Map<string, number>();
   for (const s of vertexSeeds) {
     const k = (s.doc as unknown as Vertex)._key;
-    boostedScores.set(k, Math.max(boostedScores.get(k) ?? 0, s.score));
+    boostedScores.set(k, Math.max(boostedScores.get(k) ?? 0, s.score * s.tokenBoost));
   }
   const docSeeds = seeds.filter((s) => s.kind !== "vertex");
   const docLoadsVertices = vertexSeeds.length === 0;
@@ -415,7 +435,7 @@ export async function searchStore(
     skillDocs.set(concept, skillDoc(store, concept));
   }
 
-  const maxBm25 = Math.max(...Array.from(boostedScores.values()), 1);
+  const maxBm25 = Math.max(...vertexSeeds.map((s) => s.score), 1);
   const maxDegree = Math.max(...Array.from(incidentEdges.values()).map((s) => s.size), 1);
 
   const hits: SearchHit[] = Array.from(vertexMap.entries()).map(([key, { vertex, bm25 }]) => {

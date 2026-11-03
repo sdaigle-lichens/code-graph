@@ -93,7 +93,9 @@ write to stdout, which would crash a host process) and `extract.ts` / `catalog.t
   un-enriched vertices match plain-language queries; changing that needs `code-graph reindex`.
 - Search ranking on partly enriched stores: `searchStore` seeds the top 10 plus the best 2 docs (`DOC_SEED_RESERVE`) so a docs-only
   concept is not pushed out by enriched vertices, and multiplies the bm25 of a vertex whose name matches a query
-  word by `NAME_HIT_FACTOR` (3; query-time, no reindex, order among name hits unchanged); `just eval` and `just eval-as-is` are both 7/7, pinned by
+  word by `NAME_HIT_FACTOR` (3; query-time, no reindex, order among name hits unchanged), and by 3 more when a non-type-def's whole name equals a query word
+  (`NAME_EQUALS_TOKEN_FACTOR`; blended score only, left out of the `maxBm25` normaliser so other hits keep their order; scores can exceed 1, and no consumer assumes at most 1);
+  `just eval` and `just eval-as-is` are both 7/7 (task 4 `apply` on the real store), pinned by
   `query/search-partly-enriched.test.ts`.
 - `search` exits 7 (results still printed) when the top cluster is a weak match or its concept is
   un-enriched: `assessConfidence` in `query/search.ts`, thresholds `LOW_CONFIDENCE_MIN_SCORE` /

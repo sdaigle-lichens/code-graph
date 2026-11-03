@@ -4,8 +4,8 @@ description: Reference for how `code-graph search` works — BM25 seed → graph
 allowed-tools: Read
 metadata:
   type: concept-skill
-  version: "1.2"
-  last-update: d17cc09bf51799b8d2e9981f72b67e8f7b71a866
+  version: "1.3"
+  last-update: 482276d1daa911be72c0724a57dfe85046c26657
 ---
 
 ## When to use
@@ -88,7 +88,16 @@ no `FTS_FORMAT` bump, no reindex. A docs-only concept has no purpose,
 so enriched vertices pushed its doc past the top 10 and it never surfaced (task 6): the seed query
 keeps the top 10 **plus the best `DOC_SEED_RESERVE` (2) docs** outside it. Such a doc seed next to vertex
 seeds only captures its skill, or an empty docs-only cluster appended last; it adds no vertex hits and
-leaves `docOnly` and confidence unchanged. `just eval` and `just eval-as-is` are both 7/7;
+leaves `docOnly` and confidence unchanged.
+
+**Whole-name equals a query word (ticket 065).** On the real partly enriched store `scribe apply drift detection` ranked `apply`
+(bm25 3.12, degree 51) 4th behind `NeverAppliedDrift`, `DriftJson` and `isConceptApplied`: their names and purposes hit several
+query words, so a plain name-hit factor cannot separate them. A structural signal does: when a seed's whole name (lowercased)
+equals a query token (`queryTokens`, `rows.ts`) and it is not a `type-def` and not already an exact whole-query hit, its blended
+score is multiplied by `NAME_EQUALS_TOKEN_FACTOR` (3) more. It is kept out of the `maxBm25` normaliser (otherwise the boosted vertex
+squashes every other bm25 term and eval task 3 loses `loadConfigOrExit`), so other hits keep their order; the blended score of the
+boosted vertex can exceed 1, and no consumer assumes at most 1. Reported `bm25` and the low-confidence threshold stay unboosted; query-time, no `FTS_FORMAT` bump.
+Real store: `just eval-as-is` 6/7 -> 7/7 (`apply` 1st); `just eval` stays 7/7;
 `query/search-partly-enriched.test.ts` pins both cases.
 
 `LIMIT 10` — top 10 seeds only (`SEED_LIMIT`; plus the reserved doc seeds above). No surviving tokens, or no matches → `SearchNoResultsError`
@@ -154,7 +163,8 @@ score = 0.7 × (bm25 / maxBm25) + 0.3 × (degree / maxDegree)
 ```
 
 - `bm25` is the seed score (0 for expansion-only neighbors). In this formula it includes the
-  `NAME_HIT_FACTOR` boost for name-matching vertices (see Partly enriched stores); the `bm25`
+  `NAME_HIT_FACTOR` boost for name-matching vertices and the `NAME_EQUALS_TOKEN_FACTOR` boost for a vertex whose whole
+  name equals a query word (see Partly enriched stores; `maxBm25` excludes the latter); the `bm25`
   reported on a hit and the low-confidence threshold use the unboosted score.
 - `degree` is the count of edges incident to the vertex within the result set.
 - Weights bias toward textual relevance but reward graph centrality.

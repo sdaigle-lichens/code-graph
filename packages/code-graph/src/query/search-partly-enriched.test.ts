@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { applySchema, rebuildSearchIndex } from "../scribe/bootstrap.js";
 import { putRecord } from "../scribe/rows.js";
-import { searchStore } from "./search.js";
+import { searchStore, SearchNoResultsError } from "./search.js";
 
 // Ticket 061: on a store where only some concepts are enriched, enrichment must not push down the
 // hits of an un-enriched concept. These pin eval tasks 2 and 6 against a fixture (the eval itself is
@@ -120,5 +120,74 @@ describe("searchStore on a partly enriched store", () => {
     const names = r.hits.filter((h) => h.vertex).map((h) => h.vertex!.name);
     const rank = names.indexOf("expandDoc") + 1;
     assert.ok(rank >= 1 && rank <= 6, `expandDoc at ${rank || "absent"}, want top 6 (got ${names.join(", ")})`);
+  });
+
+  it("ticket 065: a function named exactly like a query word stays in the top 3 against enriched type-defs and a helper whose purposes repeat the query words", async () => {
+    const store = newStore();
+    // The target: a hub function whose whole name is the query word "apply"; its purpose shares nothing else.
+    putRecord(
+      store,
+      "vertices",
+      "t0",
+      vertex("t0", "apply", "pipeline", { purpose: "writes a concept into the store" })
+    );
+    for (let i = 0; i < 10; i++) {
+      putRecord(store, "vertices", `c${i}`, vertex(`c${i}`, `caller${i}`, "pipeline"));
+      putRecord(store, "edges", `e${i}`, edge(`e${i}`, `c${i}`, "t0"));
+    }
+    // Enriched type-defs and a helper: names carry two query words, purposes repeat several.
+    for (const [k, n, type] of [
+      ["d0", "NeverAppliedDrift", "type-def"],
+      ["d1", "DriftJson", "type-def"],
+      ["d2", "isConceptApplied", "function"],
+    ]) {
+      putRecord(
+        store,
+        "vertices",
+        k,
+        vertex(k, n, "pipeline", {
+          type,
+          purpose:
+            "scribe apply drift detection: reports drift when a concept was applied, detection of drift on apply",
+          tags: ["drift", "apply", "detection", "scribe"],
+        })
+      );
+    }
+    for (let i = 0; i < 40; i++) putRecord(store, "vertices", `f${i}`, vertex(`f${i}`, `filler${i}`, "other"));
+    rebuildSearchIndex(store);
+
+    const r = await searchStore(store, "scribe apply drift detection", { maxTokens: 6000, json: false });
+    const names = r.hits.filter((h) => h.vertex).map((h) => h.vertex!.name);
+    const rank = names.indexOf("apply") + 1;
+    assert.ok(rank >= 1 && rank <= 3, `apply at ${rank || "absent"}, want top 3 (got ${names.slice(0, 6).join(", ")})`);
+    // The boost is blended-score only: the reported bm25 is the plain one.
+    const apply = r.hits.find((h) => h.vertex?.name === "apply")!;
+    const peer = r.hits.find((h) => h.vertex?.name === "NeverAppliedDrift")!;
+    assert.ok(apply.bm25 < peer.bm25, "reported bm25 is unboosted");
+  });
+
+  it("ticket 065: a type-def whose whole name equals a query word gets no equality boost (a function with that name outranks it)", async () => {
+    const store = newStore();
+    // Same name, same purpose (no query word), no edges: only the type-def exclusion separates them.
+    putRecord(store, "vertices", "td", vertex("td", "apply", "pipeline", { type: "type-def", purpose: "a shape" }));
+    putRecord(store, "vertices", "fn", vertex("fn", "apply", "pipeline", { purpose: "a shape" }));
+    for (let i = 0; i < 10; i++) putRecord(store, "vertices", `f${i}`, vertex(`f${i}`, `filler${i}`, "other"));
+    rebuildSearchIndex(store);
+
+    const r = await searchStore(store, "apply drift", { maxTokens: 6000, json: false });
+    const td = r.hits.find((h) => h.vertex?._key === "td");
+    const fn = r.hits.find((h) => h.vertex?._key === "fn");
+    assert.ok(td && fn, "both same-named vertices are hits");
+    assert.ok(
+      fn.score > td.score,
+      `function apply (score ${fn.score}) must outrank type-def apply (score ${td.score})`
+    );
+  });
+
+  it("ticket 065: a stopword-only query throws SearchNoResultsError rather than boosting anything", async () => {
+    const store = newStore();
+    putRecord(store, "vertices", "t0", vertex("t0", "apply", "pipeline"));
+    rebuildSearchIndex(store);
+    await assert.rejects(searchStore(store, "the a of", { maxTokens: 6000, json: false }), SearchNoResultsError);
   });
 });

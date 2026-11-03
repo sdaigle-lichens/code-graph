@@ -143,6 +143,13 @@ export function nameIndexText(name: string): string {
  * nothing survives tokenization, which callers treat as "no results" (exit 6).
  */
 export function toMatchExpr(query: string): string | null {
+  const unique = queryTokens(query);
+  if (unique.length === 0) return null;
+  return unique.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
+}
+
+/** The unique, stopword-free match tokens of a query (what `toMatchExpr` quotes and ORs). */
+export function queryTokens(query: string): string[] {
   const raw = (query.toLowerCase().match(/[a-z0-9_]+/g) ?? []).filter((t) => t.length > 1 && !STOPWORDS.has(t));
   // `unicode61` treats `_` as a separator, so a quoted SCREAMING_SNAKE token is a phrase that
   // only matches the same words in the same order. Also offer its words alone: they reach a
@@ -150,10 +157,8 @@ export function toMatchExpr(query: string): string | null {
   const tokens = raw.flatMap((t) =>
     t.includes("_") ? [t, ...t.split("_").filter((p) => p.length > 1 && !STOPWORDS.has(p))] : [t]
   );
-  if (tokens.length === 0) return null;
   const seen = new Set<string>();
-  const unique = tokens.filter((t) => (seen.has(t) ? false : (seen.add(t), true)));
-  return unique.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
+  return tokens.filter((t) => (seen.has(t) ? false : (seen.add(t), true)));
 }
 
 // ─── Record writes ───────────────────────────────────────────────────────────
