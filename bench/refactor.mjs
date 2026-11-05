@@ -261,7 +261,7 @@ export const proposalCategory = (item) => {
 // Both apply ONLY to an item without the proposal shape (below): a `<file>: <kind>: <text>` line is always a
 // proposal, whatever words its text contains.
 const ALL_CLEAR_RE = /^\W*(?:no (?:further |other |additional )?(?:proposals?|refactors?|refactoring|changes?|improvements?|suggestions?)\b|nothing (?:to (?:do|change|propose|refactor|report|improve|suggest)|is warranted|warranted|needed|else)\b|n\/a\b|all (?:clear|good)\b)/i;
-const ALL_CLEAR_LINE_RE = /^\W*(?:none|leave (?:it|this|them|that) (?:as is|alone)|no (?:issues|problems|findings|duplication|duplicates|cycles|unused exports)(?: found)?|not needed|nothing found)\W*$/i;
+const ALL_CLEAR_LINE_RE = /^\W*(?:none|leave (?:it|this|them|that) (?:as is|alone)|no (?:issues|problems|findings|duplication|duplicates|cycles|unused exports)(?: found)?|not needed|nothing found|nothing to flag|none of (?:the|these|those) (?:files?|modules?|neighbours?|code)(?: \w+){0,3}|(?:the |these |those )?(?:files?|modules?|code) (?:are|is) all (?:good|fine|ok|clean))\W*$/i;
 // An "it is fine" sentence, anchored to the whole (short) line.
 const ABSENT_LINE_RE = /^(?!.*\b(?:but|however|although|though|yet|duplicat\w*|except)\b)\W*(?:[\w'`./ ,-]{0,60}?\b(?:is|are|looks?|seems?|appears?|remains?|stays?) (?:fine|correct|ok|okay|clean|good|appropriate|intended|harmless|justified)|(?:fine|ok|clean) as (?:written|is)|no (?:refactor|change|improvement|duplication|cycle)s? (?:is |are )?(?:needed|warranted|required))(?:[\w'`./ ,-]{0,40})?\W*$/i;
 // A proposal line has the form `<file>: <kind>: <text>`; anything else is prose.
@@ -285,6 +285,18 @@ export function proposalsOf(text) {
   if (f.structured) {
     const hdr = [...String(text ?? '').matchAll(/^[ \t*#>_`-]*PROPOSALS[ \t*`_]*:[ \t*`_]*(.*)$/gim)].pop();
     const rest = hdr ? hdr[1].trim() : '';
+    // findingsOf reads bullet lines only: a `<file>: <kind>: <text>` line with no bullet under the header is
+    // a proposal too. A line that follows a bullet or another item without a blank line is its continuation.
+    if (hdr) {
+      const after = String(text ?? '').slice(hdr.index + hdr[0].length).split('\n');
+      let inBullet = false;
+      for (const raw of after) {
+        const line = raw.trim();
+        if (!line) { inBullet = false; continue; }
+        if (/^(?:[-*•]|\d+[.)])\s/.test(line)) inBullet = true;
+        else if (!inBullet && SHAPE_RE.test(line)) items.push(line);
+      }
+    }
     const bullet = /^(?:[-*•]|\d+[.)])\s+/.exec(rest);
     if (bullet) {
       // `PROPOSALS: - a.ts: dedupe: x`: a bullet on the header line is the first item (findingsOf drops it).

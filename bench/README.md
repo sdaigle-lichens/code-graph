@@ -368,7 +368,7 @@ has a `structured` column. All-clear text (`PROPOSALS: nothing to do`, `- nothin
 `- No issues found.`, `- Not needed.`, a short bullet saying a thing is fine as written, `PROPOSALS:` followed by
 prose that names no file) is its own `all-clear lines` count per case and arm: not a proposal, not sent
 to the filter, not a false finding. A line in the `<file>: <kind>: <text>` shape is always a proposal, whatever
-its text says; a bullet on the header line (`PROPOSALS: - a.ts: dedupe: x`) is the first item. Limits: a
+its text says; a bullet on the header line (`PROPOSALS: - a.ts: dedupe: x`) is the first item, and an unbulleted shaped line under the header is a proposal too. Limits: an unshaped line opening with an all-clear phrase ("No changes to X, but ...") counts as an all-clear; unusual unshaped all-clear wordings count as false findings; a
 shaped line that says "this is fine" is a false finding (not an all-clear), and header prose that names a file
 is kept as one item. The prompt asks for `PROPOSALS: none` and nothing else.
 

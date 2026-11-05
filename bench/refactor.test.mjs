@@ -519,3 +519,52 @@ test('every case\'s plant text is consistent: each plant has file, from and to, 
     assert.ok(p.from.length > 20, `${c.id} plant "from" is specific enough to match once`);
   }
 });
+
+test('classifier: bullet and numbering variants, decorated file names, and prose around a shaped list (070 adversarial pass)', () => {
+  const star = proposalsOf('PROPOSALS:\n* src/a.ts: dedupe: x\n• src/b.ts: dedupe: y\n3) src/c.ts: dedupe: z');
+  assert.equal(star.items.length, 3);
+  assert.equal(star.allClear, 0);
+  const deco = proposalsOf('PROPOSALS:\n- **src/a.ts**: dedupe: x\n- `src/b.ts`: Dedupe: y');
+  assert.equal(deco.items.length, 2);
+  assert.equal(deco.allClear, 0);
+  const around = proposalsOf('I reviewed it.\n\nPROPOSALS:\n- src/a.ts: dedupe: x\n\nThat is all.');
+  assert.deepEqual(around.items, ['src/a.ts: dedupe: x']);
+  const tail = proposalsOf('PROPOSALS:\n- src/a.ts: dedupe: x\n- src/b.ts: extract-helper: nothing else is fine as written; move it.');
+  assert.equal(tail.items.length, 2, 'a shaped line with an all-clear tail is still a proposal');
+  assert.equal(tail.allClear, 0);
+  for (const item of [
+    'PROPOSALS:\n- src/a.ts duplicates readJson from src/b.ts, extract it.',
+    'PROPOSALS:\n- src/a.ts is a good candidate for extraction of readJson into src/core/json.ts.',
+    'PROPOSALS:\n- Fine to delete the copy in src/b.ts; readJson lives in src/a.ts.',
+  ]) {
+    const p = proposalsOf(item);
+    assert.equal(p.items.length, 1, item);
+    assert.equal(p.allClear, 0, item);
+  }
+  const none = proposalsOf('PROPOSALS: none.');
+  assert.equal(none.items.length, 0);
+  assert.equal(none.none, true);
+  assert.equal(none.allClear, 0);
+});
+
+test('a shaped <file>: <kind>: line with no dash under PROPOSALS: is a proposal, not dropped', () => {
+  assert.equal(proposalsOf('PROPOSALS:\nsrc/a.ts: dedupe: readJson is copied from src/b.ts; import it.').items.length, 1);
+  const two = proposalsOf('PROPOSALS:\nsrc/a.ts: dedupe: x\nsrc/b.ts: dedupe: y\n\n- c.ts: dedupe: z\n  src/d.ts: dedupe: continuation');
+  assert.equal(two.items.length, 3);
+  assert.equal(gradePipeline(caseOf('f-c1-canvas-layout'), 'PROPOSALS:\nsrc/a.ts: dedupe: x', 'VERDICTS:\n- 1: file-it').anchor.scout, 1);
+});
+
+// Documented limit (docs/evals.md): an all-clear opener followed by "but" in an unshaped line is an all-clear.
+test('documented limit: an unshaped line that opens with an all-clear phrase is an all-clear even when it adds "but ..."', () => {
+  const p = proposalsOf('PROPOSALS:\n- No changes needed in src/a.ts, but extract the parser from src/b.ts into a helper.');
+  assert.equal(p.items.length, 0);
+  assert.equal(p.allClear, 1);
+});
+
+test('an unshaped all-clear sentence ("None of the files need changes.") is an all-clear, not a false finding', () => {
+  for (const line of ['None of the files need changes.', 'Nothing to flag.', 'The files are all good.']) {
+    const p = proposalsOf(`PROPOSALS:\n- ${line}`);
+    assert.equal(p.items.length, 0, line);
+    assert.equal(p.allClear, 1, line);
+  }
+});
