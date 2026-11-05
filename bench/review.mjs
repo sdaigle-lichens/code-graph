@@ -273,15 +273,15 @@ export function findingsOf(text) {
 }
 
 // A finding that says the code is fine is not a finding of a defect, whatever keywords it also names.
-const ABSENT_RE = /\b(?:is|are|looks?|seems?|appears?|remains?|stays?) (?:fine|correct|ok|okay|safe|right|intended|harmless|valid)\b|\b(?:correct|fine|safe|ok) as written\b|\bno (?:bug|issue|problem|defect|concern)s?\b|\bnot (?:a |an )?(?:bug|problem|issue|defect)\b/i;
-function says_absent(item) { return ABSENT_RE.test(item); }
+const ABSENT_RE = /\b(?:is|are|looks?|seems?|appears?|remains?|stays?) (?:fine|correct|ok|okay|safe|right|intended|harmless|valid)\b|\b(?:correct|fine|safe|ok) as written\b|\bno (?:bug|issue|problem|defect|concern)s?\b|\bnot (?:a |an )?(?:bug|problem|issue|defect)\b|[,;(]\s*(?:correct|fine|ok|okay|safe)\s*[,;).]/i;
+function saysAbsent(item) { return ABSENT_RE.test(item); }
 
 // c.review = { clean?: true, bugs: [{ id, category, file: regex, defect: [regex, ...] }] }.
 // A planted bug counts as found when one finding names its file and matches every defect pattern.
 export function gradeReview(c, text) {
   const f = findingsOf(text);
   const bugs = c.review.bugs || [];
-  const hit = (b, item) => !says_absent(item) && new RegExp(b.file, 'i').test(item) && b.defect.every((d) => new RegExp(d, 'i').test(item));
+  const hit = (b, item) => !saysAbsent(item) && new RegExp(b.file, 'i').test(item) && b.defect.every((d) => new RegExp(d, 'i').test(item));
   const found = bugs.map((b) => ({ id: b.id, category: b.category, found: f.items.some((it) => hit(b, it)) }));
   const matched = new Set();
   f.items.forEach((it, i) => { if (bugs.some((b) => hit(b, it))) matched.add(i); });

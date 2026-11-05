@@ -8,7 +8,9 @@ import {
   diffForPlants, findingsOf, gradeReview, importCandidates, parseFileVertices, parseImpact, parseReviewArms, promptProblems,
   pairedRows, reviewArgs, reviewPrompt, reviewProblems, reviewReport, spawnEvidence, tally, toolsFor, unifiedDiff, untestedCallers, verdict,
 } from './review.mjs';
-import { REVIEW_CASES } from './review-cases.mjs';
+import { REVIEW_CASES, selectReviewCases } from './review-cases.mjs';
+
+export const PILOT_ONLY = 'r-l1,r-l4,r-x3,r-x4,r-c1'; // the pilot (a) case list in docs/evals.md
 
 const here = dirname(fileURLToPath(import.meta.url));
 const stored = (id, ext) => readFileSync(join(here, 'review', `${id}.${ext}`), 'utf8');
@@ -143,6 +145,14 @@ test('graders: a finding that says the defect is absent is not credited', () => 
     ['r-l4-and-guard', 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the condition that protects ownId is correct as written.'],
   ];
   for (const [id, text] of near) assert.equal(gradeReview(REVIEW_CASES.find((x) => x.id === id), text).found, 0, id);
+});
+
+test('graders: an absent-defect finding phrased "X, correct, ..." is not credited, but "incorrect" is a real finding', () => {
+  const c = REVIEW_CASES.find((x) => x.id === 'r-x5-delete-cap');
+  const text = 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: SESSION_DELETE_IDLE_CAP_MS equals CLAIM_IDLE_CAP_MS, correct, 24h sweep cap is untouched.';
+  assert.equal(gradeReview(c, text).found, 0);
+  const real = 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: SESSION_DELETE_IDLE_CAP_MS now uses the 24h sweep cap SESSION_SWEEP_IDLE_CAP_MS, incorrect: deleteSession treats a crashed session as running instead of the 15 minute cap.';
+  assert.equal(gradeReview(c, real).found, 1);
 });
 
 test('graders: a defect in the wrong file, or a file with no defect named, is not credited', () => {
@@ -343,4 +353,16 @@ test('reviewReport: lists invalid runs, per-arm table and a verdict row per non-
   assert.match(md, /\| sonnet-diff-primer \| helps \(missed 3 -> 0\)/);
   assert.ok(!/\| sonnet-spawns-haiku \| helps/.test(md), 'invalid runs are not counted');
   assert.match(md, /spent \$1\.500 of \$10/);
+});
+
+test('selectReviewCases: --only takes a comma-separated list, and the pilot list samples every category', () => {
+  assert.equal(selectReviewCases('').length, REVIEW_CASES.length);
+  assert.deepEqual(selectReviewCases('r-l1, r-x3').map((c) => c.id), ['r-l1-future-mtime', 'r-x3-arg-swap']);
+  assert.equal(selectReviewCases('nope').length, 0);
+  const pilot = selectReviewCases(PILOT_ONLY);
+  assert.equal(pilot.length, 5);
+  const bugs = pilot.flatMap((c) => c.review.bugs);
+  assert.equal(bugs.filter((b) => b.category === 'local').length, 2);
+  assert.equal(bugs.filter((b) => b.category === 'cross').length, 2);
+  assert.equal(pilot.filter((c) => !c.review.bugs.length).length, 1);
 });

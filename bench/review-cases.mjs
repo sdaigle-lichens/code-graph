@@ -222,4 +222,8 @@ export const REVIEW_CASES = [
 ];
 
 export const reviewCaseById = (id) => REVIEW_CASES.find((c) => c.id === id);
-export const selectReviewCases = (only = '') => REVIEW_CASES.filter((c) => !only || c.id.includes(only));
+// `only` is one substring or a comma-separated list of them; a case matches when its id contains any.
+export const selectReviewCases = (only = '') => {
+  const keys = String(only).split(',').map((k) => k.trim()).filter(Boolean);
+  return REVIEW_CASES.filter((c) => !keys.length || keys.some((k) => c.id.includes(k)));
+};

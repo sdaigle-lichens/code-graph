@@ -309,6 +309,7 @@ Files:
 - `review-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 1`, `--budget 10`, `--run-budget 0.4`,
   `--dry` (prints prompts and args, no model call), `--keep-ws`, `--init-check`.
 - `review.test.mjs`: the unit tests (`node --test bench/*.test.mjs`), all offline.
+- `review-cli.test.mjs`: runs the $0 commands as written (`review-run --dry`, `review-prep --check`); skipped without a maestro checkout. Nothing calls `claude`.
 
 Validity: a run is invalid, not counted, if the init event shows another model or tool set than the arm's, if
 a non-spawn arm lists or calls the Agent tool, or if a shared `lib.mjs` check fails. A `sonnet-spawns-haiku`
@@ -323,8 +324,8 @@ node --test bench/*.test.mjs
 node bench/review-prep.mjs --check
 node bench/review-run.mjs --dry
 node bench/review-run.mjs --init-check --arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph
-node bench/review-run.mjs --runs 1 --budget 1.5 --arms sonnet-nograph                  # pilot (a): baseline saturation
-node bench/review-run.mjs --runs 1 --budget 0.5 --arms sonnet-spawns-haiku --only r-x3  # pilot (b): spawn validity
+node bench/review-run.mjs --runs 1 --budget 1.1 --arms sonnet-nograph --only r-l1,r-l4,r-x3,r-x4,r-c1  # pilot (a): baseline saturation
+node bench/review-run.mjs --runs 1 --budget 0.4 --arms sonnet-spawns-haiku --only r-x3                  # pilot (b): spawn validity
 node bench/review-run.mjs --runs 2 --budget 10     # paid run, after the user confirms the numbers
 ```
 
