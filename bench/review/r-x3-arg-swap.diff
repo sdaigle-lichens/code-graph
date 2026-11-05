@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/claims.ts b/apps/maestro/src/core/claims.ts
+--- a/apps/maestro/src/core/claims.ts
++++ b/apps/maestro/src/core/claims.ts
+@@ -111,7 +111,7 @@
+  * directory with no log yet is dead too — the spec's liveness test is conjunctive, not "innocent
+  * until proven stale".
+  */
+-export function isSessionLive(claudeDir: string, sessionId: string, now: number = Date.now()): boolean {
++export function isSessionLive(sessionId: string, claudeDir: string, now: number = Date.now()): boolean {
+   const paths = sessionPathsFor(claudeDir, sessionId);
+   if (!paths) return false;
+   if (!fs.existsSync(paths.dir)) return false;

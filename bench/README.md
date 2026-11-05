@@ -283,3 +283,51 @@ graph-arm code-graph call that exited 0 with output.
 `bench/oracle/<case>.txt` pasted into the prompt) and `sonnet-nograph`. The runner stops a run whose
 prompt carries stored graph output outside an oracle arm, or lacks it inside one. The cap, thresholds and
 exact commands are in [docs/evals.md](../docs/evals.md), "Ticket 051".
+
+## Review mode (ticket 066)
+
+`node bench/review-run.mjs` measures whether a reviewer catches bugs planted in a diff on the pinned
+maestro checkout (same `maestroFor` resolution and `maestro-setup.sh` no-graph workspace as `run.mjs`). It
+is separate from `run.mjs`, so the edit and read-only sets are unaffected. Plan, task set, decision rule and
+verdict style are in [docs/evals.md](../docs/evals.md), "Ticket 066".
+
+Arms (default: the first four; `haiku-nograph` is optional, add it with `--arms`):
+`sonnet-nograph` (baseline), `sonnet-diff-primer`, `haiku-diff-primer`, `sonnet-spawns-haiku`, `haiku-nograph`.
+Each arm pins its model and its `--tools` set; only `sonnet-spawns-haiku` has the Agent tool. No arm has the
+code-graph plugin.
+
+Files:
+
+- `review.mjs`: arms, prompt, diff builder, primer builder, FINDINGS parser, graders, validity, verdict, report.
+- `review-cases.mjs`: 15 cases (5 local bugs, 5 cross-file bugs, 5 clean diffs), each with a planted change,
+  a grader and a known-good and a known-bad review text for the grader tests.
+- `review-prep.mjs`: the $0 generator. Builds `bench/review/<id>.diff` and `<id>.primer.txt` from the CLI
+  (`query file`, `query impact`, `query cross`) on a graph built from the pinned maestro. `--only <substring>`
+  limits it; `--check` writes nothing and exits 1 if a stored file differs (deterministic output).
+- `review/`: the stored diff and primer of each case, committed. The runner reads these and refuses a case
+  whose stored diff differs from the one computed from its workspace.
+- `review-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 1`, `--budget 10`, `--run-budget 0.4`,
+  `--dry` (prints prompts and args, no model call), `--keep-ws`, `--init-check`.
+- `review.test.mjs`: the unit tests (`node --test bench/*.test.mjs`), all offline.
+
+Validity: a run is invalid, not counted, if the init event shows another model or tool set than the arm's, if
+a non-spawn arm lists or calls the Agent tool, or if a shared `lib.mjs` check fails. A `sonnet-spawns-haiku`
+run is also invalid unless the transcript shows a Haiku subagent started (an Agent call with a Haiku model, or
+a subagent message from a Haiku model). The runner stops at the cap, on a usage limit or seccomp, and after a
+second invalid run.
+
+Commands, from a plain terminal at the repo root (all but the last three are $0):
+
+```
+node --test bench/*.test.mjs
+node bench/review-prep.mjs --check
+node bench/review-run.mjs --dry
+node bench/review-run.mjs --init-check --arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph
+node bench/review-run.mjs --runs 1 --budget 1.5 --arms sonnet-nograph                  # pilot (a): baseline saturation
+node bench/review-run.mjs --runs 1 --budget 0.5 --arms sonnet-spawns-haiku --only r-x3  # pilot (b): spawn validity
+node bench/review-run.mjs --runs 2 --budget 10     # paid run, after the user confirms the numbers
+```
+
+Output: `bench/results/review-<timestamp>/` (gitignored): `<case>/<arm>-run<N>.jsonl` transcripts, `runs.json`
+and `report.md` with the per-case table, the per-arm sums by category, and the verdicts against the baseline
+with false alarms and cost per run beside them.

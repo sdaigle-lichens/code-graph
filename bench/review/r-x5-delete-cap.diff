@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
+--- a/apps/maestro/src/core/session-sweep.ts
++++ b/apps/maestro/src/core/session-sweep.ts
+@@ -142,7 +142,7 @@
+ // "which tabs are not actually running", so the x is offered exactly where `deleteSession` accepts.
+ 
+ /** Idle time after which a session is considered not running for an explicit delete. */
+-export const SESSION_DELETE_IDLE_CAP_MS = CLAIM_IDLE_CAP_MS;
++export const SESSION_DELETE_IDLE_CAP_MS = SESSION_SWEEP_IDLE_CAP_MS;
+ 
+ export type DeleteSessionResult =
+   { removed: true } | { removed: false; reason: "invalid" | "not-found" | "running" | "own-session" | "failed" };

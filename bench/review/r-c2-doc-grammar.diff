@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/claims.ts b/apps/maestro/src/core/claims.ts
+--- a/apps/maestro/src/core/claims.ts
++++ b/apps/maestro/src/core/claims.ts
+@@ -107,7 +107,7 @@
+ 
+ /**
+  * Live iff the claiming session's directory still exists AND its `log.jsonl` was modified within
+- * `CLAIM_IDLE_CAP_MS`. A missing session directory (clean `SessionEnd`) is dead immediately; a
++ * `CLAIM_IDLE_CAP_MS`. A missing session directory (a clean `SessionEnd`) is dead immediately; a
+  * directory with no log yet is dead too — the spec's liveness test is conjunctive, not "innocent
+  * until proven stale".
+  */

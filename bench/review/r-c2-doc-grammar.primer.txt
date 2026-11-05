@@ -1,0 +1,93 @@
+## Changed symbols
+- apps/maestro/src/core/claims.ts (concept task-queue): no indexed symbol overlaps the changed lines (module-level change)
+
+## Impact of each changed symbol (callers, depth 2)
+
+none (no indexed symbol changed)
+
+## Untested callers (no test file mentions the caller by name)
+
+none
+
+## New cross-concept edges added by the diff
+
+none
+
+## Cross-concept relations of the touched concepts (existing edges, before the change)
+
+### task-queue <-> installing-maestro
+
+- `installing-maestro::findMaestroTasks` --calls--> `task-queue::tasksDirFor`
+
+### task-queue <-> updating-maestro
+
+- `updating-maestro::successPath` --calls--> `task-queue::successPathSteps`
+
+### task-queue <-> maestro-architecture
+
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::successPath` --calls--> `task-queue::successPathSteps`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::routesFrom` --calls--> `task-queue::bareAgentName`
+
+### task-queue <-> claude-session-bridge
+
+- `task-queue::isSessionLive` --calls--> `claude-session-bridge::sessionPathsFor`
+- `task-queue::MaestroTasksPage` --mounts--> `claude-session-bridge::ClaudeRunDialog`
+- `claude-session-bridge::build` --calls--> `task-queue::tasksDirFor`
+- `claude-session-bridge::rederiveSessionName` --calls--> `task-queue::claimsDirFor`
+
+### task-queue <-> create-skills-architecture
+
+- `create-skills-architecture::build` --calls--> `task-queue::tasksDirFor`
+
+### task-queue <-> electron-shell-invariants
+
+- `task-queue::MaestroTasksPage` --calls--> `electron-shell-invariants::callMain`
+- `task-queue::MaestroTasksPage` --calls--> `electron-shell-invariants::callMain`
+- `task-queue::MaestroTasksPage` --calls--> `electron-shell-invariants::callMain`
+- `electron-shell-invariants::registerIpc` --calls--> `task-queue::deleteTask`
+- `electron-shell-invariants::registerIpc` --calls--> `task-queue::closeTask`
+- `electron-shell-invariants::startTaskTail` --calls--> `task-queue::tailTasks`
+- `electron-shell-invariants::registerIpc` --calls--> `task-queue::listTasks`
+
+### task-queue <-> log-view
+
+- `task-queue::listTasks` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::showEpic` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::readyTasks` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::writeReport` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::listEpics` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::deleteTask` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::epicDirFor` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::tasksDirFor` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::taskClaimName` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::closeTask` --calls--> `log-view::mainCheckoutRoot`
+- `log-view::resumeTarget` --calls--> `task-queue::collectAgentSkills`
+- `log-view::resumeTarget` --calls--> `task-queue::bareAgentName`
+- `log-view::resumeTarget` --calls--> `task-queue::resolveSearchList`
+- `log-view::resumeTarget` --calls--> `task-queue::bareAgentName`
+
+### task-queue <-> maestro-config-model
+
+- `maestro-config-model::duplicateAgentTypes` --calls--> `task-queue::bareAgentName`
+
+### task-queue <-> plugin-libs-parity
+
+- `plugin-libs-parity::resumeTarget` --calls--> `task-queue::resolveSearchList`
+- `plugin-libs-parity::routesFrom` --calls--> `task-queue::bareAgentName`
+- `plugin-libs-parity::resumeTarget` --calls--> `task-queue::bareAgentName`
+- `plugin-libs-parity::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `plugin-libs-parity::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `plugin-libs-parity::duplicateAgentTypes` --calls--> `task-queue::bareAgentName`
+- `plugin-libs-parity::resumeTarget` --calls--> `task-queue::collectAgentSkills`
+- `plugin-libs-parity::resumeTarget` --calls--> `task-queue::bareAgentName`
+
+### task-queue <-> workflow-view
+
+- `workflow-view::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `workflow-view::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `workflow-view::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`

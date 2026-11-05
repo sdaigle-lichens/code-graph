@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
+--- a/apps/maestro/src/core/session-sweep.ts
++++ b/apps/maestro/src/core/session-sweep.ts
+@@ -75,7 +75,7 @@
+     let newest = fs.statSync(dir).mtimeMs;
+     for (const name of fs.readdirSync(dir)) {
+       try {
+-        newest = Math.max(newest, fs.lstatSync(path.join(dir, name)).mtimeMs);
++        newest = Math.min(newest, fs.lstatSync(path.join(dir, name)).mtimeMs);
+       } catch {
+         return null; // a child we cannot stat: cannot tell
+       }

@@ -1,0 +1,17 @@
+diff --git a/apps/maestro/src/core/project-tags.ts b/apps/maestro/src/core/project-tags.ts
+--- a/apps/maestro/src/core/project-tags.ts
++++ b/apps/maestro/src/core/project-tags.ts
+@@ -66,11 +66,11 @@
+ }
+ 
+ /** Every tag in the catalog, sorted. */
+-export function readAllProjectTags(dbPath: string = DEFAULT_PROJECT_TAGS_DB_PATH): string[] {
++export function readAllProjectTags(dbPath: string = DEFAULT_PROJECT_TAGS_DB_PATH): Set<string> {
+   const db = openDb(dbPath);
+   try {
+     const rows = db.prepare("SELECT tag FROM project_tags ORDER BY tag").all() as Array<{ tag: string }>;
+-    return rows.map((r) => r.tag);
++    return new Set(rows.map((r) => r.tag));
+   } finally {
+     db.close();
+   }

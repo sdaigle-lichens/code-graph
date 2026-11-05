@@ -837,6 +837,94 @@ Run as planned in "Pilot outcome and paid-run plan": 4 commands (d2, t3, d3, d4)
 
 **What the set measures.** d3 saturates for `haiku-nograph` (36/36) and t3 is close to the ceiling (83% to 92%), so only d2 has real headroom. The scribe group decides little about skills because of the strip. These tasks mostly measure how thoroughly a model searches for every mention of a changed fact.
 
+## Ticket 066: does a Haiku or a primed reviewer catch seeded bugs as well as a plain Sonnet reviewer (bench/, plan and rule written before any paid run)
+
+Question: 051 found no gain from a graph primer on edit tasks. Review is a different job: read a diff, find what is wrong. A reviewer who sees the changed symbols, their callers and the new cross-concept edges might catch cross-file breakage that a diff alone hides. 066 measures that, and whether Haiku (about 1/9 of Sonnet's cost per run in 044/051) can review as well. Review mode is `bench/review-run.mjs` (separate from `bench/run.mjs`); setup, cases, graders, primer and validity rules are in `bench/README.md`, "Review mode (ticket 066)". Maestro is pinned at `3814a30`, the no-graph workspace from `git archive`.
+
+### Tasks (15 cases, `bench/review-cases.mjs`)
+
+A case is a diff against the pinned tree: the planted change is applied to the workspace (the reviewer reads the files as changed) and the stored diff is the prompt. Bugs are planted by `replaceOnce`, so a stale pin fails loudly.
+
+| id | category | what is planted |
+|---|---|---|
+| `r-l1-future-mtime` | local | `isAbandoned`: `Math.abs(idle)` makes a future mtime read as idle |
+| `r-l2-first-entry` | local | `sweepStaleSessions`: `readdirSync(dir).slice(1)` skips the first entry |
+| `r-l3-no-log-live` | local | `isSessionLive`: the catch returns true, so a session with no log reads live |
+| `r-x1-set-return` | cross | `readAllProjectTags` returns a Set; callers in `installRuntime` and others still index it as an object |
+| `r-x2-sqlite-edge` | cross | `handoff-channels.ts` newly imports `project-tags.ts` (node:sqlite) and reads it at load, which its header says it must never pull in |
+| `r-x3-arg-swap` | cross | `isSessionLive` parameters swapped; callers (`claimTask`, `readClaims`) pass the old order |
+| `r-l4-and-guard` | local | `sweepStaleSessions`: the skip guard `\|\|` becomes `&&`, so the caller's own session is no longer skipped |
+| `r-l5-min-activity` | local | `lastActivityMs`: `Math.max` becomes `Math.min`, so the oldest child mtime decides and an active session reads idle |
+| `r-x4-claim-key` | cross | `readClaims` strips ".md.json" instead of ".json"; callers two hops out (`listTasks`, `showEpic`, `readyTasks`) look claims up by the full ".md" name, so no claim shows |
+| `r-x5-delete-cap` | cross | `SESSION_DELETE_IDLE_CAP_MS` points at the 24h sweep cap instead of the 15-minute claim cap; `deleteSession`, `listDeletableSessions` and the IPC x on a tab inherit it |
+| `r-c1-inline-idle` | clean | an equivalent inline of a helper in `session-sweep.ts` |
+| `r-c2-doc-grammar` | clean | a comment-only wording change in `claims.ts` |
+| `r-c3-regex-suffix` | clean | `slice(0, -".json".length)` becomes `replace(/\.json$/, "")` on names already filtered to `.json` |
+| `r-c4-split-guard` | clean | one `\|\|` guard in `isAbandoned` split into two `if` returns with the same result |
+| `r-c5-comment-hours` | clean | a comment says "24-hour" instead of "24h" |
+
+Per run (one pass over the 15 cases) the planted total is 5 local, 5 cross, 10 overall, with 5 clean diffs. Local means the defect is visible in the changed lines; cross means it only shows from code outside the diff (callers, a header contract, a different runtime). Each bug is graded by a regex pair, file named and defect described, on the FINDINGS list at the end of the review (`FINDINGS: none` is a valid answer). Each grader is unit-tested in `bench/review.test.mjs` against a known-good and a known-bad review text per case. A finding that matches no planted bug is counted as *extra*; every finding on a clean diff is a *false alarm*.
+
+### Arms
+
+- `sonnet-nograph` (baseline): Sonnet 5.5, Read/Grep/Glob/Bash, the diff in the prompt, no primer.
+- `sonnet-diff-primer`: as the baseline plus the diff primer in a `<diff-primer>` block.
+- `haiku-diff-primer`: Haiku 5.5 with the same prompt as `sonnet-diff-primer`.
+- `sonnet-spawns-haiku`: Sonnet 5.5 with the Agent tool, told to delegate the reading and the first pass to a Haiku subagent and then give the findings.
+- `haiku-nograph` (optional, `--arms` to add): Haiku 5.5, no primer. It separates the model effect from the primer effect for Haiku.
+
+No arm has the code-graph plugin or CLI. The tool set is pinned by `--tools` per arm; the Agent tool exists only in `sonnet-spawns-haiku`.
+
+**The primer** is generated at $0 by `node bench/review-prep.mjs` from the diff and the pre-change index of the pinned tree only (never from the bug list or the grader): the changed symbols with their line ranges and concept (`query file`), their callers to depth 2 (`query impact`), which callers no test file names, the cross-concept edges the diff adds (new relative imports resolved to a vertex of another concept), and the existing cross-concept edges of the touched concepts (`query cross`). Per-case output is stored as `bench/review/<id>.primer.txt` beside `<id>.diff` and committed, so the primer a run saw is auditable; `--check` regenerates and reports any drift. The runner refuses a run whose stored diff differs from the one computed from the workspace.
+
+### Validity
+
+A run is invalid, not counted, if: the init event shows another model or tool set than the arm's, an arm other than the spawn arm lists the Agent tool or calls it, or the shared bench checks fail (seccomp, error result, concept skills missing, code-graph present). **A `sonnet-spawns-haiku` run is invalid unless the transcript shows a Haiku subagent was started**: an Agent call whose model is Haiku, or a subagent message (`parent_tool_use_id` set) from a Haiku model. A Sonnet that reviews alone is a `sonnet-nograph` run and does not count. The runner stops on a usage limit, on seccomp, and on a second invalid run.
+
+### Decision rule (fixed before any result)
+
+The cap ($10), pilot cap ($1.50), per-run cap ($0.40) and 2 runs per cell are the user's; anything changed at pilot time is written here before the paid run.
+
+Bugs found are summed per arm over its valid runs, in three groups: **local**, **cross** and **overall**. For an arm, *missed* is planted minus found. Baseline B = `sonnet-nograph`.
+
+- **Spend cap (set by the user): $10 in all, pilot included** (`--budget 10`), per run cap `--run-budget 0.40`. The pilot is capped at $1.50. No run starts once spent plus the run budget would pass the cap. **2 runs per cell**: 15 cases x 4 arms x 2 = 120 runs, so each arm faces 10 local, 10 cross and 10 clean-diff reviews. The runner loops run number outermost, so a cap stop leaves a whole first pass. At the Sonnet cost seen in 051 (about $0.12 per run) the 90 Sonnet-model runs cost about $11 and the cap may bind in the second pass; the report says so and the missing cells are rerun with `--only` and `--arms` or left out of the verdict (arms with unequal valid runs are not compared).
+- **Matches the baseline.** Arm X *recovers* in a group if `missed(B) - missed(X)` is at least one third of `missed(B)` and at least 3 (the 051 rule). The question here is the reverse of 051: B is the expensive arm, so also report whether X *matches* B, meaning X misses no more than 2 bugs more than B in that group.
+- **Cannot discriminate.** If B misses fewer than 3 bugs in a group, the verdict for that group is **inconclusive (baseline misses under 3)**. If X misses at least 3 more than B, it **hurts**; anything else is **no effect shown**. Arms with different numbers of valid runs are not compared.
+- **Per category, and overall never overrides a category.** Every verdict is given for local, for cross and overall. A primer gain on cross must not be hidden by a local tie, and an overall pass must not stand if a category hurts.
+- **Saturation guard, written before the pilot.** The rule above is useless if the baseline finds everything, so the cases are built so `sonnet-nograph` should plausibly miss at least 3 per category over the planned runs (5 bugs x 2 runs = 10 planted per category; 3 misses is 30%):
+  - *Local* (`l1` to `l5`): the changed line is correct-looking and only wrong given a convention stated elsewhere. `l1` (`Math.abs` of an idle time) and `l3` (`catch` returns `true`) look like defensive code; `l4` is one operator (`||` to `&&`) in a guard whose intent is two lines away; `l5` is `Math.max` to `Math.min` in a loop that reads as a plausible "oldest" scan; `l2` is `slice(1)` in a loop that looks like it skips `.`. A grep-and-read reviewer that does not trace what the value feeds waves these through, the same way 051's Sonnet left stale docs.
+  - *Cross* (`x1` to `x5`): the diff does not show the break. `x4` breaks lookups two hops away (the key is read by `listTasks`, `showEpic` and `readyTasks`; the last two have no test naming them), `x3` swaps two `string` parameters that still type-check, `x5` changes a constant whose meaning lives in a comment 20 lines above and whose consumers are the IPC delete path, `x1` needs the callers of `readAllProjectTags` in four files, `x2` needs the bundling contract in a header. Each needs a grep for callers, which a plain reviewer that trusts the diff does not do.
+  - These are priors, not results. If the pilot contradicts them, the stop rule below applies.
+- **Stop rule before the paid run.** After the pilot (1 run per cell), if `sonnet-nograph` found all but fewer than 3 bugs of a category, extrapolated to the paid run's size (pilot misses x runs per cell in the paid run < 3), that category cannot discriminate: do not spend the paid run. Harden or add cases for that category (a caller two hops away, an untested caller, a subtler condition), regenerate `bench/review/` with `node bench/review-prep.mjs`, rerun the offline checks and a new pilot, and write the change here. The same applies if the baseline already finds nothing in a category (floor): add easier cases. A pilot is a rule input, not a result.
+- **False alarms and cost beside every verdict.** For each arm: findings on the 5 clean diffs (false alarms), per run and in total, so the figure rests on `valid runs x 5` clean reviews per arm (2 runs x 5 clean diffs = 10 per arm, fewer when runs are invalid; the report prints the count beside the number), extra findings on bug diffs, and cost per run, each next to the baseline's. A verdict that finds more bugs at more false alarms is reported as such; it is not a pass for use as a reviewer until the false-alarm count is stated. Cost saving: X is cheaper if its cost per run is at least 20% under B's.
+- **Delegation** (`sonnet-spawns-haiku`): judged on the same rule against B, with cost beside it; valid runs only.
+- **Report per case and arm:** bugs found of planted, findings, extras, false alarms, structured or not, cost, turns. Then a plain verdict per group with confidence at n=2 per cell (small: say so). Results go below this section, only after the paid run.
+
+#### Results template (filled in only after the paid run)
+
+| arm | valid runs | local found / planted | cross found / planted | overall | false alarms (clean runs) | extra | cost per run |
+|---|---|---|---|---|---|---|---|
+| sonnet-nograph, sonnet-diff-primer, haiku-diff-primer, sonnet-spawns-haiku | | | | | | | |
+
+| arm vs baseline | local | cross | overall | false alarms vs baseline | cost vs baseline |
+|---|---|---|---|---|---|
+| each non-baseline arm | helps, no effect shown, hurts or inconclusive | same | same | n vs n | percent |
+
+### Preflight, pilot and paid run (all from a plain terminal at the repo root; the agent that built this could not run them)
+
+`claude` is not on the PATH inside the agent sandbox, so none of the following was run when the bench was written: the `--init-check` preflight failed with `spawn claude ENOENT`, and no pilot was run. The unit tests, `review-prep.mjs --check` and `review-run.mjs --dry` all pass at $0.
+
+1. `node --test bench/*.test.mjs` (offline).
+2. `node bench/review-prep.mjs --check` (offline; exits non-zero if a stored diff or primer drifted).
+3. `node bench/review-run.mjs --dry` (offline; prints each run's prompt size and `claude` args).
+4. **$0 preflight per arm**, with the API endpoint pointed at a dead address, checks model, tool set and plugins from the init event: `node bench/review-run.mjs --init-check --arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph`.
+5. **Pilot**, capped at $1.50 (a full 60-run pass would cost about $7, so the pilot is two parts). (a) Saturation check on the baseline: `node bench/review-run.mjs --runs 1 --budget 1.5 --run-budget 0.4 --arms sonnet-nograph`; the stop rule reads its misses per category. (b) Spawn validity on one case, from what is left of the $1.50: `node bench/review-run.mjs --runs 1 --budget 0.5 --run-budget 0.4 --arms sonnet-spawns-haiku --only r-x3`; an invalid spawn run is listed in the report. If (a) uses the whole $1.50, run (b) with the cap the user sets.
+6. **Paid run**, after the user confirms the numbers: `node bench/review-run.mjs --runs 2 --budget 10 --run-budget 0.4`. Add `--arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph` to include the optional arm. Rerun missing cells after a usage limit with `--only` and `--arms`.
+
+### Results (paid run)
+
+Not run yet. This section is filled in after the user's paid run, with the verdicts per rule above, the false alarms and cost per run beside each, the confidence, and the reviewer-model recommendation.
+
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
 User decision, epic `haiku-subagents-with-graph`. The plugin stops pushing sessions to the graph instead of grep and read, and graph retrieval stays available on demand.

@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
+--- a/apps/maestro/src/core/session-sweep.ts
++++ b/apps/maestro/src/core/session-sweep.ts
+@@ -131,7 +131,7 @@
+ 
+ // ── Explicit, per-session deletion (the x on a Session Log tab) ────────────────────────────────
+ //
+-// An explicit user action, so the 24h sweep cap does not apply — but it must still refuse a session
++// An explicit user action, so the 24-hour sweep cap does not apply — but it must still refuse a session
+ // that is genuinely running. "Running" uses the same activity measure as the sweep with the
+ // task-claim cap (15 minutes, CLAIM_IDLE_CAP_MS): the threshold that already decides whether a
+ // session's task claim is live. Same safety: valid id, real directory, never a symlink, never the
