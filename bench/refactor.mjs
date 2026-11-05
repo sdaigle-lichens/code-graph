@@ -247,8 +247,15 @@ const matches = (x, item) => !ABSENT_RE.test(item) && new RegExp(x.file, 'i').te
 // c.refactor = { expected: [{ id, category, file: regex, change: [regex, ...] }], tolerated: [{ file, change }] }.
 // An expected improvement counts as proposed when one proposal names its file (the path token, before the
 // first ": ") and matches every change pattern. A proposal that matches an expected or a tolerated
-// improvement is not a false finding; on a clean case every other proposal is one. On the other cases the
-// remaining proposals are `extra` (they may be real: the tree is real code) and are reported, not scored.
+// improvement is not a false finding; on EVERY case (clean or not) every other proposal is one (ticket 070,
+// manager redirect). Some of them may be real improvements in real code: that is a pre-registered
+// limitation, never a post-hoc judgement. `falseByCat` splits them by the category of the proposal's kind.
+const KIND_CAT = { dedupe: 'dedupe', 'extract-helper': 'extract', extract: 'extract', 'align-pattern': 'align', align: 'align', 'break-cycle': 'cycle', cycle: 'cycle', 'remove-unused': 'unused', unused: 'unused' };
+export const proposalCategory = (item) => {
+  const rest = item.slice(item.indexOf(': ') + 2);
+  const kind = /^\s*([a-z-]+)\s*:/i.exec(rest);
+  return (kind && KIND_CAT[kind[1].toLowerCase()]) || 'other';
+};
 export function gradeItems(c, items) {
   const exp = c.refactor.expected || [];
   const tol = c.refactor.tolerated || [];
@@ -256,13 +263,14 @@ export function gradeItems(c, items) {
   let credited = 0;
   let tolerated = 0;
   let rest = 0;
+  const falseByCat = {};
   for (const it of items) {
     if (exp.some((x) => matches(x, it))) credited++;
     else if (tol.some((x) => matches(x, it))) tolerated++;
-    else rest++;
+    else { rest++; const k = proposalCategory(it); falseByCat[k] = (falseByCat[k] || 0) + 1; }
   }
   const clean = !exp.length;
-  return { planted: exp.length, found: found.filter((x) => x.found).length, expected: found, proposals: items.length, credited, tolerated, extra: clean ? 0 : rest, falseFindings: clean ? rest : 0, clean };
+  return { planted: exp.length, found: found.filter((x) => x.found).length, expected: found, proposals: items.length, credited, tolerated, falseFindings: rest, falseByCat, clean };
 }
 
 export function gradeRefactor(c, text) {
@@ -372,19 +380,21 @@ export function storedProblems(c, scope, primer) {
 export const rowCost = (r) => (r.m?.cost || 0) + (r.m2?.cost || 0);
 
 const blank = () => ({ found: 0, planted: 0 });
-// Per arm: expected improvements kept by category and overall, false findings kept (clean runs), extra
-// proposals, cost, anchoring (pipeline), what the filter lost or removed, by case kind.
+// Per arm: expected improvements kept by category and overall, false findings kept (every proposal beyond
+// the expected ones, on every case; by proposal category in falseByCat), cost, anchoring (pipeline), what
+// the filter lost or removed.
 export function tally(rows, planned) {
   const out = {};
   for (const r of pairedRows(rows, planned)) {
     const t = (out[r.arm] ||= {
-      cats: Object.fromEntries(CATEGORIES.map((k) => [k, blank()])), overall: blank(), falseFindings: 0, cleanRuns: 0, extra: 0, runs: 0, cost: 0,
+      cats: Object.fromEntries(CATEGORIES.map((k) => [k, blank()])), overall: blank(), falseFindings: 0, falseByCat: {}, cleanRuns: 0, runs: 0, cost: 0,
       anchor: { runs: 0, scout: 0, kept: 0, unchanged: 0 }, lostByFilter: 0, falseRemoved: 0, scoutFound: 0, scoutFalse: 0,
     });
     t.runs++;
     t.cost += rowCost(r);
-    t.extra += r.grade.extra || 0;
-    if (r.grade.clean) { t.cleanRuns++; t.falseFindings += r.grade.falseFindings; }
+    if (r.grade.clean) t.cleanRuns++;
+    t.falseFindings += r.grade.falseFindings || 0;
+    for (const [k, n] of Object.entries(r.grade.falseByCat || {})) t.falseByCat[k] = (t.falseByCat[k] || 0) + n;
     for (const e of r.grade.expected) {
       (t.cats[e.category] ||= blank()).planted++; t.overall.planted++;
       if (e.found) { t.cats[e.category].found++; t.overall.found++; }
@@ -407,8 +417,9 @@ export function tally(rows, planned) {
 // `no effect shown` or `inconclusive`, per category, the overall never overriding a category.
 export const improvementVerdict = (base, x) => verdict(base, x);
 
-// Kept false findings on clean runs, an arm against the baseline: fewer or more by at least 3, else no
-// difference shown. Both arms are scored on the same clean cells.
+// Kept false findings (every proposal beyond the expected ones, on every case; overall or in one proposal
+// category), an arm against the baseline: fewer or more by at least 3, else no difference shown. Both arms
+// are scored on the same cells.
 export function falseVerdict(base, x) {
   const d = base - x;
   return d >= 3 ? 'fewer' : d <= -3 ? 'more' : 'no difference shown';
@@ -423,7 +434,7 @@ export function pilotScreen(rows, planned) {
   const missed = t.overall.planted - t.overall.found;
   const saturated = missed < 3;
   const floor = t.overall.found * 3 < t.overall.planted;
-  const note = saturated ? `saturated: the baseline missed ${missed} of ${t.overall.planted}; rework the cases` : floor ? `floor: the baseline found ${t.overall.found} of ${t.overall.planted}; rework the cases or the grader` : `ok: the baseline missed ${missed} of ${t.overall.planted} and kept ${t.falseFindings} false finding(s) on ${t.cleanRuns} clean run(s)`;
+  const note = saturated ? `saturated: the baseline missed ${missed} of ${t.overall.planted}; rework the cases` : floor ? `floor: the baseline found ${t.overall.found} of ${t.overall.planted}; rework the cases or the grader` : `ok: the baseline missed ${missed} of ${t.overall.planted} and kept ${t.falseFindings} false finding(s) over ${t.runs} case run(s)`;
   return { ok: !saturated && !floor, saturated, floor, missed, planted: t.overall.planted, found: t.overall.found, falseFindings: t.falseFindings, note };
 }
 
@@ -440,12 +451,12 @@ export function refactorReport(rows, meta) {
     for (const r of bad) for (const p of (r.problems.length ? r.problems : [r.status])) L.push(`- ${r.case} ${r.arm} run${r.run}: ${p}`);
     L.push('');
   } else if (rows.length) L.push('No invalid run.', '');
-  L.push('## Per case and arm', '', '| case | arm | run | valid | kept / expected | proposals kept | extra | false findings | anchoring (kept/scout) | cost $ (scout + filter) | turns |', '|---|---|---|---|---|---|---|---|---|---|---|');
+  L.push('## Per case and arm', '', '| case | arm | run | valid | kept / expected | proposals kept | false findings | anchoring (kept/scout) | cost $ (scout + filter) | turns |', '|---|---|---|---|---|---|---|---|---|---|---|');
   for (const r of rows) {
     const g = r.grade;
     const an = g.anchor ? `${g.anchor.kept}/${g.anchor.scout}` : '-';
     const cost = r.m2 ? `${usd(rowCost(r))} (${usd(r.m?.cost)} + ${usd(r.m2.cost)})` : usd(rowCost(r));
-    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.proposals} | ${g.extra} | ${g.clean ? g.falseFindings : '-'} | ${an} | ${cost} | ${r.m?.turns ?? 'n/a'} |`);
+    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.proposals} | ${g.falseFindings}${g.clean ? ' (clean case)' : ''} | ${an} | ${cost} | ${r.m?.turns ?? 'n/a'} |`);
   }
   const t = tally(rows, meta.planned);
   const arms = REFACTOR_ARM_NAMES.filter((a) => t[a]);
@@ -453,8 +464,11 @@ export function refactorReport(rows, meta) {
   const nCounted = pairedRows(rows, meta.planned).length;
   L.push('', `Counted: ${nCounted} of ${nValid} valid runs. A (case, run) cell is scored only when every arm planned there has a valid run, so every arm is scored on the same cells; ${nValid - nCounted} valid run(s) were left out because another arm's cell is missing or invalid.`);
   const fp = (x) => `${x.found}/${x.planted}`;
-  L.push('', '## Per arm (paired valid runs only; the pipeline is scored on what survives the filter)', '', `| arm | valid runs | ${CATEGORIES.join(' | ')} | overall kept | false findings (clean runs) | extra | cost per run |`, `|---|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|---|`);
-  for (const a of arms) L.push(`| ${a} | ${t[a].runs} | ${CATEGORIES.map((k) => fp(t[a].cats[k])).join(' | ')} | ${fp(t[a].overall)} | ${t[a].falseFindings} (${t[a].cleanRuns}) | ${t[a].extra} | ${usd(t[a].cost / t[a].runs)} |`);
+  L.push('', '## Per arm (paired valid runs only; the pipeline is scored on what survives the filter)', '', `| arm | valid runs | ${CATEGORIES.join(' | ')} | overall kept | false findings kept (all cases) | cost per run |`, `|---|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|`);
+  for (const a of arms) L.push(`| ${a} | ${t[a].runs} | ${CATEGORIES.map((k) => fp(t[a].cats[k])).join(' | ')} | ${fp(t[a].overall)} | ${t[a].falseFindings} | ${usd(t[a].cost / t[a].runs)} |`);
+  const FCATS = [...CATEGORIES, 'other'];
+  L.push('', '## False findings kept, by the category of the proposal (every proposal beyond the expected ones, on every case)', '', `| arm | ${FCATS.join(' | ')} | total |`, `|---|${FCATS.map(() => '---').join('|')}|---|`);
+  for (const a of arms) L.push(`| ${a} | ${FCATS.map((k) => t[a].falseByCat[k] || 0).join(' | ')} | ${t[a].falseFindings} |`);
   const pipe = arms.filter((a) => REFACTOR_ARMS[a].filter);
   if (pipe.length) {
     L.push('', '## Pipeline: anchoring and what the filter did', '', '| arm | runs with a list | scout proposals | kept | anchoring | lists passed unchanged | expected lost by the filter | false findings removed by the filter |', '|---|---|---|---|---|---|---|---|');
@@ -465,12 +479,13 @@ export function refactorReport(rows, meta) {
   }
   if (t[REFACTOR_BASELINE]) {
     const B = t[REFACTOR_BASELINE];
-    L.push('', `## Verdicts against ${REFACTOR_BASELINE} (rule in docs/evals.md, Ticket 070)`, '', `| arm | ${CATEGORIES.join(' | ')} | overall (never overrides a category) | false findings vs baseline | cost per run vs baseline |`, `|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|`);
+    L.push('', `## Verdicts against ${REFACTOR_BASELINE} (rule in docs/evals.md, Ticket 070)`, '', `| arm | ${CATEGORIES.join(' | ')} | overall (never overrides a category) | false findings vs baseline (all) | false findings by category (arm vs baseline) | cost per run vs baseline |`, `|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|---|`);
     const cell = (a, g) => { const v = improvementVerdict(g === 'overall' ? B.overall : B.cats[g], g === 'overall' ? t[a].overall : t[a].cats[g]); return `${v.v} (missed ${v.mb} -> ${v.mx})`; };
     for (const a of arms) {
       if (a === REFACTOR_BASELINE) continue;
       const dc = B.cost ? `${(((t[a].cost / t[a].runs) / (B.cost / B.runs) - 1) * 100).toFixed(0)}%` : 'n/a';
-      L.push(`| ${a} | ${CATEGORIES.map((k) => cell(a, k)).join(' | ')} | ${cell(a, 'overall')} | ${t[a].falseFindings} vs ${B.falseFindings}: ${falseVerdict(B.falseFindings, t[a].falseFindings)} | ${dc} |`);
+      const fb = FCATS.map((k) => { const b = B.falseByCat[k] || 0; const x = t[a].falseByCat[k] || 0; return `${k} ${x} vs ${b}: ${falseVerdict(b, x)}`; }).join('; ');
+      L.push(`| ${a} | ${CATEGORIES.map((k) => cell(a, k)).join(' | ')} | ${cell(a, 'overall')} | ${t[a].falseFindings} vs ${B.falseFindings}: ${falseVerdict(B.falseFindings, t[a].falseFindings)} | ${fb} | ${dc} |`);
     }
     const ps = pilotScreen(rows, meta.planned);
     L.push('', `Baseline screen: ${ps.note}`);

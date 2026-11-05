@@ -359,6 +359,9 @@ scored on the proposals the filter keeps, both costs added, anchoring reported),
 (invalid unless a Haiku subagent appears in the transcript; only this arm has the Agent tool). All run in the
 no-graph workspace.
 
+Scoring: every proposal beyond an expected improvement (and the case's `tolerated` list) is a false finding on
+every case, clean or not, counted after the filter for the pipeline and split by the proposal's category.
+
 Files:
 
 - `refactor.mjs`: arms, prompts, scope and metrics-primer builders, graders, pipeline grading, validity, verdicts, report.

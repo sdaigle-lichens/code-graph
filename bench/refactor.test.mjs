@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
-  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems,
+  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory,
   refactorArgs, refactorPrompt, refactorReport, rowCost, stageProblems, stageSpec, stagesOf, storedProblems, tally, unusedExports, verdictsOf,
 } from './refactor.mjs';
 import { REFACTOR_CASES, selectRefactorCases } from './refactor-cases.mjs';
@@ -105,11 +105,9 @@ test('graders: a known-good text credits its expected improvement with no false 
     const bad = gradeRefactor(c, c.samples.bad);
     assert.equal(good.found, good.planted, `${c.id} good`);
     assert.equal(good.falseFindings, 0, `${c.id} good false findings`);
-    assert.equal(good.extra, 0, `${c.id} good extra`);
     assert.equal(bad.found, 0, `${c.id} bad credits nothing`);
     assert.equal(bad.structured, true);
-    if (c.kind === 'clean') assert.ok(bad.falseFindings >= 1, `${c.id} bad counts false findings`);
-    else assert.ok(bad.extra >= 1, `${c.id} bad has extra proposals`);
+    assert.ok(bad.falseFindings >= 1, `${c.id} bad counts false findings, on every case kind`);
   }
 });
 
@@ -135,14 +133,14 @@ test('graders: the cycle case needs the cycle named; the seeded unused export is
   assert.equal(gradeItems(cyc, ['apps/maestro/src/core/claims.ts: align-pattern: rename the helper']).found, 0);
   const g = gradeItems(cyc, ['apps/maestro/src/core/handoff-channels.ts: remove-unused: `claimFileForTask` is unused, nothing imports it.']);
   assert.equal(g.tolerated, 1);
-  assert.equal(g.extra, 0);
+  assert.equal(g.falseFindings, 0, 'a tolerated match is not a false finding');
   const dup = caseOf('f-s1-dup-readjson');
   const t = gradeItems(dup, ['apps/maestro/src/core/detect.ts: dedupe: readJson is repeated here too.']);
   assert.equal(t.tolerated, 1);
-  assert.equal(t.extra, 0);
+  assert.equal(t.falseFindings, 0);
 });
 
-test('graders: "none", an all-clear and prose outside PROPOSALS credit nothing; clean cases count every proposal as a false finding, others as extra', () => {
+test('graders: "none", an all-clear and prose outside PROPOSALS credit nothing; every case counts each proposal beyond the expected ones as a false finding, by category', () => {
   const real = caseOf('f-r1-canvas-align');
   const clean = caseOf('f-c1-canvas-layout');
   const none = gradeRefactor(clean, 'Nothing warranted.\n\nPROPOSALS: none');
@@ -155,8 +153,11 @@ test('graders: "none", an all-clear and prose outside PROPOSALS credit nothing; 
   assert.equal(two.falseFindings, 2);
   const r = gradeRefactor(real, `${real.samples.good}\n- apps/maestro/src/core/other.ts: dedupe: something else`);
   assert.equal(r.found, 1);
-  assert.equal(r.extra, 1);
-  assert.equal(r.falseFindings, 0, 'extra proposals on a non-clean case are reported, not scored false');
+  assert.equal(r.falseFindings, 1, 'a proposal beyond the expected ones on a non-clean case is a false finding too');
+  assert.deepEqual(r.falseByCat, { dedupe: 1 });
+  const mixed = gradeRefactor(real, `${real.samples.good}\n- a.ts: remove-unused: x\n- b.ts: break-cycle: y\n- c.ts: extract-helper: z\n- d.ts: align-pattern: w\n- e.ts: rename: v`);
+  assert.deepEqual(mixed.falseByCat, { unused: 1, cycle: 1, extract: 1, align: 1, other: 1 });
+  assert.equal(proposalCategory('a.ts: dedupe: x'), 'dedupe');
   const wrapped = gradeRefactor(real, 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: dedupe: it defines its own\n  `alignMainSession`, which `core/canvas-layout.ts` already exports; import it.');
   assert.equal(wrapped.found, 1, 'a wrapped bullet is one proposal');
 });
@@ -205,8 +206,12 @@ test('gradePipeline: scored on the survivors; the filter\'s losses and removals 
   const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file.`;
   const keepGood = gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it: yes\n- 2: drop-it: no');
   assert.equal(keepGood.found, 1);
-  assert.equal(keepGood.extra, 0, 'the false proposal was filtered out');
-  assert.equal(keepGood.scout.extra, 1);
+  assert.equal(keepGood.falseFindings, 0, 'the false proposal was filtered out');
+  assert.equal(keepGood.scout.falseFindings, 1);
+  assert.equal(keepGood.falseRemoved, 1);
+  const kept2 = gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it\n- 2: file-it');
+  assert.equal(kept2.falseFindings, 1, 'a false finding the filter kept is counted on a non-clean case');
+  assert.deepEqual(kept2.falseByCat, { extract: 1 });
   assert.equal(keepGood.anchor.kept, 1);
   assert.equal(keepGood.anchor.scout, 2);
   assert.equal(keepGood.lostByFilter, 0);
@@ -309,12 +314,12 @@ test('stored primers see the seeded problems the primer arms are meant to be hel
 const row = (c, arm, run, grade, cost, extra = {}) => ({ case: c, arm, run, m: { cost, turns: 3 }, problems: [], status: 'valid', grade, ...extra });
 const g = (found, planted, o = {}) => ({
   found, planted, expected: Array.from({ length: planted }, (_, i) => ({ id: `e${i}`, category: o.cat || 'dedupe', found: i < found })),
-  proposals: 2, extra: 0, falseFindings: 0, clean: planted === 0, ...o,
+  proposals: 2, falseFindings: 0, falseByCat: {}, clean: planted === 0, ...o,
 });
 
 test('tally: valid paired runs only; kept improvements by category, false findings on clean runs, cost with both pipeline stages, anchoring', () => {
   const rows = [
-    row('c1', 'sonnet-plain', 1, g(1, 1), 0.2),
+    row('c1', 'sonnet-plain', 1, g(1, 1, { falseFindings: 2, falseByCat: { dedupe: 1, other: 1 } }), 0.2),
     row('c1', 'haiku-scout-sonnet-filter', 1, g(1, 1, { anchor: { scout: 3, kept: 2, unchanged: false }, lostByFilter: 0, falseRemoved: 1, scout: { found: 1, falseFindings: 0 } }), 0.05, { m2: { cost: 0.1 } }),
     row('c2', 'sonnet-plain', 1, g(0, 0, { falseFindings: 1 }), 0.1),
     row('c2', 'haiku-scout-sonnet-filter', 1, g(0, 0, { falseFindings: 0, anchor: { scout: 2, kept: 0, unchanged: false }, scout: { found: 0, falseFindings: 2 }, falseRemoved: 2 }), 0.02, { m2: { cost: 0.08 } }),
@@ -327,7 +332,8 @@ test('tally: valid paired runs only; kept improvements by category, false findin
   assert.equal(t['haiku-scout-sonnet-filter'].runs, 2);
   assert.deepEqual(t['sonnet-plain'].overall, { found: 1, planted: 1 });
   assert.deepEqual(t['sonnet-plain'].cats.dedupe, { found: 1, planted: 1 });
-  assert.equal(t['sonnet-plain'].falseFindings, 1);
+  assert.equal(t['sonnet-plain'].falseFindings, 3, 'false findings count on every case, not only clean ones');
+  assert.deepEqual(t['sonnet-plain'].falseByCat, { dedupe: 1, other: 1 });
   assert.equal(t['haiku-scout-sonnet-filter'].falseFindings, 0);
   assert.ok(Math.abs(t['haiku-scout-sonnet-filter'].cost - 0.25) < 1e-9, 'scout + filter cost');
   assert.deepEqual(t['haiku-scout-sonnet-filter'].anchor, { runs: 2, scout: 5, kept: 2, unchanged: 0 });

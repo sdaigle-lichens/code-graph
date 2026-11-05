@@ -169,7 +169,7 @@ for (const p of plan) {
   const { init: init2, ...m2Keep } = second ? second.m : {};
   rows.push({ case: c.id, arm, run: n, m: mKeep, m2: second ? m2Keep : undefined, problems, status, grade, answer: first.m.answer, answer2: second?.m.answer });
   save();
-  console.log(`  -> ${status} kept ${grade.found}/${grade.planted}${grade.clean ? ` false findings ${grade.falseFindings}` : ''}${grade.anchor ? ` anchoring ${grade.anchor.kept}/${grade.anchor.scout}` : ''}`);
+  console.log(`  -> ${status} kept ${grade.found}/${grade.planted} false findings ${grade.falseFindings}${grade.anchor ? ` anchoring ${grade.anchor.kept}/${grade.anchor.scout}` : ''}`);
   if (!bool.has('keep-ws')) rmSync(ws, { recursive: true, force: true });
   if (status === 'usage-limit') { stop = `account usage limit (429) on ${c.id} ${arm} run${n}; that cell and the ones after it are not counted. Rerun the missing cells with --only and --arms once it resets`; break; }
   if (first.m.seccomp || second?.m.seccomp) { stop = 'apply-seccomp seen: nested sandbox is active, aborting'; break; }
