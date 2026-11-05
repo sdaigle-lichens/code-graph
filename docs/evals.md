@@ -989,7 +989,7 @@ Recorded before any paid run. It changes arms, the question and how verdicts are
 
 **Command (plain terminal, repo root).** Optional $0 preflight first: `node bench/review-run.mjs --init-check` (checks the three planned arms). Paid run: `node bench/review-run.mjs --runs 3 --budget 12.19 --run-budget 0.4`.
 
-**Measured against commit:** the commit that holds this amendment and the new defaults; its sha is written into the first results entry once the user approves it and `pnpm verify` is green on it. The pre-registration rule above applies: the cases, graders, arms, numbers and rules are as they stand there, with the changes in this amendment.
+**Measured against commit:** `6fea03c` (holds this amendment and the new defaults; `pnpm verify` green on it; a later docs-only commit only records this sha). The pre-registration rule above applies: the cases, graders, arms, numbers and rules are as they stand there, with the changes in this amendment.
 
 ### Results (paid run)
 
