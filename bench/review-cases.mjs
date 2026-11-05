@@ -36,7 +36,7 @@ export const REVIEW_CASES = [
     kind: 'local',
     review: {
       plant: [{ file: SESSIONS, from: '    for (const name of fs.readdirSync(dir)) {', to: '    for (const name of fs.readdirSync(dir).slice(1)) {' }],
-      bugs: [{ id: 'slice-first', category: 'local', file: 'session-sweep', defect: ['(slice|skips?|first (entry|child|file|item)|off.by.one|drops?)'], desc: 'slice(1) skips the first directory entry (log.jsonl sorts first), so a session whose fresh file is that entry looks idle' }],
+      bugs: [{ id: 'slice-first', category: 'local', file: 'session-sweep', defect: ['(\\bslice\\b|\\bskips? (the )?(first|1st|initial)|first (entry|child|file|item)|off.by.one|\\bdrops? the first)'], desc: 'slice(1) skips the first directory entry (log.jsonl sorts first), so a session whose fresh file is that entry looks idle' }],
     },
     samples: {
       good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `readdirSync(dir).slice(1)` skips the first entry (an off-by-one), so `log.jsonl` is ignored and an active session can look idle and be swept.',

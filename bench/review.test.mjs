@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   BASELINE, DEFAULT_REVIEW_ARMS, PRIMER_OPEN, REVIEW_ARMS, REVIEW_TOOLS, SPAWN_TOOLS, addedImports, buildPrimer, changedSymbols,
   diffForPlants, findingsOf, gradeReview, importCandidates, parseFileVertices, parseImpact, parseReviewArms, promptProblems,
-  reviewArgs, reviewPrompt, reviewProblems, reviewReport, spawnEvidence, tally, toolsFor, unifiedDiff, untestedCallers, verdict,
+  pairedRows, reviewArgs, reviewPrompt, reviewProblems, reviewReport, spawnEvidence, tally, toolsFor, unifiedDiff, untestedCallers, verdict,
 } from './review.mjs';
 import { REVIEW_CASES } from './review-cases.mjs';
 
@@ -114,6 +114,37 @@ test('graders: a known-good review text finds every planted bug with no false al
   }
 });
 
+test('graders: each planted bug is credited by its own description (a grader that cannot see its own bug is broken)', () => {
+  for (const c of REVIEW_CASES) for (const b of c.review.bugs) {
+    const g = gradeReview(c, `FINDINGS:\n- ${b.file.split('|')[0]}: ${b.desc}`);
+    assert.equal(g.bugs.find((x) => x.id === b.id)?.found, true, `${c.id}/${b.id}`);
+  }
+});
+
+test('graders: a finding for one bug does not credit another bug in the same file', () => {
+  const slice = REVIEW_CASES.find((x) => x.id === 'r-l2-first-entry');
+  const guard = REVIEW_CASES.find((x) => x.id === 'r-l4-and-guard');
+  assert.equal(gradeReview(slice, `FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: ${guard.review.bugs[0].desc}`).found, 0);
+});
+
+test('graders: no bug description credits a different bug in the same file or any other case', () => {
+  for (const a of REVIEW_CASES) for (const b of REVIEW_CASES) {
+    if (a === b || !b.review.bugs.length) continue;
+    for (const bug of a.review.bugs) {
+      const g = gradeReview(b, `FINDINGS:\n- ${bug.file.split('|')[0]}.ts: ${bug.desc}`);
+      assert.equal(g.found, 0, `${a.id} description credits ${b.id}`);
+    }
+  }
+});
+
+test('graders: a finding that says the defect is absent is not credited', () => {
+  const near = [
+    ['r-l1-future-mtime', 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the negative branch of the idle check is fine and the cap is unchanged.'],
+    ['r-l4-and-guard', 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the condition that protects ownId is correct as written.'],
+  ];
+  for (const [id, text] of near) assert.equal(gradeReview(REVIEW_CASES.find((x) => x.id === id), text).found, 0, id);
+});
+
 test('graders: a defect in the wrong file, or a file with no defect named, is not credited', () => {
   const c = REVIEW_CASES.find((x) => x.id === 'r-x3-arg-swap');
   assert.equal(gradeReview(c, 'FINDINGS:\n- apps/maestro/src/core/other.ts: parameters swapped, callers break').found, 0);
@@ -186,6 +217,12 @@ test('reviewProblems: a spawn run is invalid unless a Haiku subagent started', (
   assert.match(reviewProblems(arm, m, agentLine('sonnet')).join(), /none started a Haiku subagent/);
   assert.deepEqual(reviewProblems(arm, m, agentLine('haiku')), []);
   assert.match(reviewProblems(arm, { init: initOf(arm, { tools: REVIEW_TOOLS.split(',') }) }, agentLine('haiku')).join(), /lack Agent/);
+});
+
+test('reviewProblems: a Haiku request whose subagent ran on Sonnet is an invalid spawn run', () => {
+  const arm = 'sonnet-spawns-haiku';
+  const transcript = `${agentLine('haiku')}\n${subLine('claude-sonnet-5-5')}`;
+  assert.match(reviewProblems(arm, { init: initOf(arm) }, transcript).join(), /none started a Haiku subagent/);
 });
 
 test('reviewProblems: other arms must have no Agent tool, no Agent call, and the arm model', () => {
@@ -282,11 +319,23 @@ test('tally: counts valid runs only, per category, with clean-diff false alarms 
   assert.deepEqual(t.b.overall, { found: 1, planted: 1 });
 });
 
+test('tally: a (case, run) cell counts only when every planned arm has a valid run there', () => {
+  const at = (arm, cs, run, status = 'valid') => row(arm, g([bug('local', true)]), { case: cs, run, status });
+  const rows = [at('a', 'c1', 1), at('b', 'c1', 1), at('a', 'c1', 2), at('b', 'c1', 2, 'invalid'), at('a', 'c2', 1)];
+  const planned = [{ case: 'c1', arm: 'a', run: 1 }, { case: 'c1', arm: 'b', run: 1 }, { case: 'c1', arm: 'a', run: 2 }, { case: 'c1', arm: 'b', run: 2 }, { case: 'c2', arm: 'a', run: 1 }, { case: 'c2', arm: 'b', run: 1 }];
+  assert.equal(pairedRows(rows, planned).length, 2); // only c1 run 1, both arms
+  const t = tally(rows, planned);
+  assert.equal(t.a.runs, 1);
+  assert.equal(t.b.runs, 1);
+  assert.equal(t.a.overall.planted, t.b.overall.planted);
+  assert.equal(pairedRows(rows).length, 3); // without a plan, only arms with a row at the cell are required (c2 has just arm a)
+});
+
 test('reviewReport: lists invalid runs, per-arm table and a verdict row per non-baseline arm', () => {
   const rows = [
     row(BASELINE, g([bug('local', false), bug('local', false), bug('local', false), bug('cross', true)])),
     row('sonnet-diff-primer', g([bug('local', true), bug('local', true), bug('local', true), bug('cross', true)])),
-    row('sonnet-spawns-haiku', g([bug('local', true)]), { status: 'invalid', problems: ['invalid spawn run: no Agent call, so no Haiku subagent started'] }),
+    row('sonnet-spawns-haiku', g([bug('local', true)]), { case: 'c2', status: 'invalid', problems: ['invalid spawn run: no Agent call, so no Haiku subagent started'] }),
   ];
   const md = reviewReport(rows, { spent: 1.5, budget: 10 });
   assert.match(md, /INVALID OR USAGE-LIMIT RUNS \(1/);

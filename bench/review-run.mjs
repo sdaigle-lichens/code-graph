@@ -141,9 +141,12 @@ for (const p of plan) {
 
 if (!DRY) {
   save();
-  const md = reviewReport(rows, { ...meta, spent, stop });
+  const md = reviewReport(rows, { ...meta, spent, stop, planned: plan });
   writeFileSync(join(outDir, 'report.md'), md);
   console.log('\n' + md);
   console.log(`results: ${outDir}`);
   if (stop) process.exit(3);
+} else if (stop) {
+  console.error(`review-run: ${stop}`);
+  process.exit(3);
 }

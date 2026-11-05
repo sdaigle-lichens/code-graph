@@ -272,12 +272,16 @@ export function findingsOf(text) {
   return { structured: false, none: NONE_RE.test(t) && !items.length, items };
 }
 
+// A finding that says the code is fine is not a finding of a defect, whatever keywords it also names.
+const ABSENT_RE = /\b(?:is|are|looks?|seems?|appears?|remains?|stays?) (?:fine|correct|ok|okay|safe|right|intended|harmless|valid)\b|\b(?:correct|fine|safe|ok) as written\b|\bno (?:bug|issue|problem|defect|concern)s?\b|\bnot (?:a |an )?(?:bug|problem|issue|defect)\b/i;
+function says_absent(item) { return ABSENT_RE.test(item); }
+
 // c.review = { clean?: true, bugs: [{ id, category, file: regex, defect: [regex, ...] }] }.
 // A planted bug counts as found when one finding names its file and matches every defect pattern.
 export function gradeReview(c, text) {
   const f = findingsOf(text);
   const bugs = c.review.bugs || [];
-  const hit = (b, item) => new RegExp(b.file, 'i').test(item) && b.defect.every((d) => new RegExp(d, 'i').test(item));
+  const hit = (b, item) => !says_absent(item) && new RegExp(b.file, 'i').test(item) && b.defect.every((d) => new RegExp(d, 'i').test(item));
   const found = bugs.map((b) => ({ id: b.id, category: b.category, found: f.items.some((it) => hit(b, it)) }));
   const matched = new Set();
   f.items.forEach((it, i) => { if (bugs.some((b) => hit(b, it))) matched.add(i); });
@@ -311,7 +315,9 @@ export function spawnEvidence(transcript) {
       if (b.type === 'tool_use' && isAgentName(b.name)) calls.push({ model: String(b.input?.model ?? ''), type: String(b.input?.subagent_type ?? '') });
     }
   }
-  const haiku = calls.length > 0 && (calls.some((c) => /haiku/i.test(c.model)) || [...subModels].some((m) => /haiku/i.test(m)));
+  // What ran wins over what was asked: when subagent messages exist, one must be Haiku; the call's own
+  // model field counts only when the stream carries no subagent message at all.
+  const haiku = calls.length > 0 && (subModels.size ? [...subModels].some((m) => /haiku/i.test(m)) : calls.some((c) => /haiku/i.test(c.model)));
   return { calls: calls.length, haiku, models: calls.map((c) => c.model || '-'), subModels: [...subModels] };
 }
 
@@ -343,10 +349,22 @@ export function reviewProblems(arm, m, transcript) {
 export const isValidRow = (r) => (r.status || (r.problems?.length ? 'invalid' : 'valid')) === 'valid';
 
 // Per arm: { local, cross, overall: { found, planted }, falseAlarms, cleanRuns, runs, cost, extra }
-export function tally(rows) {
+// Valid rows that every arm can be scored on: a (case, run) cell counts only when every arm planned at that
+// cell has a valid row there, so no arm is scored on cells another arm lacks (a cap stop in the second
+// pass, an invalid run). `planned` is the run plan ([{ case, arm, run }]); without it, the arms that have a
+// row (valid or not) at the cell are the ones required.
+export function pairedRows(rows, planned) {
+  const key = (r) => `${r.case}#${r.run}`;
+  const need = new Map();
+  for (const r of planned ?? rows) (need.get(key(r)) ?? need.set(key(r), new Set()).get(key(r))).add(r.arm);
+  const have = new Map();
+  for (const r of rows) if (isValidRow(r)) (have.get(key(r)) ?? have.set(key(r), new Set()).get(key(r))).add(r.arm);
+  return rows.filter((r) => isValidRow(r) && [...need.get(key(r))].every((a) => have.get(key(r))?.has(a)));
+}
+
+export function tally(rows, planned) {
   const out = {};
-  for (const r of rows) {
-    if (!isValidRow(r)) continue;
+  for (const r of pairedRows(rows, planned)) {
     const t = (out[r.arm] ||= { local: { found: 0, planted: 0 }, cross: { found: 0, planted: 0 }, overall: { found: 0, planted: 0 }, falseAlarms: 0, cleanRuns: 0, runs: 0, cost: 0, extra: 0 });
     t.runs++;
     t.cost += r.m?.cost || 0;
@@ -388,9 +406,12 @@ export function reviewReport(rows, meta) {
     const g = r.grade;
     L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.findings} | ${g.extra} | ${g.clean ? g.falseAlarms : '-'} | ${g.structured ? 'yes' : 'no'} | ${usd(r.m?.cost)} | ${r.m?.turns ?? 'n/a'} |`);
   }
-  const t = tally(rows);
+  const t = tally(rows, meta.planned);
   const arms = REVIEW_ARM_NAMES.filter((a) => t[a]);
-  L.push('', '## Per arm (valid runs only)', '', '| arm | valid runs | local found | cross found | overall found | false alarms (clean runs) | extra findings | cost per run |', '|---|---|---|---|---|---|---|---|');
+  const nValid = rows.filter(isValidRow).length;
+  const nCounted = pairedRows(rows, meta.planned).length;
+  L.push('', `Counted: ${nCounted} of ${nValid} valid runs. A (case, run) cell is scored only when every arm planned there has a valid run, so every arm is scored on the same cells; ${nValid - nCounted} valid run(s) were left out because another arm's cell is missing or invalid.`);
+  L.push('', '## Per arm (paired valid runs only)', '', '| arm | valid runs | local found | cross found | overall found | false alarms (clean runs) | extra findings | cost per run |', '|---|---|---|---|---|---|---|---|');
   const fp = (x) => `${x.found}/${x.planted}`;
   for (const a of arms) L.push(`| ${a} | ${t[a].runs} | ${fp(t[a].local)} | ${fp(t[a].cross)} | ${fp(t[a].overall)} | ${t[a].falseAlarms} (${t[a].cleanRuns}) | ${t[a].extra} | ${usd(t[a].cost / t[a].runs)} |`);
   if (t[BASELINE]) {
