@@ -285,7 +285,11 @@ function saysAbsent(item) { return ABSENT_RE.test(item); }
 export function gradeReview(c, text) {
   const f = findingsOf(text);
   const bugs = c.review.bugs || [];
-  const hit = (b, item) => !saysAbsent(item) && new RegExp(b.file, 'i').test(item) && b.defect.every((d) => new RegExp(d, 'i').test(item));
+  // The file regex is matched against the path token (the text before the first ": "), so a finding for
+  // another file that merely mentions a planted file's name in its description is not credited. An item
+  // with no ": " has no separate path token and is matched whole.
+  const pathOf = (item) => { const i = item.indexOf(': '); return i > 0 ? item.slice(0, i) : item; };
+  const hit = (b, item) => !saysAbsent(item) && new RegExp(b.file, 'i').test(pathOf(item)) && b.defect.every((d) => new RegExp(d, 'i').test(item));
   const found = bugs.map((b) => ({ id: b.id, category: b.category, found: f.items.some((it) => hit(b, it)) }));
   const matched = new Set();
   f.items.forEach((it, i) => { if (bugs.some((b) => hit(b, it))) matched.add(i); });

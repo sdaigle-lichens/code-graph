@@ -154,7 +154,7 @@ test('graders: a known-good review text finds every planted bug with no false al
 
 test('graders: each planted bug is credited by its own description (a grader that cannot see its own bug is broken)', () => {
   for (const c of REVIEW_CASES) for (const b of c.review.bugs) {
-    const g = gradeReview(c, `FINDINGS:\n- ${b.file.split('|')[0]}: ${b.desc}`);
+    const g = gradeReview(c, `FINDINGS:\n- ${b.file.split('|')[0].replaceAll('\\', '')}: ${b.desc}`);
     assert.equal(g.bugs.find((x) => x.id === b.id)?.found, true, `${c.id}/${b.id}`);
   }
 });
@@ -224,6 +224,96 @@ test('stored diffs and primers exist for every case, hold the planted lines, and
     // the primer is built from the diff and the index only: it never carries the grader's text
     for (const b of c.review.bugs) assert.ok(!primer.includes(b.desc), c.id);
   }
+});
+
+// The old and new sides of a stored one-hunk diff, as the reviewer reads them (context lines on both).
+const sidesOf = (diff) => {
+  const old = [];
+  const neu = [];
+  for (const l of String(diff).split('\n').slice(4)) {
+    if (l.startsWith('-')) old.push(l.slice(1));
+    else if (l.startsWith('+')) neu.push(l.slice(1));
+    else if (l.startsWith(' ')) { old.push(l.slice(1)); neu.push(l.slice(1)); }
+  }
+  return { old: old.join('\n'), neu: neu.join('\n') };
+};
+
+// The lines of `a` that no longest common subsequence with `b` keeps: the lines a plant changes (a moved
+// line counts on both sides). A plant's unchanged lines may lie outside the three context lines of the hunk.
+const changedLinesOf = (a, b) => {
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const keep = new Set();
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { keep.add(i); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++;
+  }
+  return a.filter((_, k) => !keep.has(k));
+};
+
+test('068: each stored diff is one file, and every line a plant removes is on its old side, every line it adds on its new side (moved lines included)', () => {
+  for (const c of REVIEW_CASES) {
+    const diff = stored(c.id, 'diff');
+    assert.equal(diff.split('\n').filter((l) => l.startsWith('diff --git ')).length, 1, `${c.id}: one file per stored diff`);
+    const { old, neu } = sidesOf(diff);
+    const oldLines = old.split('\n');
+    const newLines = neu.split('\n');
+    for (const p of c.review.plant) {
+      const from = p.from.split('\n');
+      const to = p.to.split('\n');
+      for (const l of changedLinesOf(from, to)) assert.ok(oldLines.includes(l), `${c.id}: removed line not on the old side of the stored diff: ${l}`);
+      for (const l of changedLinesOf(to, from)) assert.ok(newLines.includes(l), `${c.id}: added line not on the new side of the stored diff: ${l}`);
+    }
+  }
+});
+
+test('068: the side check is not vacuous: the r-l3 moved-line diff does not carry the r-l2 plant', () => {
+  const r3 = REVIEW_CASES.find((x) => x.id === 'r-l3-count-before-remove');
+  const other = REVIEW_CASES.find((x) => x.id === 'r-l2-sweep-default-cap');
+  const { old, neu } = sidesOf(stored(r3.id, 'diff'));
+  const otherFrom = other.review.plant[0].from.split('\n');
+  const otherTo = other.review.plant[0].to.split('\n');
+  assert.ok(changedLinesOf(otherFrom, otherTo).some((l) => !old.split('\n').includes(l)), 'the other plant\'s removed line is absent from r-l3 (so the check can fail)');
+  assert.ok(changedLinesOf(r3.review.plant[0].from.split('\n'), r3.review.plant[0].to.split('\n')).every((l) => old.split('\n').includes(l)));
+  assert.ok(neu.includes(r3.review.plant[0].to.split('\n')[0]));
+});
+
+test('068: each cross case names consumers whose identifiers are on no changed line of its stored diff (the breakage is outside the diff)', () => {
+  const consumers = {
+    'r-x1-list-skips-worktree': ['liveRunIds', 'pendingLanes'],
+    'r-x2-sqlite-edge': ['maestro-session'],
+    'r-x3-claim-requires-name': ['maestro-task-status'],
+    'r-x4-liveness-state-file': ['maestro-task-status'],
+    'r-x5-queue-root': ['listTasks', 'closeTask'],
+  };
+  for (const c of REVIEW_CASES.filter((x) => x.kind === 'cross')) {
+    assert.ok(consumers[c.id], `${c.id} needs its consumer identifiers listed here`);
+    const changed = stored(c.id, 'diff').split('\n').slice(4).filter((l) => l.startsWith('+') || l.startsWith('-')).join('\n');
+    for (const id of consumers[c.id]) assert.ok(!changed.includes(id), `${c.id}: ${id} is on a changed line`);
+  }
+});
+
+test('graders: "none", an all-clear, prose outside FINDINGS, an absent-defect sentence or a missing defect pattern credit no bug; a repeated finding counts once', () => {
+  for (const c of REVIEW_CASES.filter((x) => x.review.bugs.length)) {
+    for (const text of ['FINDINGS: none', 'No issues found. LGTM.', '**FINDINGS:** None.']) assert.equal(gradeReview(c, text).found, 0, `${c.id}: ${text}`);
+    for (const b of c.review.bugs) {
+      const file = b.file.split('|')[0];
+      assert.equal(gradeReview(c, `FINDINGS:\n- ${file}: ${b.desc}, which is fine as written.`).found, 0, `${c.id}/${b.id} absent sentence`);
+    }
+  }
+  const l1 = REVIEW_CASES.find((x) => x.id === 'r-l1-resumable-clear');
+  assert.equal(gradeReview(l1, 'The clear reason leaks its claim and the directory goes too early.\n\nFINDINGS: none').found, 0, 'prose before an empty FINDINGS header');
+  const x3 = REVIEW_CASES.find((x) => x.id === 'r-x3-claim-requires-name');
+  assert.equal(gradeReview(x3, 'FINDINGS:\n- apps/maestro/src/core/claims.ts: session_name is now required by readClaimFile.').found, 0, 'one of two defect patterns is not enough');
+  const cap = REVIEW_CASES.find((x) => x.id === 'r-l2-sweep-default-cap');
+  const twice = gradeReview(cap, `FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: ${cap.review.bugs[0].desc}\n- apps/maestro/src/core/session-sweep.ts: ${cap.review.bugs[0].desc}`);
+  assert.deepEqual([twice.found, twice.extra, twice.findings], [1, 0, 2]);
+});
+
+test('graders: a finding for another file that only uses a planted file word ("claims") is not credited', () => {
+  const x3 = REVIEW_CASES.find((x) => x.id === 'r-x3-claim-requires-name');
+  assert.equal(gradeReview(x3, 'FINDINGS:\n- apps/maestro/src/core/other.ts: session_name is required and the claims directory reads unnamed claims as absent').found, 0);
 });
 
 test('the x2 primer names the new cross-concept edge; the x1 and x4 primers list the callers of the changed symbol that the diff does not show', () => {
