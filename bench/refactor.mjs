@@ -74,7 +74,7 @@ ${SCOPE_OPEN}
 ${scope.trim()}
 ${SCOPE_CLOSE}`;
 
-const FORMAT = `Finish with a section that starts with the line \`PROPOSALS:\` followed by one line per proposal, in the form \`- <file path>: <kind>: <the problem and the change, in one or two sentences>\`, where kind is one of dedupe, extract-helper, align-pattern, break-cycle, remove-unused. If nothing is warranted, write \`PROPOSALS: none\`.`;
+const FORMAT = `Finish with a section that starts with the line \`PROPOSALS:\` followed by one line per proposal, in the form \`- <file path>: <kind>: <the problem and the change, in one or two sentences>\`, where kind is one of dedupe, extract-helper, align-pattern, break-cycle, remove-unused. If nothing is warranted, write \`PROPOSALS: none\` and nothing else: no bullet, no sentence after it, no all-clear line.`;
 
 const SPAWN_PARAGRAPH = `Hand the survey of the neighbourhood to Haiku subagents: use the Agent tool with the model set to \`haiku\`, give each subagent a few of the files, and ask it to list code that duplicates code in another file, patterns that differ from the sibling files, imports that close a cycle, and exports nothing imports (file and line). Then judge their reports yourself and write the proposals.`;
 
@@ -256,26 +256,56 @@ export const proposalCategory = (item) => {
   const kind = /^\s*([a-z-]+)\s*:/i.exec(rest);
   return (kind && KIND_CAT[kind[1].toLowerCase()]) || 'other';
 };
+// An all-clear is text that says nothing is warranted ("no proposals", "nothing to do", "No refactor is
+// warranted", "fine as written"): a formatting habit, not a proposal. It is its own count (`allClear`), per
+// case and per arm, and is NOT a false finding (pre-registered in docs/evals.md), so an arm that writes
+// all-clear lines instead of `PROPOSALS: none` is not scored worse for it.
+const ALL_CLEAR_RE = /^\W*(?:no (?:further |other |additional )?(?:proposals?|refactors?|refactoring|changes?|improvements?|suggestions?)\b|nothing (?:to (?:do|change|propose|refactor|report|improve|suggest)|is warranted|warranted|needed|else)\b|none\b|n\/a\b|all (?:clear|good)\b)/i;
+export const isAllClear = (item) => ALL_CLEAR_RE.test(item.trim()) || ABSENT_RE.test(item);
+// A proposal line has the form `<file>: <kind>: <text>`; anything else on the `PROPOSALS:` header line is prose.
+const SHAPE_RE = /^\S+:\s+[a-z][a-z-]*:\s/i;
+
+// The proposals of an answer: the items under its `PROPOSALS:` header with the all-clear text taken out and
+// counted. `PROPOSALS:` followed by prose on its own line (no bullet, not in the proposal form) is an
+// all-clear too: a legitimate zero on a case with expected improvements, a "none" on a clean case, never a
+// proposal and never an unstructured run.
+export function proposalsOf(text) {
+  const f = findingsOf(text, 'PROPOSALS');
+  let items = f.items.slice();
+  let allClear = 0;
+  if (f.structured) {
+    const hdr = [...String(text ?? '').matchAll(/^[ \t*#>_`-]*PROPOSALS[ \t*`_]*:[ \t*`_]*(.*)$/gim)].pop();
+    const rest = hdr ? hdr[1].trim() : '';
+    if (rest && !f.none && items.length && !SHAPE_RE.test(rest) && !/^(?:[-*•]|\d+[.)])\s/.test(rest)) { items.shift(); allClear++; }
+  }
+  const real = items.filter((it) => !isAllClear(it));
+  allClear += items.length - real.length;
+  return { ...f, items: real, allClear };
+}
+
 export function gradeItems(c, items) {
   const exp = c.refactor.expected || [];
   const tol = c.refactor.tolerated || [];
   const found = exp.map((x) => ({ id: x.id, category: x.category, found: items.some((it) => matches(x, it)) }));
   let credited = 0;
   let tolerated = 0;
+  let allClear = 0;
   let rest = 0;
   const falseByCat = {};
   for (const it of items) {
     if (exp.some((x) => matches(x, it))) credited++;
     else if (tol.some((x) => matches(x, it))) tolerated++;
+    else if (isAllClear(it)) allClear++;
     else { rest++; const k = proposalCategory(it); falseByCat[k] = (falseByCat[k] || 0) + 1; }
   }
   const clean = !exp.length;
-  return { planted: exp.length, found: found.filter((x) => x.found).length, expected: found, proposals: items.length, credited, tolerated, falseFindings: rest, falseByCat, clean };
+  return { planted: exp.length, found: found.filter((x) => x.found).length, expected: found, proposals: items.length - allClear, credited, tolerated, allClear, falseFindings: rest, falseByCat, clean };
 }
 
 export function gradeRefactor(c, text) {
-  const f = findingsOf(text, 'PROPOSALS');
-  return { structured: f.structured, none: f.none, ...gradeItems(c, f.items), items: f.items };
+  const f = proposalsOf(text);
+  const g = gradeItems(c, f.items);
+  return { structured: f.structured, none: f.none, ...g, allClear: g.allClear + f.allClear, items: f.items };
 }
 
 // ---- pipeline: the filter's verdicts and anchoring ------------------------------------------------
@@ -325,14 +355,14 @@ export function anchoring(scoutCount, v) {
 // expected improvements the filter threw away (found by the scout, not kept) or the false findings it
 // removed.
 export function gradePipeline(c, scoutText, filterText) {
-  const f = findingsOf(scoutText, 'PROPOSALS');
-  const scout = gradeItems(c, f.items);
-  if (!f.items.length) return { ...gradeItems(c, []), structured: f.structured, none: f.none, items: [], scout, anchor: anchoring(0, null), verdicts: null, lostByFilter: 0, falseRemoved: 0 };
+  const f = proposalsOf(scoutText); // all-clear text never reaches the filter; it is counted from the scout
+  const scout = { ...gradeItems(c, f.items), allClear: f.allClear };
+  if (!f.items.length) return { ...gradeItems(c, []), allClear: f.allClear, structured: f.structured, none: f.none, items: [], scout, anchor: anchoring(0, null), verdicts: null, lostByFilter: 0, falseRemoved: 0 };
   const v = filterText == null ? null : verdictsOf(filterText, f.items.length);
   const survivors = v ? v.kept.map((i) => f.items[i - 1]) : [];
   const g = gradeItems(c, survivors);
   return {
-    structured: f.structured, none: f.none, ...g, items: survivors, scout, verdicts: v, anchor: anchoring(f.items.length, v),
+    structured: f.structured, none: f.none, ...g, allClear: f.allClear, items: survivors, scout, verdicts: v, anchor: anchoring(f.items.length, v),
     lostByFilter: scout.found - g.found, falseRemoved: scout.falseFindings - g.falseFindings,
   };
 }
@@ -397,13 +427,14 @@ export function tally(rows, planned) {
   const out = {};
   for (const r of pairedRows(rows, planned)) {
     const t = (out[r.arm] ||= {
-      cats: Object.fromEntries(CATEGORIES.map((k) => [k, blank()])), overall: blank(), falseFindings: 0, falseByCat: {}, cleanRuns: 0, runs: 0, cost: 0,
+      cats: Object.fromEntries(CATEGORIES.map((k) => [k, blank()])), overall: blank(), falseFindings: 0, allClear: 0, falseByCat: {}, cleanRuns: 0, runs: 0, cost: 0,
       anchor: { runs: 0, scout: 0, kept: 0, unchanged: 0 }, lostByFilter: 0, falseRemoved: 0, scoutFound: 0, scoutFalse: 0,
     });
     t.runs++;
     t.cost += rowCost(r);
     if (r.grade.clean) t.cleanRuns++;
     t.falseFindings += r.grade.falseFindings || 0;
+    t.allClear += r.grade.allClear || 0;
     for (const [k, n] of Object.entries(r.grade.falseByCat || {})) t.falseByCat[k] = (t.falseByCat[k] || 0) + n;
     for (const e of r.grade.expected) {
       (t.cats[e.category] ||= blank()).planted++; t.overall.planted++;
@@ -461,12 +492,12 @@ export function refactorReport(rows, meta) {
     for (const r of bad) for (const p of (r.problems.length ? r.problems : [r.status])) L.push(`- ${r.case} ${r.arm} run${r.run}: ${p}`);
     L.push('');
   } else if (rows.length) L.push('No invalid run.', '');
-  L.push('## Per case and arm', '', '| case | arm | run | valid | kept / expected | proposals kept | false findings | structured | anchoring (kept/scout) | cost $ (scout + filter) | turns |', '|---|---|---|---|---|---|---|---|---|---|---|');
+  L.push('## Per case and arm', '', '| case | arm | run | valid | kept / expected | proposals kept | false findings | all-clear lines | structured | anchoring (kept/scout) | cost $ (scout + filter) | turns |', '|---|---|---|---|---|---|---|---|---|---|---|---|');
   for (const r of rows) {
     const g = r.grade;
     const an = g.anchor ? `${g.anchor.kept}/${g.anchor.scout}` : '-';
     const cost = r.m2 ? `${usd(rowCost(r))} (${usd(r.m?.cost)} + ${usd(r.m2.cost)})` : usd(rowCost(r));
-    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.proposals} | ${g.falseFindings}${g.clean ? ' (clean case)' : ''} | ${g.structured ? 'yes' : 'no (unstructured)'}${g.verdicts ? ` / filter ${g.verdicts.structured ? 'yes' : 'no (unstructured)'}` : ''} | ${an} | ${cost} | ${r.m?.turns ?? 'n/a'} |`);
+    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.proposals} | ${g.falseFindings}${g.clean ? ' (clean case)' : ''} | ${g.allClear || 0} | ${g.structured ? 'yes' : 'no (unstructured)'}${g.verdicts ? ` / filter ${g.verdicts.structured ? 'yes' : 'no (unstructured)'}` : ''} | ${an} | ${cost} | ${r.m?.turns ?? 'n/a'} |`);
   }
   const t = tally(rows, meta.planned);
   const arms = REFACTOR_ARM_NAMES.filter((a) => t[a]);
@@ -474,8 +505,8 @@ export function refactorReport(rows, meta) {
   const nCounted = pairedRows(rows, meta.planned).length;
   L.push('', `Counted: ${nCounted} of ${nValid} valid runs. A (case, run) cell is scored only when every arm planned there has a valid run, so every arm is scored on the same cells; ${nValid - nCounted} valid run(s) were left out because another arm's cell is missing or invalid.`);
   const fp = (x) => `${x.found}/${x.planted}`;
-  L.push('', '## Per arm (paired valid runs only; the pipeline is scored on what survives the filter)', '', `| arm | valid runs | ${CATEGORIES.join(' | ')} | overall kept | false findings kept (all cases) | cost per run |`, `|---|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|`);
-  for (const a of arms) L.push(`| ${a} | ${t[a].runs} | ${CATEGORIES.map((k) => fp(t[a].cats[k])).join(' | ')} | ${fp(t[a].overall)} | ${t[a].falseFindings} | ${usd(t[a].cost / t[a].runs)} |`);
+  L.push('', '## Per arm (paired valid runs only; the pipeline is scored on what survives the filter)', '', `| arm | valid runs | ${CATEGORIES.join(' | ')} | overall kept | false findings kept (all cases) | all-clear lines (not false findings) | cost per run |`, `|---|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|---|`);
+  for (const a of arms) L.push(`| ${a} | ${t[a].runs} | ${CATEGORIES.map((k) => fp(t[a].cats[k])).join(' | ')} | ${fp(t[a].overall)} | ${t[a].falseFindings} | ${t[a].allClear} | ${usd(t[a].cost / t[a].runs)} |`);
   const FCATS = [...CATEGORIES, 'other'];
   L.push('', '## False findings kept, by the category of the proposal (every proposal beyond the expected ones, on every case)', '', `| arm | ${FCATS.join(' | ')} | total |`, `|---|${FCATS.map(() => '---').join('|')}|---|`);
   for (const a of arms) L.push(`| ${a} | ${FCATS.map((k) => t[a].falseByCat[k] || 0).join(' | ')} | ${t[a].falseFindings} |`);

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
-  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory, answerProblems,
+  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory, answerProblems, proposalsOf,
   refactorArgs, refactorPrompt, refactorReport, rowCost, stageProblems, stageSpec, stagesOf, storedProblems, tally, unusedExports, verdictsOf,
 } from './refactor.mjs';
 import { REFACTOR_CASES, selectRefactorCases } from './refactor-cases.mjs';
@@ -265,13 +265,50 @@ test('answerProblems: an unstructured answer or filter answer is a run problem; 
   assert.deepEqual(answerProblems('haiku-scout-sonnet-filter', gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it')), []);
 });
 
-test('an all-clear bullet under PROPOSALS is not credited and counts as a false finding', () => {
+test('all-clear text is its own count: not credited, not a proposal, not a false finding; header-line and bullet forms, prose after the header', () => {
   const c = caseOf('f-c1-canvas-layout');
-  assert.equal(gradeRefactor(c, 'PROPOSALS:\n- apps/maestro/src/core/canvas-layout.ts: dedupe: this module is fine as written, nothing to do.').falseFindings, 1);
+  const forms = [
+    'PROPOSALS:\n- apps/maestro/src/core/canvas-layout.ts: dedupe: this module is fine as written, nothing to do.',
+    'PROPOSALS: no proposals',
+    'PROPOSALS: nothing to do',
+    'PROPOSALS: No refactor is warranted.',
+    'PROPOSALS:\n- nothing to change here',
+    'PROPOSALS: The neighbourhood looks fine, I would leave it alone.',
+  ];
+  for (const f of forms) {
+    const g = gradeRefactor(c, f);
+    assert.equal(g.falseFindings, 0, f);
+    assert.equal(g.proposals, 0, f);
+    assert.equal(g.allClear, 1, f);
+    assert.equal(g.structured, true, f);
+  }
+  const none = gradeRefactor(c, 'PROPOSALS: none');
+  assert.equal(none.allClear, 0);
+  assert.equal(none.none, true);
   const r = caseOf('f-r1-canvas-align');
-  const g = gradeRefactor(r, 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: dedupe: alignMainSession is fine as written.');
-  assert.equal(g.found, 0);
+  const g = gradeRefactor(r, 'PROPOSALS: nothing to do');
+  assert.equal(g.found, 0, 'a legitimate zero on a case with expected improvements');
+  assert.equal(g.falseFindings, 0);
+  const mixed = gradeRefactor(r, `${r.samples.good}\n- nothing to change here\n- a.ts: dedupe: x`);
+  assert.equal(mixed.found, 1);
+  assert.equal(mixed.allClear, 1);
+  assert.equal(mixed.falseFindings, 1);
+  assert.equal(mixed.proposals, 2);
+  assert.equal(gradeItems(r, ['nothing to change here']).allClear, 1);
+  assert.equal(proposalsOf('PROPOSALS: no proposals').items.length, 0);
+});
+
+test('gradePipeline: all-clear lines never reach the filter and are counted from the scout', () => {
+  const c = caseOf('f-c1-canvas-layout');
+  const g = gradePipeline(c, 'PROPOSALS:\n- nothing to change here\n- a.ts: dedupe: x', 'VERDICTS:\n- 1: file-it');
+  assert.equal(g.allClear, 1);
+  assert.equal(g.anchor.scout, 1);
   assert.equal(g.falseFindings, 1);
+  assert.equal(gradePipeline(c, 'PROPOSALS: nothing to do', null).allClear, 1);
+});
+
+test('refactorPrompt: asks for "PROPOSALS: none" and nothing else when nothing is warranted', () => {
+  assert.match(refactorPrompt('sonnet-plain', 'f.ts', ''), /`PROPOSALS: none` and nothing else/);
 });
 
 test('refactorReport: an unstructured answer is shown as unstructured, not as a clean run with no proposals', () => {

@@ -4,6 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveMaestroDir } from './maestro-dir.mjs';
@@ -93,6 +95,57 @@ test('the real cases name a source commit that exists in the maestro checkout, w
     assert.equal(r.status, 0, `${c.id}: ${m[1]} is not a commit of the checkout`);
     assert.equal(r.stdout.trim(), m[2], `${c.id}: the subject of ${m[1]} is the title the case names`);
   }
+});
+
+// The runner's own session path (setup, validity, grading, status, report) with `claude` replaced by a stub on
+// PATH that prints an init event and one result event carrying `answer`. No model is called, nothing is spent.
+function runWithStubClaude(answer) {
+  const bin = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'refactor-cli-claude-'));
+  const skills = REFACTOR_CASES.find((c) => c.id === 'f-c1-canvas-layout').skills;
+  const stub = join(bin, 'claude');
+  writeFileSync(stub, `#!/usr/bin/env node
+const init = { type: 'system', subtype: 'init', model: 'claude-sonnet-5-5', tools: ['Bash', 'Read', 'Grep', 'Glob', 'Skill'], skills: ${JSON.stringify(skills)}, plugins: [], slash_commands: [], agents: [] };
+const result = { type: 'result', subtype: 'success', is_error: false, result: ${JSON.stringify(answer)}, total_cost_usd: 0.05, num_turns: 2 };
+process.stdout.write(JSON.stringify(init) + '\\n' + JSON.stringify(result) + '\\n');
+`);
+  chmodSync(stub, 0o755);
+  const r = spawnSync('node', [join(here, 'refactor-run.mjs'), '--budget', '1', '--run-budget', '0.5', '--only', 'f-c1-canvas-layout', '--arms', 'sonnet-plain', '--runs', '1'], {
+    encoding: 'utf8', timeout: 300000, env: { ...plainEnv, PATH: `${bin}:${process.env.PATH}` },
+  });
+  const dir = /^results: (.+)$/m.exec(r.stdout)?.[1];
+  try {
+    return {
+      r,
+      runs: dir ? JSON.parse(readFileSync(join(dir, 'runs.json'), 'utf8')) : null,
+      report: dir ? readFileSync(join(dir, 'report.md'), 'utf8') : '',
+    };
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('refactor-run, real runner: an unstructured clean-case answer is an invalid run, listed with the reason and a "no (unstructured)" column, and not counted', { skip: noMaestro }, () => {
+  const { r, runs, report } = runWithStubClaude('The neighbourhood is fine as it is; nothing to propose.');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(runs.rows.length, 1);
+  assert.equal(runs.rows[0].status, 'invalid');
+  assert.equal(runs.rows[0].grade.structured, false);
+  assert.match(runs.rows[0].problems.join('\n'), /sonnet-plain: the answer has no PROPOSALS section \(unstructured\); the run is not counted/);
+  assert.match(report, /## INVALID OR USAGE-LIMIT RUNS \(1, not counted\)/);
+  assert.match(report, /- f-c1-canvas-layout sonnet-plain run1: sonnet-plain: the answer has no PROPOSALS section/);
+  assert.match(report, /\| f-c1-canvas-layout \| sonnet-plain \| 1 \| NO \|[^\n]*\| no \(unstructured\) \|/);
+  assert.match(report, /Counted: 0 of 0 valid runs\./);
+});
+
+test('refactor-run, real runner: "PROPOSALS: none" after a prose sentence on a clean case is a valid run with nothing counted as a false finding', { skip: noMaestro }, () => {
+  const { r, runs, report } = runWithStubClaude('The neighbourhood is fine as it is.\n\nPROPOSALS: none');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(runs.rows[0].status, 'valid');
+  assert.equal(runs.rows[0].grade.structured, true);
+  assert.equal(runs.rows[0].grade.falseFindings, 0);
+  assert.match(report, /No invalid run\./);
+  assert.match(report, /\| f-c1-canvas-layout \| sonnet-plain \| 1 \| yes \| 0\/0 \| 0 \| 0 \(clean case\) \| 0 \| yes \|/);
 });
 
 test('refactor-prep --check: every stored scope and primer regenerates byte for byte from the pinned maestro checkout, and every plant applies', { skip: noMaestro }, () => {

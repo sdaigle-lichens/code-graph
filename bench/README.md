@@ -364,7 +364,9 @@ every case, clean or not, counted after the filter for the pipeline and split by
 
 An answer with no `PROPOSALS:` section (or a filter answer with no `VERDICTS:` section) makes the run invalid
 (`answerProblems`), is not counted and is listed in the report; `PROPOSALS: none` is valid. The per-case table
-has a `structured` column. An all-clear bullet under `PROPOSALS:` counts as a false finding.
+has a `structured` column. All-clear text (`PROPOSALS: nothing to do`, `- nothing to change here`, a bullet saying the code is fine,
+`PROPOSALS:` followed by prose) is its own `all-clear lines` count per case and arm: not a proposal, not sent
+to the filter, not a false finding. The prompt asks for `PROPOSALS: none` and nothing else.
 
 Files:
 

@@ -21,11 +21,10 @@ import { applyReplacements } from './edit.mjs';
 import { maestroFor } from './maestro-dir.mjs';
 import {
   DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, filterPrompt, gradePipeline, gradeRefactor, parseRefactorArms, promptProblems,
-  answerProblems, refactorArgs, refactorPrompt, refactorReport, stageProblems, stageSpec, stagesOf, storedProblems,
+  answerProblems, proposalsOf, refactorArgs, refactorPrompt, refactorReport, stageProblems, stageSpec, stagesOf, storedProblems,
 } from './refactor.mjs';
 import { selectRefactorCases } from './refactor-cases.mjs';
 import { refactorFile } from './refactor-prep.mjs';
-import { findingsOf } from './review.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
@@ -156,7 +155,7 @@ for (const p of plan) {
   let second = null;
   let grade;
   if (REFACTOR_ARMS[arm].filter) {
-    const items = findingsOf(first.m.answer, 'PROPOSALS').items;
+    const items = proposalsOf(first.m.answer).items;
     if (items.length && first.m.cost != null) {
       second = session(c, arm, 'filter', n, ws, filterPrompt(scope, items));
       if (!second) break;
