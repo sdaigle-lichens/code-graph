@@ -16,16 +16,23 @@ let haveMaestro = true;
 try { resolveMaestroDir(); } catch { haveMaestro = false; }
 const noMaestro = haveMaestro ? false : 'no maestro checkout on this machine (set MAESTRO_DIR)';
 
-test('review-run --dry: plans 15 cases x 4 default arms, prints each run, exits 0', { skip: noMaestro }, () => {
-  const r = run('review-run.mjs', ['--dry']);
+test('review-run --dry: plans 15 cases x 4 planned arms per run number, prints each run, exits 0', { skip: noMaestro }, () => {
+  const r = run('review-run.mjs', ['--dry', '--runs', '1']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /review-run: 60 runs \(sonnet-nograph 15, sonnet-diff-primer 15, haiku-diff-primer 15, sonnet-spawns-haiku 15\)/);
+  assert.match(r.stdout, /review-run: 60 runs \(sonnet-nograph 15, sonnet-diff-primer 15, haiku-diff-primer 15, haiku-nograph 15\)/);
   const printed = r.stdout.split('\n').filter((l) => /^\[r-/.test(l));
   assert.equal(printed.length, 60);
+  assert.equal(printed.filter((l) => l.includes('sonnet-spawns-haiku')).length, 0, 'the spawn arm is not planned');
+});
+
+test('review-run --dry: the default is 3 runs per cell (180 runs)', { skip: noMaestro }, () => {
+  const r = run('review-run.mjs', ['--dry']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /review-run: 180 runs /);
 });
 
 test('review-run --dry: only the spawn arm gets the Agent tool, and every run is named with its arm', { skip: noMaestro }, () => {
-  const r = run('review-run.mjs', ['--dry']);
+  const r = run('review-run.mjs', ['--dry', '--runs', '1', '--arms', 'sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku']);
   const lines = r.stdout.split('\n');
   const claudeLines = lines.filter((l) => l.startsWith('claude '));
   assert.equal(claudeLines.length, 60);

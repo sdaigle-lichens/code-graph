@@ -1,0 +1,13 @@
+diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
+--- a/apps/maestro/src/core/session-sweep.ts
++++ b/apps/maestro/src/core/session-sweep.ts
+@@ -119,8 +119,8 @@
+       const paths = sessionPathsFor(claudeDir, sessionId);
+       if (!paths || !isAbandoned(paths.dir, now, idleCapMs)) continue;
+       try {
+-        for (const d of sessionDirsFor(claudeDir, sessionId)) fs.rmSync(d, { recursive: true, force: true });
+         removed.push({ projectRoot, sessionId });
++        for (const d of sessionDirsFor(claudeDir, sessionId)) fs.rmSync(d, { recursive: true, force: true });
+       } catch {
+         // Cannot delete: it stays, and the next sweep tries again.
+       }

@@ -1,22 +1,39 @@
 ## Changed symbols
-- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge): `lastActivityMs` (L73-87)
+- apps/maestro/src/core/session-paths.ts (concept claude-session-bridge): `listSessionIds` (L218-229)
 
 ## Impact of each changed symbol (callers, depth 2)
 
-### `lastActivityMs` in apps/maestro/src/core/session-sweep.ts
+### `listSessionIds` in apps/maestro/src/core/session-paths.ts
 
 ## Direct callers
 
-- @apps/maestro/src/core/session-sweep.ts:98 — `isAbandoned`
+- @apps/maestro/src/core/session-log.ts:254 — `tailSessionLogs`
+- @apps/maestro/src/core/session-log.ts:21 — `newestSessionLog`
+- @apps/maestro/src/core/worktree-tabs.ts:21 — `worktreeHasLog`
+- @apps/maestro/src/core/session-log.ts:21 — `newestSessionLog`
+- @apps/maestro/src/core/session-sweep.ts:196 — `listDeletableSessions`
+- @apps/maestro/src/core/session-log.ts:254 — `tailSessionLogs`
+- @apps/maestro/src/core/session-sweep.ts:117 — `sweepStaleSessions`
+- @apps/maestro/src/core/session-log.ts:21 — `newestSessionLog`
+- @apps/maestro/src/core/session-log.ts:254 — `tailSessionLogs`
+- @apps/maestro/src/core/handoff-channels.ts:398 — `liveRunIds`
 
 ## Indirect callers (depth 2)
 
-- @apps/maestro/src/core/session-sweep.ts:108 — `sweepStaleSessions`
-- @apps/maestro/src/core/session-sweep.ts:155 — `deleteSession`
-- @apps/maestro/src/core/session-sweep.ts:189 — `listDeletableSessions`
+- @apps/maestro/src/core/worktree-tabs.ts:79 — `createWorktreeTabs`
+- @apps/maestro/src/core/session-log.ts:44 — `sessionLogFileFor`
+- @apps/maestro/src/core/worktree-tabs.ts:28 — `describeWorktrees`
+- @apps/maestro/src/core/session-log.ts:44 — `sessionLogFileFor`
+- @apps/maestro/src/main/ipc.ts:492 — `registerIpc`
+- @apps/maestro/src/core/session-ipc.ts:54 — `sweepAndRetarget`
+- @apps/maestro/src/core/session-log.ts:44 — `sessionLogFileFor`
+- @apps/maestro/src/main/ipc.ts:293 — `startTail`
+- @apps/maestro/src/core/handoff-channels.ts:415 — `pendingLanes`
 
 ## Untested callers (no test file mentions the caller by name)
-- `isAbandoned` (apps/maestro/src/core/session-sweep.ts:98) calls `lastActivityMs`
+- `newestSessionLog` (apps/maestro/src/core/session-log.ts:21) calls `listSessionIds`
+- `worktreeHasLog` (apps/maestro/src/core/worktree-tabs.ts:21) calls `listSessionIds`
+- `liveRunIds` (apps/maestro/src/core/handoff-channels.ts:398) calls `listSessionIds`
 
 ## New cross-concept edges added by the diff
 

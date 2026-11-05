@@ -4,9 +4,16 @@
 // planted defects with their graders (finding must match `file` and every `defect` regex). A case with no
 // bugs is a clean diff: any finding on it is a false alarm. `samples.good` / `samples.bad` are review
 // texts the unit tests grade (good must be fully credited, bad must score nothing).
+//
+// 068 hardening (after pilot A saturated): a cross case breaks only outside the diff (a sibling module, a
+// self-contained twin script, a caller two hops away); a local case is a boundary, ordering or default
+// mistake rather than a change that reads wrong on its own line. `review.source` says where each bug's
+// kind comes from (a maestro fix, a maestro invariant written in its own source), so the cases are not
+// built only to defeat a model.
 const SESSIONS = 'apps/maestro/src/core/session-sweep.ts';
 const CLAIMS = 'apps/maestro/src/core/claims.ts';
-const TAGS = 'apps/maestro/src/core/project-tags.ts';
+const PATHS = 'apps/maestro/src/core/session-paths.ts';
+const TASKS = 'apps/maestro/src/core/tasks.ts';
 const CHANNELS = 'apps/maestro/src/core/handoff-channels.ts';
 
 const base = {
@@ -19,58 +26,90 @@ const base = {
 export const REVIEW_CASES = [
   {
     ...base,
-    id: 'r-l1-future-mtime',
+    id: 'r-l1-resumable-clear',
     kind: 'local',
     review: {
-      plant: [{ file: SESSIONS, from: '  return idle > idleCapMs; // negative (future mtime) is never > cap', to: '  return Math.abs(idle) > idleCapMs;' }],
-      bugs: [{ id: 'abs-idle', category: 'local', file: 'session-sweep', defect: ['(future|clock.?skew|negative|abs)'], desc: 'Math.abs makes a future mtime look idle, so a live session (clock skew) is deleted' }],
+      source: 'maestro 077 / bf86ba8 "keep session state when a session ends in a resumable way": the SessionEnd allow-list of resumable reasons, where `clear` is documented as a final end (the id is abandoned)',
+      plant: [{ file: PATHS, from: 'export const RESUMABLE_END_REASONS: readonly string[] = ["prompt_input_exit", "other", "resume"];', to: 'export const RESUMABLE_END_REASONS: readonly string[] = ["prompt_input_exit", "other", "resume", "clear"];' }],
+      bugs: [{ id: 'resumable-clear', category: 'local', file: 'session-paths', defect: ['\\bclear\\b', '(final|abandon|resum|remov|director|claim|leak)'], desc: '`clear` joins the resumable SessionEnd reasons, but after /clear the id is abandoned: its session directory is no longer removed, so it leaks and its task claim stays live' }],
     },
     samples: {
-      good: 'I read the diff.\n\nFINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `Math.abs(idle)` treats a future mtime (clock skew) as idle, so a live session directory is deleted; the old code kept it.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the cap constant could use a clearer name.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: adding `"clear"` to RESUMABLE_END_REASONS keeps the session directory after /clear, but that id is abandoned (a final end), so the directory leaks and a claim held by it stays live.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: the list of reasons could be frozen with `as const`.',
     },
   },
   {
     ...base,
-    id: 'r-l2-first-entry',
+    id: 'r-l2-sweep-default-cap',
     kind: 'local',
     review: {
-      plant: [{ file: SESSIONS, from: '    for (const name of fs.readdirSync(dir)) {', to: '    for (const name of fs.readdirSync(dir).slice(1)) {' }],
-      bugs: [{ id: 'slice-first', category: 'local', file: 'session-sweep', defect: ['(\\bslice\\b|\\bskips? (the )?(first|1st|initial)|first (entry|child|file|item)|off.by.one|\\bdrops? the first)'], desc: 'slice(1) skips the first directory entry (log.jsonl sorts first), so a session whose fresh file is that entry looks idle' }],
+      source: 'maestro 068/066 caps: the sweep is 24h on purpose (the header explains a session parked on a human review) while the explicit delete uses the 15-minute claim cap; the wrong-default kind of the d1-d4 cap tasks in 051',
+      plant: [{ file: SESSIONS, from: '  const idleCapMs = options.idleCapMs ?? SESSION_SWEEP_IDLE_CAP_MS;', to: '  const idleCapMs = options.idleCapMs ?? SESSION_DELETE_IDLE_CAP_MS;' }],
+      bugs: [{ id: 'sweep-default-cap', category: 'local', file: 'session-sweep', defect: ['(SESSION_DELETE_IDLE_CAP_MS|15.?min|delete cap|claim cap|CLAIM_IDLE_CAP_MS)', '(sweep|default|24 ?h|hours?|parked|idleCapMs|abandon)'], desc: 'sweepStaleSessions now defaults to the 15-minute delete cap instead of the 24h sweep cap, so a session parked for an hour on a human review is deleted with its session.json' }],
     },
     samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `readdirSync(dir).slice(1)` skips the first entry (an off-by-one), so `log.jsonl` is ignored and an active session can look idle and be swept.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: unrelated to this diff, the doc comment is long.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the default idle cap of `sweepStaleSessions` is now `SESSION_DELETE_IDLE_CAP_MS` (15 minutes) instead of the 24h `SESSION_SWEEP_IDLE_CAP_MS`, so a session parked on a human review is swept as abandoned.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the options object could be destructured for readability.',
     },
   },
   {
     ...base,
-    id: 'r-l3-no-log-live',
+    id: 'r-l3-count-before-remove',
     kind: 'local',
     review: {
-      plant: [{ file: CLAIMS, from: '    return now - stat.mtimeMs <= CLAIM_IDLE_CAP_MS;\n  } catch {\n    return false;', to: '    return now - stat.mtimeMs <= CLAIM_IDLE_CAP_MS;\n  } catch {\n    return true;' }],
-      bugs: [{ id: 'catch-true', category: 'local', file: 'claims', defect: ['(catch|error|missing|no log|absent|enoent)', '(true|live)'], desc: 'a missing or unreadable log.jsonl now counts as live, so a crashed session claim is never reaped' }],
+      source: 'ordering mistake in a reporting path; the module header says the result count is what the UI reports and "Cannot delete: it stays" (compare maestro a733966, an ordering fix: act only after the thing it depends on is done)',
+      plant: [{
+        file: SESSIONS,
+        from: '        for (const d of sessionDirsFor(claudeDir, sessionId)) fs.rmSync(d, { recursive: true, force: true });\n        removed.push({ projectRoot, sessionId });',
+        to: '        removed.push({ projectRoot, sessionId });\n        for (const d of sessionDirsFor(claudeDir, sessionId)) fs.rmSync(d, { recursive: true, force: true });',
+      }],
+      bugs: [{ id: 'push-before-rm', category: 'local', file: 'session-sweep', defect: ['(\\bpush\\b|removed)', '(before|prior to|ahead of|order|even (if|when)|fails?|throws?)'], desc: 'removed.push runs before the rmSync loop, so a directory whose deletion throws is still reported as removed to the UI' }],
     },
     samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: `isSessionLive` now returns true in the catch branch, so a session with no `log.jsonl` (stat error) counts as live and its claim is never reaped.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: the variable name `stat` shadows nothing but could be renamed.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `removed.push(...)` now runs before the `rmSync` loop, so when a delete throws the session is still counted as removed even though it stays on disk.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the try block could be split into a helper for readability.',
     },
   },
   {
     ...base,
-    id: 'r-x1-set-return',
+    id: 'r-l4-id-min-length',
+    kind: 'local',
+    review: {
+      source: 'maestro 064 session-paths invariant: an id is validated, never sanitised, and the empty string must be rejected before any path is built (a pre-064 sibling-deletes-sibling bug class); a boundary-condition mistake',
+      plant: [{ file: PATHS, from: 'const SESSION_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;', to: 'const SESSION_ID_RE = /^[A-Za-z0-9_-]{0,128}$/;' }],
+      bugs: [{ id: 'id-min-length', category: 'local', file: 'session-paths', defect: ['(\\{0,|\\b0\\b|zero|empty|lower bound|minimum)', '(id|session|pattern|regex|quantifier|valid)'], desc: 'the session id pattern now accepts the empty string ({0,128}), so isValidSessionId("") passes and sessionPathsFor builds the sessions root itself as a session directory' }],
+    },
+    samples: {
+      good: 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: the session id regex changed from `{1,128}` to `{0,128}`, so an empty id is now a valid session id and `sessionPathsFor` resolves the maestro_sessions root as a session directory.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: the regex constant could carry a doc comment.',
+    },
+  },
+  {
+    ...base,
+    id: 'r-l5-empty-dir-zero',
+    kind: 'local',
+    review: {
+      source: 'the "cannot tell = live" invariant in the session-sweep header (an empty directory whose own mtime is fresh is a session that has just started); a wrong initial value, a boundary on the empty case',
+      plant: [{ file: SESSIONS, from: '    let newest = fs.statSync(dir).mtimeMs;', to: '    let newest = 0;' }],
+      bugs: [{ id: 'empty-dir-zero', category: 'local', file: 'session-sweep', defect: ['(newest|\\b0\\b|zero|initial|seed|starts? (at|from)|own mtime)', '(empty|just started|brand.new|fresh|not logged|own mtime|directory.s own|idle|swe+p)'], desc: 'lastActivityMs starts newest at 0 instead of the directory\'s own mtime, so an empty directory (a session that just started and has not logged yet) reads as idle since 1970 and is swept' }],
+    },
+    samples: {
+      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `lastActivityMs` now starts `newest` at 0 instead of the directory\'s own mtime, so an empty directory of a session that has just started has no activity and reads as idle, and it gets swept.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the loop could use `for...of` with entries for clarity.',
+    },
+  },
+  {
+    ...base,
+    id: 'r-x1-list-skips-worktree',
     kind: 'cross',
     review: {
-      plant: [{
-        file: TAGS,
-        from: 'export function readAllProjectTags(dbPath: string = DEFAULT_PROJECT_TAGS_DB_PATH): string[] {\n  const db = openDb(dbPath);\n  try {\n    const rows = db.prepare("SELECT tag FROM project_tags ORDER BY tag").all() as Array<{ tag: string }>;\n    return rows.map((r) => r.tag);',
-        to: 'export function readAllProjectTags(dbPath: string = DEFAULT_PROJECT_TAGS_DB_PATH): Set<string> {\n  const db = openDb(dbPath);\n  try {\n    const rows = db.prepare("SELECT tag FROM project_tags ORDER BY tag").all() as Array<{ tag: string }>;\n    return new Set(rows.map((r) => r.tag));',
-      }],
-      bugs: [{ id: 'set-callers', category: 'cross', file: 'project-tags|install\\.ts|claude-preview|ipc\\.ts|claude-session', defect: ['\\bSet\\b', '(callers?|install\\.ts|claude-preview|ipc\\.ts|claude-session|string\\[\\])'], desc: 'readAllProjectTags now returns a Set; callers in install.ts, claude-preview.ts, ipc.ts and claude-session.ts expect string[]' }],
+      source: 'maestro 074 worktree pointers (worktree.json in the main checkout) and the session-tab fixes dc0df43 / df66f1a: a session that moved into a worktree resolves through its pointer, and callers of listSessionIds rely on seeing it',
+      plant: [{ file: PATHS, from: '    .filter((d) => d.isDirectory() && isValidSessionId(d.name))', to: '    .filter((d) => d.isDirectory() && isValidSessionId(d.name) && !readWorktreePointer(claudeDir, d.name))' }],
+      bugs: [{ id: 'list-skips-worktree', category: 'cross', file: 'session-paths|handoff-channels|session-sweep|session-log', defect: ['(pointer|worktree\\.json|worktree)', '(listSessionIds|liveRunIds|pendingLanes|stranded|swe+p|callers?|session-log|omit|skips?|excludes?|drops?|filter)'], desc: 'listSessionIds now skips sessions that moved into a worktree; its callers (liveRunIds / pendingLanes in handoff-channels, the sweep, session-log) no longer see those live sessions, so their channel lanes read as stranded' }],
     },
     samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/project-tags.ts: `readAllProjectTags` now returns a `Set<string>`, but its callers (`install.ts`, `claude-preview.ts`, `ipc.ts` which returns it as `string[]`) still expect an array.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/project-tags.ts: the doc comment still says "sorted" which is fine.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: `listSessionIds` now filters out any session with a worktree pointer, so callers such as `liveRunIds` / `pendingLanes` in handoff-channels.ts and the sweep stop seeing sessions that run in a worktree; their lanes read as stranded.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: the long filter line should be wrapped.',
     },
   },
   {
@@ -78,6 +117,7 @@ export const REVIEW_CASES = [
     id: 'r-x2-sqlite-edge',
     kind: 'cross',
     review: {
+      source: 'maestro handoff-channels header: the module is re-exported into the maestro-session bundle every hook requires unconditionally and must stay free of node:sqlite (kept from the 066 first draft; the one case whose primer carries a new cross-concept import edge)',
       plant: [
         { file: CHANNELS, from: 'import type { PendingLane } from "./contracts.js";', to: 'import type { PendingLane } from "./contracts.js";\nimport { readAllProjectTags } from "./project-tags.js";' },
         { file: CHANNELS, from: 'const SCRIBE_LANE = "scribe";', to: 'const SCRIBE_LANE = "scribe";\n/** Project tags the lanes are filed under, read once at load. */\nconst PROJECT_TAGS = new Set(readAllProjectTags());' },
@@ -91,67 +131,48 @@ export const REVIEW_CASES = [
   },
   {
     ...base,
-    id: 'r-x3-arg-swap',
+    id: 'r-x3-claim-requires-name',
     kind: 'cross',
     review: {
-      plant: [{ file: CLAIMS, from: 'export function isSessionLive(claudeDir: string, sessionId: string, now: number = Date.now()): boolean {', to: 'export function isSessionLive(sessionId: string, claudeDir: string, now: number = Date.now()): boolean {' }],
-      bugs: [{ id: 'arg-swap', category: 'cross', file: 'claims|per-session-state', defect: ['(swap|order|reorder|argument|parameter|signature)', '(callers?|call sites?|claimTask|readClaims|per-session-state|test)'], desc: 'isSessionLive parameters swapped; both are strings, so claimTask, readClaims and the tests still compile and silently pass the wrong values' }],
+      source: 'maestro 084 optional claim session_name ("absent when the claimer did not know it ... such a claim still works") and the self-contained twin .claude/scripts/maestro-task-status.cjs, which writes the claim only with a name when it has one; the "copy / keep the twin in sync" class of maestro fixes (809e023, 161b91c)',
+      plant: [{ file: CLAIMS, from: '      typeof (data as ClaimFile).claimed_at === "string"\n    ) {', to: '      typeof (data as ClaimFile).claimed_at === "string" &&\n      typeof (data as ClaimFile).session_name === "string"\n    ) {' }],
+      bugs: [{ id: 'claim-requires-name', category: 'cross', file: 'claims|task-status|tasks\\.ts|epics', defect: ['(session_name|sessionName)', '(optional|unnamed|without|absent|older|task-status|cjs|\\bCLI\\b|no name|not named)'], desc: 'readClaimFile now requires session_name, but it is optional and maestro-task-status.cjs writes unnamed claims; those read as no claim, so readClaims drops them and claimTask overwrites a live claim' }],
     },
     samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: `isSessionLive` swapped its first two parameters. Both are strings, so the callers `readClaims` and `claimTask` still type-check but now pass the arguments in the wrong order; the tests in `per-session-state` call it the old way.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: the function could have a shorter name.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: `readClaimFile` now requires `session_name` to be a string, but the field is optional and `maestro-task-status.cjs` claims without it when the session has no name; those claims read as absent, `readClaims` skips them and `claimTask` then overwrites a live claim.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: the condition could be extracted into a type guard function.',
     },
   },
   {
     ...base,
-    id: 'r-l4-and-guard',
-    kind: 'local',
-    review: {
-      plant: [{ file: SESSIONS, from: '      if (!isValidSessionId(sessionId) || sessionId === ownId) continue;', to: '      if (!isValidSessionId(sessionId) && sessionId === ownId) continue;' }],
-      bugs: [{ id: 'and-guard', category: 'local', file: 'session-sweep', defect: ['(&&|\\|\\||\\bor\\b|\\band\\b|operator|condition)', '(own|ownId|invalid|current session|validat)'], desc: 'the skip guard `||` became `&&`: only an id that is both invalid and the caller\'s own is skipped, so the running session itself can be swept' }],
-    },
-    samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the guard changed from `||` to `&&`, so a session is skipped only when its id is invalid and also the caller\'s own; the caller\'s own session (ownId) is no longer protected and can be swept.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the `continue` could be replaced by a filter call for readability.',
-    },
-  },
-  {
-    ...base,
-    id: 'r-l5-min-activity',
-    kind: 'local',
-    review: {
-      plant: [{ file: SESSIONS, from: '        newest = Math.max(newest, fs.lstatSync(path.join(dir, name)).mtimeMs);', to: '        newest = Math.min(newest, fs.lstatSync(path.join(dir, name)).mtimeMs);' }],
-      bugs: [{ id: 'min-activity', category: 'local', file: 'session-sweep', defect: ['(Math\\.min|\\bmin\\b|oldest|earliest)', '(newest|activity|idle|abandon|swe+p|delete|live)'], desc: 'Math.min yields the oldest mtime instead of the newest, so a session with one old file and fresh activity looks idle and is deleted' }],
-    },
-    samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `Math.min` in `lastActivityMs` returns the oldest mtime rather than the newest, so any session with one old file counts as idle and is swept even while it is active.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the loop could use `for...of` with entries for clarity.',
-    },
-  },
-  {
-    ...base,
-    id: 'r-x4-claim-key',
+    id: 'r-x4-liveness-state-file',
     kind: 'cross',
     review: {
-      plant: [{ file: CLAIMS, from: '    const filename = fileName.slice(0, -".json".length);', to: '    const filename = fileName.slice(0, -".md.json".length);' }],
-      bugs: [{ id: 'claim-key', category: 'cross', file: 'claims|tasks|epics', defect: ['(\\.md|key|filename|suffix|slice)', '(tasks\\.ts|epics|listTasks|claims\\.get|lookup|look up|overlay|never match|callers?)'], desc: 'readClaims now keys claims without the ".md" suffix; tasksFromFiles (tasks.ts) and the epic view (epics.ts) look them up by the full task filename, so no claim is ever shown or honoured' }],
+      source: 'maestro 066 claim liveness: a claim is live while the session log.jsonl (appended on every tool call) is fresh, session.json is rewritten only on workflow steps (session-sweep header); the twin maestro-task-status.cjs keeps the log rule, and the stale-claim / false-runtime-warning fix class (1974208)',
+      plant: [{ file: CLAIMS, from: '    const stat = fs.statSync(paths.log);', to: '    const stat = fs.statSync(paths.state);' }],
+      bugs: [{ id: 'liveness-state-file', category: 'cross', file: 'claims', defect: ['(session\\.json|\\bstate\\b|paths\\.state)', '(log\\.jsonl|\\blog\\b|idle|stale|dead|reap|twin|task-status|workflow step)'], desc: 'isSessionLive reads the mtime of session.json instead of log.jsonl; session.json changes only on workflow steps, so a busy session reads dead after 15 minutes, readClaims reaps its claim file and the app disagrees with maestro-task-status.cjs' }],
     },
     samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: `readClaims` now strips ".md.json" so the map key loses the ".md" suffix, but its callers (`tasksFromFiles` in tasks.ts via `listTasks`, and the epic view in epics.ts) call `claims.get(filename)` with the full ".md" name, so every claim is silently lost.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: the slice length could be a named constant.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: `isSessionLive` now stats `paths.state` (session.json) instead of the log; session.json is rewritten only on workflow steps, so a busy session looks stale after 15 minutes and `readClaims` reaps its claim, disagreeing with the log-based check in maestro-task-status.cjs.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: the variable `stat` could be named `st` for consistency.',
     },
   },
   {
     ...base,
-    id: 'r-x5-delete-cap',
+    id: 'r-x5-queue-root',
     kind: 'cross',
     review: {
-      plant: [{ file: SESSIONS, from: 'export const SESSION_DELETE_IDLE_CAP_MS = CLAIM_IDLE_CAP_MS;', to: 'export const SESSION_DELETE_IDLE_CAP_MS = SESSION_SWEEP_IDLE_CAP_MS;' }],
-      bugs: [{ id: 'delete-cap', category: 'cross', file: 'session-sweep', defect: ['(SESSION_SWEEP_IDLE_CAP_MS|24 ?h|24.hour|sweep cap)', '(15|delete|running|listDeletable|deleteSession|CLAIM_IDLE_CAP_MS|crashed|ipc|x )'], desc: 'the explicit-delete cap becomes the 24h sweep cap instead of the 15-minute claim cap, so a crashed session stays "running" for a day and listDeletableSessions / deleteSession (and the x on the tab, via ipc) refuse it' }],
+      source: 'maestro 074 + 45a3583 "always write maestro tasks to the repository-root .claude": the queue (status.json, claims/) lives in the MAIN checkout, and every tasks.ts entry point maps its project root first (worktree.ts header)',
+      plant: [{
+        file: TASKS,
+        from: '  if (!projectRoot) return [];\n  projectRoot = mainCheckoutRoot(projectRoot);\n  const dir = tasksDirFor(projectRoot);\n  const files = listTaskFiles(dir);\n  const base = path.basename(filename);\n  const existingStatus = readStatusMap(dir);',
+        to: '  if (!projectRoot) return [];\n  const dir = tasksDirFor(projectRoot);\n  const files = listTaskFiles(dir);\n  const base = path.basename(filename);\n  const existingStatus = readStatusMap(dir);',
+      }],
+      bugs: [{ id: 'queue-root', category: 'cross', file: 'tasks\\.ts|worktree', defect: ['(mainCheckoutRoot|main checkout|queue root|repository root)', '(deleteTask|worktree|claims?|status\\.json|postmortems?|ipc|siblings?|other (functions|entry))'], desc: 'deleteTask no longer maps its project root with mainCheckoutRoot; when the open project is a worktree it deletes from and rewrites a different queue and reads its claims against the wrong .claude, unlike listTasks and closeTask' }],
     },
     samples: {
-      good: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: `SESSION_DELETE_IDLE_CAP_MS` now equals the 24h sweep cap rather than the 15-minute `CLAIM_IDLE_CAP_MS` the comment above promises, so `deleteSession` and `listDeletableSessions` treat a crashed session as running for a day and the x on its tab (ipc) is not offered.',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the exported constant should have a doc comment.',
+      good: 'FINDINGS:\n- apps/maestro/src/core/tasks.ts: `deleteTask` dropped `projectRoot = mainCheckoutRoot(projectRoot)`; the queue (status.json, claims) always lives in the main checkout, so from a worktree it now operates on another queue and reads claims against the wrong .claude, unlike `listTasks` and `closeTask`.',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/tasks.ts: the function is long and could be split.',
     },
   },
   {
@@ -165,19 +186,6 @@ export const REVIEW_CASES = [
     samples: {
       good: 'The change inlines a local variable with the same behaviour.\n\nFINDINGS: none',
       bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the inline expression is harder to read.\n- apps/maestro/src/core/session-sweep.ts: the comment is now misplaced.',
-    },
-  },
-  {
-    ...base,
-    id: 'r-c2-doc-grammar',
-    kind: 'clean',
-    review: {
-      plant: [{ file: CLAIMS, from: 'A missing session directory (clean `SessionEnd`) is dead immediately', to: 'A missing session directory (a clean `SessionEnd`) is dead immediately' }],
-      bugs: [],
-    },
-    samples: {
-      good: 'Only a comment changed.\n\nFINDINGS: none',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: the comment change might hide a behaviour change.',
     },
   },
   {
@@ -207,16 +215,33 @@ export const REVIEW_CASES = [
     },
   },
   {
+    // 068: replaces the two comment-only clean diffs (c2, c5) with refactors that look riskier than they are.
     ...base,
-    id: 'r-c5-comment-hours',
+    id: 'r-c6-drop-exists-guard',
     kind: 'clean',
     review: {
-      plant: [{ file: SESSIONS, from: 'so the 24h sweep cap does not apply', to: 'so the 24-hour sweep cap does not apply' }],
+      plant: [{ file: CLAIMS, from: '  if (!paths) return false;\n  if (!fs.existsSync(paths.dir)) return false;\n  try {\n    const stat = fs.statSync(paths.log);', to: '  if (!paths) return false;\n  try {\n    const stat = fs.statSync(paths.log);' }],
       bugs: [],
     },
     samples: {
-      good: 'Comment wording only.\n\nFINDINGS: none',
-      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: other docs still say 24h, which is now inconsistent.',
+      good: 'The removed existsSync is redundant: statSync on the log inside paths.dir throws when the directory is missing, and the catch returns false.\n\nFINDINGS: none',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/claims.ts: removing the directory existence check means a clean SessionEnd no longer reads as dead immediately.',
+    },
+  },
+  {
+    ...base,
+    id: 'r-c7-hoist-claude-dir',
+    kind: 'clean',
+    review: {
+      plant: [
+        { file: SESSIONS, from: '  const paths = sessionPathsFor(path.join(projectRoot, ".claude"), sessionId);\n  if (!paths) return { removed: false, reason: "invalid" };', to: '  const claudeDir = path.join(projectRoot, ".claude");\n  const paths = sessionPathsFor(claudeDir, sessionId);\n  if (!paths) return { removed: false, reason: "invalid" };' },
+        { file: SESSIONS, from: '    for (const d of sessionDirsFor(path.join(projectRoot, ".claude"), sessionId)) {', to: '    for (const d of sessionDirsFor(claudeDir, sessionId)) {' },
+      ],
+      bugs: [],
+    },
+    samples: {
+      good: 'The repeated path.join is hoisted into one const with the same value.\n\nFINDINGS: none',
+      bad: 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the hoisted claudeDir could be stale if projectRoot changes between the two uses.',
     },
   },
 ];

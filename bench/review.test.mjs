@@ -4,21 +4,23 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  BASELINE, DEFAULT_REVIEW_ARMS, PRIMER_OPEN, REVIEW_ARMS, REVIEW_TOOLS, SPAWN_TOOLS, addedImports, buildPrimer, changedSymbols,
+  BASELINE, DEFAULT_BUDGET, DEFAULT_REVIEW_ARMS, DEFAULT_RUNS, PRIMER_OPEN, REVIEW_ARMS, REVIEW_TOOLS, SPAWN_TOOLS, addedImports, buildPrimer, changedSymbols,
   diffForPlants, findingsOf, gradeReview, importCandidates, parseFileVertices, parseImpact, parseReviewArms, promptProblems,
   pairedRows, reviewArgs, reviewPrompt, reviewProblems, reviewReport, spawnEvidence, tally, toolsFor, unifiedDiff, untestedCallers, verdict,
 } from './review.mjs';
 import { REVIEW_CASES, selectReviewCases } from './review-cases.mjs';
 
-export const PILOT_ONLY = 'r-l1,r-l4,r-x3,r-x4,r-c1'; // the pilot (a) case list in docs/evals.md
+export const PILOT_ONLY = 'r-l1,r-l4,r-x1,r-x4,r-c6'; // the 068 pilot A case list (2 local, 2 cross, 1 clean)
 
 const here = dirname(fileURLToPath(import.meta.url));
 const stored = (id, ext) => readFileSync(join(here, 'review', `${id}.${ext}`), 'utf8');
 
 // ---- arms, args, prompts ----
 
-test('parseReviewArms: known arms in table order, unknown or empty throws; default is the four registered arms', () => {
-  assert.deepEqual(parseReviewArms(DEFAULT_REVIEW_ARMS), ['sonnet-nograph', 'sonnet-diff-primer', 'haiku-diff-primer', 'sonnet-spawns-haiku']);
+test('parseReviewArms: known arms in table order, unknown or empty throws; default is the four planned arms (068)', () => {
+  assert.deepEqual(parseReviewArms(DEFAULT_REVIEW_ARMS), ['sonnet-nograph', 'sonnet-diff-primer', 'haiku-diff-primer', 'haiku-nograph']);
+  assert.ok(!parseReviewArms(DEFAULT_REVIEW_ARMS).includes('sonnet-spawns-haiku'), 'the spawn arm is defined but not planned');
+  assert.deepEqual(parseReviewArms(`${DEFAULT_REVIEW_ARMS},sonnet-spawns-haiku`), ['sonnet-nograph', 'sonnet-diff-primer', 'haiku-diff-primer', 'sonnet-spawns-haiku', 'haiku-nograph']); // still selectable
   assert.deepEqual(parseReviewArms('haiku-nograph, sonnet-nograph,sonnet-nograph'), ['sonnet-nograph', 'haiku-nograph']);
   assert.throws(() => parseReviewArms('sonnet-nograph,opus'), /unknown review arm/);
   assert.throws(() => parseReviewArms(''), /no arm given/);
@@ -103,6 +105,40 @@ test('the case set covers both categories with several bugs each, and has clean 
   }
 });
 
+test('068: every bug case states where its bug kind comes from; clean cases are 5 non-trivial refactors; category matches case kind', () => {
+  for (const c of REVIEW_CASES.filter((x) => x.review.bugs.length)) {
+    assert.ok(typeof c.review.source === 'string' && c.review.source.length > 40, `${c.id} needs review.source`);
+    assert.ok(c.review.bugs.every((b) => b.category === c.kind), c.id);
+  }
+  const clean = REVIEW_CASES.filter((x) => !x.review.bugs.length);
+  assert.equal(clean.length, 5);
+  assert.ok(clean.every((c) => c.kind === 'clean'));
+  assert.equal(REVIEW_CASES.filter((c) => c.kind === 'local').length, 5);
+  assert.equal(REVIEW_CASES.filter((c) => c.kind === 'cross').length, 5);
+});
+
+test('068: a cross case breaks only outside the diff: the diff touches no file the grader expects the finding to be only about', () => {
+  // The planted files are session-paths, handoff-channels, claims and tasks; each cross bug's description
+  // names a consumer (a caller, a sibling module or a twin script) that the plant does not edit.
+  const consumers = {
+    'r-x1-list-skips-worktree': /handoff-channels|session-log|sweep/,
+    'r-x2-sqlite-edge': /maestro-session\.cjs/,
+    'r-x3-claim-requires-name': /maestro-task-status\.cjs/,
+    'r-x4-liveness-state-file': /maestro-task-status\.cjs/,
+    'r-x5-queue-root': /listTasks and closeTask/,
+  };
+  for (const c of REVIEW_CASES.filter((x) => x.kind === 'cross')) {
+    assert.match(c.review.bugs[0].desc, consumers[c.id], c.id);
+    const edited = new Set(c.review.plant.map((p) => p.file));
+    for (const f of ['maestro-task-status.cjs', 'maestro-session.cjs']) assert.ok(![...edited].some((e) => e.endsWith(f)), `${c.id} edits ${f}`);
+  }
+});
+
+test('068: the run defaults are the planned arms, 3 runs per cell and the proposed cap', () => {
+  assert.equal(DEFAULT_RUNS, '3');
+  assert.equal(DEFAULT_BUDGET, '13');
+});
+
 test('graders: a known-good review text finds every planted bug with no false alarm; a known-bad one finds none', () => {
   for (const c of REVIEW_CASES) {
     const good = gradeReview(c, c.samples.good);
@@ -124,9 +160,12 @@ test('graders: each planted bug is credited by its own description (a grader tha
 });
 
 test('graders: a finding for one bug does not credit another bug in the same file', () => {
-  const slice = REVIEW_CASES.find((x) => x.id === 'r-l2-first-entry');
-  const guard = REVIEW_CASES.find((x) => x.id === 'r-l4-and-guard');
-  assert.equal(gradeReview(slice, `FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: ${guard.review.bugs[0].desc}`).found, 0);
+  const cap = REVIEW_CASES.find((x) => x.id === 'r-l2-sweep-default-cap');
+  const zero = REVIEW_CASES.find((x) => x.id === 'r-l5-empty-dir-zero');
+  const order = REVIEW_CASES.find((x) => x.id === 'r-l3-count-before-remove');
+  assert.equal(gradeReview(cap, `FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: ${zero.review.bugs[0].desc}`).found, 0);
+  assert.equal(gradeReview(zero, `FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: ${order.review.bugs[0].desc}`).found, 0);
+  assert.equal(gradeReview(order, `FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: ${cap.review.bugs[0].desc}`).found, 0);
 });
 
 test('graders: no bug description credits a different bug in the same file or any other case', () => {
@@ -141,25 +180,25 @@ test('graders: no bug description credits a different bug in the same file or an
 
 test('graders: a finding that says the defect is absent is not credited', () => {
   const near = [
-    ['r-l1-future-mtime', 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the negative branch of the idle check is fine and the cap is unchanged.'],
-    ['r-l4-and-guard', 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the condition that protects ownId is correct as written.'],
+    ['r-l1-resumable-clear', 'FINDINGS:\n- apps/maestro/src/core/session-paths.ts: the reasons list with clear is fine and the directory is removed as before.'],
+    ['r-l5-empty-dir-zero', 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: newest starting at 0 for an empty fresh directory is correct as written.'],
   ];
   for (const [id, text] of near) assert.equal(gradeReview(REVIEW_CASES.find((x) => x.id === id), text).found, 0, id);
 });
 
 test('graders: an absent-defect finding phrased "X, correct, ..." is not credited, but "incorrect" is a real finding', () => {
-  const c = REVIEW_CASES.find((x) => x.id === 'r-x5-delete-cap');
-  const text = 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: SESSION_DELETE_IDLE_CAP_MS equals CLAIM_IDLE_CAP_MS, correct, 24h sweep cap is untouched.';
+  const c = REVIEW_CASES.find((x) => x.id === 'r-l2-sweep-default-cap');
+  const text = 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the default idleCapMs uses SESSION_DELETE_IDLE_CAP_MS, correct, the 24h sweep cap is a separate constant.';
   assert.equal(gradeReview(c, text).found, 0);
-  const real = 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: SESSION_DELETE_IDLE_CAP_MS now uses the 24h sweep cap SESSION_SWEEP_IDLE_CAP_MS, incorrect: deleteSession treats a crashed session as running instead of the 15 minute cap.';
+  const real = 'FINDINGS:\n- apps/maestro/src/core/session-sweep.ts: the sweep default idle cap is now SESSION_DELETE_IDLE_CAP_MS (15 minutes), incorrect: a session parked for hours is swept instead of the 24h cap.';
   assert.equal(gradeReview(c, real).found, 1);
 });
 
 test('graders: a defect in the wrong file, or a file with no defect named, is not credited', () => {
-  const c = REVIEW_CASES.find((x) => x.id === 'r-x3-arg-swap');
-  assert.equal(gradeReview(c, 'FINDINGS:\n- apps/maestro/src/core/other.ts: parameters swapped, callers break').found, 0);
+  const c = REVIEW_CASES.find((x) => x.id === 'r-x3-claim-requires-name');
+  assert.equal(gradeReview(c, 'FINDINGS:\n- apps/maestro/src/core/other.ts: session_name is required, unnamed values are dropped by the parser').found, 0);
   assert.equal(gradeReview(c, 'FINDINGS:\n- apps/maestro/src/core/claims.ts: looks risky').found, 0);
-  assert.equal(gradeReview(c, 'FINDINGS:\n- claims.ts: the argument order changed, so the callers claimTask and readClaims pass the wrong values').found, 1);
+  assert.equal(gradeReview(c, 'FINDINGS:\n- claims.ts: session_name is required now but optional, and the task-status CLI writes unnamed claims, which are dropped').found, 1);
 });
 
 test('stored diffs and primers exist for every case, hold the planted lines, and carry no machine-specific path', () => {
@@ -167,7 +206,17 @@ test('stored diffs and primers exist for every case, hold the planted lines, and
     for (const ext of ['diff', 'primer.txt']) assert.ok(existsSync(join(here, 'review', `${c.id}.${ext}`)), `${c.id}.${ext}`);
     const diff = stored(c.id, 'diff');
     const added = diff.split('\n').slice(4).filter((l) => !l.startsWith('-')).map((l) => l.slice(1)).join('\n'); // added and context lines of the hunk
-    for (const p of c.review.plant) for (const l of p.to.split('\n')) assert.ok(added.includes(l), `${c.id}: planted line missing from the stored diff: ${l}`);
+    const removed = diff.split('\n').slice(4).filter((l) => l.startsWith('-')).map((l) => l.slice(1)).join('\n');
+    for (const p of c.review.plant) {
+      const fromLines = p.from.split('\n');
+      const toLines = p.to.split('\n');
+      // lines beyond the three context lines of a hunk are not in the diff: check the changed lines only
+      const changedNew = toLines.filter((l) => !fromLines.includes(l));
+      const changedOld = fromLines.filter((l) => !toLines.includes(l));
+      for (const l of changedNew) assert.ok(added.includes(l), `${c.id}: planted line missing from the stored diff: ${l}`);
+      for (const l of changedOld) assert.ok(removed.includes(l), `${c.id}: removed line missing from the stored diff: ${l}`);
+      assert.notEqual(p.from, p.to, `${c.id}: plant changes nothing`);
+    }
     assert.match(diff, /^diff --git a\/apps\/maestro\//);
     const primer = stored(c.id, 'primer.txt');
     assert.ok(primer.startsWith('## Changed symbols'), c.id);
@@ -177,11 +226,12 @@ test('stored diffs and primers exist for every case, hold the planted lines, and
   }
 });
 
-test('the x2 primer names the new cross-concept edge and the x3 primer lists the callers of the changed symbol', () => {
+test('the x2 primer names the new cross-concept edge; the x1 and x4 primers list the callers of the changed symbol that the diff does not show', () => {
   assert.match(stored('r-x2-sqlite-edge', 'primer.txt'), /now imports `\.\/project-tags\.js` -> apps\/maestro\/src\/core\/project-tags\.ts \(global-stores\)/);
-  const x3 = stored('r-x3-arg-swap', 'primer.txt');
-  assert.ok(x3.includes('`isSessionLive`') && x3.includes('claimTask') && x3.includes('readClaims'));
-  assert.match(stored('r-x1-set-return', 'primer.txt'), /installRuntime/);
+  const x1 = stored('r-x1-list-skips-worktree', 'primer.txt');
+  assert.ok(x1.includes('`listSessionIds`') && x1.includes('liveRunIds') && x1.includes('sweepStaleSessions') && x1.includes('worktreeHasLog'));
+  const x4 = stored('r-x4-liveness-state-file', 'primer.txt');
+  assert.ok(x4.includes('`isSessionLive`') && x4.includes('claimTask') && x4.includes('readClaims'));
 });
 
 // ---- findings parsing ----
@@ -357,7 +407,7 @@ test('reviewReport: lists invalid runs, per-arm table and a verdict row per non-
 
 test('selectReviewCases: --only takes a comma-separated list, and the pilot list samples every category', () => {
   assert.equal(selectReviewCases('').length, REVIEW_CASES.length);
-  assert.deepEqual(selectReviewCases('r-l1, r-x3').map((c) => c.id), ['r-l1-future-mtime', 'r-x3-arg-swap']);
+  assert.deepEqual(selectReviewCases('r-l1, r-x3').map((c) => c.id), ['r-l1-resumable-clear', 'r-x3-claim-requires-name']);
   assert.equal(selectReviewCases('nope').length, 0);
   const pilot = selectReviewCases(PILOT_ONLY);
   assert.equal(pilot.length, 5);

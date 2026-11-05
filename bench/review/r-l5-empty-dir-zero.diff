@@ -1,12 +1,12 @@
 diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
 --- a/apps/maestro/src/core/session-sweep.ts
 +++ b/apps/maestro/src/core/session-sweep.ts
-@@ -73,7 +73,7 @@
+@@ -72,7 +72,7 @@
+ /** Newest mtime (ms) of the directory and its direct children, or `null` when it cannot be read. */
  function lastActivityMs(dir: string): number | null {
    try {
-     let newest = fs.statSync(dir).mtimeMs;
--    for (const name of fs.readdirSync(dir)) {
-+    for (const name of fs.readdirSync(dir).slice(1)) {
+-    let newest = fs.statSync(dir).mtimeMs;
++    let newest = 0;
+     for (const name of fs.readdirSync(dir)) {
        try {
          newest = Math.max(newest, fs.lstatSync(path.join(dir, name)).mtimeMs);
-       } catch {

@@ -291,10 +291,20 @@ maestro checkout (same `maestroFor` resolution and `maestro-setup.sh` no-graph w
 is separate from `run.mjs`, so the edit and read-only sets are unaffected. Plan, task set, decision rule and
 verdict style are in [docs/evals.md](../docs/evals.md), "Ticket 066".
 
-Arms (default: the first four; `haiku-nograph` is optional, add it with `--arms`):
-`sonnet-nograph` (baseline), `sonnet-diff-primer`, `haiku-diff-primer`, `sonnet-spawns-haiku`, `haiku-nograph`.
-Each arm pins its model and its `--tools` set; only `sonnet-spawns-haiku` has the Agent tool. No arm has the
-code-graph plugin.
+Planned arms (the default, ticket 068): `sonnet-nograph` (baseline), `sonnet-diff-primer`,
+`haiku-diff-primer`, `haiku-nograph`; the Sonnet vs Haiku comparison is made with and without the primer.
+`sonnet-spawns-haiku` is dropped from the plan for now but kept, with its spawn-validity check and tests;
+add it with `--arms`. Each arm pins its model and its `--tools` set; only `sonnet-spawns-haiku` has the
+Agent tool. No arm has the code-graph plugin. Default runs per cell: 3; default cap: $13 (a proposal until
+the user approves the numbers).
+
+Hardened cases (068, after pilot A saturated: the baseline found 4 of 4 sampled bugs): cross-file bugs
+break only outside the diff (a consumer such as the `maestro-task-status.cjs` twin, `handoff-channels`
+lane liveness or the sibling entry points of `tasks.ts` is not in the diff), and local bugs are boundary,
+ordering or wrong-default mistakes. Each bug case carries `review.source`, the maestro history or invariant
+its bug kind comes from (077 resumable SessionEnd, 074 worktree pointers, 45a3583 repo-root queue, 084
+optional claim `session_name`, the twin-parity fixes, the 064 session id rule, the 066 liveness rule). The
+five clean cases include two plausible correct refactors (`r-c6`, `r-c7`) so false alarms stay measurable.
 
 Files:
 
@@ -306,7 +316,7 @@ Files:
   limits it; `--check` writes nothing and exits 1 if a stored file differs (deterministic output).
 - `review/`: the stored diff and primer of each case, committed. The runner reads these and refuses a case
   whose stored diff differs from the one computed from its workspace.
-- `review-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 1`, `--budget 10`, `--run-budget 0.4`,
+- `review-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 3`, `--budget 13`, `--run-budget 0.4`,
   `--dry` (prints prompts and args, no model call), `--keep-ws`, `--init-check`.
 - `review.test.mjs`: the unit tests (`node --test bench/*.test.mjs`), all offline.
 - `review-cli.test.mjs`: runs the $0 commands as written (`review-run --dry`, `review-prep --check`); skipped without a maestro checkout. Nothing calls `claude`.
@@ -317,17 +327,19 @@ run is also invalid unless the transcript shows a Haiku subagent started (an Age
 a subagent message from a Haiku model). The runner stops at the cap, on a usage limit or seccomp, and after a
 second invalid run.
 
-Commands, from a plain terminal at the repo root (all but the last three are $0):
+Commands, from a plain terminal at the repo root (all but the last two are $0):
 
 ```
 node --test bench/*.test.mjs
 node bench/review-prep.mjs --check
 node bench/review-run.mjs --dry
-node bench/review-run.mjs --init-check --arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph
-node bench/review-run.mjs --runs 1 --budget 1.1 --arms sonnet-nograph --only r-l1,r-l4,r-x3,r-x4,r-c1  # pilot (a): baseline saturation
-node bench/review-run.mjs --runs 1 --budget 0.4 --arms sonnet-spawns-haiku --only r-x3                  # pilot (b): spawn validity
-node bench/review-run.mjs --runs 2 --budget 10     # paid run, after the user confirms the numbers
+node bench/review-run.mjs --init-check
+node bench/review-run.mjs --runs 1 --budget 1.1 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6  # new pilot A: baseline saturation on the hardened cases
+node bench/review-run.mjs                          # paid run (3 runs per cell, cap $13), only after the stop rule is applied to the new pilot A and the user confirms the numbers
 ```
+
+`--init-check` with no `--arms` checks the four planned arms. Apply the pre-registered stop rule to the new
+pilot A before any paid run.
 
 Output: `bench/results/review-<timestamp>/` (gitignored): `<case>/<arm>-run<N>.jsonl` transcripts, `runs.json`
 and `report.md` with the per-case table, the per-arm sums by category, and the verdicts against the baseline

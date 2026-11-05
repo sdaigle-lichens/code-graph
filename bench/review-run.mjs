@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // 066 review mode: do reviewer arms catch planted bugs in a diff on the pinned maestro checkout?
 // Run from a plain terminal (a nested sandbox breaks Bash), except --dry and --init-check.
-// Usage: node bench/review-run.mjs [--arms a,b] [--only <substring>] [--runs 1] [--budget 10] [--run-budget 0.4]
+// Usage: node bench/review-run.mjs [--arms a,b] [--only <substring>] [--runs 3] [--budget 13] [--run-budget 0.4]
 //                                  [--dry] [--keep-ws] [--init-check]
-// Arms: sonnet-nograph, sonnet-diff-primer, haiku-diff-primer, sonnet-spawns-haiku (default), haiku-nograph (optional).
+// Arms (default, 068): sonnet-nograph, sonnet-diff-primer, haiku-diff-primer, haiku-nograph.
+// sonnet-spawns-haiku is defined and tested but not planned; add it with --arms.
 // The diff and the primer of each case are the stored files under bench/review/ (bench/review-prep.mjs).
 // Output: bench/results/review-<timestamp>/ (transcripts, runs.json, report.md), gitignored.
 import { spawn, spawnSync } from 'node:child_process';
@@ -15,7 +16,7 @@ import { budgetStop, parseStream, runStatus, validity } from './lib.mjs';
 import { applyReplacements } from './edit.mjs';
 import { maestroFor } from './maestro-dir.mjs';
 import {
-  DEFAULT_REVIEW_ARMS, REVIEW_ARMS, diffForPlants, gradeReview, parseReviewArms, promptProblems, reviewArgs, reviewPrompt,
+  DEFAULT_BUDGET, DEFAULT_REVIEW_ARMS, DEFAULT_RUNS, REVIEW_ARMS, diffForPlants, gradeReview, parseReviewArms, promptProblems, reviewArgs, reviewPrompt,
   reviewProblems, reviewReport, toolsFor,
 } from './review.mjs';
 import { selectReviewCases } from './review-cases.mjs';
@@ -23,7 +24,7 @@ import { reviewFile } from './review-prep.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
-const opts = { arms: DEFAULT_REVIEW_ARMS, only: '', runs: '1', budget: '10', 'run-budget': '0.4' };
+const opts = { arms: DEFAULT_REVIEW_ARMS, only: '', runs: DEFAULT_RUNS, budget: DEFAULT_BUDGET, 'run-budget': '0.4' };
 const bool = new Set();
 for (let i = 2; i < process.argv.length; i++) {
   const k = process.argv[i].replace(/^--/, '');

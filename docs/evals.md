@@ -921,6 +921,49 @@ Bugs found are summed per arm over its paired valid runs (see the cap bullet), i
 5. **Pilot**, capped at $1.50 in all (a full 60-run pass would cost about $7, so the pilot is two parts and samples cases; `--only` takes a comma-separated list of id substrings). (a) Saturation check on the baseline, $1.10: `node bench/review-run.mjs --runs 1 --budget 1.1 --run-budget 0.4 --arms sonnet-nograph --only r-l1,r-l4,r-x3,r-x4,r-c1`. That is 2 local, 2 cross and 1 clean case, about $0.60 at $0.12 per run, so the run-budget reserve (no run starts once spent plus $0.40 passes $1.10) does not cut it short unless runs cost over about $0.17 each (the fifth run would then not start); the runner plans them in case-file order (l1, x3, l4, x4, c1), so the clean case is the one dropped if the cap stops it. (b) Spawn validity on one case, $0.40: `node bench/review-run.mjs --runs 1 --budget 0.4 --run-budget 0.4 --arms sonnet-spawns-haiku --only r-x3`; an invalid spawn run is listed in the report. (a) plus (b) is at most $1.50.
 6. **Paid run**, after the user confirms the numbers: `node bench/review-run.mjs --runs 2 --budget 10 --run-budget 0.4`. Add `--arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph` to include the optional arm. Rerun missing cells after a usage limit with `--only` and `--arms`.
 
+### Post-pilot amendment (2026-11-05, ticket 068)
+
+The sections above are the pre-pilot plan and stay as written, including the decision rule and the stop rule. This amendment changes cases, arms and numbers only, and is recorded before any paid run.
+
+**Pilot A (user-run, 2026-11-05).** Results `bench/results/review-2026-11-05T16-16-04-363Z`, spend $0.335. `sonnet-nograph` found 4 of 4 sampled bugs (2 of 2 local, 2 of 2 cross) and raised no false alarm on the clean diff, mostly in 2 turns at about $0.07 per run.
+
+**Stop rule outcome.** The stop rule fired for both categories (0 misses in the 2 sampled bugs, so under 3 extrapolated misses). No paid run on the old cases. The user chose to harden the cases.
+
+**Hardened cases (15, `bench/review-cases.mjs`).** Cross-file bugs now break only outside the diff; local bugs are boundary, ordering or wrong-default mistakes. Each bug case carries `review.source`, the maestro history or invariant its kind comes from. The old ids are replaced; the stored diffs and primers in `bench/review/` are regenerated.
+
+| id | category | what is planted | where the bug kind comes from |
+|---|---|---|---|
+| `r-l1-resumable-clear` | local | `"clear"` added to `RESUMABLE_END_REASONS` in `session-paths.ts` | 077 / bf86ba8, resumable SessionEnd reasons |
+| `r-l2-sweep-default-cap` | local | sweep default `idleCapMs` becomes `SESSION_DELETE_IDLE_CAP_MS` | wrong-default kind, as in the 051 d1-d4 cap tasks |
+| `r-l3-count-before-remove` | local | `removed.push` moved before the `rmSync` loop, so the count includes failures | ordering kind, cf. a733966 |
+| `r-l4-id-min-length` | local | `SESSION_ID_RE` `{1,128}` becomes `{0,128}` | 064 rule: validated never sanitised, empty rejected |
+| `r-l5-empty-dir-zero` | local | `let newest = 0` instead of the directory's own mtime | "cannot tell = live" liveness rule |
+| `r-x1-list-skips-worktree` | cross | `listSessionIds` skips sessions with a worktree pointer; `liveRunIds`, `pendingLanes`, the sweep and session-log break | 074 worktree pointers, dc0df43 / df66f1a session tabs |
+| `r-x2-sqlite-edge` | cross | unchanged: `handoff-channels.ts` newly imports `project-tags.ts` (node:sqlite) | bundling contract in a header (kept from the first set) |
+| `r-x3-claim-requires-name` | cross | `readClaimFile` requires `session_name`; claims written by the `maestro-task-status.cjs` twin without a name read as absent | 084 optional claim `session_name`, twin-parity fixes 809e023 / 161b91c |
+| `r-x4-liveness-state-file` | cross | `isSessionLive` stats the state file instead of the log | 066 liveness rule |
+| `r-x5-queue-root` | cross | `deleteTask` drops `mainCheckoutRoot(projectRoot)`, unlike `listTasks` and `closeTask` | 074 and 45a3583, the repo-root `.claude` queue |
+| `r-c1-inline-idle`, `r-c3-regex-suffix`, `r-c4-split-guard` | clean | kept | |
+| `r-c6-drop-exists-guard` | clean | a redundant `existsSync` removed in `isSessionLive` | new, a correct refactor |
+| `r-c7-hoist-claude-dir` | clean | `claudeDir` hoisted in `deleteSession` | new, a correct refactor |
+
+The comment-only clean cases `r-c2` and `r-c5` are dropped as trivial. Totals are unchanged: 5 local, 5 cross, 5 clean.
+
+**Arms.** `sonnet-spawns-haiku` is dropped from the plan for now; its code and spawn-validity check are kept and tested, and it is added back with `--arms`. Planned arms: `sonnet-nograph` (baseline), `sonnet-diff-primer`, `haiku-diff-primer` and `haiku-nograph` (promoted from optional), so Haiku is compared with and without the primer. The delegation bullet of the decision rule applies only if the spawn arm is added back.
+
+**Runs and caps (approved by the user).** 3 runs per cell: 15 cases x 4 arms x 3 = 180 runs, so each arm faces 15 local, 15 cross and 15 clean-diff reviews. Spend cap $13 in all, pilot included (`--budget 13`); pilot cap $1.10; per run cap $0.40. The 2 runs per cell, $10 cap and $1.50 pilot cap in the rule text above are superseded by these numbers. The estimate is about $10.7 (sonnet-nograph about $0.09, sonnet-diff-primer about $0.12, Haiku arms about $0.012 to $0.015 per run); if the cap binds, passes 1 and 2 (about $7.1) still complete.
+
+**New pilot A sample (named before the pilot).** 2 local, 2 cross, 1 clean, `sonnet-nograph`: `r-l1-resumable-clear`, `r-l4-id-min-length`, `r-x1-list-skips-worktree`, `r-x4-liveness-state-file`, `r-c6-drop-exists-guard`. The stop rule above is applied to this sample before any paid run; with the new numbers the paid run is 3 runs per cell, so each pilot bug stands for 5 planted bugs of its category per pass, 15 over 3 passes, and a single miss still clears the floor of 3.
+
+**Commands (from a plain terminal at the repo root).**
+
+1. `node --test bench/*.test.mjs`, `node bench/review-prep.mjs --check` and `node bench/review-run.mjs --dry --runs 1` (offline).
+2. $0 preflight over the four planned arms: `node bench/review-run.mjs --init-check`.
+3. New pilot A, $1.10 cap: `node bench/review-run.mjs --runs 1 --budget 1.1 --run-budget 0.4 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6`.
+4. Paid run, only after the stop rule is applied to the new pilot A: `node bench/review-run.mjs --runs 3 --budget 13 --run-budget 0.4`.
+
+**Measured against commit:** `<sha to be filled in after the commit that holds this amendment>`. The paid run is measured against that commit; the cases, graders, arms, numbers and rules are as they stand there.
+
 ### Results (paid run)
 
 Not run yet. This section is filled in after the user's paid run, with the verdicts per rule above, the false alarms and cost per run beside each, the confidence, and the reviewer-model recommendation.

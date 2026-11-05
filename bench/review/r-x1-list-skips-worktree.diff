@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-paths.ts b/apps/maestro/src/core/session-paths.ts
+--- a/apps/maestro/src/core/session-paths.ts
++++ b/apps/maestro/src/core/session-paths.ts
+@@ -223,7 +223,7 @@
+     return [];
+   }
+   return names
+-    .filter((d) => d.isDirectory() && isValidSessionId(d.name))
++    .filter((d) => d.isDirectory() && isValidSessionId(d.name) && !readWorktreePointer(claudeDir, d.name))
+     .map((d) => d.name)
+     .sort();
+ }

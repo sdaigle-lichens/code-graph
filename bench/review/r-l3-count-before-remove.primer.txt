@@ -1,21 +1,17 @@
 ## Changed symbols
-- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge): `isAbandoned` (L90-102)
+- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge): `sweepStaleSessions` (L108-130)
 
 ## Impact of each changed symbol (callers, depth 2)
 
-### `isAbandoned` in apps/maestro/src/core/session-sweep.ts
+### `sweepStaleSessions` in apps/maestro/src/core/session-sweep.ts
 
 ## Direct callers
 
-- @apps/maestro/src/core/session-sweep.ts:120 — `sweepStaleSessions`
-- @apps/maestro/src/core/session-sweep.ts:177 — `deleteSession`
-- @apps/maestro/src/core/session-sweep.ts:199 — `listDeletableSessions`
+- @apps/maestro/src/core/session-ipc.ts:55 — `sweepAndRetarget`
 
 ## Indirect callers (depth 2)
 
-- @apps/maestro/src/core/session-ipc.ts:54 — `sweepAndRetarget`
-- @apps/maestro/src/core/session-ipc.ts:61 — `deleteAndRetarget`
-- @apps/maestro/src/main/ipc.ts:492 — `registerIpc`
+- @apps/maestro/src/main/ipc.ts:328 — `sweepAndRefresh`
 
 ## Untested callers (no test file mentions the caller by name)
 

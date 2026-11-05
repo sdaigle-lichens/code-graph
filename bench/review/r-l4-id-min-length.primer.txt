@@ -1,5 +1,5 @@
 ## Changed symbols
-- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge): no indexed symbol overlaps the changed lines (module-level change)
+- apps/maestro/src/core/session-paths.ts (concept claude-session-bridge): no indexed symbol overlaps the changed lines (module-level change)
 
 ## Impact of each changed symbol (callers, depth 2)
 

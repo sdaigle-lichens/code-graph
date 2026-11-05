@@ -17,10 +17,14 @@ export const REVIEW_ARMS = {
   'sonnet-diff-primer': { model: SONNET, primer: true, spawn: false },
   'haiku-diff-primer': { model: HAIKU, primer: true, spawn: false },
   'sonnet-spawns-haiku': { model: SONNET, primer: false, spawn: true },
-  'haiku-nograph': { model: HAIKU, primer: false, spawn: false }, // optional cheap reference
+  'haiku-nograph': { model: HAIKU, primer: false, spawn: false }, // separates the model effect from the primer effect
 };
 export const REVIEW_ARM_NAMES = Object.keys(REVIEW_ARMS);
-export const DEFAULT_REVIEW_ARMS = 'sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku';
+// 068: the planned arms. `sonnet-spawns-haiku` stays defined (its prompt, tool set and spawn-validity check
+// are tested) but is left out of the plan; add it with `--arms`.
+export const DEFAULT_REVIEW_ARMS = 'sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,haiku-nograph';
+export const DEFAULT_RUNS = '3';
+export const DEFAULT_BUDGET = '13';
 export const BASELINE = 'sonnet-nograph';
 
 export function parseReviewArms(s) {

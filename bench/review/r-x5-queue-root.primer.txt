@@ -1,26 +1,17 @@
 ## Changed symbols
-- apps/maestro/src/core/claims.ts (concept task-queue): `readClaims` (L140-160)
+- apps/maestro/src/core/tasks.ts (concept task-queue): `deleteTask` (L266-292)
 
 ## Impact of each changed symbol (callers, depth 2)
 
-### `readClaims` in apps/maestro/src/core/claims.ts
+### `deleteTask` in apps/maestro/src/core/tasks.ts
 
 ## Direct callers
 
-- @apps/maestro/src/core/tasks.ts:172 — `listTasks` — listTasks loads claim records to attach to the tasks.
-- @apps/maestro/src/core/epics.ts:587 — `readyTasks`
-- @apps/maestro/src/core/tasks.ts:273 — `deleteTask` — On the early-return path for an unknown filename, deleteTask loads claims for the unchanged queue.
-- @apps/maestro/src/core/tasks.ts:197 — `closeTask` — closeTask loads claims for the refreshed queue it returns.
-- @apps/maestro/src/core/epics.ts:500 — `showEpic`
-
-## Indirect callers (depth 2)
-
-- @apps/maestro/src/main/ipc.ts:492 — `registerIpc`
-- @apps/maestro/src/core/tasks.ts:320 — `tailTasks`
+- @apps/maestro/src/main/ipc.ts:957 — `registerIpc`
 
 ## Untested callers (no test file mentions the caller by name)
-- `readyTasks` (apps/maestro/src/core/epics.ts:587) calls `readClaims`
-- `showEpic` (apps/maestro/src/core/epics.ts:500) calls `readClaims`
+
+none
 
 ## New cross-concept edges added by the diff
 

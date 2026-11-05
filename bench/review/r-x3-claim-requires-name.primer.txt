@@ -1,13 +1,29 @@
 ## Changed symbols
-- apps/maestro/src/core/claims.ts (concept task-queue): no indexed symbol overlaps the changed lines (module-level change)
+- apps/maestro/src/core/claims.ts (concept task-queue): `readClaimFile` (L85-100)
 
 ## Impact of each changed symbol (callers, depth 2)
 
-none (no indexed symbol changed)
+### `readClaimFile` in apps/maestro/src/core/claims.ts
+
+## Direct callers
+
+- @apps/maestro/src/core/claims.ts:104 — `claimSessionName`
+- @apps/maestro/src/core/claims.ts:209 — `claimTask` — claimTask calls readClaimFile again on EEXIST to read the winning claim.
+- @apps/maestro/src/core/claims.ts:146 — `readClaims` — readClaims calls readClaimFile to parse each claim file it lists.
+- @apps/maestro/src/core/claims.ts:231 — `releaseTask` — releaseTask calls readClaimFile to read the claim and check its owner before removing it.
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/core/epics.ts:314 — `writeReport`
+- @apps/maestro/src/core/epics.ts:282 — `taskClaimName`
+- @apps/maestro/src/core/tasks.ts:167 — `listTasks`
+- @apps/maestro/src/core/epics.ts:581 — `readyTasks`
+- @apps/maestro/src/core/tasks.ts:266 — `deleteTask`
+- @apps/maestro/src/core/tasks.ts:183 — `closeTask`
+- @apps/maestro/src/core/epics.ts:494 — `showEpic`
 
 ## Untested callers (no test file mentions the caller by name)
-
-none
+- `claimSessionName` (apps/maestro/src/core/claims.ts:104) calls `readClaimFile`
 
 ## New cross-concept edges added by the diff
 

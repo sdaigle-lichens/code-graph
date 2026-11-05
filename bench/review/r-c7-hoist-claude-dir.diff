@@ -1,0 +1,25 @@
+diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
+--- a/apps/maestro/src/core/session-sweep.ts
++++ b/apps/maestro/src/core/session-sweep.ts
+@@ -165,18 +165,19 @@
+     return { removed: false, reason: "invalid" };
+   }
+   if (sessionId === ownId) return { removed: false, reason: "own-session" };
+-  const paths = sessionPathsFor(path.join(projectRoot, ".claude"), sessionId);
++  const claudeDir = path.join(projectRoot, ".claude");
++  const paths = sessionPathsFor(claudeDir, sessionId);
+   if (!paths) return { removed: false, reason: "invalid" };
+   try {
+     fs.lstatSync(paths.dir);
+   } catch (e) {
+     return (e as NodeJS.ErrnoException).code === "ENOENT"
+       ? { removed: false, reason: "not-found" }
+       : { removed: false, reason: "running" };
+   }
+   if (!isAbandoned(paths.dir, now, idleCapMs)) return { removed: false, reason: "running" };
+   try {
+-    for (const d of sessionDirsFor(path.join(projectRoot, ".claude"), sessionId)) {
++    for (const d of sessionDirsFor(claudeDir, sessionId)) {
+       fs.rmSync(d, { recursive: true, force: true });
+     }
+     return { removed: true };

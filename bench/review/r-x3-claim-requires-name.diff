@@ -1,0 +1,13 @@
+diff --git a/apps/maestro/src/core/claims.ts b/apps/maestro/src/core/claims.ts
+--- a/apps/maestro/src/core/claims.ts
++++ b/apps/maestro/src/core/claims.ts
+@@ -89,7 +89,8 @@
+       data &&
+       typeof data === "object" &&
+       typeof (data as ClaimFile).session_id === "string" &&
+-      typeof (data as ClaimFile).claimed_at === "string"
++      typeof (data as ClaimFile).claimed_at === "string" &&
++      typeof (data as ClaimFile).session_name === "string"
+     ) {
+       return data as ClaimFile;
+     }
