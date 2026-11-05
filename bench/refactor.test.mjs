@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
-  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory, answerProblems, proposalsOf,
+  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, isAllClear, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory, answerProblems, proposalsOf,
   refactorArgs, refactorPrompt, refactorReport, rowCost, stageProblems, stageSpec, stagesOf, storedProblems, tally, unusedExports, verdictsOf,
 } from './refactor.mjs';
 import { REFACTOR_CASES, selectRefactorCases } from './refactor-cases.mjs';
@@ -125,7 +125,7 @@ test('graders: a proposal for another file that only mentions the right file, or
   const c = caseOf('f-r3-readloglines-copy');
   assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-check-runtime.cjs: dedupe: has its own readLogLines like maestro-resume-target.cjs, require it from the lib.']).found, 0);
   assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file in two.']).found, 0);
-  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs: dedupe: readLogLines is fine as written, it is the shared lib copy already exported.']).found, 0, 'an all-clear sentence is not a proposal');
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs readLogLines dedupe is fine as written.']).found, 0, 'an unshaped all-clear sentence is not a proposal');
 });
 
 test('graders: the cycle case needs the cycle named; the seeded unused export is tolerated on the cycle case only', () => {
@@ -268,8 +268,12 @@ test('answerProblems: an unstructured answer or filter answer is a run problem; 
 test('all-clear text is its own count: not credited, not a proposal, not a false finding; header-line and bullet forms, prose after the header', () => {
   const c = caseOf('f-c1-canvas-layout');
   const forms = [
-    'PROPOSALS:\n- apps/maestro/src/core/canvas-layout.ts: dedupe: this module is fine as written, nothing to do.',
     'PROPOSALS: no proposals',
+    'PROPOSALS:\n- Leave it as is.',
+    'PROPOSALS:\n- No issues found.',
+    'PROPOSALS:\n- Not needed.',
+    'PROPOSALS:\n- Nothing found.',
+    'PROPOSALS:\n- none',
     'PROPOSALS: nothing to do',
     'PROPOSALS: No refactor is warranted.',
     'PROPOSALS:\n- nothing to change here',
@@ -296,6 +300,56 @@ test('all-clear text is its own count: not credited, not a proposal, not a false
   assert.equal(mixed.proposals, 2);
   assert.equal(gradeItems(r, ['nothing to change here']).allClear, 1);
   assert.equal(proposalsOf('PROPOSALS: no proposals').items.length, 0);
+});
+
+test('a proposal in the <file>: <kind>: shape is never an all-clear, whatever words its text holds', () => {
+  const r = caseOf('f-r1-canvas-align');
+  const texts = [
+    'these are good candidates for one shared helper',
+    'not worth keeping, so import the shared one',
+    'the export is fine to delete',
+    'is OK to keep, but duplicates core/json.ts',
+    'has no duplication needed elsewhere',
+    'is intended to be shared',
+    'this module is fine as written, nothing to do.',
+  ];
+  for (const t of texts) {
+    const item = `src/a.ts: dedupe: ${t}`;
+    assert.equal(isAllClear(item), false, item);
+    const p = proposalsOf(`PROPOSALS:\n- ${item}`);
+    assert.equal(p.items.length, 1, item);
+    assert.equal(p.allClear, 0, item);
+    const g = gradeItems(r, p.items);
+    assert.equal(g.falseFindings, 1, item);
+    assert.equal(g.allClear, 0, item);
+  }
+  const none = proposalsOf('PROPOSALS:\n- none-helpers.ts: dedupe: merge x');
+  assert.equal(none.items.length, 1);
+  assert.equal(none.allClear, 0);
+  assert.equal(isAllClear('none'), true);
+  assert.equal(isAllClear('None.'), true);
+});
+
+test('gradeItems still credits an expected improvement worded "is OK to keep, but duplicates"', () => {
+  const r = caseOf('f-r1-canvas-align');
+  const x = r.refactor.expected[0];
+  const item = r.samples.good.split('\n')[1].slice(2).replace(': ', ': ').replace(/^([^:]+: [a-z-]+: )/, '$1is OK to keep, but duplicates: ');
+  const g = gradeItems(r, [item]);
+  assert.equal(g.credited, 1, item);
+  assert.equal(g.found, 1);
+  assert.ok(x);
+});
+
+test('a bullet on the PROPOSALS: header line is the first item; header prose naming a path is one item, not an all-clear', () => {
+  const b = proposalsOf('PROPOSALS: - a.ts: dedupe: x');
+  assert.deepEqual(b.items, ['a.ts: dedupe: x']);
+  assert.equal(b.allClear, 0);
+  const n = proposalsOf('PROPOSALS: 1. a.ts: dedupe: x\n2. b.ts: dedupe: y');
+  assert.equal(n.items.length >= 1, true);
+  assert.equal(n.items[0], 'a.ts: dedupe: x');
+  const prose = proposalsOf('PROPOSALS: src/a.ts duplicates src/core/json.ts; import it.');
+  assert.equal(prose.items.length, 1);
+  assert.equal(prose.allClear, 0);
 });
 
 test('gradePipeline: all-clear lines never reach the filter and are counted from the scout', () => {

@@ -99,9 +99,9 @@ test('the real cases name a source commit that exists in the maestro checkout, w
 
 // The runner's own session path (setup, validity, grading, status, report) with `claude` replaced by a stub on
 // PATH that prints an init event and one result event carrying `answer`. No model is called, nothing is spent.
-function runWithStubClaude(answer) {
+function runWithStubClaude(answer, caseId = 'f-c1-canvas-layout') {
   const bin = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'refactor-cli-claude-'));
-  const skills = REFACTOR_CASES.find((c) => c.id === 'f-c1-canvas-layout').skills;
+  const skills = REFACTOR_CASES.find((c) => c.id === caseId).skills;
   const stub = join(bin, 'claude');
   writeFileSync(stub, `#!/usr/bin/env node
 const init = { type: 'system', subtype: 'init', model: 'claude-sonnet-5-5', tools: ['Bash', 'Read', 'Grep', 'Glob', 'Skill'], skills: ${JSON.stringify(skills)}, plugins: [], slash_commands: [], agents: [] };
@@ -109,7 +109,7 @@ const result = { type: 'result', subtype: 'success', is_error: false, result: ${
 process.stdout.write(JSON.stringify(init) + '\\n' + JSON.stringify(result) + '\\n');
 `);
   chmodSync(stub, 0o755);
-  const r = spawnSync('node', [join(here, 'refactor-run.mjs'), '--budget', '1', '--run-budget', '0.5', '--only', 'f-c1-canvas-layout', '--arms', 'sonnet-plain', '--runs', '1'], {
+  const r = spawnSync('node', [join(here, 'refactor-run.mjs'), '--budget', '1', '--run-budget', '0.5', '--only', caseId, '--arms', 'sonnet-plain', '--runs', '1'], {
     encoding: 'utf8', timeout: 300000, env: { ...plainEnv, PATH: `${bin}:${process.env.PATH}` },
   });
   const dir = /^results: (.+)$/m.exec(r.stdout)?.[1];
@@ -146,6 +146,30 @@ test('refactor-run, real runner: "PROPOSALS: none" after a prose sentence on a c
   assert.equal(runs.rows[0].grade.falseFindings, 0);
   assert.match(report, /No invalid run\./);
   assert.match(report, /\| f-c1-canvas-layout \| sonnet-plain \| 1 \| yes \| 0\/0 \| 0 \| 0 \(clean case\) \| 0 \| yes \|/);
+});
+
+test('refactor-run, real runner: all-clear bullets on a clean case are an all-clear count, not false findings; the run is valid', { skip: noMaestro }, () => {
+  const { r, runs, report } = runWithStubClaude('PROPOSALS:\n- nothing to change here\n- the module is fine as written.');
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(runs.rows[0].status, 'valid');
+  assert.equal(runs.rows[0].grade.structured, true);
+  assert.equal(runs.rows[0].grade.proposals, 0);
+  assert.equal(runs.rows[0].grade.falseFindings, 0);
+  assert.equal(runs.rows[0].grade.allClear, 2);
+  assert.match(report, /\| f-c1-canvas-layout \| sonnet-plain \| 1 \| yes \| 0\/0 \| 0 \| 0 \(clean case\) \| 2 \| yes \|/);
+  assert.match(report, /\| sonnet-plain \| 1 \| 0\/0 \| 0\/0 \| 0\/0 \| 0\/0 \| 0\/0 \| 0\/0 \| 0 \| 2 \|/, 'the per-arm all-clear column');
+});
+
+test('refactor-run, real runner: a real proposal beside an all-clear bullet on the planted case is found and counted; the bullet is its own count', { skip: noMaestro }, () => {
+  const c = REFACTOR_CASES.find((x) => x.id === 'f-r1-canvas-align');
+  const { r, runs, report } = runWithStubClaude(`${c.samples.good}\n- nothing to change here`, c.id);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(runs.rows[0].status, 'valid');
+  assert.equal(runs.rows[0].grade.found, 1);
+  assert.equal(runs.rows[0].grade.proposals, 1, 'the real proposal is counted, the bullet is not');
+  assert.equal(runs.rows[0].grade.falseFindings, 0);
+  assert.equal(runs.rows[0].grade.allClear, 1);
+  assert.match(report, /\| f-r1-canvas-align \| sonnet-plain \| 1 \| yes \| 1\/1 \| 1 \| 0 \| 1 \| yes \|/);
 });
 
 test('refactor-prep --check: every stored scope and primer regenerates byte for byte from the pinned maestro checkout, and every plant applies', { skip: noMaestro }, () => {

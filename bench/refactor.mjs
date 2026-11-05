@@ -238,11 +238,8 @@ export function buildMetricsPrimer(data) {
 
 // ---- graders --------------------------------------------------------------------------------------
 
-// A proposal that says the code is fine is not a proposal, whatever keywords it also names.
-const ABSENT_RE = /\b(?:is|are|looks?|seems?|appears?|remains?|stays?) (?:fine|correct|ok|okay|clean|good|appropriate|intended|harmless|justified)\b|\b(?:fine|ok|clean) as (?:written|is)\b|\bno (?:refactor|change|improvement|duplication|cycle)s? (?:is |are )?(?:needed|warranted|required)\b|\bnot worth\b/i;
-
 const pathOf = (item) => { const i = item.indexOf(': '); return i > 0 ? item.slice(0, i) : item; };
-const matches = (x, item) => !ABSENT_RE.test(item) && new RegExp(x.file, 'i').test(pathOf(item)) && x.change.every((d) => new RegExp(d, 'i').test(item));
+const matches = (x, item) => !isAllClear(item) && new RegExp(x.file, 'i').test(pathOf(item)) && x.change.every((d) => new RegExp(d, 'i').test(item));
 
 // c.refactor = { expected: [{ id, category, file: regex, change: [regex, ...] }], tolerated: [{ file, change }] }.
 // An expected improvement counts as proposed when one proposal names its file (the path token, before the
@@ -260,10 +257,22 @@ export const proposalCategory = (item) => {
 // warranted", "fine as written"): a formatting habit, not a proposal. It is its own count (`allClear`), per
 // case and per arm, and is NOT a false finding (pre-registered in docs/evals.md), so an arm that writes
 // all-clear lines instead of `PROPOSALS: none` is not scored worse for it.
-const ALL_CLEAR_RE = /^\W*(?:no (?:further |other |additional )?(?:proposals?|refactors?|refactoring|changes?|improvements?|suggestions?)\b|nothing (?:to (?:do|change|propose|refactor|report|improve|suggest)|is warranted|warranted|needed|else)\b|none\b|n\/a\b|all (?:clear|good)\b)/i;
-export const isAllClear = (item) => ALL_CLEAR_RE.test(item.trim()) || ABSENT_RE.test(item);
-// A proposal line has the form `<file>: <kind>: <text>`; anything else on the `PROPOSALS:` header line is prose.
+// Prefix forms ("No proposals; ...") and whole-line forms ("none", "Leave it as is.", "No issues found.").
+// Both apply ONLY to an item without the proposal shape (below): a `<file>: <kind>: <text>` line is always a
+// proposal, whatever words its text contains.
+const ALL_CLEAR_RE = /^\W*(?:no (?:further |other |additional )?(?:proposals?|refactors?|refactoring|changes?|improvements?|suggestions?)\b|nothing (?:to (?:do|change|propose|refactor|report|improve|suggest)|is warranted|warranted|needed|else)\b|n\/a\b|all (?:clear|good)\b)/i;
+const ALL_CLEAR_LINE_RE = /^\W*(?:none|leave (?:it|this|them|that) (?:as is|alone)|no (?:issues|problems|findings|duplication|duplicates|cycles|unused exports)(?: found)?|not needed|nothing found)\W*$/i;
+// An "it is fine" sentence, anchored to the whole (short) line.
+const ABSENT_LINE_RE = /^(?!.*\b(?:but|however|although|though|yet|duplicat\w*|except)\b)\W*(?:[\w'`./ ,-]{0,60}?\b(?:is|are|looks?|seems?|appears?|remains?|stays?) (?:fine|correct|ok|okay|clean|good|appropriate|intended|harmless|justified)|(?:fine|ok|clean) as (?:written|is)|no (?:refactor|change|improvement|duplication|cycle)s? (?:is |are )?(?:needed|warranted|required))(?:[\w'`./ ,-]{0,40})?\W*$/i;
+// A proposal line has the form `<file>: <kind>: <text>`; anything else is prose.
 const SHAPE_RE = /^\S+:\s+[a-z][a-z-]*:\s/i;
+export const isAllClear = (item) => {
+  const t = item.trim();
+  if (SHAPE_RE.test(t)) return false;
+  return ALL_CLEAR_RE.test(t) || ALL_CLEAR_LINE_RE.test(t) || ABSENT_LINE_RE.test(t);
+};
+// Prose that names a file path is a claim about code, not an all-clear.
+const PATHY_RE = /\b[\w.-]+\/[\w.-]+|\b[\w-]+\.(?:ts|tsx|js|mjs|cjs|json|md)\b/i;
 
 // The proposals of an answer: the items under its `PROPOSALS:` header with the all-clear text taken out and
 // counted. `PROPOSALS:` followed by prose on its own line (no bullet, not in the proposal form) is an
@@ -276,7 +285,14 @@ export function proposalsOf(text) {
   if (f.structured) {
     const hdr = [...String(text ?? '').matchAll(/^[ \t*#>_`-]*PROPOSALS[ \t*`_]*:[ \t*`_]*(.*)$/gim)].pop();
     const rest = hdr ? hdr[1].trim() : '';
-    if (rest && !f.none && items.length && !SHAPE_RE.test(rest) && !/^(?:[-*•]|\d+[.)])\s/.test(rest)) { items.shift(); allClear++; }
+    const bullet = /^(?:[-*•]|\d+[.)])\s+/.exec(rest);
+    if (bullet) {
+      // `PROPOSALS: - a.ts: dedupe: x`: a bullet on the header line is the first item (findingsOf drops it).
+      items.unshift(rest.slice(bullet[0].length).trim());
+    } else if (rest && !f.none && items.length && !SHAPE_RE.test(rest) && !PATHY_RE.test(rest)) {
+      // Header prose that names no file is an all-clear; prose naming a path stays one item (a claim).
+      items.shift(); allClear++;
+    }
   }
   const real = items.filter((it) => !isAllClear(it));
   allClear += items.length - real.length;
