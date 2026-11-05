@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
-  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory,
+  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory, answerProblems,
   refactorArgs, refactorPrompt, refactorReport, rowCost, stageProblems, stageSpec, stagesOf, storedProblems, tally, unusedExports, verdictsOf,
 } from './refactor.mjs';
 import { REFACTOR_CASES, selectRefactorCases } from './refactor-cases.mjs';
@@ -232,6 +232,53 @@ test('gradePipeline: scored on the survivors; the filter\'s losses and removals 
   const empty = gradePipeline(clean, 'PROPOSALS: none', null);
   assert.equal(empty.proposals, 0);
   assert.equal(empty.anchor.rate, null);
+});
+
+test('gradePipeline: a filter answer with no VERDICTS header keeps nothing (fails closed) and the expected improvement counts as lost', () => {
+  const c = caseOf('f-r3-readloglines-copy');
+  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file.`;
+  const prose = gradePipeline(c, scout, 'I approve this list, both proposals are real.');
+  assert.equal(prose.verdicts.structured, false);
+  assert.equal(prose.anchor.kept, 0);
+  assert.equal(prose.anchor.unmarked, 2);
+  assert.equal(prose.anchor.unchanged, false);
+  assert.equal(prose.found, 0);
+  assert.equal(prose.falseFindings, 0);
+  assert.equal(prose.lostByFilter, 1);
+});
+
+test('gradeRefactor: an answer with no PROPOSALS header is unstructured and proposes nothing; it is not a "none"', () => {
+  const c = caseOf('f-r1-canvas-align');
+  const g = gradeRefactor(c, 'The canvas duplicates alignMainSession from canvas-layout.ts; import the core one.');
+  assert.equal(g.structured, false);
+  assert.equal(g.none, false);
+  assert.equal(g.proposals, 0);
+  assert.equal(g.found, 0);
+});
+
+test('answerProblems: an unstructured answer or filter answer is a run problem; a structured one, even "none", is not', () => {
+  const c = caseOf('f-r1-canvas-align');
+  assert.match(answerProblems('sonnet-plain', gradeRefactor(c, 'prose only'))[0], /no PROPOSALS section/);
+  assert.deepEqual(answerProblems('sonnet-plain', gradeRefactor(c, 'PROPOSALS: none')), []);
+  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}`;
+  assert.match(answerProblems('haiku-scout-sonnet-filter', gradePipeline(c, scout, 'I approve'))[0], /no VERDICTS section/);
+  assert.deepEqual(answerProblems('haiku-scout-sonnet-filter', gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it')), []);
+});
+
+test('an all-clear bullet under PROPOSALS is not credited and counts as a false finding', () => {
+  const c = caseOf('f-c1-canvas-layout');
+  assert.equal(gradeRefactor(c, 'PROPOSALS:\n- apps/maestro/src/core/canvas-layout.ts: dedupe: this module is fine as written, nothing to do.').falseFindings, 1);
+  const r = caseOf('f-r1-canvas-align');
+  const g = gradeRefactor(r, 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: dedupe: alignMainSession is fine as written.');
+  assert.equal(g.found, 0);
+  assert.equal(g.falseFindings, 1);
+});
+
+test('refactorReport: an unstructured answer is shown as unstructured, not as a clean run with no proposals', () => {
+  const c = caseOf('f-r1-canvas-align');
+  const row1 = { case: c.id, arm: 'sonnet-plain', run: 1, m: { cost: 0.1, turns: 2 }, problems: [], status: 'valid', grade: gradeRefactor(c, 'prose only, no header') };
+  const md = refactorReport([row1], { spent: 0.1, budget: 1, stop: null, planned: [{ case: c.id, arm: 'sonnet-plain', run: 1 }] });
+  assert.match(md, /unstructured|not structured|structured: no/i);
 });
 
 test('stageProblems: the spawn arm is invalid without a Haiku subagent in the transcript; no other session may call Agent', () => {

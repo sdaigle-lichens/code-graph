@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveMaestroDir } from './maestro-dir.mjs';
+import { REFACTOR_CASES } from './refactor-cases.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const run = (script, args, env = process.env, timeout = 600000) =>
@@ -77,6 +78,21 @@ test('refactor-prep: an unknown case filter exits 2', () => {
   const r = run('refactor-prep.mjs', ['--only', 'no-such-case']);
   assert.equal(r.status, 2);
   assert.match(r.stderr, /no case matches/);
+});
+
+test('the real cases name a source commit that exists in the maestro checkout, with its subject as the quoted title; the pin exists', { skip: noMaestro }, () => {
+  const dir = resolveMaestroDir();
+  const pin = spawnSync('git', ['-C', dir, 'cat-file', '-e', '3814a30^{commit}'], { encoding: 'utf8' });
+  assert.equal(pin.status, 0, 'the pinned commit 3814a30 is in the checkout');
+  const real = REFACTOR_CASES.filter((c) => c.kind === 'real');
+  assert.equal(real.length, 4);
+  for (const c of real) {
+    const m = /^maestro ([0-9a-f]{7}) "([^"]+)"/.exec(c.refactor.source);
+    assert.ok(m, `${c.id} names its source commit`);
+    const r = spawnSync('git', ['-C', dir, 'log', '-1', '--format=%s', m[1]], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${c.id}: ${m[1]} is not a commit of the checkout`);
+    assert.equal(r.stdout.trim(), m[2], `${c.id}: the subject of ${m[1]} is the title the case names`);
+  }
 });
 
 test('refactor-prep --check: every stored scope and primer regenerates byte for byte from the pinned maestro checkout, and every plant applies', { skip: noMaestro }, () => {

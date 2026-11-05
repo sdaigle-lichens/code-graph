@@ -362,6 +362,10 @@ no-graph workspace.
 Scoring: every proposal beyond an expected improvement (and the case's `tolerated` list) is a false finding on
 every case, clean or not, counted after the filter for the pipeline and split by the proposal's category.
 
+An answer with no `PROPOSALS:` section (or a filter answer with no `VERDICTS:` section) makes the run invalid
+(`answerProblems`), is not counted and is listed in the report; `PROPOSALS: none` is valid. The per-case table
+has a `structured` column. An all-clear bullet under `PROPOSALS:` counts as a false finding.
+
 Files:
 
 - `refactor.mjs`: arms, prompts, scope and metrics-primer builders, graders, pipeline grading, validity, verdicts, report.

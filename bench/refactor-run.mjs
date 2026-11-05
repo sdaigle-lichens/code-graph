@@ -21,7 +21,7 @@ import { applyReplacements } from './edit.mjs';
 import { maestroFor } from './maestro-dir.mjs';
 import {
   DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, filterPrompt, gradePipeline, gradeRefactor, parseRefactorArms, promptProblems,
-  refactorArgs, refactorPrompt, refactorReport, stageProblems, stageSpec, stagesOf, storedProblems,
+  answerProblems, refactorArgs, refactorPrompt, refactorReport, stageProblems, stageSpec, stagesOf, storedProblems,
 } from './refactor.mjs';
 import { selectRefactorCases } from './refactor-cases.mjs';
 import { refactorFile } from './refactor-prep.mjs';
@@ -163,7 +163,7 @@ for (const p of plan) {
     }
     grade = gradePipeline(c, first.m.answer, second ? second.m.answer : null);
   } else grade = gradeRefactor(c, first.m.answer);
-  const problems = [...first.problems, ...(second ? second.problems : [])];
+  const problems = [...first.problems, ...(second ? second.problems : []), ...(first.m.cost != null ? answerProblems(arm, grade) : [])];
   const status = runStatus(second && runStatus(first.m, []) === 'valid' ? second.m : first.m, problems); // a usage limit in either session
   const { init, ...mKeep } = first.m;
   const { init: init2, ...m2Keep } = second ? second.m : {};

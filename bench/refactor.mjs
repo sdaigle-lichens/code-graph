@@ -365,6 +365,16 @@ export function stageProblems(arm, stage, m, transcript) {
   return p;
 }
 
+// Problems of the answers themselves: a scout, baseline or spawn answer with no `PROPOSALS:` section, or a
+// filter answer with no `VERDICTS:` section, would otherwise grade as a valid run with nothing proposed and
+// no false finding. Such a run is invalid (not counted, listed in the report); the cell is rerun or reported.
+export function answerProblems(arm, grade) {
+  const p = [];
+  if (!grade.structured) p.push(`${arm}: the answer has no PROPOSALS section (unstructured); the run is not counted`);
+  if (grade.verdicts && !grade.verdicts.structured) p.push(`${arm}: the filter answer has no VERDICTS section (unstructured); the run is not counted`);
+  return p;
+}
+
 // Problems of the stored case files: the scope must list every file the change plants into, the primer
 // must carry its sections. (The full drift check against a fresh workspace is refactor-prep.mjs --check.)
 export function storedProblems(c, scope, primer) {
@@ -451,12 +461,12 @@ export function refactorReport(rows, meta) {
     for (const r of bad) for (const p of (r.problems.length ? r.problems : [r.status])) L.push(`- ${r.case} ${r.arm} run${r.run}: ${p}`);
     L.push('');
   } else if (rows.length) L.push('No invalid run.', '');
-  L.push('## Per case and arm', '', '| case | arm | run | valid | kept / expected | proposals kept | false findings | anchoring (kept/scout) | cost $ (scout + filter) | turns |', '|---|---|---|---|---|---|---|---|---|---|---|');
+  L.push('## Per case and arm', '', '| case | arm | run | valid | kept / expected | proposals kept | false findings | structured | anchoring (kept/scout) | cost $ (scout + filter) | turns |', '|---|---|---|---|---|---|---|---|---|---|---|');
   for (const r of rows) {
     const g = r.grade;
     const an = g.anchor ? `${g.anchor.kept}/${g.anchor.scout}` : '-';
     const cost = r.m2 ? `${usd(rowCost(r))} (${usd(r.m?.cost)} + ${usd(r.m2.cost)})` : usd(rowCost(r));
-    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.proposals} | ${g.falseFindings}${g.clean ? ' (clean case)' : ''} | ${an} | ${cost} | ${r.m?.turns ?? 'n/a'} |`);
+    L.push(`| ${r.case} | ${r.arm} | ${r.run} | ${isValidRow(r) ? 'yes' : 'NO'} | ${g.found}/${g.planted} | ${g.proposals} | ${g.falseFindings}${g.clean ? ' (clean case)' : ''} | ${g.structured ? 'yes' : 'no (unstructured)'}${g.verdicts ? ` / filter ${g.verdicts.structured ? 'yes' : 'no (unstructured)'}` : ''} | ${an} | ${cost} | ${r.m?.turns ?? 'n/a'} |`);
   }
   const t = tally(rows, meta.planned);
   const arms = REFACTOR_ARM_NAMES.filter((a) => t[a]);
