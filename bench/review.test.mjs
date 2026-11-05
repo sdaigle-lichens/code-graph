@@ -18,9 +18,10 @@ const stored = (id, ext) => readFileSync(join(here, 'review', `${id}.${ext}`), '
 // ---- arms, args, prompts ----
 
 test('parseReviewArms: known arms in table order, unknown or empty throws; default is the four planned arms (068)', () => {
-  assert.deepEqual(parseReviewArms(DEFAULT_REVIEW_ARMS), ['sonnet-nograph', 'sonnet-diff-primer', 'haiku-diff-primer', 'haiku-nograph']);
+  assert.deepEqual(parseReviewArms(DEFAULT_REVIEW_ARMS), ['sonnet-nograph', 'haiku-diff-primer', 'haiku-nograph']);
   assert.ok(!parseReviewArms(DEFAULT_REVIEW_ARMS).includes('sonnet-spawns-haiku'), 'the spawn arm is defined but not planned');
-  assert.deepEqual(parseReviewArms(`${DEFAULT_REVIEW_ARMS},sonnet-spawns-haiku`), ['sonnet-nograph', 'sonnet-diff-primer', 'haiku-diff-primer', 'sonnet-spawns-haiku', 'haiku-nograph']); // still selectable
+  assert.ok(!parseReviewArms(DEFAULT_REVIEW_ARMS).includes('sonnet-diff-primer'), 'the Sonnet primer arm is defined but not planned');
+  assert.deepEqual(parseReviewArms(`${DEFAULT_REVIEW_ARMS},sonnet-spawns-haiku,sonnet-diff-primer`), ['sonnet-nograph', 'sonnet-diff-primer', 'haiku-diff-primer', 'sonnet-spawns-haiku', 'haiku-nograph']); // still selectable
   assert.deepEqual(parseReviewArms('haiku-nograph, sonnet-nograph,sonnet-nograph'), ['sonnet-nograph', 'haiku-nograph']);
   assert.throws(() => parseReviewArms('sonnet-nograph,opus'), /unknown review arm/);
   assert.throws(() => parseReviewArms(''), /no arm given/);

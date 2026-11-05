@@ -3,8 +3,8 @@
 // Run from a plain terminal (a nested sandbox breaks Bash), except --dry and --init-check.
 // Usage: node bench/review-run.mjs [--arms a,b] [--only <substring>] [--runs 3] [--budget 13] [--run-budget 0.4]
 //                                  [--dry] [--keep-ws] [--init-check]
-// Arms (default, 068): sonnet-nograph, sonnet-diff-primer, haiku-diff-primer, haiku-nograph.
-// sonnet-spawns-haiku is defined and tested but not planned; add it with --arms.
+// Arms (default, 067): sonnet-nograph, haiku-nograph, haiku-diff-primer.
+// sonnet-diff-primer and sonnet-spawns-haiku are defined and tested but not planned; add them with --arms.
 // The diff and the primer of each case are the stored files under bench/review/ (bench/review-prep.mjs).
 // Output: bench/results/review-<timestamp>/ (transcripts, runs.json, report.md), gitignored.
 import { spawn, spawnSync } from 'node:child_process';

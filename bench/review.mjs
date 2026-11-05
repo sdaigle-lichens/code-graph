@@ -20,9 +20,10 @@ export const REVIEW_ARMS = {
   'haiku-nograph': { model: HAIKU, primer: false, spawn: false }, // separates the model effect from the primer effect
 };
 export const REVIEW_ARM_NAMES = Object.keys(REVIEW_ARMS);
-// 068: the planned arms. `sonnet-spawns-haiku` stays defined (its prompt, tool set and spawn-validity check
-// are tested) but is left out of the plan; add it with `--arms`.
-export const DEFAULT_REVIEW_ARMS = 'sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,haiku-nograph';
+// 067: the planned arms after both pilot A screens saturated. `sonnet-diff-primer` (a primer cannot lift a
+// baseline at the ceiling) and `sonnet-spawns-haiku` stay defined (prompts, tool sets and the spawn-validity
+// check are tested) but are left out of the plan; add them with `--arms`.
+export const DEFAULT_REVIEW_ARMS = 'sonnet-nograph,haiku-nograph,haiku-diff-primer';
 export const DEFAULT_RUNS = '3';
 export const DEFAULT_BUDGET = '13';
 export const BASELINE = 'sonnet-nograph';

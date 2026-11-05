@@ -966,6 +966,31 @@ The comment-only clean cases `r-c2` and `r-c5` are dropped as trivial. Totals ar
 
 **Measured against commit:** `f214e33` (holds the cases, graders including the path-token file match, and arms; `550ca20` added the amendment and cases; later commits only record this sha). The paid run is measured against that commit; the cases, graders, arms, numbers and rules are as they stand there.
 
+### Post-pilot amendment (2026-11-05, ticket 067, before any Haiku data exists)
+
+Recorded before any paid run. It changes arms, the question and how verdicts are read; cases, graders, per-run cap and 3 runs per cell are as in the 068 amendment above (commit `f214e33`).
+
+**Both pilot A screens.**
+
+- 066 pilot A (results `bench/results/review-2026-11-05T16-16-04-363Z`, $0.335): `sonnet-nograph` 4 of 4 (2 of 2 local, 2 of 2 cross), no false alarm. That grader later turned out to credit wrong-file findings (fixed in `f214e33`).
+- 068 pilot A on the hardened cases (results `bench/results/review-2026-11-05T18-12-18-331Z`, $0.467, user-run preflight passed): `sonnet-nograph` 4 of 4 (2 of 2 local, 2 of 2 cross) on `r-l1`, `r-l4`, `r-x1`, `r-x4`, 1 false alarm on `r-c6`, 6 extra findings, 3 to 8 turns, about $0.093 per run.
+
+**Double stop-rule outcome.** The stop rule fired twice: 0 misses in the 2 sampled bugs of each category on the old cases and again on the hardened ones, so under 3 extrapolated misses in both categories, both times. The baseline is at the ceiling on the pilot sample. The user decided (2026-11-05) to stop hardening and spend the paid run on one question only: **does a Haiku reviewer miss clearly more than Sonnet?** This overrides the stop rule's "do not spend the paid run" on purpose, since the answer that is still open (Haiku against a ceiling baseline) is worth its cost.
+
+**Planned arms (changed).** `sonnet-nograph` (baseline), `haiku-nograph` and `haiku-diff-primer`. `sonnet-diff-primer` is dropped: a primer cannot lift a baseline that is at the ceiling. `sonnet-spawns-haiku` stays unplanned (code and tests kept, add with `--arms`). `DEFAULT_REVIEW_ARMS` in `bench/review.mjs` now matches.
+
+**Verdicts decided (rule change).** Any "recovers" verdict is declared **inconclusive in advance**: with the baseline at the ceiling no arm can show it helps, so none is claimed. Only **hurts** (an arm missing at least 3 more than `sonnet-nograph` in a category, per the committed rule) or **no effect shown** is decided, per category (local, cross) and overall, overall never overriding a category. False alarms on the clean diffs and cost per run are printed beside each verdict, as the committed rule says. The report's "helps" or "matches" wording, if it appears, is not a result of this run.
+
+**Cross category is softer than intended.** `r-x3` and `r-x5` can be read off the changed line (the diff itself shows the inconsistency), so a cross miss rate measured here understates what a diff-only reviewer would miss on a real cross-file break. Read the cross verdict with that in mind.
+
+**Runs and caps (the user's).** 3 runs per cell: 15 cases x 3 arms x 3 = 135 runs, so each arm faces 15 local, 15 cross and 15 clean reviews. Total cap $13 including both pilots; the pilots cost $0.335 + $0.467 = $0.802, so the paid run is `--budget 12.19` (about $12.2 of headroom); per run cap `--run-budget 0.40`.
+
+**Cost estimate (from the pilot per-run figures).** `sonnet-nograph`: 45 runs x about $0.093 = about $4.2. Haiku arms: 90 runs x about $0.012 to $0.015 (from 051) = about $1.1 to $1.4. Total about $5.3 to $5.6 for the paid run, about $6.1 to $6.4 with both pilots, well under the $13 cap; the cap and the $0.40 per run cap cannot bind unless a run costs several times the pilot figure.
+
+**Command (plain terminal, repo root).** Optional $0 preflight first: `node bench/review-run.mjs --init-check` (checks the three planned arms). Paid run: `node bench/review-run.mjs --runs 3 --budget 12.19 --run-budget 0.4`.
+
+**Measured against commit:** the commit that holds this amendment and the new defaults; its sha is written into the first results entry once the user approves it and `pnpm verify` is green on it. The pre-registration rule above applies: the cases, graders, arms, numbers and rules are as they stand there, with the changes in this amendment.
+
 ### Results (paid run)
 
 Not run yet. This section is filled in after the user's paid run, with the verdicts per rule above, the false alarms and cost per run beside each, the confidence, and the reviewer-model recommendation.

@@ -291,11 +291,13 @@ maestro checkout (same `maestroFor` resolution and `maestro-setup.sh` no-graph w
 is separate from `run.mjs`, so the edit and read-only sets are unaffected. Plan, task set, decision rule and
 verdict style are in [docs/evals.md](../docs/evals.md), "Ticket 066".
 
-Planned arms (the default, ticket 068): `sonnet-nograph` (baseline), `sonnet-diff-primer`,
-`haiku-diff-primer`, `haiku-nograph`; the Sonnet vs Haiku comparison is made with and without the primer.
-`sonnet-spawns-haiku` is dropped from the plan for now but kept, with its spawn-validity check and tests;
-add it with `--arms`. Each arm pins its model and its `--tools` set; only `sonnet-spawns-haiku` has the
-Agent tool. No arm has the code-graph plugin. Default runs per cell: 3; default cap: $13 (approved by the user; see the Ticket 066 post-pilot amendment in `docs/evals.md`).
+Planned arms (the default, ticket 067): `sonnet-nograph` (baseline), `haiku-nograph`, `haiku-diff-primer`;
+the question is whether a Haiku reviewer misses clearly more than Sonnet, and what the primer does for Haiku.
+`sonnet-diff-primer` (a primer cannot lift a baseline at the ceiling) and `sonnet-spawns-haiku` are dropped
+from the plan but kept, with the spawn-validity check and tests; add them with `--arms`. Each arm pins its
+model and its `--tools` set; only `sonnet-spawns-haiku` has the Agent tool. No arm has the code-graph plugin.
+Default runs per cell: 3; default cap: $13 in all, pilots included (approved by the user; pass
+`--budget` lower by what the pilots cost; see the 067 post-pilot amendment in `docs/evals.md`).
 
 Hardened cases (068, after pilot A saturated: the baseline found 4 of 4 sampled bugs): cross-file bugs
 break only outside the diff (a consumer such as the `maestro-task-status.cjs` twin, `handoff-channels`
@@ -334,11 +336,11 @@ node bench/review-prep.mjs --check
 node bench/review-run.mjs --dry
 node bench/review-run.mjs --init-check
 node bench/review-run.mjs --runs 1 --budget 1.1 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6  # new pilot A: baseline saturation on the hardened cases
-node bench/review-run.mjs                          # paid run (3 runs per cell, cap $13), only after the stop rule is applied to the new pilot A
+node bench/review-run.mjs --runs 3 --budget 12.19 --run-budget 0.4   # paid run (067): 3 arms x 15 cases x 3 runs, cap $13 less the $0.802 the two pilots cost
 ```
 
-`--init-check` with no `--arms` checks the four planned arms. Apply the pre-registered stop rule to the new
-pilot A before any paid run.
+`--init-check` with no `--arms` checks the three planned arms. Both pilot A screens saturated (stop rule fired
+twice); the 067 amendment in `docs/evals.md` records that and what is still decided.
 
 Output: `bench/results/review-<timestamp>/` (gitignored): `<case>/<arm>-run<N>.jsonl` transcripts, `runs.json`
 and `report.md` with the per-case table, the per-arm sums by category, and the verdicts against the baseline
