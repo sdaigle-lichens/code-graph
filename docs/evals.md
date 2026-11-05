@@ -962,7 +962,7 @@ The comment-only clean cases `r-c2` and `r-c5` are dropped as trivial. Totals ar
 3. New pilot A, $1.10 cap: `node bench/review-run.mjs --runs 1 --budget 1.1 --run-budget 0.4 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6`.
 4. Paid run, only after the stop rule is applied to the new pilot A: `node bench/review-run.mjs --runs 3 --budget 13 --run-budget 0.4`.
 
-**Measured against commit:** `550ca20` (the commit that holds this amendment, the cases, graders and arms; the follow-up commit only records this sha). The paid run is measured against that commit; the cases, graders, arms, numbers and rules are as they stand there.
+**Measured against commit:** `f214e33` (holds the cases, graders including the path-token file match, and arms; `550ca20` added the amendment and cases; later commits only record this sha). The paid run is measured against that commit; the cases, graders, arms, numbers and rules are as they stand there.
 
 ### Results (paid run)
 
