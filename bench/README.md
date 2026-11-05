@@ -295,8 +295,7 @@ Planned arms (the default, ticket 068): `sonnet-nograph` (baseline), `sonnet-dif
 `haiku-diff-primer`, `haiku-nograph`; the Sonnet vs Haiku comparison is made with and without the primer.
 `sonnet-spawns-haiku` is dropped from the plan for now but kept, with its spawn-validity check and tests;
 add it with `--arms`. Each arm pins its model and its `--tools` set; only `sonnet-spawns-haiku` has the
-Agent tool. No arm has the code-graph plugin. Default runs per cell: 3; default cap: $13 (a proposal until
-the user approves the numbers).
+Agent tool. No arm has the code-graph plugin. Default runs per cell: 3; default cap: $13 (approved by the user; see the Ticket 066 post-pilot amendment in `docs/evals.md`).
 
 Hardened cases (068, after pilot A saturated: the baseline found 4 of 4 sampled bugs): cross-file bugs
 break only outside the diff (a consumer such as the `maestro-task-status.cjs` twin, `handoff-channels`
@@ -335,7 +334,7 @@ node bench/review-prep.mjs --check
 node bench/review-run.mjs --dry
 node bench/review-run.mjs --init-check
 node bench/review-run.mjs --runs 1 --budget 1.1 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6  # new pilot A: baseline saturation on the hardened cases
-node bench/review-run.mjs                          # paid run (3 runs per cell, cap $13), only after the stop rule is applied to the new pilot A and the user confirms the numbers
+node bench/review-run.mjs                          # paid run (3 runs per cell, cap $13), only after the stop rule is applied to the new pilot A
 ```
 
 `--init-check` with no `--arms` checks the four planned arms. Apply the pre-registered stop rule to the new

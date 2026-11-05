@@ -962,6 +962,8 @@ The comment-only clean cases `r-c2` and `r-c5` are dropped as trivial. Totals ar
 3. New pilot A, $1.10 cap: `node bench/review-run.mjs --runs 1 --budget 1.1 --run-budget 0.4 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6`.
 4. Paid run, only after the stop rule is applied to the new pilot A: `node bench/review-run.mjs --runs 3 --budget 13 --run-budget 0.4`.
 
+**Grader change (2026-11-05, before any paid run).** The pre-paid-run review found that `gradeReview` matched a case's file regex against the whole finding text, so a finding on another file that merely used a word like "claims" was credited as a hit. It now matches the file regex against the path token (the text before the first `: `) only; the defect regex still reads the whole finding. This can only lower found counts, was fixed before any run on the hardened cases, and is pinned by a test (commit `f214e33`).
+
 **Measured against commit:** `f214e33` (holds the cases, graders including the path-token file match, and arms; `550ca20` added the amendment and cases; later commits only record this sha). The paid run is measured against that commit; the cases, graders, arms, numbers and rules are as they stand there.
 
 ### Results (paid run)
