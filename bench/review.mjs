@@ -250,9 +250,10 @@ const BULLET_RE = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/;
 
 // The findings a review lists: the items under its last `FINDINGS:` header (structured), else every
 // bullet of the text. `none` is true when the review says it found nothing.
-export function findingsOf(text) {
+// `header` (070 refactor mode: PROPOSALS, VERDICTS) names the section; it must be a plain word.
+export function findingsOf(text, header = 'FINDINGS') {
   const t = String(text ?? '');
-  const hdr = [...t.matchAll(/^[ \t*#>_`-]*FINDINGS[ \t*`_]*:[ \t*`_]*(.*)$/gim)].pop();
+  const hdr = [...t.matchAll(new RegExp(`^[ \\t*#>_\`-]*${header}[ \\t*\`_]*:[ \\t*\`_]*(.*)$`, 'gim'))].pop();
   const grab = (src) => {
     const items = [];
     let open = false;

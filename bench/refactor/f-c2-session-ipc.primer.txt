@@ -1,0 +1,32 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/session-ipc.ts (concept claude-session-bridge): fan-in 0, fan-out 3, 5 exports
+- apps/maestro/src/core/session-log.ts (concept maestro-architecture): fan-in 2, fan-out 2, 9 exports
+- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge): fan-in 1, fan-out 2, 9 exports
+- apps/maestro/src/core/session-title.ts (concept claude-session-bridge): fan-in 1, fan-out 1, 6 exports
+
+## Hubs among the scope files (the index lists them as high fan-in)
+none
+
+## Import cycles that include a scope file
+none
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+none
+
+## Cross-concept import edges between scope files
+- apps/maestro/src/core/session-ipc.ts (claude-session-bridge) imports apps/maestro/src/core/session-log.ts (maestro-architecture)
+
+## Cross-concept relations of the scope files (query cross)
+
+### claude-session-bridge <-> maestro-architecture
+
+- `maestro-architecture::liveRunIds` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::tailSessionLogs` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::liveRunIds` --calls--> `claude-session-bridge::listSessionIds`
+- `maestro-architecture::newestSessionLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::appendSessionLog` --calls--> `claude-session-bridge::ensureSessionPaths`
+- `maestro-architecture::sessionLogPath` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::appendSessionLog` --calls--> `claude-session-bridge::deriveUsage`
+- `maestro-architecture::sessionLogFileFor` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::tailSessionLogs` --calls--> `claude-session-bridge::listSessionIds`
+- `maestro-architecture::newestSessionLog` --calls--> `claude-session-bridge::listSessionIds`

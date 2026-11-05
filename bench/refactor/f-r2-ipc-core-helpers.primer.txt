@@ -1,0 +1,65 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/index.ts (concept none): fan-in 3, fan-out 0, 487 exports
+- apps/maestro/src/core/session-ipc.ts (concept claude-session-bridge): fan-in 0, fan-out 3, 5 exports
+- apps/maestro/src/main/ipc.ts (concept electron-shell-invariants): fan-in 1, fan-out 5, 2 exports
+- apps/maestro/src/main/project-store.ts (concept global-stores): fan-in 1, fan-out 1, 4 exports
+
+## Hubs among the scope files (the index lists them as high fan-in)
+none
+
+## Import cycles that include a scope file
+none
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+none
+
+## Cross-concept import edges between scope files
+- apps/maestro/src/main/ipc.ts (electron-shell-invariants) imports apps/maestro/src/main/project-store.ts (global-stores)
+
+## Cross-concept relations of the scope files (query cross)
+
+### claude-session-bridge <-> electron-shell-invariants
+
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionPane` --uses-hook--> `electron-shell-invariants::useProject`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::openSession` --calls--> `electron-shell-invariants::bundledPluginDir`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --uses-hook--> `electron-shell-invariants::useProject`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::ClaudeRunDialog` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+... (39 more lines)
+
+### claude-session-bridge <-> global-stores
+
+- `claude-session-bridge::applyUpdateSkillTagsIfAny` --calls--> `global-stores::readAllProjectTags`
+- `claude-session-bridge::buildUpdateSkillTags` --calls--> `global-stores::readAllProjectTags`
+- `claude-session-bridge::projectSkillsForTagging` --calls--> `global-stores::readAllSkillTags`
+- `claude-session-bridge::applyUpdateSkillTagsIfAny` --calls--> `global-stores::parseSkillTagsBlock`
+- `claude-session-bridge::applyUpdateSkillTagsIfAny` --calls--> `global-stores::applySkillTagsBlock`
+
+### electron-shell-invariants <-> global-stores
+
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::readAllProjectTags`
+- `electron-shell-invariants::resolveProjectRoot` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::readAllAgentProjectTags`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::openProject`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::resolveSkillLists`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::setAgentProjectTag`
+- `electron-shell-invariants::registerIpc` --calls--> `global-stores::currentRoot`
+... (60 more lines)

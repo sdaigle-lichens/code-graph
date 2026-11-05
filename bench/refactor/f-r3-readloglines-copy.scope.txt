@@ -1,0 +1,4 @@
+3 files:
+- apps/maestro/src/core/session-runtime.ts (concept maestro-architecture)
+- plugins/maestro/scripts/lib/maestro-session.cjs (concept none: outside every concept)
+- plugins/maestro/scripts/maestro-resume-target.cjs (concept none: outside every concept)

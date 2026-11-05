@@ -1,0 +1,377 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
+  falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems,
+  refactorArgs, refactorPrompt, refactorReport, rowCost, stageProblems, stageSpec, stagesOf, storedProblems, tally, unusedExports, verdictsOf,
+} from './refactor.mjs';
+import { REFACTOR_CASES, selectRefactorCases } from './refactor-cases.mjs';
+import { findingsOf } from './review.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const stored = (id, ext) => readFileSync(join(here, 'refactor', `${id}.${ext}`), 'utf8');
+const caseOf = (id) => REFACTOR_CASES.find((c) => c.id === id);
+const AGENT_INIT = (model, tools) => ({ init: { model, tools } });
+
+test('arms: the four arms in table order, unknown or empty throws, default is all four with 3 runs', () => {
+  assert.deepEqual(REFACTOR_ARM_NAMES, ['sonnet-plain', 'haiku-metrics-primer', 'haiku-scout-sonnet-filter', 'sonnet-spawns-haiku-scouts']);
+  assert.equal(DEFAULT_REFACTOR_ARMS, REFACTOR_ARM_NAMES.join(','));
+  assert.equal(DEFAULT_REFACTOR_RUNS, '3');
+  assert.equal(REFACTOR_BASELINE, 'sonnet-plain');
+  assert.deepEqual(parseRefactorArms('haiku-metrics-primer,sonnet-plain'), ['sonnet-plain', 'haiku-metrics-primer']);
+  assert.throws(() => parseRefactorArms('sonnet-plain,opus'), /unknown refactor arm/);
+  assert.throws(() => parseRefactorArms(''), /no arm/);
+});
+
+test('refactorArgs: each session pins its model and an exact tool set; only the spawn arm has Agent; the cap is the caller\'s', () => {
+  const a = (arm, stage = stagesOf(arm)[0]) => refactorArgs(arm, stage, 'P', { runBudget: '1.5' });
+  const flag = (args, f) => args[args.indexOf(f) + 1];
+  assert.equal(flag(a('sonnet-plain'), '--model'), 'claude-sonnet-5-5');
+  assert.equal(flag(a('haiku-metrics-primer'), '--model'), 'claude-haiku-5-5');
+  assert.equal(flag(a('haiku-scout-sonnet-filter', 'scout'), '--model'), 'claude-haiku-5-5');
+  assert.equal(flag(a('haiku-scout-sonnet-filter', 'filter'), '--model'), 'claude-sonnet-5-5');
+  for (const [arm, stage] of [['sonnet-plain', 'main'], ['haiku-metrics-primer', 'main'], ['haiku-scout-sonnet-filter', 'scout'], ['haiku-scout-sonnet-filter', 'filter']]) {
+    assert.equal(flag(a(arm, stage), '--tools'), 'Bash,Read,Grep,Glob,Skill', `${arm} ${stage}`);
+  }
+  assert.equal(flag(a('sonnet-spawns-haiku-scouts'), '--tools'), 'Bash,Read,Grep,Glob,Skill,Agent');
+  assert.equal(flag(a('sonnet-spawns-haiku-scouts'), '--allowedTools'), 'Bash,Read,Grep,Glob,Skill,Agent');
+  assert.equal(flag(a('sonnet-plain'), '--max-budget-usd'), '1.5');
+  assert.ok(!a('sonnet-plain').includes('--plugin-dir'));
+  assert.deepEqual(stagesOf('haiku-scout-sonnet-filter'), ['scout', 'filter']);
+  assert.deepEqual(stagesOf('sonnet-plain'), ['main']);
+  assert.throws(() => stageSpec('nope', 'main'), /unknown refactor arm/);
+});
+
+const SCOPE = stored('f-r3-readloglines-copy', 'scope.txt');
+const PRIMER = stored('f-r3-readloglines-copy', 'primer.txt');
+
+test('refactorPrompt: the neighbourhood and format in every arm, the primer only in primer arms, the spawn paragraph only in the spawn arm', () => {
+  for (const arm of REFACTOR_ARM_NAMES) {
+    const p = refactorPrompt(arm, SCOPE, REFACTOR_ARMS[arm].primer ? PRIMER : '');
+    assert.match(p, /<neighbourhood>[\s\S]*maestro-resume-target\.cjs[\s\S]*<\/neighbourhood>/);
+    assert.match(p, /`PROPOSALS:`/);
+    assert.equal(p.includes('<metrics-primer>'), REFACTOR_ARMS[arm].primer, arm);
+    assert.equal(p.includes('Haiku subagents'), REFACTOR_ARMS[arm].spawn, arm);
+    assert.deepEqual(promptProblems(arm, p), [], arm);
+  }
+  assert.throws(() => refactorPrompt('haiku-metrics-primer', SCOPE, ''), /needs the stored metrics primer/);
+  assert.throws(() => refactorPrompt('nope', SCOPE), /unknown refactor arm/);
+  assert.match(promptProblems('sonnet-plain', refactorPrompt('haiku-metrics-primer', SCOPE, PRIMER))[0], /carries a metrics primer/);
+  assert.match(promptProblems('haiku-metrics-primer', refactorPrompt('sonnet-plain', SCOPE))[0], /no metrics primer/);
+  assert.match(promptProblems('sonnet-plain', refactorPrompt('sonnet-spawns-haiku-scouts', SCOPE))[0], /spawn subagents/);
+});
+
+test('refactorPrompt: nothing in a prompt reveals the expected improvement, the plant or the source commit', () => {
+  for (const c of REFACTOR_CASES) {
+    const p = refactorPrompt('haiku-metrics-primer', stored(c.id, 'scope.txt'), stored(c.id, 'primer.txt'));
+    for (const e of c.refactor.expected) assert.ok(!p.includes(e.id) && !p.includes(e.desc), `${c.id} leaks ${e.id}`);
+    assert.ok(!/refactor: |seeded:|reverted|source commit|touched/i.test(stored(c.id, 'scope.txt')), `${c.id} scope labels the touched files`);
+  }
+});
+
+test('filterPrompt: numbered proposals, file-it or drop-it only, no verdict on the change, no additions; empty list throws', () => {
+  const p = filterPrompt(SCOPE, ['a.ts: dedupe: x', 'b.ts: break-cycle: y']);
+  assert.match(p, /<scout-proposals>\n1\. a\.ts: dedupe: x\n2\. b\.ts: break-cycle: y\n<\/scout-proposals>/);
+  assert.match(p, /`VERDICTS:`/);
+  assert.match(p, /file-it/);
+  assert.match(p, /drop-it/);
+  assert.match(p, /Do not give a verdict on the change/);
+  assert.match(p, /do not add suggestions of your own/);
+  assert.throws(() => filterPrompt(SCOPE, []), /at least one proposal/);
+});
+
+test('the case set: reverted real refactors naming a source commit, seeded problems of every kind, clean neighbourhoods', () => {
+  const kinds = (k) => REFACTOR_CASES.filter((c) => c.kind === k);
+  assert.equal(REFACTOR_CASES.length, 11);
+  assert.equal(kinds('real').length, 4);
+  assert.equal(kinds('seeded').length, 4);
+  assert.equal(kinds('clean').length, 3);
+  for (const c of kinds('real')) assert.match(c.refactor.source, /^maestro [0-9a-f]{7} "/, `${c.id} names its source commit`);
+  const cats = REFACTOR_CASES.flatMap((c) => c.refactor.expected.map((e) => e.category));
+  for (const k of CATEGORIES) assert.ok(cats.includes(k), `category ${k} is covered`);
+  for (const c of kinds('clean')) { assert.deepEqual(c.refactor.expected, []); assert.deepEqual(c.refactor.plant, []); assert.ok(c.refactor.touched.length); }
+  for (const c of [...kinds('real'), ...kinds('seeded')]) { assert.ok(c.refactor.plant.length, c.id); assert.equal(c.refactor.expected.length, 1, c.id); }
+  assert.deepEqual(new Set(REFACTOR_CASES.map((c) => c.id)).size, REFACTOR_CASES.length, 'ids are unique');
+  assert.deepEqual(selectRefactorCases('f-r1,f-c3').map((c) => c.id), ['f-r1-canvas-align', 'f-c3-handoff-label']);
+  assert.equal(selectRefactorCases('').length, 11);
+});
+
+test('graders: a known-good text credits its expected improvement with no false finding; a known-bad one credits nothing', () => {
+  for (const c of REFACTOR_CASES) {
+    const good = gradeRefactor(c, c.samples.good);
+    const bad = gradeRefactor(c, c.samples.bad);
+    assert.equal(good.found, good.planted, `${c.id} good`);
+    assert.equal(good.falseFindings, 0, `${c.id} good false findings`);
+    assert.equal(good.extra, 0, `${c.id} good extra`);
+    assert.equal(bad.found, 0, `${c.id} bad credits nothing`);
+    assert.equal(bad.structured, true);
+    if (c.kind === 'clean') assert.ok(bad.falseFindings >= 1, `${c.id} bad counts false findings`);
+    else assert.ok(bad.extra >= 1, `${c.id} bad has extra proposals`);
+  }
+});
+
+test('graders: each expected improvement is credited by its own description, and by no other case\'s', () => {
+  for (const c of REFACTOR_CASES) for (const e of c.refactor.expected) {
+    assert.ok(gradeItems(c, [`${e.file.split('|')[0].replace(/\\/g, '')}: ${e.desc}`]).found === 1, `${e.id} is credited by its description`);
+    for (const o of REFACTOR_CASES) {
+      if (o === c || !o.refactor.expected.length) continue;
+      assert.equal(gradeRefactor(o, c.samples.good).found, 0, `${c.id} good text credits ${o.id}`);
+    }
+  }
+});
+
+test('graders: a proposal for another file that only mentions the right file, or the right file with the wrong change, is not credited', () => {
+  const c = caseOf('f-r3-readloglines-copy');
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-check-runtime.cjs: dedupe: has its own readLogLines like maestro-resume-target.cjs, require it from the lib.']).found, 0);
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file in two.']).found, 0);
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs: dedupe: readLogLines is fine as written, it is the shared lib copy already exported.']).found, 0, 'an all-clear sentence is not a proposal');
+});
+
+test('graders: the cycle case needs the cycle named; the seeded unused export is tolerated on the cycle case only', () => {
+  const cyc = caseOf('f-s3-cycle-claims-channels');
+  assert.equal(gradeItems(cyc, ['apps/maestro/src/core/claims.ts: align-pattern: rename the helper']).found, 0);
+  const g = gradeItems(cyc, ['apps/maestro/src/core/handoff-channels.ts: remove-unused: `claimFileForTask` is unused, nothing imports it.']);
+  assert.equal(g.tolerated, 1);
+  assert.equal(g.extra, 0);
+  const dup = caseOf('f-s1-dup-readjson');
+  const t = gradeItems(dup, ['apps/maestro/src/core/detect.ts: dedupe: readJson is repeated here too.']);
+  assert.equal(t.tolerated, 1);
+  assert.equal(t.extra, 0);
+});
+
+test('graders: "none", an all-clear and prose outside PROPOSALS credit nothing; clean cases count every proposal as a false finding, others as extra', () => {
+  const real = caseOf('f-r1-canvas-align');
+  const clean = caseOf('f-c1-canvas-layout');
+  const none = gradeRefactor(clean, 'Nothing warranted.\n\nPROPOSALS: none');
+  assert.equal(none.proposals, 0);
+  assert.equal(none.falseFindings, 0);
+  assert.equal(none.none, true);
+  assert.equal(gradeRefactor(real, 'PROPOSALS: none').found, 0);
+  assert.equal(gradeRefactor(real, 'workflow-canvas.tsx duplicates alignMainSession from canvas-layout; import the core one.').found, 0, 'prose with no PROPOSALS bullet and no header is not a proposal list');
+  const two = gradeRefactor(clean, 'PROPOSALS:\n- a.ts: dedupe: x\n- b.ts: dedupe: y');
+  assert.equal(two.falseFindings, 2);
+  const r = gradeRefactor(real, `${real.samples.good}\n- apps/maestro/src/core/other.ts: dedupe: something else`);
+  assert.equal(r.found, 1);
+  assert.equal(r.extra, 1);
+  assert.equal(r.falseFindings, 0, 'extra proposals on a non-clean case are reported, not scored false');
+  const wrapped = gradeRefactor(real, 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: dedupe: it defines its own\n  `alignMainSession`, which `core/canvas-layout.ts` already exports; import it.');
+  assert.equal(wrapped.found, 1, 'a wrapped bullet is one proposal');
+});
+
+test('findingsOf with a header: PROPOSALS and VERDICTS are read like FINDINGS, the last header wins', () => {
+  assert.deepEqual(findingsOf('PROPOSALS:\n- a\n- b', 'PROPOSALS').items, ['a', 'b']);
+  assert.deepEqual(findingsOf('**PROPOSALS:**\n1. a\n\nPROPOSALS:\n- c', 'PROPOSALS').items, ['c']);
+  assert.equal(findingsOf('FINDINGS:\n- a', 'PROPOSALS').structured, false);
+  assert.deepEqual(findingsOf('FINDINGS:\n- a').items, ['a'], 'the default header is unchanged');
+});
+
+test('verdictsOf: file-it and drop-it per numbered proposal; an unmarked one does not survive; a number outside the list is counted, not kept', () => {
+  const v = verdictsOf('thoughts\n\nVERDICTS:\n- 1: file-it: real duplicate\n- 2: drop-it: taste\n- 4: file-it: made up', 3);
+  assert.deepEqual(v.kept, [1]);
+  assert.deepEqual(v.dropped, [2]);
+  assert.deepEqual(v.unmarked, [3]);
+  assert.equal(v.outOfList, 1);
+  assert.equal(v.structured, true);
+  const loose = verdictsOf('VERDICTS:\n1. **file-it** - yes\n2) Drop it: no\n3: drop-it, but file-it later', 3);
+  assert.deepEqual(loose.kept, [1]);
+  assert.deepEqual(loose.dropped, [2, 3], '"Drop it" with a space reads as drop-it; the first verdict word on a line wins');
+  assert.deepEqual(loose.unmarked, []);
+});
+
+test('verdictsOf: the first line for a proposal wins; no VERDICTS section marks nothing', () => {
+  const v = verdictsOf('VERDICTS:\n- 1: file-it: ok\n- 1: drop-it: changed my mind', 1);
+  assert.deepEqual(v.kept, [1]);
+  assert.deepEqual(v.dropped, []);
+  const none = verdictsOf('I approve the change as a whole.', 2);
+  assert.equal(none.structured, false);
+  assert.deepEqual(none.kept, []);
+  assert.deepEqual(none.unmarked, [1, 2]);
+});
+
+test('anchoring: survivors over the scout list; unchanged only when everything passed; null when the scout proposed nothing', () => {
+  assert.deepEqual(anchoring(4, { kept: [1, 2], dropped: [3], unmarked: [4], outOfList: 1 }), { scout: 4, kept: 2, dropped: 1, unmarked: 1, outOfList: 1, rate: 0.5, unchanged: false });
+  assert.equal(anchoring(2, { kept: [1, 2], dropped: [], unmarked: [], outOfList: 0 }).unchanged, true);
+  assert.equal(anchoring(2, { kept: [1, 2], dropped: [], unmarked: [], outOfList: 0 }).rate, 1);
+  assert.equal(anchoring(0, null).rate, null);
+  assert.equal(anchoring(0, null).unchanged, false);
+  assert.equal(anchoring(3, null).kept, 0);
+});
+
+test('gradePipeline: scored on the survivors; the filter\'s losses and removals are counted; a skipped filter keeps nothing', () => {
+  const c = caseOf('f-r3-readloglines-copy');
+  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file.`;
+  const keepGood = gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it: yes\n- 2: drop-it: no');
+  assert.equal(keepGood.found, 1);
+  assert.equal(keepGood.extra, 0, 'the false proposal was filtered out');
+  assert.equal(keepGood.scout.extra, 1);
+  assert.equal(keepGood.anchor.kept, 1);
+  assert.equal(keepGood.anchor.scout, 2);
+  assert.equal(keepGood.lostByFilter, 0);
+  const lost = gradePipeline(c, scout, 'VERDICTS:\n- 1: drop-it: no\n- 2: drop-it: no');
+  assert.equal(lost.found, 0);
+  assert.equal(lost.lostByFilter, 1);
+  const stamp = gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it\n- 2: file-it');
+  assert.equal(stamp.anchor.unchanged, true);
+  assert.equal(stamp.found, 1);
+  const skipped = gradePipeline(c, scout, null);
+  assert.equal(skipped.found, 0);
+  assert.equal(skipped.verdicts, null);
+  const clean = caseOf('f-c1-canvas-layout');
+  const cl = gradePipeline(clean, 'PROPOSALS:\n- a.ts: dedupe: x\n- b.ts: dedupe: y', 'VERDICTS:\n- 1: file-it\n- 2: drop-it');
+  assert.equal(cl.falseFindings, 1);
+  assert.equal(cl.scout.falseFindings, 2);
+  assert.equal(cl.falseRemoved, 1);
+  const empty = gradePipeline(clean, 'PROPOSALS: none', null);
+  assert.equal(empty.proposals, 0);
+  assert.equal(empty.anchor.rate, null);
+});
+
+test('stageProblems: the spawn arm is invalid without a Haiku subagent in the transcript; no other session may call Agent', () => {
+  const ok = AGENT_INIT('claude-sonnet-5-5', ['Bash', 'Read', 'Grep', 'Glob', 'Skill', 'Agent']);
+  const call = (model) => JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { model } }] } });
+  const sub = (model) => JSON.stringify({ type: 'assistant', parent_tool_use_id: 't1', message: { model, content: [] } });
+  assert.deepEqual(stageProblems('sonnet-spawns-haiku-scouts', 'main', ok, [call('haiku'), sub('claude-haiku-5-5')].join('\n')), []);
+  assert.match(stageProblems('sonnet-spawns-haiku-scouts', 'main', ok, '')[0], /no Agent call, so no Haiku subagent/);
+  assert.match(stageProblems('sonnet-spawns-haiku-scouts', 'main', ok, call('sonnet'))[0], /none started a Haiku subagent/);
+  assert.match(stageProblems('sonnet-spawns-haiku-scouts', 'main', ok, [call('haiku'), sub('claude-sonnet-5-5')].join('\n'))[0], /none started a Haiku subagent/, 'what ran wins over what was asked');
+  assert.match(stageProblems('sonnet-spawns-haiku-scouts', 'main', AGENT_INIT('claude-sonnet-5-5', ['Bash', 'Read']), call('haiku'))[0], /lack Agent/);
+  const plain = AGENT_INIT('claude-sonnet-5-5', ['Bash', 'Read', 'Grep', 'Glob', 'Skill']);
+  assert.deepEqual(stageProblems('sonnet-plain', 'main', plain, ''), []);
+  assert.match(stageProblems('sonnet-plain', 'main', plain, call('haiku'))[0], /1 Agent call/);
+  assert.match(stageProblems('sonnet-plain', 'main', AGENT_INIT('claude-haiku-5-5', ['Bash']), '')[0], /init model/);
+  assert.match(stageProblems('sonnet-plain', 'main', AGENT_INIT('claude-sonnet-5-5', ['Bash', 'Agent']), '')[0], /list Agent/);
+  assert.match(stageProblems('haiku-scout-sonnet-filter', 'scout', AGENT_INIT('claude-sonnet-5-5', ['Bash']), '')[0], /init model/);
+  assert.deepEqual(stageProblems('haiku-scout-sonnet-filter', 'filter', AGENT_INIT('claude-sonnet-5-5', ['Bash', 'Read']), ''), []);
+});
+
+test('findCycles: components of more than one file (or a self import), sorted; a chain or a diamond is no cycle', () => {
+  const e = (a, b) => ({ from: a, to: b });
+  assert.deepEqual(findCycles([e('a', 'b'), e('b', 'a'), e('b', 'c')]), [['a', 'b']]);
+  assert.deepEqual(findCycles([e('a', 'b'), e('b', 'c'), e('a', 'c')]), []);
+  assert.deepEqual(findCycles([e('x', 'x')]), [['x']]);
+  assert.deepEqual(findCycles([e('c', 'd'), e('d', 'e'), e('e', 'c'), e('a', 'b'), e('b', 'a')]), [['a', 'b'], ['c', 'd', 'e']]);
+  assert.deepEqual(findCycles([]), []);
+});
+
+test('unusedExports: an export is unused when no other file mentions it as a whole word', () => {
+  const sources = [{ file: 'a.ts', text: 'export const foo = 1; export const bar = 2;' }, { file: 'b.ts', text: 'import { foo } from "./a"; const foobar = 1;' }];
+  assert.deepEqual(unusedExports([{ file: 'a.ts', exports: ['foo', 'bar'] }], sources), [{ file: 'a.ts', name: 'bar' }]);
+  assert.deepEqual(unusedExports([{ file: 'a.ts', exports: ['foo'] }], [sources[0]]), [{ file: 'a.ts', name: 'foo' }], 'the file\'s own text does not count');
+});
+
+test('neighbourFiles: neighbours the change mentions; else the least imported non-hub neighbours; touched files never repeat', () => {
+  const edges = [{ from: 'a.ts', to: 'helpers-core.ts' }, { from: 'a.ts', to: 'other.ts' }, { from: 'z.ts', to: 'a.ts' }, { from: 'a.ts', to: 'hubby.ts' }];
+  const exportsOf = { 'other.ts': ['someOtherHelper'], 'helpers-core.ts': ['x'] };
+  assert.deepEqual(neighbourFiles({ touched: ['a.ts'], edges, exportsOf, text: 'import { someOtherHelper } from' }), ['other.ts']);
+  assert.deepEqual(neighbourFiles({ touched: ['a.ts'], edges, exportsOf, text: 'see helpers-core now' }), ['helpers-core.ts']);
+  assert.deepEqual(neighbourFiles({ touched: ['a.ts'], edges, text: '', hubs: ['hubby.ts'], fanIn: { 'other.ts': 5, 'helpers-core.ts': 1, 'z.ts': 2 }, fill: 2 }), ['helpers-core.ts', 'z.ts']);
+  assert.deepEqual(neighbourFiles({ touched: ['a.ts', 'z.ts'], edges, text: '', fill: 9, fanIn: {} }).includes('a.ts'), false);
+});
+
+test('buildScope and buildMetricsPrimer: fixed sections, sorted, deterministic, no touched label; unindexed files and empty sections are said plainly', () => {
+  const scope = buildScope([{ file: 'b.ts', concept: 'c2' }, { file: 'a.cjs', concept: '' }]);
+  assert.equal(scope, '2 files:\n- a.cjs (concept none: outside every concept)\n- b.ts (concept c2)\n');
+  const data = { files: [{ file: 'b.ts', concept: 'c2', indexed: true, fanIn: 3, fanOut: 1, exports: 4 }, { file: 'a.cjs', concept: '', indexed: false }], hubs: [], cycles: [['a.ts', 'b.ts']], unused: [{ file: 'b.ts', name: 'dead' }], crossEdges: [], cross: [{ a: 'c1', b: 'c2', text: '# cross\n\n- x' }] };
+  const p = buildMetricsPrimer(data);
+  assert.equal(p, buildMetricsPrimer(data));
+  assert.ok(p.indexOf('## Scope files') < p.indexOf('## Hubs') && p.indexOf('## Hubs') < p.indexOf('## Import cycles') && p.indexOf('## Import cycles') < p.indexOf('## Exports') && p.indexOf('## Exports') < p.indexOf('## Cross-concept import edges') && p.indexOf('## Cross-concept import edges') < p.indexOf('## Cross-concept relations'));
+  assert.match(p, /a\.cjs \(concept none\): not in the code index/);
+  assert.match(p, /b\.ts \(concept c2\): fan-in 3, fan-out 1, 4 exports/);
+  assert.match(p, /- a\.ts <-> b\.ts/);
+  assert.match(p, /- `dead` in b\.ts/);
+  assert.match(p, /## Hubs[^\n]*\nnone/);
+  assert.match(p, /### c1 <-> c2\n\n- x/);
+});
+
+test('stored scopes and primers exist for every case, list the planted files, carry their sections and no machine-specific path', () => {
+  for (const c of REFACTOR_CASES) {
+    for (const ext of ['scope.txt', 'primer.txt']) assert.ok(existsSync(join(here, 'refactor', `${c.id}.${ext}`)), `${c.id}.${ext} exists`);
+    const scope = stored(c.id, 'scope.txt');
+    const primer = stored(c.id, 'primer.txt');
+    assert.deepEqual(storedProblems(c, scope, primer), [], c.id);
+    assert.ok(!/\/home\/|\/tmp\/|\/Users\//.test(scope + primer), `${c.id} carries a machine path`);
+    assert.ok(scope.split('\n').filter((l) => l.startsWith('- ')).length <= 12, `${c.id} scope is at most 12 files`);
+  }
+  assert.match(storedProblems(caseOf('f-r1-canvas-align'), '1 files:\n- other.ts\n', 'x').join(';'), /omits the planted file/);
+  assert.match(storedProblems(caseOf('f-c3-handoff-label'), '0 files:\n', '## Scope files').join(';'), /omits the touched file/);
+});
+
+test('stored primers see the seeded problems the primer arms are meant to be helped by (cycle, unused export), without naming the expected improvement', () => {
+  assert.match(stored('f-s3-cycle-claims-channels', 'primer.txt'), /## Import cycles[^\n]*\n- [^\n]*claims\.ts <-> [^\n]*handoff-channels\.ts/);
+  assert.match(stored('f-s4-unused-export-pluralize', 'primer.txt'), /`pluralize` in apps\/maestro\/src\/core\/text\.ts/);
+  assert.match(stored('f-s3-cycle-claims-channels', 'scope.txt'), /claims\.ts/);
+  assert.doesNotMatch(stored('f-s1-dup-readjson', 'primer.txt'), /readJsonOrNull.*duplicate/i, 'the primer does not measure duplication');
+});
+
+const row = (c, arm, run, grade, cost, extra = {}) => ({ case: c, arm, run, m: { cost, turns: 3 }, problems: [], status: 'valid', grade, ...extra });
+const g = (found, planted, o = {}) => ({
+  found, planted, expected: Array.from({ length: planted }, (_, i) => ({ id: `e${i}`, category: o.cat || 'dedupe', found: i < found })),
+  proposals: 2, extra: 0, falseFindings: 0, clean: planted === 0, ...o,
+});
+
+test('tally: valid paired runs only; kept improvements by category, false findings on clean runs, cost with both pipeline stages, anchoring', () => {
+  const rows = [
+    row('c1', 'sonnet-plain', 1, g(1, 1), 0.2),
+    row('c1', 'haiku-scout-sonnet-filter', 1, g(1, 1, { anchor: { scout: 3, kept: 2, unchanged: false }, lostByFilter: 0, falseRemoved: 1, scout: { found: 1, falseFindings: 0 } }), 0.05, { m2: { cost: 0.1 } }),
+    row('c2', 'sonnet-plain', 1, g(0, 0, { falseFindings: 1 }), 0.1),
+    row('c2', 'haiku-scout-sonnet-filter', 1, g(0, 0, { falseFindings: 0, anchor: { scout: 2, kept: 0, unchanged: false }, scout: { found: 0, falseFindings: 2 }, falseRemoved: 2 }), 0.02, { m2: { cost: 0.08 } }),
+    { ...row('c3', 'sonnet-plain', 1, g(1, 1), 0.2), status: 'invalid', problems: ['x'] },
+    row('c3', 'haiku-scout-sonnet-filter', 1, g(1, 1), 0.1),
+  ];
+  assert.ok(Math.abs(rowCost(rows[1]) - 0.15) < 1e-9);
+  const t = tally(rows);
+  assert.equal(t['sonnet-plain'].runs, 2, 'the c3 cell is dropped for both arms');
+  assert.equal(t['haiku-scout-sonnet-filter'].runs, 2);
+  assert.deepEqual(t['sonnet-plain'].overall, { found: 1, planted: 1 });
+  assert.deepEqual(t['sonnet-plain'].cats.dedupe, { found: 1, planted: 1 });
+  assert.equal(t['sonnet-plain'].falseFindings, 1);
+  assert.equal(t['haiku-scout-sonnet-filter'].falseFindings, 0);
+  assert.ok(Math.abs(t['haiku-scout-sonnet-filter'].cost - 0.25) < 1e-9, 'scout + filter cost');
+  assert.deepEqual(t['haiku-scout-sonnet-filter'].anchor, { runs: 2, scout: 5, kept: 2, unchanged: 0 });
+  assert.equal(t['haiku-scout-sonnet-filter'].falseRemoved, 3);
+});
+
+test('falseVerdict: fewer or more by at least 3, else no difference shown', () => {
+  assert.equal(falseVerdict(8, 5), 'fewer');
+  assert.equal(falseVerdict(8, 6), 'no difference shown');
+  assert.equal(falseVerdict(3, 6), 'more');
+  assert.equal(falseVerdict(3, 5), 'no difference shown');
+});
+
+test('pilotScreen: the baseline pilot is saturated under 3 misses, at the floor under a third found, else ok', () => {
+  const mk = (found, planted, fp = 0) => [row('c', 'sonnet-plain', 1, g(found, planted)), row('c2', 'sonnet-plain', 1, g(0, 0, { falseFindings: fp }))];
+  assert.equal(pilotScreen(mk(8, 8)).saturated, true);
+  assert.equal(pilotScreen(mk(8, 8)).ok, false);
+  assert.equal(pilotScreen(mk(6, 8)).saturated, true, 'missing 2 is still saturated');
+  assert.equal(pilotScreen(mk(2, 9)).floor, true);
+  const ok = pilotScreen(mk(5, 8, 2));
+  assert.equal(ok.ok, true);
+  assert.match(ok.note, /missed 3 of 8 and kept 2 false finding/);
+  assert.equal(pilotScreen([]).ok, false);
+});
+
+test('refactorReport: invalid runs, per-arm table with the pipeline anchoring block, verdicts per category against the baseline', () => {
+  const rows = [
+    row('c1', 'sonnet-plain', 1, g(0, 4)), row('c1', 'haiku-scout-sonnet-filter', 1, g(4, 4, { anchor: { scout: 5, kept: 4, unchanged: false }, scout: { found: 4, falseFindings: 0 } }), 0.05, { m2: { cost: 0.1 } }),
+    { ...row('c2', 'sonnet-plain', 1, g(1, 1), 0.2), status: 'invalid', problems: ['invalid spawn run: no Agent call, so no Haiku subagent started'] },
+  ];
+  const md = refactorReport(rows, { spent: 0.5, budget: 'CAP', stop: null, planned: rows.map((r) => ({ case: r.case, arm: r.arm, run: r.run })) });
+  assert.match(md, /^# refactor bench report \(spent \$0\.500 of \$CAP\)/);
+  assert.match(md, /INVALID OR USAGE-LIMIT RUNS \(1/);
+  assert.match(md, /no Haiku subagent started/);
+  assert.match(md, /Pipeline: anchoring/);
+  assert.match(md, /\| haiku-scout-sonnet-filter \| 1 \| 5 \| 4 \| 80% \|/);
+  assert.match(md, /\$0\.150 \(\$0\.050 \+ \$0\.100\)/);
+  assert.match(md, /Verdicts against sonnet-plain/);
+  assert.match(md, /helps \(missed 4 -> 0\)/);
+});
+
+test('every case\'s plant text is consistent: each plant has file, from and to, and a clean case plants nothing', () => {
+  for (const c of REFACTOR_CASES) for (const p of c.refactor.plant) {
+    assert.ok(p.file && typeof p.from === 'string' && typeof p.to === 'string' && p.from !== p.to, `${c.id} plant`);
+    assert.ok(p.from.length > 20, `${c.id} plant "from" is specific enough to match once`);
+  }
+});

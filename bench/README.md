@@ -345,3 +345,41 @@ twice); the 067 amendment in `docs/evals.md` records that and what is still deci
 Output: `bench/results/review-<timestamp>/` (gitignored): `<case>/<arm>-run<N>.jsonl` transcripts, `runs.json`
 and `report.md` with the per-case table, the per-arm sums by category, and the verdicts against the baseline
 with false alarms and cost per run beside them.
+
+## Refactor mode (ticket 070)
+
+`node bench/refactor-run.mjs` measures whether a cheap Haiku refactor scout, filtered by a Sonnet reviewer,
+finds code-structure improvements as well as a Sonnet refactor pass, at lower cost. It reuses the review
+bench's stream flags, findings parser (`findingsOf(text, 'PROPOSALS')`), spawn evidence, paired-cell rule and
+verdict. Plan, case table, decision rule, stop rule and the (unset) caps are in
+[docs/evals.md](../docs/evals.md), "Ticket 070".
+
+Arms: `sonnet-plain` (baseline), `haiku-metrics-primer`, `haiku-scout-sonnet-filter` (two sessions per cell,
+scored on the proposals the filter keeps, both costs added, anchoring reported), `sonnet-spawns-haiku-scouts`
+(invalid unless a Haiku subagent appears in the transcript; only this arm has the Agent tool). All run in the
+no-graph workspace.
+
+Files:
+
+- `refactor.mjs`: arms, prompts, scope and metrics-primer builders, graders, pipeline grading, validity, verdicts, report.
+- `refactor-cases.mjs`: 11 cases (4 reverted real refactors naming their maestro source commit, 4 seeded
+  problems, 3 clean neighbourhoods), each with plants, expected improvements and known-good and known-bad texts.
+- `refactor-prep.mjs`: the $0 generator of `bench/refactor/<id>.scope.txt` and `<id>.primer.txt` from the code-graph
+  CLI on the pinned maestro. `--only <substrings>` limits it; `--check` writes nothing and exits 1 on drift.
+- `refactor/`: the stored scope and primer of each case, committed.
+- `refactor-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 3`, `--budget`, `--run-budget`
+  (no defaults; a paid run needs both), `--dry`, `--keep-ws`, `--init-check`. It refuses to run inside a Claude Code session.
+- `refactor.test.mjs`, `refactor-cli.test.mjs`: offline tests; the CLI tests skip without a maestro checkout.
+
+Commands, from a plain terminal at the repo root (the first four are $0):
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --init-check
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget <PILOT CAP> --run-budget <PER-SESSION CAP>   # pilot: baseline saturation
+node bench/refactor-run.mjs --runs 3 --budget <TOTAL CAP> --run-budget <PER-SESSION CAP>                      # paid run
+```
+
+Output: `bench/results/refactor-<timestamp>/` (gitignored): transcripts, `runs.json` and `report.md`.

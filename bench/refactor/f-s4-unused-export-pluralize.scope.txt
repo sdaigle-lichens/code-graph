@@ -1,0 +1,5 @@
+4 files:
+- apps/maestro/src/core/claude-preview.ts (concept claude-session-bridge)
+- apps/maestro/src/core/scaffold.ts (concept create-skills-architecture)
+- apps/maestro/src/core/session-usage.ts (concept claude-session-bridge)
+- apps/maestro/src/core/text.ts (concept none: outside every concept)

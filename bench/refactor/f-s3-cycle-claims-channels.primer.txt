@@ -1,0 +1,60 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/claims.ts (concept task-queue): fan-in 4, fan-out 2, 14 exports
+- apps/maestro/src/core/contracts.ts (concept maestro-config-model): fan-in 54, fan-out 1, 147 exports
+- apps/maestro/src/core/handoff-channels.ts (concept maestro-architecture): fan-in 5, fan-out 4, 19 exports
+
+## Hubs among the scope files (the index lists them as high fan-in)
+- apps/maestro/src/core/contracts.ts
+- apps/maestro/src/core/handoff-channels.ts
+
+## Import cycles that include a scope file
+- apps/maestro/src/core/claims.ts <-> apps/maestro/src/core/handoff-channels.ts
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+- `SyncVerdictName` in apps/maestro/src/core/contracts.ts
+- `CreateSkillRequest` in apps/maestro/src/core/contracts.ts
+- `CreateSubagentRequest` in apps/maestro/src/core/contracts.ts
+- `CreatePluginRequest` in apps/maestro/src/core/contracts.ts
+- `CreateMarketplaceRequest` in apps/maestro/src/core/contracts.ts
+- `UpdateSkillTagsRequest` in apps/maestro/src/core/contracts.ts
+- `QuestionAnswer` in apps/maestro/src/core/contracts.ts
+- `PermissionDiffHunk` in apps/maestro/src/core/contracts.ts
+- `claimFileForTask` in apps/maestro/src/core/handoff-channels.ts
+
+## Cross-concept import edges between scope files
+- apps/maestro/src/core/claims.ts (task-queue) imports apps/maestro/src/core/handoff-channels.ts (maestro-architecture)
+- apps/maestro/src/core/handoff-channels.ts (maestro-architecture) imports apps/maestro/src/core/claims.ts (task-queue)
+- apps/maestro/src/core/handoff-channels.ts (maestro-architecture) imports apps/maestro/src/core/contracts.ts (maestro-config-model)
+
+## Cross-concept relations of the scope files (query cross)
+
+### maestro-architecture <-> maestro-config-model
+
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::blankConfig`
+- `maestro-architecture::renderOrchestrator` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::blankConfig`
+- `maestro-architecture::getResolvedReport` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `maestro-config-model::duplicateAgentTypes`
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::syncProjectReports` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::syncProjectHandoffs` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::syncProjectReports` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::syncProjectHandoffs` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::resolvedRoutesFrom` --calls--> `maestro-config-model::readConfig`
+
+### maestro-architecture <-> task-queue
+
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::successPath` --calls--> `task-queue::successPathSteps`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::routesFrom` --calls--> `task-queue::bareAgentName`
+
+### maestro-config-model <-> task-queue
+
+- `maestro-config-model::duplicateAgentTypes` --calls--> `task-queue::bareAgentName`
