@@ -375,9 +375,11 @@ is kept as one item. The prompt asks for `PROPOSALS: none` and nothing else.
 Files:
 
 - `refactor.mjs`: arms, prompts, scope and metrics-primer builders, graders, pipeline grading, validity, verdicts, report.
-- `refactor-cases.mjs`: 6 cases (1 reverted real commit naming its maestro source, 5 improvements across
+- `refactor-cases.mjs`: 9 cases (1 reverted real commit naming its maestro source, 5 improvements across
   several files; 2 seeded problems, a three-file near-duplicate and a three-module cycle; 3 clean
-  neighbourhoods), each with plants, expected improvements and known-good and known-bad texts.
+  neighbourhoods; 3 latent cases of real, unplanted duplicates), each with plants, expected improvements and
+  known-good and known-bad texts. `sets` says which ticket's run uses it (`070`, `071`; `--set`), `batch` the
+  071 filter batch.
 - `refactor-prep.mjs`: the $0 generator of `bench/refactor/<id>.scope.txt` and `<id>.primer.txt` from the code-graph
   CLI on the pinned maestro. `--only <substrings>` limits it; `--check` writes nothing and exits 1 on drift.
 - `refactor/`: the stored scope and primer of each case, committed.
@@ -385,7 +387,7 @@ Files:
   (no defaults; a paid run needs both), `--dry`, `--keep-ws`, `--init-check`. A paid run refuses to start inside a Claude Code session (`--dry` and `--init-check` are exempt).
 - `refactor.test.mjs`, `refactor-cli.test.mjs`: offline tests; the CLI tests skip without a maestro checkout.
 
-Commands, from a plain terminal at the repo root (the first four are $0):
+Commands of the 070 design (superseded by the 071 commands below; the 070 arms and `--set 070` need the 070 runner from git history), from a plain terminal at the repo root (the first four are $0):
 
 ```
 node --test bench/*.test.mjs
@@ -397,3 +399,43 @@ node bench/refactor-run.mjs --budget 7 --run-budget 0.60                        
 ```
 
 Output: `bench/results/refactor-<timestamp>/` (gitignored): transcripts, `runs.json` and `report.md`.
+
+### Ticket 071: batched and inline filters, useful findings per dollar
+
+The runner above is the 071 runner now (`--set 071` is the default; `--set 070` selects the retired 070 cases).
+Pre-registration, decision rule, caps and the run-count rule are in [docs/evals.md](../docs/evals.md), "Ticket 071".
+
+Default arms (4, plus a control): `sonnet-plain`; `haiku-metrics-primer` (the scout alone); `haiku-batched-filter`
+(the scout's list goes, with the other cases of its batch of 3, into one Sonnet filter session; that session's cost
+is split over the batch's cases by their share of the proposals); `haiku-reviewer-inline` (the list goes into a
+normal Sonnet review of the case's change, which marks each suggestion in a `VERDICTS:` section before its
+`FINDINGS:`; costed as the scout plus the review's extra spend over `sonnet-review-plain`, the same review without
+the list, which `--arms` pulls in with the inline arm and which is never scored as a refactor arm). One Haiku scout
+session per (case, run) is shared by the three scout arms: its cost counts in each, the spend once. A case with no
+plant gives the review arms a harmless doc-comment edit (`refactor.reviewChange`) to review. The report adds the
+review-verdict shift (cells where the list changes the review's has-findings). The 070 pipeline and spawn arms
+stay defined and tested, but this runner refuses them.
+
+Usefulness, the headline: `refactor-audit.mjs`. A useful finding is an expected improvement the arm kept, or a kept
+proposal the fixed audit confirms (the registry of improvements the 070 audit confirmed, a grep of the pinned tree
+for unused exports and for functions defined twice, else a hand verdict on a blinded, shuffled list); unconfirmed
+and unjudged proposals are noise.
+
+```
+node bench/refactor-audit.mjs bench/results/refactor-<timestamp> --pool    # audit-pool.json, audit-pool.txt (hand list)
+# write audit-verdicts.txt: "<id>: confirmed <issue-key>: <evidence>" or "<id>: unconfirmed: <reason>"
+node bench/refactor-audit.mjs bench/results/refactor-<timestamp> --score   # audit-report.md
+```
+
+Commands, from a plain terminal at the repo root ($0 first):
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --init-check
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 3 --run-budget 0.60   # pilot (the $3 pilot cap)
+node bench/refactor-run.mjs --runs <r> --budget 7 --run-budget 0.60                      # paid run; r from the pilot rule in docs/evals.md
+```
+
+Files: `refactor-audit.mjs` (metric and audit), `refactor-071.test.mjs`, `refactor-audit.test.mjs` (offline tests).

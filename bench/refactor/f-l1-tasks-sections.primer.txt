@@ -1,0 +1,48 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/claims.ts (concept task-queue): fan-in 3, fan-out 2, 14 exports
+- apps/maestro/src/core/claude-preview.ts (concept claude-session-bridge): fan-in 0, fan-out 10, 8 exports
+- apps/maestro/src/core/epics.ts (concept task-queue): fan-in 0, fan-out 3, 45 exports
+- apps/maestro/src/core/tasks.ts (concept task-queue): fan-in 3, fan-out 3, 21 exports
+- apps/maestro/src/core/uninstall.ts (concept installing-maestro): fan-in 0, fan-out 6, 6 exports
+
+## Hubs among the scope files (the index lists them as high fan-in)
+none
+
+## Import cycles that include a scope file
+none
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+- `EpicWorker` in apps/maestro/src/core/epics.ts
+- `EpicReportEntry` in apps/maestro/src/core/epics.ts
+- `EpicNoteEntry` in apps/maestro/src/core/epics.ts
+- `EpicAckEntry` in apps/maestro/src/core/epics.ts
+- `EpicInboxEntry` in apps/maestro/src/core/epics.ts
+- `EpicLogEntry` in apps/maestro/src/core/epics.ts
+- `EpicState` in apps/maestro/src/core/epics.ts
+- `CreateEpicOptions` in apps/maestro/src/core/epics.ts
+- `EpicSummary` in apps/maestro/src/core/epics.ts
+- `WrittenReport` in apps/maestro/src/core/epics.ts
+- `NoteOptions` in apps/maestro/src/core/epics.ts
+- `WrittenNote` in apps/maestro/src/core/epics.ts
+- `EpicTaskView` in apps/maestro/src/core/epics.ts
+- `CrossEpicEdge` in apps/maestro/src/core/epics.ts
+- `EpicView` in apps/maestro/src/core/epics.ts
+- `SpawnableTask` in apps/maestro/src/core/epics.ts
+- `EpicReadyView` in apps/maestro/src/core/epics.ts
+
+## Cross-concept import edges between scope files
+- apps/maestro/src/core/claude-preview.ts (claude-session-bridge) imports apps/maestro/src/core/tasks.ts (task-queue)
+- apps/maestro/src/core/uninstall.ts (installing-maestro) imports apps/maestro/src/core/tasks.ts (task-queue)
+
+## Cross-concept relations of the scope files (query cross)
+
+### claude-session-bridge <-> task-queue
+
+- `task-queue::isSessionLive` --calls--> `claude-session-bridge::sessionPathsFor`
+- `task-queue::MaestroTasksPage` --mounts--> `claude-session-bridge::ClaudeRunDialog`
+- `claude-session-bridge::build` --calls--> `task-queue::tasksDirFor`
+- `claude-session-bridge::rederiveSessionName` --calls--> `task-queue::claimsDirFor`
+
+### installing-maestro <-> task-queue
+
+- `installing-maestro::findMaestroTasks` --calls--> `task-queue::tasksDirFor`

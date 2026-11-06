@@ -1,16 +1,21 @@
 #!/usr/bin/env node
-// 070 refactor mode: does a cheap Haiku refactor scout, filtered by a Sonnet reviewer, find code-structure
+// 070/071 refactor mode: does a cheap Haiku refactor scout, with a Sonnet filter, find code-structure
 // improvements as well as a Sonnet refactor pass, at lower cost? Reuses the 066 review runner's shape.
 // Run from a plain terminal (a nested sandbox breaks Bash), except --dry and --init-check.
 // Usage: node bench/refactor-run.mjs --budget <usd> --run-budget <usd> [--arms a,b] [--only <substrings>]
-//                                    [--runs 3] [--dry] [--keep-ws] [--init-check]
+//                                    [--set 071] [--runs 2] [--dry] [--keep-ws] [--init-check]
 // --budget (total cap) and --run-budget (cap of one claude session) have NO default: they are the user's to
-// set (docs/evals.md, Ticket 070); a paid run without both is refused. --dry and --init-check need neither.
-// Arms (default, three): sonnet-plain, haiku-metrics-primer, haiku-scout-sonnet-filter. The fourth,
-// sonnet-spawns-haiku-scouts, is opt-in (--arms). Default runs: 2.
+// set (docs/evals.md, Tickets 070 and 071); a paid run without both is refused. --dry and --init-check need
+// neither.
+// Arms (default, 071): sonnet-plain, haiku-metrics-primer, haiku-batched-filter, haiku-reviewer-inline; the
+// control review `sonnet-review-plain` is added with the inline arm. The 070 spawn arm and per-case pipeline
+// stay defined (graders, prompts) but this runner refuses them. Default runs: 2. --set picks the case set
+// (default 071; `070` reruns the retired set with the 071 arms).
 // The scope and the metrics primer of each case are the stored files under bench/refactor/
-// (bench/refactor-prep.mjs). The pipeline arm runs two sessions per cell (Haiku scout, then Sonnet filter);
-// its run-budget applies to each session and its cost is the sum of both.
+// (bench/refactor-prep.mjs). One Haiku scout session per (case, run) is SHARED by every scout arm: its cost
+// counts in each of them, the spend once. The batch filter is one Sonnet session per batch of cases; its
+// cost is split over the batch's cases by proposals. The inline review's cost is the extra over the control
+// review of the same change. Every session is capped by --run-budget.
 // Output: bench/results/refactor-<timestamp>/ (transcripts, runs.json, report.md), gitignored.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -20,16 +25,19 @@ import { fileURLToPath } from 'node:url';
 import { budgetStop, parseStream, runStatus, validity } from './lib.mjs';
 import { applyReplacements } from './edit.mjs';
 import { maestroFor } from './maestro-dir.mjs';
+import { diffForPlants } from './review.mjs';
 import {
-  DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, filterPrompt, gradePipeline, gradeRefactor, parseRefactorArms, promptProblems,
-  answerProblems, proposalsOf, refactorArgs, refactorPrompt, refactorReport, stageProblems, stageSpec, stagesOf, storedProblems,
+  DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REVIEW_CONTROL, answerProblems, batchFilterPrompt, batchesOf, gradeFiltered, gradeInline,
+  gradeRefactor, gradeReviewControl, inlineReviewPrompt, isScoutArm, parseRefactorArms, promptProblems, proposalsOf, refactorArgs, refactorPrompt,
+  refactorReport, reviewChangeOf, reviewControlPrompt, reviewPromptProblems, sliceVerdicts, splitCost, stageProblems, stageSpec, stagesOf, storedProblems,
+  verdictsOf, withSupportArms,
 } from './refactor.mjs';
 import { selectRefactorCases } from './refactor-cases.mjs';
 import { refactorFile } from './refactor-prep.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
-const opts = { arms: DEFAULT_REFACTOR_ARMS, only: '', runs: DEFAULT_REFACTOR_RUNS, budget: '', 'run-budget': '' };
+const opts = { arms: DEFAULT_REFACTOR_ARMS, only: '', set: '071', runs: DEFAULT_REFACTOR_RUNS, budget: '', 'run-budget': '' };
 const bool = new Set();
 for (let i = 2; i < process.argv.length; i++) {
   const k = process.argv[i].replace(/^--/, '');
@@ -44,13 +52,15 @@ if (!DRY && !bool.has('init-check') && (process.env.CLAUDECODE || process.env.SA
 }
 const positive = (v) => Number.isFinite(Number(v)) && Number(v) > 0;
 if (!DRY && !bool.has('init-check') && !(positive(opts.budget) && positive(opts['run-budget']))) {
-  die('a paid run needs both --budget <usd> (total cap) and --run-budget <usd> (cap of one session): the caps are the user\'s to set (docs/evals.md, Ticket 070)');
+  die('a paid run needs both --budget <usd> (total cap) and --run-budget <usd> (cap of one session): the caps are the user\'s to set (docs/evals.md, Ticket 071)');
 }
 
 let arms;
-try { arms = parseRefactorArms(opts.arms); } catch (e) { die(e.message); }
-const cases = selectRefactorCases(opts.only);
-if (!cases.length) die(`no case matches --only "${opts.only}"`);
+try { arms = withSupportArms(parseRefactorArms(opts.arms)); } catch (e) { die(e.message); }
+const unsupported = arms.filter((a) => REFACTOR_ARMS[a].filter || REFACTOR_ARMS[a].spawn);
+if (unsupported.length) die(`${unsupported.join(', ')}: the 070 arms are defined and tested but this runner (071) does not orchestrate them; use the 070 runner from git history (docs/evals.md, Ticket 070)`);
+const cases = selectRefactorCases(opts.only, opts.set);
+if (!cases.length) die(`no case matches --only "${opts.only}" in set ${opts.set}`);
 const BUDGET = Number(opts.budget || 0);
 const work = process.env.TMPDIR || tmpdir();
 const stored = (c, ext) => {
@@ -100,26 +110,46 @@ if (bool.has('init-check')) {
 
 const plan = [];
 for (let n = 1; n <= Number(opts.runs); n++) for (const c of cases) for (const arm of arms) plan.push({ case: c.id, arm, run: n });
-console.log(`refactor-run: ${plan.length} cells (${arms.map((a) => `${a} ${plan.filter((p) => p.arm === a).length}`).join(', ')}), cap ${DRY ? '(dry)' : `$${BUDGET}`}, per session ${DRY ? '(dry)' : `$${opts['run-budget']}`}`);
+console.log(`refactor-run: set ${opts.set}, ${cases.length} cases, ${plan.length} cells (${arms.map((a) => `${a} ${plan.filter((p) => p.arm === a).length}`).join(', ')}), cap ${DRY ? '(dry)' : `$${BUDGET}`}, per session ${DRY ? '(dry)' : `$${opts['run-budget']}`}`);
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(here, 'results', `refactor-${stamp}`);
 const rows = [];
-let spent = 0;
+let spent = 0; // every session once, however many arms share it
 let stop = null;
-const meta = { budget: BUDGET, 'run-budget': Number(opts['run-budget'] || 0), arms };
+const meta = { budget: BUDGET, 'run-budget': Number(opts['run-budget'] || 0), arms, set: opts.set };
 const save = () => writeFileSync(join(outDir, 'runs.json'), JSON.stringify({ meta, planned: plan, rows, spent, stop }, null, 1));
 if (!DRY) mkdirSync(outDir, { recursive: true });
 
-// One claude session of a cell; returns { m, problems, r } or null after setting `stop`.
-function session(c, arm, stage, n, ws, prompt) {
+// A fresh pinned workspace with `change` ([{ file, from, to }]) applied; the diff of the change against the
+// pristine tree. The change must apply to the pinned tree, or the case does not run.
+function workspace(c, change, label) {
+  const ws = mkdtempSync(join(work, 'bench-refactor-'));
+  const sc = spawnSync('bash', ['-c', setupCmd(c)], { cwd: ws, encoding: 'utf8', timeout: 180000 });
+  if (sc.status !== 0) throw new Error(`setup failed for ${c.id}: ${sc.stderr || sc.stdout}`);
+  let diff = '';
+  if (change.length) {
+    diff = diffForPlants((f) => readFileSync(join(ws, f), 'utf8'), change, `${c.id} ${label}`).diff;
+    applyReplacements(ws, change, `${c.id} ${label}`);
+  }
+  return { ws, diff };
+}
+const drop = (ws) => { if (!bool.has('keep-ws')) rmSync(ws, { recursive: true, force: true }); };
+const cantAfford = (what) => {
+  if (DRY || !budgetStop(spent, opts['run-budget'], BUDGET)) return false;
+  stop = `the next session (${what}) could exceed the $${BUDGET} cap (spent $${spent.toFixed(3)}, up to $${opts['run-budget']} per session)`;
+  return true;
+};
+
+// One claude session; returns { m, problems, answer } or null after setting `stop`.
+function session(c, arm, stage, n, ws, prompt, label = `${arm}-${stage}`) {
   const args = refactorArgs(arm, stage, prompt, { runBudget: opts['run-budget'] || '0.01' });
-  process.stdout.write(`[${c.id} ${arm} ${stage} run${n}] ... `);
+  process.stdout.write(`[${c.id} ${label} run${n}] ... `);
   const r = spawnSync('claude', args, { cwd: ws, encoding: 'utf8', maxBuffer: 1 << 29, timeout: 900000 });
   const dir = join(outDir, c.id);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${arm}-${stage}-run${n}.jsonl`), r.stdout || '');
-  if (r.stderr) writeFileSync(join(dir, `${arm}-${stage}-run${n}.stderr.txt`), r.stderr);
+  writeFileSync(join(dir, `${label}-run${n}.jsonl`), r.stdout || '');
+  if (r.stderr) writeFileSync(join(dir, `${label}-run${n}.stderr.txt`), r.stderr);
   if (r.error) { stop = `could not run claude: ${r.error.message}`; return null; }
   const m = parseStream(r.stdout || '');
   const problems = [...pluginless(m, c), ...stageProblems(arm, stage, m, r.stdout || '')];
@@ -129,61 +159,173 @@ function session(c, arm, stage, n, ws, prompt) {
   return { m, problems };
 }
 
-for (const p of plan) {
-  const c = cases.find((x) => x.id === p.case);
-  const { arm, run: n } = p;
-  // The pipeline needs two sessions: leave room for both under the cap.
-  const sessions = stagesOf(arm).length;
-  if (!DRY && budgetStop(spent, String(Number(opts['run-budget']) * sessions), BUDGET)) { stop = `the next cell could exceed the $${BUDGET} cap (spent $${spent.toFixed(3)}, up to $${opts['run-budget']} per session, ${sessions} session(s))`; break; }
-  const ws = mkdtempSync(join(work, 'bench-refactor-'));
-  const sc = spawnSync('bash', ['-c', setupCmd(c)], { cwd: ws, encoding: 'utf8', timeout: 180000 });
-  if (sc.status !== 0) { stop = `setup failed for ${c.id}: ${sc.stderr || sc.stdout}`; break; }
-  // The planted change must apply to the pinned tree, or the case does not run.
-  try { applyReplacements(ws, c.refactor.plant || [], `${c.id} plant`); } catch (e) { stop = `${c.id}: ${e.message}`; break; }
-  const scope = stored(c, 'scope.txt');
-  const prompt = refactorPrompt(arm, scope, REFACTOR_ARMS[arm].primer ? stored(c, 'primer.txt') : '');
-  const pp = promptProblems(arm, prompt);
-  if (pp.length) { stop = `${c.id} ${arm}: ${pp.join('; ')}`; break; }
-  if (DRY) {
-    const first = stagesOf(arm)[0];
-    const args = refactorArgs(arm, first, prompt, { runBudget: opts['run-budget'] || '(user cap)' });
-    console.log(`[${c.id} ${arm} run${n}] cwd=${ws} prompt ${prompt.length} chars${REFACTOR_ARMS[arm].filter ? ' + a filter session (Sonnet) over the scout\'s proposals' : ''}\nclaude ${args.map((x) => JSON.stringify(x.length > 80 ? `${x.slice(0, 80)}...` : x)).join(' ')}\n`);
-    if (!bool.has('keep-ws')) rmSync(ws, { recursive: true, force: true });
-    continue;
-  }
-  const first = session(c, arm, stagesOf(arm)[0], n, ws, prompt);
-  if (!first) break;
-  let second = null;
-  let grade;
-  if (REFACTOR_ARMS[arm].filter) {
-    const items = proposalsOf(first.m.answer).items;
-    if (items.length && first.m.cost != null) {
-      second = session(c, arm, 'filter', n, ws, filterPrompt(scope, items));
-      if (!second) break;
-    }
-    grade = gradePipeline(c, first.m.answer, second ? second.m.answer : null);
-  } else grade = gradeRefactor(c, first.m.answer);
-  const problems = [...first.problems, ...(second ? second.problems : []), ...(first.m.cost != null ? answerProblems(arm, grade) : [])];
+const strip = (m) => { const { init, ...rest } = m || {}; void init; return rest; };
+// Record a row and apply the stop rules; true when the run must stop.
+function record(c, arm, n, first, second, grade, extraProblems = [], m2override = null) {
+  const problems = [...first.problems, ...(second ? second.problems : []), ...extraProblems, ...(first.m.cost != null ? answerProblems(arm, grade) : [])];
   const status = runStatus(second && runStatus(first.m, []) === 'valid' ? second.m : first.m, problems); // a usage limit in either session
-  const { init, ...mKeep } = first.m;
-  const { init: init2, ...m2Keep } = second ? second.m : {};
-  rows.push({ case: c.id, arm, run: n, m: mKeep, m2: second ? m2Keep : undefined, problems, status, grade, answer: first.m.answer, answer2: second?.m.answer });
+  rows.push({ case: c.id, arm, run: n, m: strip(first.m), m2: m2override || (second ? strip(second.m) : undefined), problems, status, grade, answer: first.m.answer, answer2: second?.m.answer });
   save();
-  console.log(`  -> ${status} kept ${grade.found}/${grade.planted} false findings ${grade.falseFindings}${grade.anchor ? ` anchoring ${grade.anchor.kept}/${grade.anchor.scout}` : ''}`);
-  if (!bool.has('keep-ws')) rmSync(ws, { recursive: true, force: true });
-  if (status === 'usage-limit') { stop = `account usage limit (429) on ${c.id} ${arm} run${n}; that cell and the ones after it are not counted. Rerun the missing cells with --only and --arms once it resets`; break; }
-  if (first.m.seccomp || second?.m.seccomp) { stop = 'apply-seccomp seen: nested sandbox is active, aborting'; break; }
-  if (rows.filter((x) => x.status === 'invalid').length > 1) { stop = 'more than one run is invalid for a reason other than a usage limit: stopping, report this before spending more'; break; }
+  console.log(`  [${c.id} ${arm} run${n}] -> ${status} kept ${grade.found}/${grade.planted} false findings ${grade.falseFindings}${grade.anchor ? ` anchoring ${grade.anchor.kept}/${grade.anchor.scout}` : ''}${grade.review ? ` review findings ${grade.review.findings}` : ''}`);
+  if (status === 'usage-limit') { stop = `account usage limit (429) on ${c.id} ${arm} run${n}; that cell and the ones after it are not counted. Rerun the missing cells with --only and --arms once it resets`; return true; }
+  if (first.m.seccomp || second?.m.seccomp) { stop = 'apply-seccomp seen: nested sandbox is active, aborting'; return true; }
+  if (rows.filter((x) => x.status === 'invalid').length > 1) { stop = 'more than one run is invalid for a reason other than a usage limit: stopping, report this before spending more'; return true; }
+  return false;
 }
 
-if (!DRY) {
-  save();
-  const md = refactorReport(rows, { ...meta, spent, stop, planned: plan });
-  writeFileSync(join(outDir, 'report.md'), md);
-  console.log('\n' + md);
-  console.log(`results: ${outDir}`);
-  if (stop) process.exit(3);
-} else if (stop) {
-  console.error(`refactor-run: ${stop}`);
-  process.exit(3);
+const scoutArms = arms.filter(isScoutArm).filter((a) => !REFACTOR_ARMS[a].filter);
+const wants = (a) => arms.includes(a);
+
+// ---- dry run: build everything, spend nothing -----------------------------------------------------------
+if (DRY) {
+  for (const c of cases) {
+    const scope = stored(c, 'scope.txt');
+    for (const arm of arms) {
+      const a = REFACTOR_ARMS[arm];
+      const note = [];
+      if (!a.review) {
+        const prompt = refactorPrompt(arm, scope, a.primer ? stored(c, 'primer.txt') : '');
+        const pp = promptProblems(arm, prompt);
+        if (pp.length) die(`${c.id} ${arm}: ${pp.join('; ')}`);
+        note.push(`scope prompt ${prompt.length} chars`);
+      }
+      if (a.review || a.inline) {
+        const w = workspace(c, reviewChangeOf(c), 'review change');
+        drop(w.ws);
+        if (!w.diff.trim()) die(`${c.id}: no change for the review arms (add refactor.reviewChange)`);
+        const prompt = a.inline ? inlineReviewPrompt(w.diff, ['x.ts: dedupe: example']) : reviewControlPrompt(w.diff);
+        const rp = reviewPromptProblems(arm, prompt);
+        if (rp.length) die(`${c.id} ${arm}: ${rp.join('; ')}`);
+        note.push(`review prompt ${prompt.length} chars, diff ${w.diff.length} chars`);
+      } else {
+        const w = workspace(c, c.refactor.plant || [], 'plant');
+        drop(w.ws);
+      }
+      if (a.batch) note.push(`+ one Sonnet batch filter per batch (batch ${c.batch})`);
+      if (a.filter) note.push('+ a filter session (Sonnet) over the scout\'s proposals');
+      const stage = stagesOf(arm)[0];
+      const args = refactorArgs(arm, stage, 'PROMPT', { runBudget: opts['run-budget'] || '(user cap)' });
+      console.log(`[${c.id} ${arm}] ${note.join('; ')}\n  claude ${args.map((x) => JSON.stringify(x.length > 80 ? `${x.slice(0, 80)}...` : x)).join(' ')}`);
+    }
+  }
+  const sizes = batchesOf(cases).map((b) => `batch ${b[0].batch ?? b[0].id}: ${b.map((x) => x.id).join(', ')}`);
+  console.log(`\nbatches: ${sizes.join(' | ')}`);
+  console.log(`dry run ok: ${cases.length} cases, ${arms.length} arms, no session started.`);
+  process.exit(0);
 }
+
+// ---- the paid run -----------------------------------------------------------------------------------------
+const runBatches = batchesOf(cases);
+outer:
+for (let n = 1; n <= Number(opts.runs); n++) {
+  const scouts = new Map(); // case id -> { first, items, scope }
+  for (const c of cases) {
+    const scope = stored(c, 'scope.txt');
+    const primer = stored(c, 'primer.txt');
+    // baseline: one Sonnet pass over the planted tree
+    if (wants('sonnet-plain')) {
+      if (cantAfford('sonnet-plain')) break outer;
+      let w;
+      try { w = workspace(c, c.refactor.plant || [], 'plant'); } catch (e) { stop = e.message; break outer; }
+      const prompt = refactorPrompt('sonnet-plain', scope, '');
+      const pp = promptProblems('sonnet-plain', prompt);
+      if (pp.length) { stop = `${c.id} sonnet-plain: ${pp.join('; ')}`; break outer; }
+      const s = session(c, 'sonnet-plain', 'main', n, w.ws, prompt);
+      drop(w.ws);
+      if (!s) break outer;
+      if (record(c, 'sonnet-plain', n, s, null, gradeRefactor(c, s.m.answer))) break outer;
+    }
+    // the shared Haiku scout: one session, cost counted in every scout arm
+    if (scoutArms.length) {
+      if (cantAfford('haiku scout')) break outer;
+      let w;
+      try { w = workspace(c, c.refactor.plant || [], 'plant'); } catch (e) { stop = e.message; break outer; }
+      const prompt = refactorPrompt('haiku-metrics-primer', scope, primer);
+      const s = session(c, 'haiku-metrics-primer', 'main', n, w.ws, prompt, 'haiku-scout');
+      drop(w.ws);
+      if (!s) break outer;
+      const items = s.m.cost != null ? proposalsOf(s.m.answer).items : [];
+      scouts.set(c.id, { first: s, items, scope });
+      if (wants('haiku-metrics-primer') && record(c, 'haiku-metrics-primer', n, s, null, gradeRefactor(c, s.m.answer))) break outer;
+    }
+    // the control review, then the inline review of the same change
+    let control = null;
+    if (wants(REVIEW_CONTROL)) {
+      if (cantAfford('control review')) break outer;
+      let w;
+      try { w = workspace(c, reviewChangeOf(c), 'review change'); } catch (e) { stop = e.message; break outer; }
+      const prompt = reviewControlPrompt(w.diff);
+      const rp = reviewPromptProblems(REVIEW_CONTROL, prompt);
+      if (rp.length) { stop = `${c.id} ${REVIEW_CONTROL}: ${rp.join('; ')}`; break outer; }
+      const s = session(c, REVIEW_CONTROL, 'review', n, w.ws, prompt);
+      drop(w.ws);
+      if (!s) break outer;
+      control = s;
+      if (record(c, REVIEW_CONTROL, n, s, null, gradeReviewControl(s.m.answer))) break outer;
+    }
+    if (wants('haiku-reviewer-inline')) {
+      const sc = scouts.get(c.id);
+      let second = null;
+      let w = null;
+      if (sc.items.length) {
+        if (cantAfford('inline review')) break outer;
+        try { w = workspace(c, reviewChangeOf(c), 'review change'); } catch (e) { stop = e.message; break outer; }
+        const prompt = inlineReviewPrompt(w.diff, sc.items);
+        const rp = reviewPromptProblems('haiku-reviewer-inline', prompt);
+        if (rp.length) { stop = `${c.id} haiku-reviewer-inline: ${rp.join('; ')}`; break outer; }
+        second = session(c, 'haiku-reviewer-inline', 'inline', n, w.ws, prompt);
+        drop(w.ws);
+        if (!second) break outer;
+      }
+      const grade = gradeInline(c, sc.first.m.answer, second ? second.m.answer : null);
+      const extraProblems = [];
+      let m2 = null;
+      if (second) {
+        const ctlCost = control && control.problems.length === 0 ? control.m.cost : null;
+        if (ctlCost == null || second.m.cost == null) extraProblems.push('inline: the control review is missing or invalid, so the extra cost of the list is unknown');
+        else m2 = { ...strip(second.m), rawCost: second.m.cost, controlCost: ctlCost, cost: second.m.cost - ctlCost };
+      }
+      if (record(c, 'haiku-reviewer-inline', n, sc.first, second, grade, extraProblems, m2)) break outer;
+    }
+  }
+  // the batch filter: one Sonnet session per batch over the combined backlog of its cases
+  if (wants('haiku-batched-filter')) {
+    for (const group of runBatches) {
+      const members = group.map((c) => ({ c, sc: scouts.get(c.id) })).filter((x) => x.sc);
+      const live = members.filter((x) => x.sc.items.length);
+      let bs = null;
+      let v = null;
+      if (live.length) {
+        if (cantAfford('batch filter')) break outer;
+        let w;
+        try {
+          w = workspace(live[0].c, live[0].c.refactor.plant || [], 'plant');
+          for (const x of live.slice(1)) applyReplacements(w.ws, x.c.refactor.plant || [], `${x.c.id} plant`);
+        } catch (e) { stop = e.message; break outer; }
+        const prompt = batchFilterPrompt(live.map((x) => ({ id: x.c.id, scope: x.sc.scope, items: x.sc.items })));
+        bs = session(live[0].c, 'haiku-batched-filter', 'batch', n, w.ws, prompt, `batch-${live.map((x) => x.c.id).join('+')}`);
+        drop(w.ws);
+        if (!bs) break outer;
+        v = verdictsOf(bs.m.answer, live.reduce((a, x) => a + x.sc.items.length, 0));
+      }
+      const shares = bs && bs.m.cost != null ? splitCost(bs.m.cost, live.map((x) => x.sc.items.length)) : [];
+      let off = 0;
+      for (const x of members) {
+        const k = x.sc.items.length;
+        const grade = gradeFiltered(x.c, x.sc.first.m.answer, (cnt) => (v ? sliceVerdicts(v, off, cnt) : null));
+        const share = k && shares.length ? shares[live.indexOf(x)] : 0;
+        const m2 = bs && k ? { ...strip(bs.m), rawCost: bs.m.cost, cost: share } : null;
+        off += k;
+        if (record(x.c, 'haiku-batched-filter', n, x.sc.first, k ? bs : null, grade, [], m2)) break outer;
+      }
+    }
+  }
+}
+
+save();
+const md = refactorReport(rows, { ...meta, spent, stop, planned: plan });
+writeFileSync(join(outDir, 'report.md'), md);
+console.log('\n' + md);
+console.log(`results: ${outDir}`);
+console.log(`next: node bench/refactor-audit.mjs ${outDir} --pool, then write audit-verdicts.txt for the pool's hand list and run --score`);
+if (stop) process.exit(3);

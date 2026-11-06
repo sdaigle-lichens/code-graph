@@ -16,10 +16,10 @@ const stored = (id, ext) => readFileSync(join(here, 'refactor', `${id}.${ext}`),
 const caseOf = (id) => REFACTOR_CASES.find((c) => c.id === id);
 const AGENT_INIT = (model, tools) => ({ init: { model, tools } });
 
-test('arms: the four arms in table order, unknown or empty throws, default is the three without the opt-in spawn arm, 2 runs', () => {
-  assert.deepEqual(REFACTOR_ARM_NAMES, ['sonnet-plain', 'haiku-metrics-primer', 'haiku-scout-sonnet-filter', 'sonnet-spawns-haiku-scouts']);
-  assert.deepEqual(OPT_IN_REFACTOR_ARMS, ['sonnet-spawns-haiku-scouts']);
-  assert.equal(DEFAULT_REFACTOR_ARMS, 'sonnet-plain,haiku-metrics-primer,haiku-scout-sonnet-filter');
+test('arms: the seven arms in table order, unknown or empty throws, default is the four 071 arms without the opt-in ones, 2 runs', () => {
+  assert.deepEqual(REFACTOR_ARM_NAMES, ['sonnet-plain', 'haiku-metrics-primer', 'haiku-scout-sonnet-filter', 'sonnet-spawns-haiku-scouts', 'haiku-batched-filter', 'haiku-reviewer-inline', 'sonnet-review-plain']);
+  assert.deepEqual(OPT_IN_REFACTOR_ARMS, ['sonnet-spawns-haiku-scouts', 'haiku-scout-sonnet-filter', 'sonnet-review-plain']);
+  assert.equal(DEFAULT_REFACTOR_ARMS, 'sonnet-plain,haiku-metrics-primer,haiku-batched-filter,haiku-reviewer-inline');
   assert.deepEqual(parseRefactorArms(DEFAULT_REFACTOR_ARMS).includes('sonnet-spawns-haiku-scouts'), false);
   assert.deepEqual(parseRefactorArms(REFACTOR_ARM_NAMES.join(',')), REFACTOR_ARM_NAMES, 'the spawn arm is still accepted when named');
   assert.equal(DEFAULT_REFACTOR_RUNS, '2');
@@ -86,24 +86,36 @@ test('filterPrompt: numbered proposals, file-it or drop-it only, no verdict on t
   assert.throws(() => filterPrompt(SCOPE, []), /at least one proposal/);
 });
 
-test('the case set: reverted real refactors naming a source commit, seeded problems of every kind, clean neighbourhoods', () => {
+test('the case set: reverted real refactors naming a source commit, seeded problems of every kind, clean neighbourhoods, latent real duplicates', () => {
   const kinds = (k) => REFACTOR_CASES.filter((c) => c.kind === k);
-  assert.equal(REFACTOR_CASES.length, 6);
+  assert.equal(REFACTOR_CASES.length, 9);
   assert.equal(kinds('real').length, 1);
   assert.equal(kinds('seeded').length, 2);
   assert.equal(kinds('clean').length, 3);
+  assert.equal(kinds('latent').length, 3);
   for (const c of kinds('real')) assert.match(c.refactor.source, /^maestro [0-9a-f]{7} "/, `${c.id} names its source commit`);
   const cats = new Set(REFACTOR_CASES.flatMap((c) => c.refactor.expected.map((e) => e.category)));
-  assert.deepEqual([...cats].sort(), ['align', 'cycle', 'dedupe'], 'the reworked set covers dedupe, align and cycle; unused and extract are no longer planted');
+  assert.deepEqual([...cats].sort(), ['align', 'cycle', 'dedupe', 'extract'], 'dedupe, extract, align and cycle are planted or latent; unused is not');
   for (const k of cats) assert.ok(CATEGORIES.includes(k));
   for (const c of kinds('clean')) { assert.deepEqual(c.refactor.expected, []); assert.deepEqual(c.refactor.plant, []); assert.ok(c.refactor.touched.length); }
+  for (const c of kinds('latent')) { assert.deepEqual(c.refactor.plant, []); assert.ok(c.refactor.expected.length >= 1, c.id); assert.ok(c.refactor.touched.length, c.id); assert.match(c.refactor.source, /latent in maestro 3814a30/, c.id); assert.deepEqual(c.sets, ['071']); }
   for (const c of [...kinds('real'), ...kinds('seeded')]) { assert.ok(c.refactor.plant.length, c.id); assert.ok(c.refactor.expected.length >= 1, c.id); }
+  // the 071 set: 6 cases in two filter batches of 3, 11 expected improvements (5 dedupe, 4 extract, 2 align)
+  const s71 = selectRefactorCases('', '071');
+  assert.deepEqual(s71.map((c) => c.id), ['f-r5-plugin-scripts-05d5b76', 'f-s5-titlecase-copies', 'f-c2-session-ipc', 'f-l1-tasks-sections', 'f-l2-session-sweep', 'f-l3-atomic-json-writes']);
+  assert.deepEqual([...new Set(s71.map((c) => c.batch))], [1, 2]);
+  assert.deepEqual(s71.filter((c) => c.batch === 1).map((c) => c.id), ['f-r5-plugin-scripts-05d5b76', 'f-c2-session-ipc', 'f-l1-tasks-sections']);
+  assert.equal(s71.filter((c) => c.batch === 2).length, 3);
+  const exp = s71.flatMap((c) => c.refactor.expected.map((e) => e.category));
+  assert.deepEqual(['dedupe', 'extract', 'align'].map((k) => exp.filter((x) => x === k).length), [5, 4, 2]);
+  for (const c of s71) assert.ok((c.refactor.plant || []).length || (c.refactor.reviewChange || []).length, `${c.id} has a change the review arms can read`);
+  assert.equal(selectRefactorCases('', '070').length, 6, 'the retired 070 set stays selectable');
   assert.equal(caseOf('f-r5-plugin-scripts-05d5b76').refactor.expected.length, 3, 'the real case plants three improvements');
   assert.equal(caseOf('f-s5-titlecase-copies').refactor.expected.length, 1);
   assert.equal(caseOf('f-s6-cycle-tasks-session-paths').refactor.expected.length, 1);
   assert.deepEqual(new Set(REFACTOR_CASES.map((c) => c.id)).size, REFACTOR_CASES.length, 'ids are unique');
   assert.deepEqual(selectRefactorCases('f-r5,f-c4').map((c) => c.id), ['f-r5-plugin-scripts-05d5b76', 'f-c4-plugin-scripts']);
-  assert.equal(selectRefactorCases('').length, 6);
+  assert.equal(selectRefactorCases('').length, 9);
 });
 
 test('graders: a known-good text credits its expected improvement with no false finding; a known-bad one credits nothing', () => {

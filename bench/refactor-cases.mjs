@@ -128,9 +128,22 @@ const PAYLOAD_TO = `    );
   }
 `;
 
+// ---- ticket 071 (docs/evals.md, "Ticket 071") --------------------------------------------------------
+// The 071 set (`sets` contains '071', run order = the order below) keeps four cases of 070 (f-r5, f-s5,
+// f-c2 and the shared neighbourhood of f-l*) and adds three LATENT cases: real, unplanted duplications of
+// the pinned tree that 070's fixed audit confirmed with grep (kind `latent`; nothing is planted, the ground
+// truth is the pinned tree itself, named in `refactor.source`). 070 retired f-s6 (a cycle the baseline found
+// 2 of 2) and f-c1/f-c4 stay out of 071 (the dearest clean case; a neighbourhood that holds real latent
+// duplicates). `batch` is the pre-registered filter batch of the haiku-batched-filter arm (3 cases each).
+// `refactor.reviewChange`: a harmless edit (a doc comment) applied only in the review arms' workspace so a
+// case with no plant still has a change to review; a case with a plant reviews the plant's diff.
+const SET071 = ['070', '071'];
+
 export const REFACTOR_CASES = [
   {
     ...base,
+    sets: SET071,
+    batch: 1,
     id: 'f-r5-plugin-scripts-05d5b76',
     kind: 'real',
     refactor: {
@@ -166,6 +179,8 @@ export const REFACTOR_CASES = [
   },
   {
     ...base,
+    sets: SET071,
+    batch: 2,
     id: 'f-s5-titlecase-copies',
     kind: 'seeded',
     refactor: {
@@ -233,9 +248,12 @@ export const REFACTOR_CASES = [
   },
   {
     ...base,
+    sets: SET071,
+    batch: 1,
     id: 'f-c2-session-ipc',
     kind: 'clean',
     refactor: {
+      reviewChange: [{ file: 'apps/maestro/src/core/session-ipc.ts', from: '/** Sweep abandoned sessions; `retarget` runs once, and only when something was removed. */', to: '/** Sweep abandoned sessions; `retarget` runs once, and only when something was removed. Returns the number removed. */' }],
       source: 'a clean control: the tree as it is, where main/ipc.ts already delegates to session-ipc.ts (retained from the first set; not run in pilot (a)). taskHeading in session-title.ts and parseTitle in tasks.ts are a real pre-existing pair, tolerated',
       touched: ['apps/maestro/src/core/session-ipc.ts'],
       plant: [],
@@ -264,11 +282,80 @@ export const REFACTOR_CASES = [
       bad: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-team-meeting.cjs: extract-helper: the command dispatch should move to its own module.',
     },
   },
+  // ---- ticket 071: latent cases (real duplication already in the pinned tree, nothing planted) ----
+  {
+    ...base,
+    sets: ['071'],
+    batch: 1,
+    id: 'f-l1-tasks-sections',
+    kind: 'latent',
+    refactor: {
+      source: 'latent in maestro 3814a30 (no plant), from the 070 fixed audit (docs/evals.md, Ticket 070 results, example 2): tasks.ts cuts a "## Heading" section the same way in parseBlockedBy and extractPostMortemSection, and writes the ready/blocked expression `blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b))` in buildStatusMap and again in tasksFromFiles. The pre-existing parseTitle / taskHeading pair is tolerated',
+      touched: ['apps/maestro/src/core/tasks.ts'],
+      reviewChange: [{ file: 'apps/maestro/src/core/tasks.ts', from: 'function readStatusMap(dir: string): StatusMap {', to: '/** Read status.json, or an empty map when it is missing or malformed. */\nfunction readStatusMap(dir: string): StatusMap {' }],
+      plant: [],
+      expected: [
+        { id: 'tasks-ready-rule-twice', category: 'dedupe', file: 'tasks\\.ts', change: ['(buildStatusMap|tasksFromFiles)', '(blockedBy\\.every|doneSet|ready|blocked)', '(twice|two (places|copies|functions)|both|duplicat|repeat|same (rule|expression|logic|condition|check)|shared|helper|single)'], desc: 'buildStatusMap and tasksFromFiles each write the ready/blocked decision `blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b))`: one helper' },
+        { id: 'tasks-section-slicing', category: 'extract', file: 'tasks\\.ts', change: ['parseBlockedBy', 'extractPostMortemSection', '(shared|helper|extract|duplicat|same|both|common|repeat)'], desc: 'parseBlockedBy and extractPostMortemSection cut a "## Heading" section out of the file text with the same search / slice / next-heading steps: extract one section helper' },
+      ],
+      tolerated: [{ file: 'session-title|tasks\\.ts', change: ['(taskHeading|parseTitle)'] }],
+    },
+    samples: {
+      good: 'PROPOSALS:\n- apps/maestro/src/core/tasks.ts: dedupe: `buildStatusMap` and `tasksFromFiles` both write the ready/blocked decision (`blockedBy.every(... doneSet.has(b) || !fileSet.has(b))`); extract it to one helper.\n- apps/maestro/src/core/tasks.ts: extract-helper: `parseBlockedBy` and `extractPostMortemSection` cut a heading section out of the text with the same steps; share one section helper.',
+      bad: 'PROPOSALS:\n- apps/maestro/src/core/tasks.ts: extract-helper: split `listTasks` into smaller functions.',
+    },
+  },
+  {
+    ...base,
+    sets: ['071'],
+    batch: 2,
+    id: 'f-l2-session-sweep',
+    kind: 'latent',
+    refactor: {
+      source: 'latent in maestro 3814a30 (no plant), from the 070 fixed audit (docs/evals.md, Ticket 070 results, examples 3 and 5): session-sweep.ts exports SessionRef, session-title.ts exports SessionTitleRef, the same two-field interface; sweepStaleSessions and deleteSession each remove the session directories with the same sessionDirsFor / rmSync loop; and sweepStaleSessions, deleteSession and listDeletableSessions each default `now`, `idleCapMs` and the own session id from options. The pre-existing parseTitle / taskHeading pair is tolerated',
+      touched: ['apps/maestro/src/core/session-sweep.ts', 'apps/maestro/src/core/session-title.ts'],
+      reviewChange: [{ file: 'apps/maestro/src/core/session-sweep.ts', from: '/** Sessions on disk that `deleteSession` would currently accept. */', to: '/** Sessions on disk that `deleteSession` would currently accept (the ones whose tab shows an x). */' }],
+      plant: [],
+      expected: [
+        { id: 'session-ref-interfaces', category: 'dedupe', file: 'session-sweep|session-title', change: ['SessionRef', 'SessionTitleRef', '(same|identical|duplicat|two|both|shape|alias|reuse|extend|single|one)'], desc: 'SessionRef (session-sweep.ts) and SessionTitleRef (session-title.ts) are the same { projectRoot, sessionId } interface: define it once' },
+        { id: 'sweep-removal-loop', category: 'extract', file: 'session-sweep', change: ['sweepStaleSessions', 'deleteSession', '(sessionDirsFor|rmSync|remov|delet)', '(duplicat|repeat|same|both|twice|extract|helper|shared|common)'], desc: 'sweepStaleSessions and deleteSession each remove a session by looping sessionDirsFor with fs.rmSync: one removal helper' },
+        { id: 'sweep-options-defaults', category: 'extract', file: 'session-sweep', change: ['(now|idleCapMs|ownId|options)', '(default|resolv)', '(three|3|each|every|repeat|duplicat|helper|extract|shared|common|both)'], desc: 'sweepStaleSessions, deleteSession and listDeletableSessions each default now, idleCapMs and the own session id from the options: one options resolver' },
+      ],
+      tolerated: [{ file: 'session-title|tasks\\.ts', change: ['(taskHeading|parseTitle)'] }],
+    },
+    samples: {
+      good: 'PROPOSALS:\n- apps/maestro/src/core/session-sweep.ts: dedupe: `SessionRef` here and `SessionTitleRef` in session-title.ts are the same two-field interface; define it once.\n- apps/maestro/src/core/session-sweep.ts: extract-helper: `sweepStaleSessions` and `deleteSession` both remove a session by looping `sessionDirsFor` with `rmSync`; share one removal helper.\n- apps/maestro/src/core/session-sweep.ts: extract-helper: each of the three functions defaults `now`, `idleCapMs` and the own session id from `options` in the same way; extract one resolver.',
+      bad: 'PROPOSALS:\n- apps/maestro/src/core/session-title.ts: extract-helper: split `resolveSessionTitles` into smaller functions.',
+    },
+  },
+  {
+    ...base,
+    sets: ['071'],
+    batch: 2,
+    id: 'f-l3-atomic-json-writes',
+    kind: 'latent',
+    refactor: {
+      source: 'latent in maestro 3814a30 (no plant), found by a grep of writeFileSync / renameSync in apps/maestro/src/core before any 071 run: epics.ts, meeting-mode.ts, session-runtime.ts and run-metrics.ts each write JSON to a temp file and rename it (the same write-then-rename steps, four copies), while agent-fork-record.ts (writeAllForks) and config.ts (writeConfig) write their JSON file in place',
+      touched: ['apps/maestro/src/core/meeting-mode.ts', 'apps/maestro/src/core/session-runtime.ts', 'apps/maestro/src/core/run-metrics.ts', 'apps/maestro/src/core/epics.ts', 'apps/maestro/src/core/agent-fork-record.ts', 'apps/maestro/src/core/config.ts'],
+      reviewChange: [{ file: 'apps/maestro/src/core/meeting-mode.ts', from: 'function writeRawState(statePath: string, state: Record<string, unknown>): void {', to: '/** Write the meeting state through a temp file, so a reader never sees half of it. */\nfunction writeRawState(statePath: string, state: Record<string, unknown>): void {' }],
+      plant: [],
+      expected: [
+        { id: 'atomic-write-copies', category: 'extract', file: 'epics|meeting-mode|session-runtime|run-metrics|install|tasks', change: ['(tmp|temp|rename|atomic)', '(helper|shared|extract|duplicat|repeat|cop(y|ies)|same|common|consolidat|reuse)'], desc: 'epics.ts, meeting-mode.ts, session-runtime.ts and run-metrics.ts each write a JSON file to a temp name and rename it: one atomic JSON write helper' },
+        { id: 'inplace-json-writes', category: 'align', file: 'agent-fork-record|config\\.ts', change: ['(writeAllForks|writeConfig|writeFileSync|in place|non-atomic|not atomic|directly|plain)', '(atomic|temp|tmp|rename)'], desc: 'writeAllForks (agent-fork-record.ts) and writeConfig (config.ts) write their JSON in place while the sibling stores write a temp file and rename it: use the atomic write' },
+      ],
+      tolerated: [],
+    },
+    samples: {
+      good: 'PROPOSALS:\n- apps/maestro/src/core/meeting-mode.ts: extract-helper: `writeRawState`, `writeSession` (session-runtime.ts), the run-metrics write and `epics.ts` each write a temp file and rename it; share one atomic JSON write helper.\n- apps/maestro/src/core/agent-fork-record.ts: align-pattern: `writeAllForks` writes the file in place with `writeFileSync` while the sibling stores write a temp file and rename it; use the atomic write.',
+      bad: 'PROPOSALS:\n- apps/maestro/src/core/run-metrics.ts: extract-helper: split the 400-line recorder into one function per metric.',
+    },
+  },
 ];
 
 export const refactorCaseById = (id) => REFACTOR_CASES.find((c) => c.id === id);
 // `only` is one substring or a comma-separated list of them; a case matches when its id contains any.
-export const selectRefactorCases = (only = '') => {
+// `set` (071): only the cases whose `sets` holds it ('' = every case, as 070 did).
+export const selectRefactorCases = (only = '', set = '') => {
   const keys = String(only).split(',').map((k) => k.trim()).filter(Boolean);
-  return REFACTOR_CASES.filter((c) => !keys.length || keys.some((k) => c.id.includes(k)));
+  return REFACTOR_CASES.filter((c) => (!set || c.sets.includes(set)) && (!keys.length || keys.some((k) => c.id.includes(k))));
 };

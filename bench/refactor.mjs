@@ -4,7 +4,7 @@
 // evidence, paired rows, the 051-style verdict).
 import { FLAGS } from './lib.mjs';
 import {
-  HAIKU, REVIEW_TOOLS, SONNET, SPAWN_TOOLS, clip, findingsOf, isValidRow, pairedRows, spawnEvidence, verdict,
+  HAIKU, REVIEW_FORMAT, REVIEW_TOOLS, SONNET, SPAWN_TOOLS, clip, findingsOf, isValidRow, pairedRows, reviewBasePrompt, spawnEvidence, verdict,
 } from './review.mjs';
 
 // ---- arms -----------------------------------------------------------------------------------------
@@ -12,24 +12,35 @@ import {
 // Every arm runs in the no-graph workspace (maestro's concept skills, grep; no plugin, no scribe-output):
 // the graph is not what is measured here, the metrics primer is.
 // `primer`: the stored metrics primer is appended to the prompt. `spawn`: the session is told to hand the
-// survey to Haiku subagents and has the Agent tool. `filter`: a second Sonnet session marks each of the
+// survey to Haiku subagents and has the Agent tool. `filter`: (070) a second Sonnet session marks each of the
 // scout's proposals file-it or drop-it; the arm is scored on the file-it ones.
+// 071 arms. `scout`: the Haiku scout session is SHARED by every arm with the flag, one session per
+// (case, run), its cost counted in each of those arms. `batch`: the scout's list goes into one Sonnet filter
+// session over the combined backlog of the case's batch, whose cost is split across the cases by proposals.
+// `inline`: the list goes into a normal Sonnet review of the same change, which marks each suggestion in
+// its own VERDICTS section (never in the findings), costed as the extra spend over `review`, the same review
+// without the list (a control arm, never scored as a refactor arm).
 export const REFACTOR_ARMS = {
   'sonnet-plain': { model: SONNET, primer: false, spawn: false, filter: false },
-  'haiku-metrics-primer': { model: HAIKU, primer: true, spawn: false, filter: false },
-  'haiku-scout-sonnet-filter': { model: HAIKU, primer: true, spawn: false, filter: true },
+  'haiku-metrics-primer': { model: HAIKU, primer: true, spawn: false, filter: false, scout: true },
+  'haiku-scout-sonnet-filter': { model: HAIKU, primer: true, spawn: false, filter: true, scout: true },
   'sonnet-spawns-haiku-scouts': { model: SONNET, primer: false, spawn: true, filter: false },
+  'haiku-batched-filter': { model: HAIKU, primer: true, spawn: false, filter: false, scout: true, batch: true },
+  'haiku-reviewer-inline': { model: HAIKU, primer: true, spawn: false, filter: false, scout: true, inline: true },
+  'sonnet-review-plain': { model: SONNET, primer: false, spawn: false, filter: false, review: true },
 };
 export const REFACTOR_ARM_NAMES = Object.keys(REFACTOR_ARMS);
-// Post-pilot amendment (docs/evals.md, Ticket 070): the default design is three arms and 2 runs. The spawn
-// arm stays defined and tested but is opt-in (`--arms ...,sonnet-spawns-haiku-scouts`): it is the dearest
-// and the money does not stretch to it.
-export const OPT_IN_REFACTOR_ARMS = ['sonnet-spawns-haiku-scouts'];
+// Opt-in, off by default (`--arms` must name them): the 070 spawn arm and the 070 per-case filter pipeline.
+// The default is the 071 design; the control `sonnet-review-plain` is added by `withSupportArms`.
+export const OPT_IN_REFACTOR_ARMS = ['sonnet-spawns-haiku-scouts', 'haiku-scout-sonnet-filter', 'sonnet-review-plain'];
 export const DEFAULT_REFACTOR_ARMS = REFACTOR_ARM_NAMES.filter((a) => !OPT_IN_REFACTOR_ARMS.includes(a)).join(',');
 export const DEFAULT_REFACTOR_RUNS = '2';
 export const REFACTOR_BASELINE = 'sonnet-plain';
+export const REVIEW_CONTROL = 'sonnet-review-plain';
 export const FILTER_MODEL = SONNET;
 export const CATEGORIES = ['dedupe', 'extract', 'align', 'cycle', 'unused'];
+export const isControlArm = (a) => !!REFACTOR_ARMS[a]?.review;
+export const isScoutArm = (a) => !!REFACTOR_ARMS[a]?.scout;
 
 export function parseRefactorArms(s) {
   const want = String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -39,14 +50,35 @@ export function parseRefactorArms(s) {
   return REFACTOR_ARM_NAMES.filter((a) => want.includes(a));
 }
 
-// The sessions an arm runs: the scout/main session, then (pipeline only) the filter. Each has its own
-// exact tool set; only the spawn arm's main session has the Agent tool.
-export const stagesOf = (arm) => (REFACTOR_ARMS[arm].filter ? ['scout', 'filter'] : ['main']);
+// 071: the control review is planned with the inline arm, so that its extra cost is measured on the same cells.
+export function withSupportArms(arms) {
+  return arms.includes('haiku-reviewer-inline') && !arms.includes(REVIEW_CONTROL) ? REFACTOR_ARM_NAMES.filter((a) => arms.includes(a) || a === REVIEW_CONTROL) : arms;
+}
+
+// The sessions an arm runs: the scout/main session, then (pipelines) the filter, the batch filter or the
+// inline review; the control arm is one review. Each has its own exact tool set; only the spawn arm's main
+// session has the Agent tool.
+export function stagesOf(arm) {
+  const a = REFACTOR_ARMS[arm];
+  if (a.filter) return ['scout', 'filter'];
+  if (a.batch) return ['scout', 'batch'];
+  if (a.inline) return ['scout', 'inline'];
+  if (a.review) return ['review'];
+  return ['main'];
+}
 export function stageSpec(arm, stage) {
   const a = REFACTOR_ARMS[arm];
   if (!a) throw new Error(`unknown refactor arm ${arm}`);
-  if (stage === 'filter') return { model: FILTER_MODEL, tools: REVIEW_TOOLS, spawn: false };
+  if (stage === 'filter' || stage === 'batch' || stage === 'inline') return { model: FILTER_MODEL, tools: REVIEW_TOOLS, spawn: false };
   return { model: a.model, tools: a.spawn ? SPAWN_TOOLS : REVIEW_TOOLS, spawn: a.spawn };
+}
+
+// The pre-registered filter batches (docs/evals.md, Ticket 071): the cases of one batch share one filter
+// session. `c.batch` names the batch; the cases the run selects keep their batch, so `--only` shrinks a batch.
+export function batchesOf(cases) {
+  const by = new Map();
+  for (const c of cases) { const k = c.batch ?? c.id; (by.get(k) ?? by.set(k, []).get(k)).push(c); }
+  return [...by.values()];
 }
 
 export function refactorArgs(arm, stage, prompt, { runBudget }) {
@@ -113,6 +145,67 @@ ${list}
 </scout-proposals>
 
 ${FILTER_FORMAT}`;
+}
+
+// 071 batch filter: ONE Sonnet session over the combined backlog of several cases. `blocks`: [{ id, scope,
+// items }] (cases with no proposal left out); the proposals are numbered 1..N across the whole batch, so
+// the filter's answer is one `VERDICTS:` list and `sliceVerdicts` hands each case its part.
+export function batchFilterPrompt(blocks) {
+  if (!blocks.length) throw new Error('the batch filter needs at least one case with a proposal');
+  let n = 0;
+  const parts = blocks.map((b) => {
+    const list = b.items.map((x) => `${++n}. ${x}`).join('\n');
+    return `<neighbourhood-backlog case="${b.id}">\n${SCOPE_OPEN}\n${b.scope.trim()}\n${SCOPE_CLOSE}\n\n<scout-proposals>\n${list}\n</scout-proposals>\n</neighbourhood-backlog>`;
+  });
+  return `You are a senior reviewer filtering a backlog of refactor suggestions that a cheap scout raised on ${blocks.length} neighbourhood${blocks.length > 1 ? 's' : ''} of the maestro repository in the current directory. Each neighbourhood below has its own numbered suggestions; the numbers run on across the whole backlog. Decide for each suggestion whether it is a real structural problem worth a refactor ticket (file-it) or a false alarm, a matter of taste, something already fine or not worth a ticket (drop-it). Check each one against the source before you decide. Do not give a verdict on the code as a whole, do not add suggestions of your own, and do not edit anything.
+
+${parts.join('\n\n')}
+
+${FILTER_FORMAT}`;
+}
+
+// The verdicts of a batch -> one case's part: proposals offset+1..offset+n renumbered 1..n.
+export function sliceVerdicts(v, offset, n) {
+  const part = (a) => a.filter((i) => i > offset && i <= offset + n).map((i) => i - offset);
+  return { structured: v.structured, kept: part(v.kept), dropped: part(v.dropped), unmarked: part(v.unmarked), outOfList: 0 };
+}
+
+// The batch's cost split over its cases, by the share of the batch's proposals each case contributed (an
+// equal split when none did). Returns one share per count, summing to `cost`.
+export function splitCost(cost, counts) {
+  const total = counts.reduce((a, b) => a + b, 0);
+  return counts.map((k) => (total ? cost * (k / total) : cost / counts.length));
+}
+
+export const SUGGEST_OPEN = '<scout-suggestions>';
+export const SUGGEST_CLOSE = '</scout-suggestions>';
+
+// The change a review arm reads: a plant case's plant, else the harmless `reviewChange` (a doc comment).
+export const reviewChangeOf = (c) => ((c.refactor.plant || []).length ? c.refactor.plant : c.refactor.reviewChange || []);
+
+// The control: a normal review of the change, the 066 base prompt and format, nothing else.
+export function reviewControlPrompt(diff) {
+  return [reviewBasePrompt(diff), REVIEW_FORMAT].join('\n\n');
+}
+
+// The same review plus the scout's list. The suggestions are marked in their own `VERDICTS:` section that
+// comes BEFORE the final `FINDINGS:` section, so the review's own verdict (its findings) stays the review's.
+export function inlineReviewPrompt(diff, items) {
+  if (!items.length) throw new Error('the inline review needs at least one scout suggestion');
+  const list = items.map((x, i) => `${i + 1}. ${x}`).join('\n');
+  return [
+    reviewBasePrompt(diff),
+    `A cheap scout also read the files around this change and raised the code-structure suggestions below. They are not part of your review of the change and must not appear in FINDINGS. Check each one against the source and, before the FINDINGS section, write a section that starts with the line \`VERDICTS:\` with exactly one line per suggestion, in the form \`- <number>: file-it: <reason>\` (a real structural problem worth a refactor ticket) or \`- <number>: drop-it: <reason>\` (a false alarm, a matter of taste, or not worth a ticket). Add no suggestions of your own.\n\n${SUGGEST_OPEN}\n${list}\n${SUGGEST_CLOSE}`,
+    REVIEW_FORMAT,
+  ].join('\n\n');
+}
+
+// Review prompts: the list is in the inline prompt and in no other.
+export function reviewPromptProblems(arm, prompt) {
+  const has = String(prompt).includes(SUGGEST_OPEN);
+  if (!!REFACTOR_ARMS[arm].inline !== has) return [`the ${arm} review prompt ${has ? 'carries a scout list' : 'lacks the scout list'}`];
+  if (!String(prompt).includes('FINDINGS:')) return [`the ${arm} review prompt lacks the FINDINGS format`];
+  return [];
 }
 
 // The metrics primer is in the prompt of the primer arms and of no other arm; the spawn instruction only
@@ -325,6 +418,15 @@ export function proposalsOf(text) {
   return { ...f, items: real, allClear };
 }
 
+// What one proposal is, for the usefulness metric (bench/refactor-audit.mjs): `expected:<id>`, `tolerated`,
+// `allclear` or `rest` (judged by the fixed audit). The same precedence as gradeItems.
+export function classifyItem(c, item) {
+  const x = (c.refactor.expected || []).find((e) => matches(e, item));
+  if (x) return `expected:${x.id}`;
+  if ((c.refactor.tolerated || []).some((e) => matches(e, item))) return 'tolerated';
+  return isAllClear(item) ? 'allclear' : 'rest';
+}
+
 export function gradeItems(c, items) {
   const exp = c.refactor.expected || [];
   const tol = c.refactor.tolerated || [];
@@ -397,16 +499,41 @@ export function anchoring(scoutCount, v) {
 // expected improvements the filter threw away (found by the scout, not kept) or the false findings it
 // removed.
 export function gradePipeline(c, scoutText, filterText) {
+  return gradeFiltered(c, scoutText, (n) => (filterText == null ? null : verdictsOf(filterText, n)));
+}
+
+// 071: the same grade where the verdicts come from a batch filter or an inline review. `verdictsFor(n)` gets
+// the case's number of scout proposals and returns the case's verdicts (or null when no session ran).
+export function gradeFiltered(c, scoutText, verdictsFor) {
   const f = proposalsOf(scoutText); // all-clear text never reaches the filter; it is counted from the scout
   const scout = { ...gradeItems(c, f.items), allClear: f.allClear };
   if (!f.items.length) return { ...gradeItems(c, []), allClear: f.allClear, structured: f.structured, none: f.none, items: [], scout, anchor: anchoring(0, null), verdicts: null, lostByFilter: 0, falseRemoved: 0 };
-  const v = filterText == null ? null : verdictsOf(filterText, f.items.length);
+  const v = verdictsFor(f.items.length);
   const survivors = v ? v.kept.map((i) => f.items[i - 1]) : [];
   const g = gradeItems(c, survivors);
   return {
     structured: f.structured, none: f.none, ...g, allClear: f.allClear, items: survivors, scout, verdicts: v, anchor: anchoring(f.items.length, v),
     lostByFilter: scout.found - g.found, falseRemoved: scout.falseFindings - g.falseFindings,
   };
+}
+
+// 071 review sessions. A review's own verdict is its FINDINGS section: `hasFindings` is the merge-blocking
+// yes/no, the list's effect on it is the cells where inline and control differ.
+export function reviewVerdictOf(text) {
+  const f = findingsOf(text, 'FINDINGS');
+  return { structured: f.structured, none: f.none, findings: f.items.length, hasFindings: f.items.length > 0 };
+}
+const noRefactorGrade = { planted: 0, found: 0, expected: [], proposals: 0, credited: 0, tolerated: 0, allClear: 0, falseFindings: 0, falseByCat: {}, clean: true, items: [] };
+// The control review: scored on nothing in the refactor tables (it is the cost and verdict reference).
+export function gradeReviewControl(text) {
+  const rv = reviewVerdictOf(text);
+  return { ...noRefactorGrade, structured: rv.structured, none: rv.none, review: rv };
+}
+// The inline review: the scout's list graded by the review's VERDICTS (marks) like a filter, plus the review's
+// own verdict. When the scout proposed nothing, no inline session ran: `reviewText` is null.
+export function gradeInline(c, scoutText, reviewText) {
+  const g = gradeFiltered(c, scoutText, (n) => (reviewText == null ? null : verdictsOf(reviewText, n)));
+  return { ...g, review: reviewText == null ? null : reviewVerdictOf(reviewText) };
 }
 
 // ---- validity -------------------------------------------------------------------------------------
@@ -442,8 +569,9 @@ export function stageProblems(arm, stage, m, transcript) {
 // no false finding. Such a run is invalid (not counted, listed in the report); the cell is rerun or reported.
 export function answerProblems(arm, grade) {
   const p = [];
-  if (!grade.structured) p.push(`${arm}: the answer has no PROPOSALS section (unstructured); the run is not counted`);
+  if (!grade.structured && !grade.review) p.push(`${arm}: the answer has no PROPOSALS section (unstructured); the run is not counted`);
   if (grade.verdicts && !grade.verdicts.structured) p.push(`${arm}: the filter answer has no VERDICTS section (unstructured); the run is not counted`);
+  if (grade.review && !grade.review.structured) p.push(`${arm}: the review answer has no FINDINGS section (unstructured); the run is not counted`);
   return p;
 }
 
@@ -465,8 +593,10 @@ const blank = () => ({ found: 0, planted: 0 });
 // Per arm: expected improvements kept by category and overall, false findings kept (every proposal beyond
 // the expected ones, on every case; by proposal category in falseByCat), cost, anchoring (pipeline), what
 // the filter lost or removed.
-export function tally(rows, planned) {
+export function tally(allRows, allPlanned) {
   const out = {};
+  const rows = allRows.filter((r) => !isControlArm(r.arm)); // the control review is a cost reference, not an arm
+  const planned = allPlanned?.filter((p) => !isControlArm(p.arm));
   for (const r of pairedRows(rows, planned)) {
     const t = (out[r.arm] ||= {
       cats: Object.fromEntries(CATEGORIES.map((k) => [k, blank()])), overall: blank(), falseFindings: 0, allClear: 0, falseByCat: {}, cleanRuns: 0, runs: 0, cost: 0,
@@ -494,6 +624,28 @@ export function tally(rows, planned) {
     }
   }
   return out;
+}
+
+// Does the scout's list change the review's own verdict? Per paired cell with a list, the inline review's
+// has-findings against the control review's; `flips` counts the cells where they differ. Cells are those
+// where both reviews are valid and the inline session ran.
+export function reviewShift(rows, planned) {
+  const ok = new Set(pairedRows(rows.filter((r) => !isControlArm(r.arm)), planned?.filter((p) => !isControlArm(p.arm))).map((r) => `${r.case}#${r.run}`));
+  const ctl = new Map(rows.filter((r) => r.arm === REVIEW_CONTROL && isValidRow(r)).map((r) => [`${r.case}#${r.run}`, r]));
+  let cells = 0;
+  let flips = 0;
+  let toFindings = 0;
+  let fromFindings = 0;
+  for (const r of rows.filter((x) => x.arm === 'haiku-reviewer-inline' && isValidRow(x) && x.grade.review)) {
+    const k = `${r.case}#${r.run}`;
+    const cr = ctl.get(k);
+    if (!ok.has(k) || !cr) continue;
+    cells++;
+    const a = r.grade.review.hasFindings;
+    const b = cr.grade.review.hasFindings;
+    if (a !== b) { flips++; if (a) toFindings++; else fromFindings++; }
+  }
+  return { cells, flips, toFindings, fromFindings };
 }
 
 // Kept improvements: the 051-style rule on { found, planted } (verdict in review.mjs): `helps`, `hurts`,
@@ -543,8 +695,9 @@ export function refactorReport(rows, meta) {
   }
   const t = tally(rows, meta.planned);
   const arms = REFACTOR_ARM_NAMES.filter((a) => t[a]);
-  const nValid = rows.filter(isValidRow).length;
-  const nCounted = pairedRows(rows, meta.planned).length;
+  const arow = rows.filter((r) => !isControlArm(r.arm));
+  const nValid = arow.filter(isValidRow).length;
+  const nCounted = pairedRows(arow, meta.planned?.filter((p) => !isControlArm(p.arm))).length;
   L.push('', `Counted: ${nCounted} of ${nValid} valid runs. A (case, run) cell is scored only when every arm planned there has a valid run, so every arm is scored on the same cells; ${nValid - nCounted} valid run(s) were left out because another arm's cell is missing or invalid.`);
   const fp = (x) => `${x.found}/${x.planted}`;
   L.push('', '## Per arm (paired valid runs only; the pipeline is scored on what survives the filter)', '', `| arm | valid runs | ${CATEGORIES.join(' | ')} | overall kept | false findings kept (all cases) | all-clear lines (not false findings) | cost per run |`, `|---|---|${CATEGORIES.map(() => '---').join('|')}|---|---|---|---|`);
@@ -552,7 +705,11 @@ export function refactorReport(rows, meta) {
   const FCATS = [...CATEGORIES, 'other'];
   L.push('', '## False findings kept, by the category of the proposal (every proposal beyond the expected ones, on every case)', '', `| arm | ${FCATS.join(' | ')} | total |`, `|---|${FCATS.map(() => '---').join('|')}|---|`);
   for (const a of arms) L.push(`| ${a} | ${FCATS.map((k) => t[a].falseByCat[k] || 0).join(' | ')} | ${t[a].falseFindings} |`);
-  const pipe = arms.filter((a) => REFACTOR_ARMS[a].filter);
+  const pipe = arms.filter((a) => REFACTOR_ARMS[a].filter || REFACTOR_ARMS[a].batch || REFACTOR_ARMS[a].inline);
+  if (rows.some((r) => r.arm === 'haiku-reviewer-inline')) {
+    const s = reviewShift(rows, meta.planned);
+    L.push('', '## Does the scout\'s list change the review\'s own verdict (inline vs the same review without the list)', '', `Cells with both reviews valid and a list: ${s.cells}. The has-findings verdict differs in ${s.flips} (${s.toFindings} gained findings with the list, ${s.fromFindings} lost them).`);
+  }
   if (pipe.length) {
     L.push('', '## Pipeline: anchoring and what the filter did', '', '| arm | runs with a list | scout proposals | kept | anchoring | lists passed unchanged | expected lost by the filter | false findings removed by the filter |', '|---|---|---|---|---|---|---|---|');
     for (const a of pipe) {

@@ -68,6 +68,11 @@ ${diff.trim()}
 
 const FORMAT = `Finish with a section that starts with the line \`FINDINGS:\` followed by one line per defect, in the form \`- <file path>: <the defect, in one or two sentences>\`. If you find no defect, write \`FINDINGS: none\`.`;
 
+// 071 refactor mode builds its review prompts (the plain review and the review that also marks a scout's
+// suggestions) from the very same base and format text, so the two reviews differ only by the list.
+export const reviewBasePrompt = BASE_PROMPT;
+export const REVIEW_FORMAT = FORMAT;
+
 const SPAWN_PARAGRAPH = `Hand the impact and blast-radius pass to a Haiku subagent: use the Agent tool with the model set to \`haiku\`, and ask it to list, for each changed symbol, its callers and dependents (file and line, and what each passes or expects), and any import the change adds. Then judge the diff and its report yourself.`;
 
 export function reviewPrompt(arm, diff, primer = '') {

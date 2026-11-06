@@ -1,0 +1,4 @@
+3 files:
+- apps/maestro/src/core/session-ipc.ts (concept claude-session-bridge)
+- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge)
+- apps/maestro/src/core/session-title.ts (concept claude-session-bridge)

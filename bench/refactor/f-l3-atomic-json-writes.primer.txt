@@ -1,0 +1,91 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/agent-fork-record.ts (concept agent-fork-sync): fan-in 2, fan-out 2, 9 exports
+- apps/maestro/src/core/agent-fork.ts (concept agent-fork-sync): fan-in 0, fan-out 6, 12 exports
+- apps/maestro/src/core/agent-sync.ts (concept agent-fork-sync): fan-in 0, fan-out 4, 8 exports
+- apps/maestro/src/core/config-watch.ts (concept maestro-config-model): fan-in 0, fan-out 1, 1 exports
+- apps/maestro/src/core/config.ts (concept maestro-config-model): fan-in 11, fan-out 1, 11 exports
+- apps/maestro/src/core/epics.ts (concept task-queue): fan-in 0, fan-out 3, 45 exports
+- apps/maestro/src/core/handoffs.ts (concept maestro-architecture): fan-in 0, fan-out 7, 5 exports
+- apps/maestro/src/core/meeting-mode.ts (concept none): fan-in 0, fan-out 3, 20 exports
+- apps/maestro/src/core/run-metrics.ts (concept none): fan-in 0, fan-out 3, 20 exports
+- apps/maestro/src/core/session-runtime.ts (concept maestro-architecture): fan-in 2, fan-out 3, 9 exports
+
+## Hubs among the scope files (the index lists them as high fan-in)
+- apps/maestro/src/core/config.ts
+
+## Import cycles that include a scope file
+none
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+- `EpicWorker` in apps/maestro/src/core/epics.ts
+- `EpicReportEntry` in apps/maestro/src/core/epics.ts
+- `EpicNoteEntry` in apps/maestro/src/core/epics.ts
+- `EpicAckEntry` in apps/maestro/src/core/epics.ts
+- `EpicInboxEntry` in apps/maestro/src/core/epics.ts
+- `EpicLogEntry` in apps/maestro/src/core/epics.ts
+- `EpicState` in apps/maestro/src/core/epics.ts
+- `CreateEpicOptions` in apps/maestro/src/core/epics.ts
+- `EpicSummary` in apps/maestro/src/core/epics.ts
+- `WrittenReport` in apps/maestro/src/core/epics.ts
+- `NoteOptions` in apps/maestro/src/core/epics.ts
+- `WrittenNote` in apps/maestro/src/core/epics.ts
+- `EpicTaskView` in apps/maestro/src/core/epics.ts
+- `CrossEpicEdge` in apps/maestro/src/core/epics.ts
+- `EpicView` in apps/maestro/src/core/epics.ts
+- `SpawnableTask` in apps/maestro/src/core/epics.ts
+- `EpicReadyView` in apps/maestro/src/core/epics.ts
+- `LoopBack` in apps/maestro/src/core/run-metrics.ts
+- `HumanReviewStop` in apps/maestro/src/core/run-metrics.ts
+- `RunAgent` in apps/maestro/src/core/run-metrics.ts
+
+## Cross-concept import edges between scope files
+- apps/maestro/src/core/handoffs.ts (maestro-architecture) imports apps/maestro/src/core/config.ts (maestro-config-model)
+
+## Cross-concept relations of the scope files (query cross)
+
+### agent-fork-sync <-> maestro-architecture
+
+- `maestro-architecture::syncProjectHandoffs` --calls--> `agent-fork-sync::decideSync`
+- `maestro-architecture::syncProjectReports` --calls--> `agent-fork-sync::decideSync`
+- `agent-fork-sync::reportFilePath` --calls--> `maestro-architecture::isValidReportId`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-architecture::readAgentReportDefault`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-architecture::handoffPairs`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-architecture::priorReportSeeds`
+- `agent-fork-sync::handoffFilePath` --calls--> `maestro-architecture::isValidHandoffId`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-architecture::isValidReportId`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-architecture::readHandoffDefault`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-architecture::handoffRoutes`
+
+### agent-fork-sync <-> maestro-config-model
+
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-config-model::readConfig`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-config-model::writeConfig`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-config-model::readConfig`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-config-model::writeConfig`
+
+### maestro-architecture <-> maestro-config-model
+
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::blankConfig`
+- `maestro-architecture::renderOrchestrator` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::blankConfig`
+- `maestro-architecture::getResolvedReport` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `maestro-config-model::duplicateAgentTypes`
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::syncProjectReports` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::syncProjectHandoffs` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::syncProjectReports` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::syncProjectHandoffs` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::resolvedRoutesFrom` --calls--> `maestro-config-model::readConfig`
+
+### maestro-architecture <-> task-queue
+
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::successPath` --calls--> `task-queue::successPathSteps`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::routesFrom` --calls--> `task-queue::bareAgentName`

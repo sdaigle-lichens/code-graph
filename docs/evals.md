@@ -1271,6 +1271,98 @@ Examples a reader may want to act on (lines are in the pinned tree `3814a30`; ea
 
 **Confidence: low.** Reasons: 12 paired runs per arm and 6 cases; the baseline misses 4 of 10 but under 3 in every category, so no improvements verdict could fire (limit 4); a single model family (Haiku scout, Sonnet filter and baseline); the one-point cost miss and the false-finding gaps (5 overall, 3 in extract) sit close to the rule's own thresholds of 3 and 20%; per-run swings of 1 to 4 findings on a case; the audit is one reader with `grep`, with a generous reading of "duplicate", and it shows that most false findings are real, so the false-finding metric is a count of extra proposals; the pinned tree is one project (maestro `3814a30`).
 
+## Ticket 071: does a Haiku refactor scout with a batched or reviewer-inline Sonnet filter give more useful findings per dollar than a Sonnet refactor pass (bench/, pre-registration written before any paid run)
+
+The commit that holds this section is the **measured commit**: the bench code, the cases, the audit and this rule are fixed by it. Anything changed after it is an amendment, written before the run it affects. No paid run had been started when this was written; results and the recommendation are filled in under "Results" after the user's run. Ticket 070 (above) found the Haiku scout cheap (about $0.015 per session) and noisy, and the per-case Sonnet filter only 19% cheaper than the baseline because the filter session costs about as much as a baseline pass. 071 tests two cheaper ways to filter, and judges by useful findings per dollar instead of kept improvements and false findings.
+
+### Cases (6, `bench/refactor-cases.mjs`, set `071`; pinned tree maestro `3814a30`)
+
+| case | kind | source | expected improvements |
+|---|---|---|---|
+| `f-r5-plugin-scripts-05d5b76` | reverted real refactor | maestro `05d5b76` (task 087 review cleanups), reverted except the version bump and mirrors | dedupe 2 (`plugin-readloglines-copies`, `inject-payload-routes-twice`), align 1 (`check-runtime-needs-refresh`) |
+| `f-s5-titlecase-copies` | seeded | two private title-case helpers re-implementing `titleFromName` | dedupe 1 |
+| `f-c2-session-ipc` | clean neighbourhood | the tree as it is; a harmless doc-comment edit (`reviewChange`) gives the review arms a diff | none |
+| `f-l1-tasks-sections` | latent, no plant | 070 fixed audit, example 2: `tasks.ts` ready rule written twice, `## Heading` sections cut twice | dedupe 1, extract 1 |
+| `f-l2-session-sweep` | latent, no plant | 070 fixed audit, examples 3 and 5: `SessionRef` / `SessionTitleRef`, the removal loop twice, the options defaults | dedupe 1, extract 2 |
+| `f-l3-atomic-json-writes` | latent, no plant | a grep of `writeFileSync` / `renameSync` before any 071 run: four write-then-rename copies, two in-place JSON writes | extract 1, align 1 |
+
+Totals: **11 expected improvements: dedupe 5, extract 4, align 2**. The latent cases are problems the 070 audit (or a grep made before any run) showed to exist in the pinned tree, so a finding there is checkable and not a seeded guess. `f-s6` (cycle), `f-c1` and `f-c4` are retired from this set (they stay in set `070`): the baseline found the cycle every time, and the two clean controls added cost and no recall signal; `f-c2` stays as the one clean neighbourhood (its `reviewChange` gives the review arms a diff). The `unused` and `cycle` categories have no expected improvement here and get no verdict.
+
+The selection aimed at categories where the 070 baseline missed (dedupe, extract, align). The "at least 3 baseline misses" condition is checked by the pilot, not assumed: the stop rule below checks it for the whole set; per category it is read by hand (see the decision rule).
+
+### Arms
+
+- `sonnet-plain`: the baseline, one Sonnet refactor pass per (case, run). Unchanged from 070.
+- `haiku-metrics-primer`: the scout alone (Haiku, the stored metrics primer, `PROPOSALS:` list).
+- `haiku-batched-filter`: the same scout, then **one Sonnet session per batch of 3 cases** reads the combined backlog of the batch (each case's proposals, numbered globally, tagged `<neighbourhood-backlog case="id">`) and marks each file-it or drop-it. Its cost is split over the batch's cases in proportion to each case's proposal count (equal split if none), and each case also carries its scout's cost.
+- `haiku-reviewer-inline`: the scout's list handed to a normal Sonnet review of the case's diff (the plant's diff, or the `reviewChange` for the no-plant cases) in a `<scout-suggestions>` block; the reviewer writes a `VERDICTS:` section (file-it or drop-it per suggestion) before its usual `FINDINGS:`. The suggestions never enter the merge verdict: the review's own verdict is whether `FINDINGS:` has items.
+- `sonnet-review-plain`: the control for the inline arm, the same review without the list. It is pulled in automatically with the inline arm and is not in the refactor tables. The inline arm's cost is **scout + (inline review - control review)**, unclamped, i.e. the extra the list adds; if the control is missing or invalid the inline row is invalid. The report gives the verdict shift: the cells where has-findings differs between inline and control.
+- One scout session per (case, run) serves all three Haiku arms; its cost is counted in each arm and in `spent` once. The Sonnet-spawns-Haiku arm stays out; the 070 per-case filter arm stays defined but the 071 runner refuses it.
+
+### Batch size: 3 (fixed batches)
+
+B1 = `f-r5`, `f-c2`, `f-l1`; B2 = `f-s5`, `f-l2`, `f-l3`. Six cases make two equal batches. The 070 filter sessions cost $0.10 to $0.17 per case list, so a 3-case batch stays under the $0.60 session cap. An invalid batch loses 3 of the 12 cells of a run; a batch of 6 would lose the whole run on one failure and send a long context to one session; a batch of 2 gives most of the saving away (three filter sessions instead of two). Batches are fixed, not randomised, so a cell is comparable across runs.
+
+### Runs per cell and the pilot
+
+The pilot is `sonnet-plain`, 1 run, 6 cases (about 6 x $0.14 = $0.85 against the $3 cap). It is a **rule input, not a result**: it fixes the runs per cell and tells whether the set can show a recall verdict. 070 measured $0.139 per baseline session. With c the mean pilot session cost, one cell across the four arms costs about 3.0 baseline-session equivalents (baseline 1, scout 0.1, review control and inline review about 0.46 each, batch share about 0.4, set against the 070 review at $0.064 against $0.139); the full run is 6 cases, so about 18 x r x c. **Pick the largest r in {1, 2, 3} with 18 x r x c <= $5.60** (80% of the $7 cap). If r would be 1, do not start the paid run; amend the design first. At c = $0.14 that gives r = 2 (about $5.0). `f-r5`'s plant diff is about 29 KB, so its reviews cost more than the factor assumes; the runner's per-session cap and the run budget bound the total in any case.
+
+### Metric: useful findings per dollar
+
+A finding is **useful** when it matches an expected improvement, or it is a proposal confirmed by the fixed audit below. A proposal the audit does not confirm is **noise**, including one nobody judged. Tolerated findings and repeats are neutral. Useful findings per dollar = useful / (arm cost over the valid paired cells). The 070 figures (kept improvements, false findings) are printed beside it.
+
+### Audit (fixed before any paid run; `bench/refactor-audit.mjs`)
+
+1. Registry: the improvements the 070 audit already confirmed (`KNOWN_CONFIRMED`, 7 entries, each keyed) count as confirmed once per key.
+2. Mechanical check by `git grep` at the pinned commit: an "unused export" proposal is refuted when a real importer other than a barrel exists and confirmed when only the file and a barrel mention it; a "defined twice" proposal is confirmed when the name has two definitions.
+3. The remaining proposals go to a blinded pool: arm labels stripped, one entry per distinct (case, text), deterministic hash order, expected and tolerated items left out. The reader writes `<id>: confirmed <issue-key>: <evidence>` or `<id>: unconfirmed: <reason>` after a `grep` of the pinned tree; an issue counts once per key. A pool entry without a verdict is noise.
+4. `--score` writes `audit-report.md` with the table, the decision verdicts and the 070 figures.
+
+### Decision rule (fixed before any result, 051 style)
+
+Per arm against `sonnet-plain`, on valid paired cells. The ratio, recall and noise bars are applied to the **overall** figures (all categories together). The categories (dedupe, extract, align) enter only as a loss test. This is `usefulVerdict` in `bench/refactor-audit.mjs`, checked in this order, first match wins:
+
+1. Different valid-run counts: `not comparable`.
+2. No cost, or no useful finding in the baseline: `inconclusive`.
+3. **Per category:** the arm loses 3 or more useful findings in a category against the baseline: `blocked: loses <category>`.
+4. **better per dollar:** overall useful per dollar >= 1.5x the baseline's, overall useful >= 70% of the baseline's, and overall noise share no more than 10 points above the baseline's.
+5. Per-dollar and useful bars met, noise share too high: `cheaper per useful finding but noisier than the bar allows`.
+6. Overall useful per dollar below 1x the baseline's: `worse per dollar`.
+7. Otherwise: `no gain shown`.
+
+- **The overall figures never override a category.** Step 3 comes before step 4, so a blocked category stands even when the overall per-dollar and recall bars pass. No category is rated "better" on its own.
+- **The 3-baseline-misses condition is not in the verdict code.** The pilot stop rule (below) checks it for the whole set (a pilot baseline missing fewer than 3 of the 11 stops the plan). Per category, read a category's loss count as inconclusive when the pilot's baseline missed fewer than 3 expected improvements in that category. The code does not check this per category; the reader does.
+- The inline arm: also report the review-verdict shift. More than 10% of cells flipping (has-findings differing from the control) is reported as the list changing the review, not as a pass.
+
+### Stop rule
+
+Applied to the pilot (the 070 `pilotScreen`): **saturated** if the baseline misses fewer than 3 of the 11 expected improvements (the set cannot show a recall difference; amend the cases before a paid run); **floor** if the baseline finds fewer than a third of the planned improvements (the set is too hard to measure). Either result stops the plan until the cases are amended, and the amendment is written here before the run. During the paid run: stop on a usage limit, on a seccomp failure, or after more than one invalid session in a run.
+
+### Caps
+
+$0.60 per session, $3 for the pilot, $7 for the paid run, $10 in total including the pilot. The caps are 071's own, not cumulative with 070's spend.
+
+### Preflight, pilot and paid run (plain terminal, repo root)
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --init-check
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 3 --run-budget 0.60
+node bench/refactor-run.mjs --runs <r> --budget 7 --run-budget 0.60
+node bench/refactor-audit.mjs <results-dir> --pool
+node bench/refactor-audit.mjs <results-dir> --score
+```
+
+`<r>` comes from the runs-per-cell rule; the verdicts file goes in `<results-dir>/audit-verdicts.txt`.
+
+### Results
+
+Not run yet. To be filled after the user's pilot and paid run: pilot cost per session and r, per-arm cost and useful findings per dollar, per-category verdicts, the 070 figures beside them, the inline arm's verdict shift, the audit counts, and the recommendation.
+
+**Confidence: to be written with the results.** Known limits already: 6 cases and 2 or 3 runs per cell; one model family; the audit is one reader with `grep`; the cost factor for review and batch sessions is estimated from 070, not measured by the pilot; one project (maestro `3814a30`).
+
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
 User decision, epic `haiku-subagents-with-graph`. The plugin stops pushing sessions to the graph instead of grep and read, and graph retrieval stays available on demand.

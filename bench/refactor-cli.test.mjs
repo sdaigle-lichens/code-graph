@@ -21,37 +21,41 @@ let haveMaestro = true;
 try { resolveMaestroDir(); } catch { haveMaestro = false; }
 const noMaestro = haveMaestro ? false : 'no maestro checkout on this machine (set MAESTRO_DIR)';
 
-test('refactor-run --dry: plans 6 cases x the 3 default arms per run number (the spawn arm is opt-in), prints each cell, exits 0 without any cap', { skip: noMaestro }, () => {
+test('refactor-run --dry: plans the 6 cases of set 071 x the 4 default arms plus the control review, prints each (case, arm), exits 0 without any cap', { skip: noMaestro }, () => {
   const r = run('refactor-run.mjs', ['--dry', '--runs', '1']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /refactor-run: 18 cells \(sonnet-plain 6, haiku-metrics-primer 6, haiku-scout-sonnet-filter 6\)/);
-  assert.ok(!r.stdout.includes('sonnet-spawns-haiku-scouts'), 'the opt-in arm is off by default');
+  assert.match(r.stdout, /refactor-run: set 071, 6 cases, 30 cells \(sonnet-plain 6, haiku-metrics-primer 6, haiku-batched-filter 6, haiku-reviewer-inline 6, sonnet-review-plain 6\)/);
+  assert.ok(!r.stdout.includes('sonnet-spawns-haiku-scouts') && !r.stdout.includes('haiku-scout-sonnet-filter'), 'the 070 arms are off by default');
   const printed = r.stdout.split('\n').filter((l) => /^\[f-/.test(l));
-  assert.equal(printed.length, 18);
-  assert.equal(printed.filter((l) => l.includes('a filter session (Sonnet)')).length, 6, 'only the pipeline arm has a second session');
+  assert.equal(printed.length, 30);
+  assert.equal(printed.filter((l) => l.includes('one Sonnet batch filter per batch')).length, 6, 'only the batched arm shares a filter session');
+  assert.equal(printed.filter((l) => l.includes('review prompt')).length, 12, 'the inline arm and the control review the same change');
+  assert.match(r.stdout, /batch 1: f-r5-plugin-scripts-05d5b76, f-c2-session-ipc, f-l1-tasks-sections \| batch 2: f-s5-titlecase-copies, f-l2-session-sweep, f-l3-atomic-json-writes/);
 });
 
-test('refactor-run --dry: the default is 2 runs per cell (36 cells)', { skip: noMaestro }, () => {
+test('refactor-run --dry: the default is 2 runs per cell (60 cells)', { skip: noMaestro }, () => {
   const r = run('refactor-run.mjs', ['--dry']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /refactor-run: 36 cells /);
+  assert.match(r.stdout, /refactor-run: set 071, 6 cases, 60 cells /);
 });
 
-test('refactor-run --dry: no cell has the Agent tool by default; naming the spawn arm adds it, with the Agent tool on those cells only; the pipeline\'s first session is Haiku', { skip: noMaestro }, () => {
+test('refactor-run --dry: no cell has the Agent tool; the 070 arms are refused by this runner; the inline arm pulls in the control review', { skip: noMaestro }, () => {
   const def = run('refactor-run.mjs', ['--dry', '--runs', '1']);
-  const defLines = def.stdout.split('\n').filter((l) => l.startsWith('claude '));
-  assert.equal(defLines.length, 18);
+  const defLines = def.stdout.split('\n').filter((l) => l.startsWith('  claude '));
+  assert.equal(defLines.length, 30);
   assert.equal(defLines.filter((l) => l.includes(',Agent"')).length, 0);
-  const r = run('refactor-run.mjs', ['--dry', '--runs', '1', '--arms', 'sonnet-plain,haiku-metrics-primer,haiku-scout-sonnet-filter,sonnet-spawns-haiku-scouts']);
+  const spawn = run('refactor-run.mjs', ['--dry', '--arms', 'sonnet-spawns-haiku-scouts']);
+  assert.equal(spawn.status, 2);
+  assert.match(spawn.stderr, /does not orchestrate them/);
+  const inl = run('refactor-run.mjs', ['--dry', '--runs', '1', '--arms', 'haiku-reviewer-inline']);
+  assert.equal(inl.status, 0, inl.stderr);
+  assert.match(inl.stdout, /12 cells \(haiku-reviewer-inline 6, sonnet-review-plain 6\)/);
+});
+
+test('refactor-run --dry: the 070 set is still selectable with --set 070', { skip: noMaestro }, () => {
+  const r = run('refactor-run.mjs', ['--dry', '--runs', '1', '--set', '070', '--arms', 'sonnet-plain']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /refactor-run: 24 cells \(sonnet-plain 6, haiku-metrics-primer 6, haiku-scout-sonnet-filter 6, sonnet-spawns-haiku-scouts 6\)/);
-  const claudeLines = r.stdout.split('\n').filter((l) => l.startsWith('claude '));
-  assert.equal(claudeLines.length, 24);
-  const withAgent = claudeLines.filter((l) => l.includes('"--allowedTools" "Bash,Read,Grep,Glob,Skill,Agent"') && l.includes('"--tools" "Bash,Read,Grep,Glob,Skill,Agent"'));
-  assert.equal(withAgent.length, 6);
-  assert.ok(withAgent.every((l) => l.includes('"--model" "claude-sonnet-5-5"')));
-  const heads = r.stdout.split('\n').filter((l) => /^\[f-\S+ haiku-scout-sonnet-filter run1\]/.test(l));
-  assert.equal(heads.length, 6);
+  assert.match(r.stdout, /refactor-run: set 070, /);
 });
 
 test('refactor-run: a paid run without both caps is refused with exit 2 and no session starts', () => {
@@ -116,7 +120,7 @@ const result = { type: 'result', subtype: 'success', is_error: false, result: ${
 process.stdout.write(JSON.stringify(init) + '\\n' + JSON.stringify(result) + '\\n');
 `);
   chmodSync(stub, 0o755);
-  const r = spawnSync('node', [join(here, 'refactor-run.mjs'), '--budget', '1', '--run-budget', '0.5', '--only', caseId, '--arms', 'sonnet-plain', '--runs', '1'], {
+  const r = spawnSync('node', [join(here, 'refactor-run.mjs'), '--budget', '1', '--run-budget', '0.5', '--set', '070', '--only', caseId, '--arms', 'sonnet-plain', '--runs', '1'], {
     encoding: 'utf8', timeout: 300000, env: { ...plainEnv, PATH: `${bin}:${process.env.PATH}` },
   });
   const dir = /^results: (.+)$/m.exec(r.stdout)?.[1];
@@ -183,6 +187,6 @@ test('refactor-prep --check: every stored scope and primer regenerates byte for 
   const r = run('refactor-prep.mjs', ['--check']);
   assert.equal(r.status, 0, r.stdout.slice(-600) + r.stderr.slice(-300));
   const rows = r.stdout.split('\n').filter((l) => /^f-\S+\.(scope|primer)\.txt: /.test(l));
-  assert.equal(rows.length, 12);
-  assert.equal(rows.filter((l) => /: unchanged /.test(l)).length, 12);
+  assert.equal(rows.length, REFACTOR_CASES.length * 2);
+  assert.equal(rows.filter((l) => /: unchanged /.test(l)).length, REFACTOR_CASES.length * 2);
 });
