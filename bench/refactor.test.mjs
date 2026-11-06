@@ -554,6 +554,18 @@ test('a shaped <file>: <kind>: line with no dash under PROPOSALS: is a proposal,
   assert.equal(gradePipeline(caseOf('f-c1-canvas-layout'), 'PROPOSALS:\nsrc/a.ts: dedupe: x', 'VERDICTS:\n- 1: file-it').anchor.scout, 1);
 });
 
+test('the unbulleted-line scan agrees with findingsOf: an empty "- " bullet or a header-line bullet owns the shaped line after it', () => {
+  const empty = proposalsOf('PROPOSALS:\n- \nsrc/a.ts: dedupe: readJson is copied from src/b.ts; import it.');
+  assert.equal(empty.items.length, 1);
+  const c = caseOf('f-c1-canvas-layout');
+  const g = gradePipeline(c, 'PROPOSALS:\n- \nsrc/a.ts: dedupe: x', 'VERDICTS:\n- 1: file-it');
+  assert.equal(g.anchor.scout, 1);
+  assert.equal(g.falseFindings, 1, 'not counted twice');
+  const hdr = proposalsOf('PROPOSALS: - a.ts: dedupe: x\nb.ts: dedupe: y');
+  assert.equal(hdr.items.length, 1);
+  assert.equal(proposalsOf('PROPOSALS: - a.ts: dedupe: x\n\nb.ts: dedupe: y').items.length, 2);
+});
+
 // Documented limit (docs/evals.md): an all-clear opener followed by "but" in an unshaped line is an all-clear.
 test('documented limit: an unshaped line that opens with an all-clear phrase is an all-clear even when it adds "but ..."', () => {
   const p = proposalsOf('PROPOSALS:\n- No changes needed in src/a.ts, but extract the parser from src/b.ts into a helper.');

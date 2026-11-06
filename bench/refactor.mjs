@@ -288,12 +288,15 @@ export function proposalsOf(text) {
     // findingsOf reads bullet lines only: a `<file>: <kind>: <text>` line with no bullet under the header is
     // a proposal too. A line that follows a bullet or another item without a blank line is its continuation.
     if (hdr) {
-      const after = String(text ?? '').slice(hdr.index + hdr[0].length).split('\n');
-      let inBullet = false;
+      const after = String(text ?? '').slice(hdr.index + hdr[0].length).split('\n').slice(1);
+      // Same bullet test as findingsOf (on the raw line: an empty `- ` is a bullet); a bullet on the header
+      // line opens an item too, so a shaped line right after it is its continuation.
+      const isBullet = (s) => /^\s*(?:[-*•]|\d+[.)])\s+/.test(s);
+      let inBullet = isBullet(`${rest} `);
       for (const raw of after) {
         const line = raw.trim();
         if (!line) { inBullet = false; continue; }
-        if (/^(?:[-*•]|\d+[.)])\s/.test(line)) inBullet = true;
+        if (isBullet(raw)) inBullet = true;
         else if (!inBullet && SHAPE_RE.test(line)) items.push(line);
       }
     }
