@@ -391,8 +391,8 @@ node --test bench/*.test.mjs
 node bench/refactor-prep.mjs --check
 node bench/refactor-run.mjs --dry
 node bench/refactor-run.mjs --init-check
-node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget <PILOT CAP> --run-budget <PER-SESSION CAP>   # pilot: baseline saturation
-node bench/refactor-run.mjs --runs 3 --budget <TOTAL CAP> --run-budget <PER-SESSION CAP>                      # paid run
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 2 --run-budget 0.60   # pilot: baseline saturation (caps of the 070 run; see docs/evals.md)
+node bench/refactor-run.mjs --runs 3 --budget 7 --run-budget 0.60                      # paid run
 ```
 
 Output: `bench/results/refactor-<timestamp>/` (gitignored): transcripts, `runs.json` and `report.md`.
