@@ -1420,6 +1420,75 @@ Limits: 6 cases and 2 paid runs per cell; one project (maestro `3814a30`); one m
 - **Where the change goes.** Adding the scout to the workflow is a separate ticket in the maestro repo. Nothing in maestro changes here.
 - **Confidence:** low to moderate, as above. A further run is not recommended until the question changes (for example, whether acting on the scout's list pays).
 
+## Ticket 073: does a decided-against list cut the Haiku refactor scout's repeated findings while it keeps its recall (bench/, pre-registration written before any paid run)
+
+The commit that holds this section is the **measured commit**: the bench code (`bench/refactor-decided.mjs`, `bench/refactor-decided-prep.mjs`, the `haiku-decided-against` arm in `bench/refactor.mjs` and `bench/refactor-run.mjs`), the stored list `bench/refactor/decided-against.json`, the cases and this rule are fixed by it. Its hash is filled in here right after the commit (`git log -1 --format=%h -- docs/evals.md`); a later change is an amendment, written before the run it affects, and a docs-only change is said to be docs only. The list must be committed before any paid run. No paid run had been started when this was written; results and the recommendation are recorded by a follow-up ticket. 071 found the plain scout (`haiku-metrics-primer`) the only cheap form worth using, as an advisory list. Its list repeats findings a person has already looked at and declined. 073 tests whether telling the scout what was decided against cuts those repeats without costing it the findings that are worth filing.
+
+### The list (`bench/refactor/decided-against.json`, built by `bench/refactor-decided-prep.mjs`)
+
+14 entries, built by hand at $0 from the 071 paid-run proposals (`bench/results/refactor-2026-11-06T20-32-24-067Z/runs.json`, local) that are not expected improvements: duplicates or extractions the scout reports again and again which a person would decline (a one-line wrapper, a constant spelled out where a shared one is not worth an import, a type exported but kept for the public surface). Each entry has a code reference (`file`, `symbol`), a `contentHash`, a `claim` and a `reason`; the `match` patterns and `source` are bench-side only and never reach the prompt.
+
+- **contentHash:** the first 16 hex digits of the sha256 of the declaration text of the symbol (from its declaration line to the first closing line at column 0, or the declaration line alone when it ends in `;`), line-end blanks removed. Symbol level, so an edit elsewhere in the file (the `f-r5` plant) leaves it alone.
+- **Expiry:** at injection the hash is recomputed from the code in the case workspace. A changed hash, a missing symbol or a missing file expires the entry: it is not injected and the dry run fails if any entry for the case expired.
+- **Neighbourhood only:** only entries whose `file` is in the case's scope list are injected (`decidedFor`). Per case: `f-r5` 2, `f-s5` 6, `f-c2` 2, `f-l1` 7, `f-l3` 7; the others of the 14 are not shown to that case's scout.
+- **Not in the list, by rule:** every 071 expected improvement (the atomic-write copies and in-place JSON writes, the tasks section slicing and ready rule, `SessionRef`, the removal loop, the options defaults, the `readLogLines` copies, the payload routes, the check-runtime staleness rule). A stored-list test fails if an entry matches an expected improvement or a good sample of any case. A decided-against list that hides what the bench expects would remove recall, not repeats.
+- **The reasons are author-written:** the bench author wrote each reason, standing in for the person or reviewer who declined. The repeat counts come from the 071 rows, which is how the entries were chosen (selection effect: the entries are the ones the scout repeats).
+
+### Cases (5, set `073`; pinned tree maestro `3814a30`)
+
+`f-r5-plugin-scripts-05d5b76`, `f-s5-titlecase-copies`, `f-c2-session-ipc`, `f-l1-tasks-sections`, `f-l3-atomic-json-writes` (their 071 definitions, unchanged, and so the same expected improvements: 8 per run, `f-r5` 3, `f-s5` 1, `f-c2` 0, `f-l1` 2, `f-l3` 2). `f-l2-session-sweep` is left out: no declined finding concerns its neighbourhood files, so its arm would be the same prompt as the control. `f-c2` stays as the clean neighbourhood: any new finding there is read against the list.
+
+### Arms
+
+- `haiku-metrics-primer`: the control, the plain scout of 071, unchanged.
+- `haiku-decided-against`: the same Haiku scout and primer, plus a `<decided-against>` block with the neighbourhood's entries (code reference, claim, reason) after the primer. It is its own session. The two prompts differ only by that block. The other 071 arms are not run in 073.
+
+### Runs per cell, pilot, caps
+
+- **Pilot:** 1 run, both arms, 5 cases: 10 sessions, about $0.17 at $0.015 to $0.02 per Haiku session. A rule input, not a result. Cap $0.50.
+- **Runs per cell:** with c the mean pilot session cost, **the largest r in {4, 5, 6} with 10 x r x c <= $1.20** (80% of the paid cap). If no r reaches 4, do not start the paid run; amend the design first. At c = $0.02 that gives r = 6 (60 sessions, $1.20).
+- **Caps:** $0.15 per session, $0.50 for the pilot, $1.50 for the paid run, **$2 in total including the pilot**.
+
+### Metrics (the report's "Decided-against list (073)" section)
+
+On valid paired cells only (a (case, run) cell counts when both arms have a valid run). Per arm:
+
+- **repeated:** distinct listed entries (those injected into that cell for the decided arm, those that would be for the control) that one or more of the arm's proposals repeat. A proposal repeats an entry when it names the entry's file and its `change` patterns match. A proposal that is an expected improvement or tolerated is never a repeat.
+- **found:** expected improvements found, out of those planned.
+- **new findings:** distinct proposals that are not expected, not tolerated and match no entry of the whole list.
+- cost, and the proposals in repeated entries.
+
+### Decision rule (fixed before any result; `decidedVerdict`, first match wins)
+
+1. Different paired-cell counts: `not comparable`.
+2. The control repeats fewer than 6 listed entries over the paired cells: `inconclusive` (nothing to cut).
+3. The decided arm's repeated is more than 50% of the control's, i.e. the cut is under 50%: `no cut shown`.
+4. The decided arm finds under 90% of the control's expected improvements: `cuts repeats but loses recall`.
+5. The decided arm's new findings are under 50% of the control's: `cuts repeats but over-broad` (the list silences the scout beyond the entries).
+6. Otherwise: `cuts repeats and keeps recall`.
+
+The thresholds are the constants `REPEAT_CUT`, `RECALL_KEEP`, `NEW_KEEP`, `MIN_CONTROL_REPEATS` in `bench/refactor-decided.mjs`.
+
+### Stop rule
+
+Pilot: the plain scout repeats fewer than 5 listed entries over its 5 cells (`PILOT_MIN_REPEATS`; nothing to cut, amend the list before a paid run), or any invalid run, or a usage limit or seccomp failure. Paid run: stop on a usage limit, on a seccomp failure, or after more than one invalid session in a run.
+
+### Preflight, pilot and paid run (plain terminal, repo root)
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-decided-prep.mjs --check
+node bench/refactor-run.mjs --dry --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --init-check --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs 1 --budget 0.50 --run-budget 0.15
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs <r> --budget 1.50 --run-budget 0.15
+```
+
+### Limits
+
+5 cases and at most 6 runs per cell; one project (maestro `3814a30`); one model family (Haiku); entries chosen from the very runs that show the repeats; the reasons are author-written, not a real reviewer's; the metric counts repeats by pattern, so a reworded repeat can be missed. The `--init-check` needs `claude` on the path and was not run by the author (not available in the sandbox). Recording the results and the recommendation is a follow-up ticket.
+
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
 User decision, epic `haiku-subagents-with-graph`. The plugin stops pushing sessions to the graph instead of grep and read, and graph retrieval stays available on demand.

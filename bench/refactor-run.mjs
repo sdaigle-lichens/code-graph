@@ -16,6 +16,9 @@
 // counts in each of them, the spend once. The batch filter is one Sonnet session per batch of cases; its
 // cost is split over the batch's cases by proposals. The inline review's cost is the extra over the control
 // review of the same change. Every session is capped by --run-budget.
+// 073: `--set 073 --arms haiku-metrics-primer,haiku-decided-against` pairs the plain scout with the scout that is
+// also told the decided-against entries of the case's neighbourhood (bench/refactor/decided-against.json, built
+// by bench/refactor-decided-prep.mjs). The decided-against scout is its own session; both are scored on the same cells.
 // Output: bench/results/refactor-<timestamp>/ (transcripts, runs.json, report.md), gitignored.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -33,6 +36,7 @@ import {
   verdictsOf, withSupportArms,
 } from './refactor.mjs';
 import { selectRefactorCases } from './refactor-cases.mjs';
+import { DECIDED_ARM, decidedBlock, decidedFor, decidedReport, loadDecided } from './refactor-decided.mjs';
 import { refactorFile } from './refactor-prep.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -74,6 +78,13 @@ for (const c of cases) {
   const sp = storedProblems(c, stored(c, 'scope.txt'), stored(c, 'primer.txt'));
   if (sp.length) die(`${c.id}: ${sp.join('; ')}; rerun node bench/refactor-prep.mjs`);
 }
+
+// The decided-against list: the planned arms read it; the plain scout's rows record which entries it would have got.
+let decided = null;
+try { if (arms.includes(DECIDED_ARM)) decided = loadDecided(); } catch (e) { die(e.message); }
+const readIn = (ws) => (f) => (existsSync(join(ws, f)) ? readFileSync(join(ws, f), 'utf8') : null);
+const decidedOf = (scope, ws) => decidedFor(decided.entries, scope, readIn(ws));
+const listedMeta = (d) => ({ listed: d.inject.map((e) => e.id), injected: d.inject.map((e) => e.id), expired: d.expired.map((e) => e.id) });
 
 // --init-check: $0 preflight. A dead API endpoint means no model call succeeds; the init event (emitted
 // before any API call) gives the model, the tool list, the skills and the plugins of each session.
@@ -117,7 +128,7 @@ const outDir = join(here, 'results', `refactor-${stamp}`);
 const rows = [];
 let spent = 0; // every session once, however many arms share it
 let stop = null;
-const meta = { budget: BUDGET, 'run-budget': Number(opts['run-budget'] || 0), arms, set: opts.set };
+const meta = { budget: BUDGET, 'run-budget': Number(opts['run-budget'] || 0), arms, set: opts.set, ...(arms.includes(DECIDED_ARM) ? { decidedEntries: decided.entries } : {}) };
 const save = () => writeFileSync(join(outDir, 'runs.json'), JSON.stringify({ meta, planned: plan, rows, spent, stop }, null, 1));
 if (!DRY) mkdirSync(outDir, { recursive: true });
 
@@ -183,7 +194,18 @@ if (DRY) {
     for (const arm of arms) {
       const a = REFACTOR_ARMS[arm];
       const note = [];
-      if (!a.review) {
+      if (a.decided) {
+        // the arm's prompt is built in the case's workspace: the contentHash of each entry is read from the planted tree
+        const w = workspace(c, c.refactor.plant || [], 'plant');
+        const d = decidedOf(scope, w.ws);
+        drop(w.ws);
+        if (!d.inject.length) die(`${c.id} ${arm}: no decided-against entry for the neighbourhood (the case does not belong in the 073 set)`);
+        if (d.expired.length) die(`${c.id} ${arm}: expired entries at the measured tree: ${d.expired.map((e) => e.id).join(', ')}; rerun node bench/refactor-decided-prep.mjs --check`);
+        const prompt = refactorPrompt(arm, scope, stored(c, 'primer.txt'), decidedBlock(d.inject));
+        const pp = promptProblems(arm, prompt);
+        if (pp.length) die(`${c.id} ${arm}: ${pp.join('; ')}`);
+        note.push(`scope prompt ${prompt.length} chars with ${d.inject.length} decided-against entries (${d.outside.length} of the list are outside the neighbourhood, ${d.expired.length} expired)`);
+      } else if (!a.review) {
         const prompt = refactorPrompt(arm, scope, a.primer ? stored(c, 'primer.txt') : '');
         const pp = promptProblems(arm, prompt);
         if (pp.length) die(`${c.id} ${arm}: ${pp.join('; ')}`);
@@ -197,7 +219,7 @@ if (DRY) {
         const rp = reviewPromptProblems(arm, prompt);
         if (rp.length) die(`${c.id} ${arm}: ${rp.join('; ')}`);
         note.push(`review prompt ${prompt.length} chars, diff ${w.diff.length} chars`);
-      } else {
+      } else if (!a.decided) {
         const w = workspace(c, c.refactor.plant || [], 'plant');
         drop(w.ws);
       }
@@ -241,12 +263,28 @@ for (let n = 1; n <= Number(opts.runs); n++) {
       let w;
       try { w = workspace(c, c.refactor.plant || [], 'plant'); } catch (e) { stop = e.message; break outer; }
       const prompt = refactorPrompt('haiku-metrics-primer', scope, primer);
+      const listed = decided && wants(DECIDED_ARM) ? listedMeta(decidedOf(scope, w.ws)) : null; // the entries the decided-against arm gets in this cell
       const s = session(c, 'haiku-metrics-primer', 'main', n, w.ws, prompt, 'haiku-scout');
       drop(w.ws);
       if (!s) break outer;
       const items = s.m.cost != null ? proposalsOf(s.m.answer).items : [];
       scouts.set(c.id, { first: s, items, scope });
-      if (wants('haiku-metrics-primer') && record(c, 'haiku-metrics-primer', n, s, null, gradeRefactor(c, s.m.answer))) break outer;
+      if (wants('haiku-metrics-primer') && record(c, 'haiku-metrics-primer', n, s, null, { ...gradeRefactor(c, s.m.answer), ...(listed ? { decided: listed } : {}) })) break outer;
+    }
+    // 073: the same scout with the decided-against entries of this neighbourhood, its own session
+    if (wants(DECIDED_ARM)) {
+      if (cantAfford('haiku decided-against scout')) break outer;
+      let w;
+      try { w = workspace(c, c.refactor.plant || [], 'plant'); } catch (e) { stop = e.message; break outer; }
+      const d = decidedOf(scope, w.ws);
+      if (!d.inject.length || d.expired.length) { drop(w.ws); stop = `${c.id} ${DECIDED_ARM}: ${d.inject.length ? `expired entries ${d.expired.map((e) => e.id).join(', ')}` : 'no decided-against entry for the neighbourhood'}`; break outer; }
+      const prompt = refactorPrompt(DECIDED_ARM, scope, primer, decidedBlock(d.inject));
+      const pp = promptProblems(DECIDED_ARM, prompt);
+      if (pp.length) { drop(w.ws); stop = `${c.id} ${DECIDED_ARM}: ${pp.join('; ')}`; break outer; }
+      const s = session(c, DECIDED_ARM, 'main', n, w.ws, prompt, 'haiku-decided');
+      drop(w.ws);
+      if (!s) break outer;
+      if (record(c, DECIDED_ARM, n, s, null, { ...gradeRefactor(c, s.m.answer), decided: listedMeta(d) })) break outer;
     }
     // the control review, then the inline review of the same change
     let control = null;
@@ -323,7 +361,8 @@ for (let n = 1; n <= Number(opts.runs); n++) {
 }
 
 save();
-const md = refactorReport(rows, { ...meta, spent, stop, planned: plan });
+let md = refactorReport(rows, { ...meta, spent, stop, planned: plan });
+if (wants(DECIDED_ARM) && wants('haiku-metrics-primer')) md += decidedReport(rows, plan, new Map(cases.map((c) => [c.id, c])), decided.entries);
 writeFileSync(join(outDir, 'report.md'), md);
 console.log('\n' + md);
 console.log(`results: ${outDir}`);

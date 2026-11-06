@@ -28,11 +28,14 @@ export const REFACTOR_ARMS = {
   'haiku-batched-filter': { model: HAIKU, primer: true, spawn: false, filter: false, scout: true, batch: true },
   'haiku-reviewer-inline': { model: HAIKU, primer: true, spawn: false, filter: false, scout: true, inline: true },
   'sonnet-review-plain': { model: SONNET, primer: false, spawn: false, filter: false, review: true },
+  // 073: the plain scout's own session (not shared) plus the decided-against entries of the case's neighbourhood
+  // (bench/refactor-decided.mjs); scored against `haiku-metrics-primer` on paired cells.
+  'haiku-decided-against': { model: HAIKU, primer: true, spawn: false, filter: false, decided: true },
 };
 export const REFACTOR_ARM_NAMES = Object.keys(REFACTOR_ARMS);
 // Opt-in, off by default (`--arms` must name them): the 070 spawn arm and the 070 per-case filter pipeline.
 // The default is the 071 design; the control `sonnet-review-plain` is added by `withSupportArms`.
-export const OPT_IN_REFACTOR_ARMS = ['sonnet-spawns-haiku-scouts', 'haiku-scout-sonnet-filter', 'sonnet-review-plain'];
+export const OPT_IN_REFACTOR_ARMS = ['sonnet-spawns-haiku-scouts', 'haiku-scout-sonnet-filter', 'sonnet-review-plain', 'haiku-decided-against'];
 export const DEFAULT_REFACTOR_ARMS = REFACTOR_ARM_NAMES.filter((a) => !OPT_IN_REFACTOR_ARMS.includes(a)).join(',');
 export const DEFAULT_REFACTOR_RUNS = '2';
 export const REFACTOR_BASELINE = 'sonnet-plain';
@@ -103,6 +106,8 @@ export const SCOPE_OPEN = '<neighbourhood>';
 export const SCOPE_CLOSE = '</neighbourhood>';
 export const PRIMER_OPEN = '<metrics-primer>';
 export const PRIMER_CLOSE = '</metrics-primer>';
+export const DECIDED_OPEN = '<decided-against>';
+export const DECIDED_CLOSE = '</decided-against>';
 
 const BASE_PROMPT = (scope) => `You are auditing one neighbourhood of the maestro repository in the current directory for code-structure improvements worth a refactor ticket: code duplicated across files or concepts, a helper that should be extracted or reused, a pattern that one file of a family does differently from its siblings, an import cycle, an export that nothing imports. The neighbourhood is the list of files below (a change's files and the files next to them in the import graph). Read them and the code around them; do not edit anything. Propose only improvements that are warranted: if the neighbourhood is fine as it is, say so. Do not report bugs, naming or formatting.
 
@@ -114,7 +119,9 @@ const FORMAT = `Finish with a section that starts with the line \`PROPOSALS:\` f
 
 const SPAWN_PARAGRAPH = `Hand the survey of the neighbourhood to Haiku subagents: use the Agent tool with the model set to \`haiku\`, give each subagent a few of the files, and ask it to list code that duplicates code in another file, patterns that differ from the sibling files, imports that close a cycle, and exports nothing imports (file and line). Then judge their reports yourself and write the proposals.`;
 
-export function refactorPrompt(arm, scope, primer = '') {
+// `decided` (073): the ready decided-against block (bench/refactor-decided.mjs `decidedBlock`), only for the
+// decided-against arm; it goes right after the metrics primer.
+export function refactorPrompt(arm, scope, primer = '', decided = '') {
   const a = REFACTOR_ARMS[arm];
   if (!a) throw new Error(`unknown refactor arm ${arm}`);
   const parts = [BASE_PROMPT(scope)];
@@ -122,6 +129,10 @@ export function refactorPrompt(arm, scope, primer = '') {
     if (!String(primer).trim()) throw new Error('a primer arm needs the stored metrics primer');
     parts.push(`${PRIMER_OPEN}\nFacts computed from the code index of the repository. They are leads, not verdicts: check them against the source. The index does not measure duplication or pattern drift.\n\n${String(primer).trim()}\n${PRIMER_CLOSE}`);
   }
+  if (a.decided) {
+    if (!String(decided).includes(DECIDED_OPEN)) throw new Error('the decided-against arm needs the decided-against block');
+    parts.push(String(decided).trim());
+  } else if (String(decided).trim()) throw new Error(`the ${arm} arm takes no decided-against block`);
   if (a.spawn) parts.push(SPAWN_PARAGRAPH);
   parts.push(FORMAT);
   return parts.join('\n\n');
@@ -215,6 +226,8 @@ export function promptProblems(arm, prompt) {
   const has = String(prompt).includes(PRIMER_OPEN);
   if (a.primer && !has) return [`the ${arm} arm's prompt carries no metrics primer`];
   if (!a.primer && has) return [`the ${arm} arm's prompt carries a metrics primer (only a primer arm may)`];
+  const hasDecided = String(prompt).includes(DECIDED_OPEN);
+  if (!!a.decided !== hasDecided) return [`the ${arm} arm's prompt ${hasDecided ? 'carries a decided-against block (only the decided-against arm may)' : 'lacks the decided-against block'}`];
   const spawnText = String(prompt).includes('Haiku subagents');
   if (a.spawn !== spawnText) return [`the ${arm} arm's prompt ${spawnText ? 'tells the session to spawn subagents' : 'lacks the spawn instruction'}`];
   if (!String(prompt).includes(SCOPE_OPEN)) return [`the ${arm} arm's prompt carries no neighbourhood`];

@@ -137,7 +137,9 @@ const PAYLOAD_TO = `    );
 // duplicates). `batch` is the pre-registered filter batch of the haiku-batched-filter arm (3 cases each).
 // `refactor.reviewChange`: a harmless edit (a doc comment) applied only in the review arms' workspace so a
 // case with no plant still has a change to review; a case with a plant reviews the plant's diff.
-const SET071 = ['070', '071'];
+// Ticket 073 (docs/evals.md, "Ticket 073") reruns five of the 071 cases with the decided-against arm; `f-l2` stays
+// out because no declined finding is about a file of its neighbourhood (a cell with nothing to inject).
+const SET071 = ['070', '071', '073'];
 
 export const REFACTOR_CASES = [
   {
@@ -285,7 +287,7 @@ export const REFACTOR_CASES = [
   // ---- ticket 071: latent cases (real duplication already in the pinned tree, nothing planted) ----
   {
     ...base,
-    sets: ['071'],
+    sets: ['071', '073'],
     batch: 1,
     id: 'f-l1-tasks-sections',
     kind: 'latent',
@@ -330,7 +332,7 @@ export const REFACTOR_CASES = [
   },
   {
     ...base,
-    sets: ['071'],
+    sets: ['071', '073'],
     batch: 2,
     id: 'f-l3-atomic-json-writes',
     kind: 'latent',

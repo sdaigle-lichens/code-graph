@@ -439,3 +439,26 @@ node bench/refactor-run.mjs --runs <r> --budget 7 --run-budget 0.60             
 ```
 
 Files: `refactor-audit.mjs` (metric and audit), `refactor-071.test.mjs`, `refactor-audit.test.mjs` (offline tests).
+
+### Ticket 073: a decided-against list for the scout
+
+`--set 073` (5 cases) with `--arms haiku-metrics-primer,haiku-decided-against` compares the plain scout with a scout
+that is also told what was decided against in the case's neighbourhood. Pre-registration, decision rule and caps:
+[docs/evals.md](../docs/evals.md), "Ticket 073". The arm is opt-in: it is not in the default arms.
+
+- `refactor-decided.mjs`: hashing, neighbourhood-only injection, contentHash expiry, repeat counting, verdict and report section.
+- `refactor-decided-prep.mjs`: the $0 generator of `refactor/decided-against.json` from the pinned maestro tree (`--check` exits 1 on drift). The hand-written entries are in this file.
+- `refactor/decided-against.json`: the list, committed. Commit it before any paid run.
+- `refactor-decided.test.mjs`: offline tests (the pinned-tree hash test skips without a maestro checkout).
+
+Commands, from a plain terminal at the repo root ($0 first; `--init-check` needs `claude` on the path):
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-decided-prep.mjs --check
+node bench/refactor-run.mjs --dry --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --init-check --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs 1 --budget 0.50 --run-budget 0.15   # pilot
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs <r> --budget 1.50 --run-budget 0.15  # paid run; r from the rule in docs/evals.md
+```
