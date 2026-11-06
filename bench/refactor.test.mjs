@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
+  CATEGORIES, DEFAULT_REFACTOR_ARMS, DEFAULT_REFACTOR_RUNS, OPT_IN_REFACTOR_ARMS, REFACTOR_ARMS, REFACTOR_ARM_NAMES, REFACTOR_BASELINE, anchoring, buildMetricsPrimer, buildScope,
   falseVerdict, filterPrompt, findCycles, gradeItems, gradePipeline, gradeRefactor, isAllClear, neighbourFiles, parseRefactorArms, pilotScreen, promptProblems, proposalCategory, answerProblems, proposalsOf,
   refactorArgs, refactorPrompt, refactorReport, rowCost, stageProblems, stageSpec, stagesOf, storedProblems, tally, unusedExports, verdictsOf,
 } from './refactor.mjs';
@@ -16,10 +16,13 @@ const stored = (id, ext) => readFileSync(join(here, 'refactor', `${id}.${ext}`),
 const caseOf = (id) => REFACTOR_CASES.find((c) => c.id === id);
 const AGENT_INIT = (model, tools) => ({ init: { model, tools } });
 
-test('arms: the four arms in table order, unknown or empty throws, default is all four with 3 runs', () => {
+test('arms: the four arms in table order, unknown or empty throws, default is the three without the opt-in spawn arm, 2 runs', () => {
   assert.deepEqual(REFACTOR_ARM_NAMES, ['sonnet-plain', 'haiku-metrics-primer', 'haiku-scout-sonnet-filter', 'sonnet-spawns-haiku-scouts']);
-  assert.equal(DEFAULT_REFACTOR_ARMS, REFACTOR_ARM_NAMES.join(','));
-  assert.equal(DEFAULT_REFACTOR_RUNS, '3');
+  assert.deepEqual(OPT_IN_REFACTOR_ARMS, ['sonnet-spawns-haiku-scouts']);
+  assert.equal(DEFAULT_REFACTOR_ARMS, 'sonnet-plain,haiku-metrics-primer,haiku-scout-sonnet-filter');
+  assert.deepEqual(parseRefactorArms(DEFAULT_REFACTOR_ARMS).includes('sonnet-spawns-haiku-scouts'), false);
+  assert.deepEqual(parseRefactorArms(REFACTOR_ARM_NAMES.join(',')), REFACTOR_ARM_NAMES, 'the spawn arm is still accepted when named');
+  assert.equal(DEFAULT_REFACTOR_RUNS, '2');
   assert.equal(REFACTOR_BASELINE, 'sonnet-plain');
   assert.deepEqual(parseRefactorArms('haiku-metrics-primer,sonnet-plain'), ['sonnet-plain', 'haiku-metrics-primer']);
   assert.throws(() => parseRefactorArms('sonnet-plain,opus'), /unknown refactor arm/);
@@ -45,8 +48,8 @@ test('refactorArgs: each session pins its model and an exact tool set; only the 
   assert.throws(() => stageSpec('nope', 'main'), /unknown refactor arm/);
 });
 
-const SCOPE = stored('f-r3-readloglines-copy', 'scope.txt');
-const PRIMER = stored('f-r3-readloglines-copy', 'primer.txt');
+const SCOPE = stored('f-r5-plugin-scripts-05d5b76', 'scope.txt');
+const PRIMER = stored('f-r5-plugin-scripts-05d5b76', 'primer.txt');
 
 test('refactorPrompt: the neighbourhood and format in every arm, the primer only in primer arms, the spawn paragraph only in the spawn arm', () => {
   for (const arm of REFACTOR_ARM_NAMES) {
@@ -85,18 +88,22 @@ test('filterPrompt: numbered proposals, file-it or drop-it only, no verdict on t
 
 test('the case set: reverted real refactors naming a source commit, seeded problems of every kind, clean neighbourhoods', () => {
   const kinds = (k) => REFACTOR_CASES.filter((c) => c.kind === k);
-  assert.equal(REFACTOR_CASES.length, 11);
-  assert.equal(kinds('real').length, 4);
-  assert.equal(kinds('seeded').length, 4);
+  assert.equal(REFACTOR_CASES.length, 6);
+  assert.equal(kinds('real').length, 1);
+  assert.equal(kinds('seeded').length, 2);
   assert.equal(kinds('clean').length, 3);
   for (const c of kinds('real')) assert.match(c.refactor.source, /^maestro [0-9a-f]{7} "/, `${c.id} names its source commit`);
-  const cats = REFACTOR_CASES.flatMap((c) => c.refactor.expected.map((e) => e.category));
-  for (const k of CATEGORIES) assert.ok(cats.includes(k), `category ${k} is covered`);
+  const cats = new Set(REFACTOR_CASES.flatMap((c) => c.refactor.expected.map((e) => e.category)));
+  assert.deepEqual([...cats].sort(), ['align', 'cycle', 'dedupe'], 'the reworked set covers dedupe, align and cycle; unused and extract are no longer planted');
+  for (const k of cats) assert.ok(CATEGORIES.includes(k));
   for (const c of kinds('clean')) { assert.deepEqual(c.refactor.expected, []); assert.deepEqual(c.refactor.plant, []); assert.ok(c.refactor.touched.length); }
-  for (const c of [...kinds('real'), ...kinds('seeded')]) { assert.ok(c.refactor.plant.length, c.id); assert.equal(c.refactor.expected.length, 1, c.id); }
+  for (const c of [...kinds('real'), ...kinds('seeded')]) { assert.ok(c.refactor.plant.length, c.id); assert.ok(c.refactor.expected.length >= 1, c.id); }
+  assert.equal(caseOf('f-r5-plugin-scripts-05d5b76').refactor.expected.length, 3, 'the real case plants three improvements');
+  assert.equal(caseOf('f-s5-titlecase-copies').refactor.expected.length, 1);
+  assert.equal(caseOf('f-s6-cycle-tasks-session-paths').refactor.expected.length, 1);
   assert.deepEqual(new Set(REFACTOR_CASES.map((c) => c.id)).size, REFACTOR_CASES.length, 'ids are unique');
-  assert.deepEqual(selectRefactorCases('f-r1,f-c3').map((c) => c.id), ['f-r1-canvas-align', 'f-c3-handoff-label']);
-  assert.equal(selectRefactorCases('').length, 11);
+  assert.deepEqual(selectRefactorCases('f-r5,f-c4').map((c) => c.id), ['f-r5-plugin-scripts-05d5b76', 'f-c4-plugin-scripts']);
+  assert.equal(selectRefactorCases('').length, 6);
 });
 
 test('graders: a known-good text credits its expected improvement with no false finding; a known-bad one credits nothing', () => {
@@ -122,33 +129,47 @@ test('graders: each expected improvement is credited by its own description, and
 });
 
 test('graders: a proposal for another file that only mentions the right file, or the right file with the wrong change, is not credited', () => {
-  const c = caseOf('f-r3-readloglines-copy');
-  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-check-runtime.cjs: dedupe: has its own readLogLines like maestro-resume-target.cjs, require it from the lib.']).found, 0);
+  const c = caseOf('f-r5-plugin-scripts-05d5b76');
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-check-runtime.cjs: dedupe: has its own readLogLines like maestro-resume-target.cjs, require it from the lib.']).found, 0, 'the check-runtime file with a readLogLines change is not the copies improvement');
   assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file in two.']).found, 0);
   assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-resume-target.cjs readLogLines dedupe is fine as written.']).found, 0, 'an unshaped all-clear sentence is not a proposal');
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-check-runtime.cjs: align-pattern: use runtimeNeedsRefresh, the inline stale rule repeats it.']).found, 1);
+  assert.equal(gradeItems(c, ['plugins/maestro/scripts/maestro-inject-agent-context.js: dedupe: payloadRoutes is resolved twice, resolve once.']).found, 1);
 });
 
-test('graders: the cycle case needs the cycle named; the seeded unused export is tolerated on the cycle case only', () => {
-  const cyc = caseOf('f-s3-cycle-claims-channels');
-  assert.equal(gradeItems(cyc, ['apps/maestro/src/core/claims.ts: align-pattern: rename the helper']).found, 0);
-  const g = gradeItems(cyc, ['apps/maestro/src/core/handoff-channels.ts: remove-unused: `claimFileForTask` is unused, nothing imports it.']);
+test('graders: the three improvements of the real case are credited independently', () => {
+  const c = caseOf('f-r5-plugin-scripts-05d5b76');
+  assert.equal(gradeRefactor(c, 'PROPOSALS:\n- plugins/maestro/scripts/maestro-subagent-log.js: dedupe: readLogLines is a copy of the lib one, require it.').found, 1);
+  assert.equal(gradeRefactor(c, c.samples.good).found, 3);
+  assert.equal(gradeRefactor(c, c.samples.bad).found, 0);
+});
+
+test('graders: the cycle case needs the cycle named; the seeded unused wrapper and the real pre-existing pair are tolerated', () => {
+  const cyc = caseOf('f-s6-cycle-tasks-session-paths');
+  assert.equal(gradeItems(cyc, ['apps/maestro/src/core/session-paths.ts: align-pattern: rename the helper']).found, 0);
+  assert.equal(gradeItems(cyc, ['apps/maestro/src/core/session-paths.ts: break-cycle: it imports tasks.ts, which imports claims.ts, which imports session-paths.ts: a circular import.']).found, 1);
+  const g = gradeItems(cyc, ['apps/maestro/src/core/session-paths.ts: remove-unused: `sessionTasksDir` is unused, nothing imports it.']);
   assert.equal(g.tolerated, 1);
   assert.equal(g.falseFindings, 0, 'a tolerated match is not a false finding');
-  const dup = caseOf('f-s1-dup-readjson');
-  const t = gradeItems(dup, ['apps/maestro/src/core/detect.ts: dedupe: readJson is repeated here too.']);
+  const dup = caseOf('f-s5-titlecase-copies');
+  assert.equal(gradeItems(dup, ['apps/maestro/src/core/epics.ts: dedupe: epicTitle re-implements titleFromName from text.ts, import it.']).found, 1);
+  const t = gradeItems(dup, ['apps/maestro/src/core/tasks.ts: dedupe: parseTitle repeats taskHeading of session-title.ts.']);
   assert.equal(t.tolerated, 1);
   assert.equal(t.falseFindings, 0);
+  const c2 = gradeItems(caseOf('f-c2-session-ipc'), ['apps/maestro/src/core/tasks.ts: dedupe: parseTitle repeats taskHeading of session-title.ts.']);
+  assert.equal(c2.tolerated, 1, 'the real pair is tolerated on the clean control that contains it');
+  assert.equal(c2.falseFindings, 0);
 });
 
 test('graders: "none", an all-clear and prose outside PROPOSALS credit nothing; every case counts each proposal beyond the expected ones as a false finding, by category', () => {
-  const real = caseOf('f-r1-canvas-align');
+  const real = caseOf('f-s5-titlecase-copies');
   const clean = caseOf('f-c1-canvas-layout');
   const none = gradeRefactor(clean, 'Nothing warranted.\n\nPROPOSALS: none');
   assert.equal(none.proposals, 0);
   assert.equal(none.falseFindings, 0);
   assert.equal(none.none, true);
   assert.equal(gradeRefactor(real, 'PROPOSALS: none').found, 0);
-  assert.equal(gradeRefactor(real, 'workflow-canvas.tsx duplicates alignMainSession from canvas-layout; import the core one.').found, 0, 'prose with no PROPOSALS bullet and no header is not a proposal list');
+  assert.equal(gradeRefactor(real, 'epics.ts duplicates titleFromName of text.ts as epicTitle; import the shared one.').found, 0, 'prose with no PROPOSALS bullet and no header is not a proposal list');
   const two = gradeRefactor(clean, 'PROPOSALS:\n- a.ts: dedupe: x\n- b.ts: dedupe: y');
   assert.equal(two.falseFindings, 2);
   const r = gradeRefactor(real, `${real.samples.good}\n- apps/maestro/src/core/other.ts: dedupe: something else`);
@@ -158,7 +179,7 @@ test('graders: "none", an all-clear and prose outside PROPOSALS credit nothing; 
   const mixed = gradeRefactor(real, `${real.samples.good}\n- a.ts: remove-unused: x\n- b.ts: break-cycle: y\n- c.ts: extract-helper: z\n- d.ts: align-pattern: w\n- e.ts: rename: v`);
   assert.deepEqual(mixed.falseByCat, { unused: 1, cycle: 1, extract: 1, align: 1, other: 1 });
   assert.equal(proposalCategory('a.ts: dedupe: x'), 'dedupe');
-  const wrapped = gradeRefactor(real, 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: dedupe: it defines its own\n  `alignMainSession`, which `core/canvas-layout.ts` already exports; import it.');
+  const wrapped = gradeRefactor(real, 'PROPOSALS:\n- apps/maestro/src/core/epics.ts: dedupe: it defines its own\n  `epicTitle`, which re-implements `titleFromName` in `core/text.ts`; import it.');
   assert.equal(wrapped.found, 1, 'a wrapped bullet is one proposal');
 });
 
@@ -202,8 +223,8 @@ test('anchoring: survivors over the scout list; unchanged only when everything p
 });
 
 test('gradePipeline: scored on the survivors; the filter\'s losses and removals are counted; a skipped filter keeps nothing', () => {
-  const c = caseOf('f-r3-readloglines-copy');
-  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file.`;
+  const c = caseOf('f-s5-titlecase-copies');
+  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- apps/maestro/src/core/epics.ts: extract-helper: split the file.`;
   const keepGood = gradePipeline(c, scout, 'VERDICTS:\n- 1: file-it: yes\n- 2: drop-it: no');
   assert.equal(keepGood.found, 1);
   assert.equal(keepGood.falseFindings, 0, 'the false proposal was filtered out');
@@ -235,8 +256,8 @@ test('gradePipeline: scored on the survivors; the filter\'s losses and removals 
 });
 
 test('gradePipeline: a filter answer with no VERDICTS header keeps nothing (fails closed) and the expected improvement counts as lost', () => {
-  const c = caseOf('f-r3-readloglines-copy');
-  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: split the file.`;
+  const c = caseOf('f-s5-titlecase-copies');
+  const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}\n- apps/maestro/src/core/epics.ts: extract-helper: split the file.`;
   const prose = gradePipeline(c, scout, 'I approve this list, both proposals are real.');
   assert.equal(prose.verdicts.structured, false);
   assert.equal(prose.anchor.kept, 0);
@@ -248,8 +269,8 @@ test('gradePipeline: a filter answer with no VERDICTS header keeps nothing (fail
 });
 
 test('gradeRefactor: an answer with no PROPOSALS header is unstructured and proposes nothing; it is not a "none"', () => {
-  const c = caseOf('f-r1-canvas-align');
-  const g = gradeRefactor(c, 'The canvas duplicates alignMainSession from canvas-layout.ts; import the core one.');
+  const c = caseOf('f-s5-titlecase-copies');
+  const g = gradeRefactor(c, 'epics.ts duplicates titleFromName of text.ts as epicTitle; import the shared one.');
   assert.equal(g.structured, false);
   assert.equal(g.none, false);
   assert.equal(g.proposals, 0);
@@ -257,7 +278,7 @@ test('gradeRefactor: an answer with no PROPOSALS header is unstructured and prop
 });
 
 test('answerProblems: an unstructured answer or filter answer is a run problem; a structured one, even "none", is not', () => {
-  const c = caseOf('f-r1-canvas-align');
+  const c = caseOf('f-s5-titlecase-copies');
   assert.match(answerProblems('sonnet-plain', gradeRefactor(c, 'prose only'))[0], /no PROPOSALS section/);
   assert.deepEqual(answerProblems('sonnet-plain', gradeRefactor(c, 'PROPOSALS: none')), []);
   const scout = `PROPOSALS:\n- ${c.samples.good.split('\n')[1].slice(2)}`;
@@ -289,7 +310,7 @@ test('all-clear text is its own count: not credited, not a proposal, not a false
   const none = gradeRefactor(c, 'PROPOSALS: none');
   assert.equal(none.allClear, 0);
   assert.equal(none.none, true);
-  const r = caseOf('f-r1-canvas-align');
+  const r = caseOf('f-s5-titlecase-copies');
   const g = gradeRefactor(r, 'PROPOSALS: nothing to do');
   assert.equal(g.found, 0, 'a legitimate zero on a case with expected improvements');
   assert.equal(g.falseFindings, 0);
@@ -303,7 +324,7 @@ test('all-clear text is its own count: not credited, not a proposal, not a false
 });
 
 test('a proposal in the <file>: <kind>: shape is never an all-clear, whatever words its text holds', () => {
-  const r = caseOf('f-r1-canvas-align');
+  const r = caseOf('f-s5-titlecase-copies');
   const texts = [
     'these are good candidates for one shared helper',
     'not worth keeping, so import the shared one',
@@ -331,7 +352,7 @@ test('a proposal in the <file>: <kind>: shape is never an all-clear, whatever wo
 });
 
 test('gradeItems still credits an expected improvement worded "is OK to keep, but duplicates"', () => {
-  const r = caseOf('f-r1-canvas-align');
+  const r = caseOf('f-s5-titlecase-copies');
   const x = r.refactor.expected[0];
   const item = r.samples.good.split('\n')[1].slice(2).replace(': ', ': ').replace(/^([^:]+: [a-z-]+: )/, '$1is OK to keep, but duplicates: ');
   const g = gradeItems(r, [item]);
@@ -366,7 +387,7 @@ test('refactorPrompt: asks for "PROPOSALS: none" and nothing else when nothing i
 });
 
 test('refactorReport: an unstructured answer is shown as unstructured, not as a clean run with no proposals', () => {
-  const c = caseOf('f-r1-canvas-align');
+  const c = caseOf('f-s5-titlecase-copies');
   const row1 = { case: c.id, arm: 'sonnet-plain', run: 1, m: { cost: 0.1, turns: 2 }, problems: [], status: 'valid', grade: gradeRefactor(c, 'prose only, no header') };
   const md = refactorReport([row1], { spent: 0.1, budget: 1, stop: null, planned: [{ case: c.id, arm: 'sonnet-plain', run: 1 }] });
   assert.match(md, /unstructured|not structured|structured: no/i);
@@ -438,15 +459,16 @@ test('stored scopes and primers exist for every case, list the planted files, ca
     assert.ok(!/\/home\/|\/tmp\/|\/Users\//.test(scope + primer), `${c.id} carries a machine path`);
     assert.ok(scope.split('\n').filter((l) => l.startsWith('- ')).length <= 12, `${c.id} scope is at most 12 files`);
   }
-  assert.match(storedProblems(caseOf('f-r1-canvas-align'), '1 files:\n- other.ts\n', 'x').join(';'), /omits the planted file/);
-  assert.match(storedProblems(caseOf('f-c3-handoff-label'), '0 files:\n', '## Scope files').join(';'), /omits the touched file/);
+  assert.match(storedProblems(caseOf('f-s5-titlecase-copies'), '1 files:\n- other.ts\n', 'x').join(';'), /omits the planted file/);
+  assert.match(storedProblems(caseOf('f-c4-plugin-scripts'), '0 files:\n', '## Scope files').join(';'), /omits the touched file/);
 });
 
-test('stored primers see the seeded problems the primer arms are meant to be helped by (cycle, unused export), without naming the expected improvement', () => {
-  assert.match(stored('f-s3-cycle-claims-channels', 'primer.txt'), /## Import cycles[^\n]*\n- [^\n]*claims\.ts <-> [^\n]*handoff-channels\.ts/);
-  assert.match(stored('f-s4-unused-export-pluralize', 'primer.txt'), /`pluralize` in apps\/maestro\/src\/core\/text\.ts/);
-  assert.match(stored('f-s3-cycle-claims-channels', 'scope.txt'), /claims\.ts/);
-  assert.doesNotMatch(stored('f-s1-dup-readjson', 'primer.txt'), /readJsonOrNull.*duplicate/i, 'the primer does not measure duplication');
+test('stored primers see the seeded cycle the primer arms are meant to be helped by, without naming the expected improvement; the cycle\'s middle module is outside the scope', () => {
+  assert.match(stored('f-s6-cycle-tasks-session-paths', 'primer.txt'), /## Import cycles[^\n]*\n- [^\n]*claims\.ts <-> [^\n]*session-paths\.ts[^\n]*tasks\.ts/);
+  assert.match(stored('f-s6-cycle-tasks-session-paths', 'primer.txt'), /`sessionTasksDir` in apps\/maestro\/src\/core\/session-paths\.ts/);
+  assert.doesNotMatch(stored('f-s6-cycle-tasks-session-paths', 'scope.txt'), /claims\.ts/, 'the cycle has no pair of scope files importing each other');
+  assert.doesNotMatch(stored('f-s5-titlecase-copies', 'primer.txt'), /titleFromName.*(duplicate|re-implement)/i, 'the primer does not measure duplication');
+  assert.match(stored('f-s5-titlecase-copies', 'scope.txt'), /text\.ts/, 'the canonical copy is in a third scope file');
 });
 
 const row = (c, arm, run, grade, cost, extra = {}) => ({ case: c, arm, run, m: { cost, turns: 3 }, problems: [], status: 'valid', grade, ...extra });

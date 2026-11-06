@@ -1,5 +1,0 @@
-4 files:
-- apps/maestro/src/core/index.ts (concept none: outside every concept)
-- apps/maestro/src/core/session-ipc.ts (concept claude-session-bridge)
-- apps/maestro/src/main/ipc.ts (concept electron-shell-invariants)
-- apps/maestro/src/main/project-store.ts (concept global-stores)

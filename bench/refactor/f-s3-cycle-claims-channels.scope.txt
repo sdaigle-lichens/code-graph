@@ -1,4 +1,0 @@
-3 files:
-- apps/maestro/src/core/claims.ts (concept task-queue)
-- apps/maestro/src/core/contracts.ts (concept maestro-config-model)
-- apps/maestro/src/core/handoff-channels.ts (concept maestro-architecture)

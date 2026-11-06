@@ -1,7 +1,0 @@
-6 files:
-- apps/maestro/src/core/claims.ts (concept task-queue)
-- apps/maestro/src/core/claude-preview.ts (concept claude-session-bridge)
-- apps/maestro/src/core/epics.ts (concept task-queue)
-- apps/maestro/src/core/session-runtime.ts (concept maestro-architecture)
-- apps/maestro/src/core/tasks.ts (concept task-queue)
-- apps/maestro/src/core/uninstall.ts (concept installing-maestro)

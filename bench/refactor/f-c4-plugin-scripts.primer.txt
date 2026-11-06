@@ -1,7 +1,10 @@
 ## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
-- apps/maestro/src/core/runtime-version.ts (concept installing-maestro): fan-in 1, fan-out 0, 3 exports
 - plugins/maestro/scripts/lib/maestro-session.cjs (concept none): not in the code index (no metrics)
 - plugins/maestro/scripts/maestro-check-runtime.cjs (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-inject-agent-context.js (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-resume-target.cjs (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-subagent-log.js (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-team-meeting.cjs (concept none): not in the code index (no metrics)
 
 ## Hubs among the scope files (the index lists them as high fan-in)
 none

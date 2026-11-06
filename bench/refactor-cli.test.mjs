@@ -21,30 +21,37 @@ let haveMaestro = true;
 try { resolveMaestroDir(); } catch { haveMaestro = false; }
 const noMaestro = haveMaestro ? false : 'no maestro checkout on this machine (set MAESTRO_DIR)';
 
-test('refactor-run --dry: plans 11 cases x 4 arms per run number, prints each cell, exits 0 without any cap', { skip: noMaestro }, () => {
+test('refactor-run --dry: plans 6 cases x the 3 default arms per run number (the spawn arm is opt-in), prints each cell, exits 0 without any cap', { skip: noMaestro }, () => {
   const r = run('refactor-run.mjs', ['--dry', '--runs', '1']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /refactor-run: 44 cells \(sonnet-plain 11, haiku-metrics-primer 11, haiku-scout-sonnet-filter 11, sonnet-spawns-haiku-scouts 11\)/);
+  assert.match(r.stdout, /refactor-run: 18 cells \(sonnet-plain 6, haiku-metrics-primer 6, haiku-scout-sonnet-filter 6\)/);
+  assert.ok(!r.stdout.includes('sonnet-spawns-haiku-scouts'), 'the opt-in arm is off by default');
   const printed = r.stdout.split('\n').filter((l) => /^\[f-/.test(l));
-  assert.equal(printed.length, 44);
-  assert.equal(printed.filter((l) => l.includes('a filter session (Sonnet)')).length, 11, 'only the pipeline arm has a second session');
+  assert.equal(printed.length, 18);
+  assert.equal(printed.filter((l) => l.includes('a filter session (Sonnet)')).length, 6, 'only the pipeline arm has a second session');
 });
 
-test('refactor-run --dry: the default is 3 runs per cell (132 cells)', { skip: noMaestro }, () => {
+test('refactor-run --dry: the default is 2 runs per cell (36 cells)', { skip: noMaestro }, () => {
   const r = run('refactor-run.mjs', ['--dry']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /refactor-run: 132 cells /);
+  assert.match(r.stdout, /refactor-run: 36 cells /);
 });
 
-test('refactor-run --dry: only the spawn arm gets the Agent tool; the pipeline\'s first session is Haiku', { skip: noMaestro }, () => {
-  const r = run('refactor-run.mjs', ['--dry', '--runs', '1']);
+test('refactor-run --dry: no cell has the Agent tool by default; naming the spawn arm adds it, with the Agent tool on those cells only; the pipeline\'s first session is Haiku', { skip: noMaestro }, () => {
+  const def = run('refactor-run.mjs', ['--dry', '--runs', '1']);
+  const defLines = def.stdout.split('\n').filter((l) => l.startsWith('claude '));
+  assert.equal(defLines.length, 18);
+  assert.equal(defLines.filter((l) => l.includes(',Agent"')).length, 0);
+  const r = run('refactor-run.mjs', ['--dry', '--runs', '1', '--arms', 'sonnet-plain,haiku-metrics-primer,haiku-scout-sonnet-filter,sonnet-spawns-haiku-scouts']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /refactor-run: 24 cells \(sonnet-plain 6, haiku-metrics-primer 6, haiku-scout-sonnet-filter 6, sonnet-spawns-haiku-scouts 6\)/);
   const claudeLines = r.stdout.split('\n').filter((l) => l.startsWith('claude '));
-  assert.equal(claudeLines.length, 44);
+  assert.equal(claudeLines.length, 24);
   const withAgent = claudeLines.filter((l) => l.includes('"--allowedTools" "Bash,Read,Grep,Glob,Skill,Agent"') && l.includes('"--tools" "Bash,Read,Grep,Glob,Skill,Agent"'));
-  assert.equal(withAgent.length, 11);
+  assert.equal(withAgent.length, 6);
   assert.ok(withAgent.every((l) => l.includes('"--model" "claude-sonnet-5-5"')));
   const heads = r.stdout.split('\n').filter((l) => /^\[f-\S+ haiku-scout-sonnet-filter run1\]/.test(l));
-  assert.equal(heads.length, 11);
+  assert.equal(heads.length, 6);
 });
 
 test('refactor-run: a paid run without both caps is refused with exit 2 and no session starts', () => {
@@ -87,7 +94,7 @@ test('the real cases name a source commit that exists in the maestro checkout, w
   const pin = spawnSync('git', ['-C', dir, 'cat-file', '-e', '3814a30^{commit}'], { encoding: 'utf8' });
   assert.equal(pin.status, 0, 'the pinned commit 3814a30 is in the checkout');
   const real = REFACTOR_CASES.filter((c) => c.kind === 'real');
-  assert.equal(real.length, 4);
+  assert.equal(real.length, 1);
   for (const c of real) {
     const m = /^maestro ([0-9a-f]{7}) "([^"]+)"/.exec(c.refactor.source);
     assert.ok(m, `${c.id} names its source commit`);
@@ -161,7 +168,7 @@ test('refactor-run, real runner: all-clear bullets on a clean case are an all-cl
 });
 
 test('refactor-run, real runner: a real proposal beside an all-clear bullet on the planted case is found and counted; the bullet is its own count', { skip: noMaestro }, () => {
-  const c = REFACTOR_CASES.find((x) => x.id === 'f-r1-canvas-align');
+  const c = REFACTOR_CASES.find((x) => x.id === 'f-s5-titlecase-copies');
   const { r, runs, report } = runWithStubClaude(`${c.samples.good}\n- nothing to change here`, c.id);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(runs.rows[0].status, 'valid');
@@ -169,13 +176,13 @@ test('refactor-run, real runner: a real proposal beside an all-clear bullet on t
   assert.equal(runs.rows[0].grade.proposals, 1, 'the real proposal is counted, the bullet is not');
   assert.equal(runs.rows[0].grade.falseFindings, 0);
   assert.equal(runs.rows[0].grade.allClear, 1);
-  assert.match(report, /\| f-r1-canvas-align \| sonnet-plain \| 1 \| yes \| 1\/1 \| 1 \| 0 \| 1 \| yes \|/);
+  assert.match(report, /\| f-s5-titlecase-copies \| sonnet-plain \| 1 \| yes \| 1\/1 \| 1 \| 0 \| 1 \| yes \|/);
 });
 
 test('refactor-prep --check: every stored scope and primer regenerates byte for byte from the pinned maestro checkout, and every plant applies', { skip: noMaestro }, () => {
   const r = run('refactor-prep.mjs', ['--check']);
   assert.equal(r.status, 0, r.stdout.slice(-600) + r.stderr.slice(-300));
   const rows = r.stdout.split('\n').filter((l) => /^f-\S+\.(scope|primer)\.txt: /.test(l));
-  assert.equal(rows.length, 22);
-  assert.equal(rows.filter((l) => /: unchanged /.test(l)).length, 22);
+  assert.equal(rows.length, 12);
+  assert.equal(rows.filter((l) => /: unchanged /.test(l)).length, 12);
 });

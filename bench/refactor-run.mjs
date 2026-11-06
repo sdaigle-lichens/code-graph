@@ -6,7 +6,8 @@
 //                                    [--runs 3] [--dry] [--keep-ws] [--init-check]
 // --budget (total cap) and --run-budget (cap of one claude session) have NO default: they are the user's to
 // set (docs/evals.md, Ticket 070); a paid run without both is refused. --dry and --init-check need neither.
-// Arms (default, all four): sonnet-plain, haiku-metrics-primer, haiku-scout-sonnet-filter, sonnet-spawns-haiku-scouts.
+// Arms (default, three): sonnet-plain, haiku-metrics-primer, haiku-scout-sonnet-filter. The fourth,
+// sonnet-spawns-haiku-scouts, is opt-in (--arms). Default runs: 2.
 // The scope and the metrics primer of each case are the stored files under bench/refactor/
 // (bench/refactor-prep.mjs). The pipeline arm runs two sessions per cell (Haiku scout, then Sonnet filter);
 // its run-budget applies to each session and its cost is the sum of both.

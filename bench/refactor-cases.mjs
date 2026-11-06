@@ -3,19 +3,27 @@
 // which `refactor.plant` has been applied; the agent proposes refactors, the grader says which expected
 // improvement it proposed and counts the rest as false findings.
 //
+// POST-PILOT REWORK (docs/evals.md, "Ticket 070 post-pilot amendment"). The first set (f-r1..f-r4, f-s1..f-s4,
+// f-c1..f-c3) was saturated by the baseline in pilot (a): 8 of 8 expected improvements found. It is retired
+// except for the clean controls f-c1 and f-c2. The new set is harder by construction, chosen BEFORE reading
+// any answer of the pilot: a whole reverted commit across several files instead of one copied function, a
+// near-duplicate of a helper that lives in a third file under another name (the canonical copy is not in the
+// planted file), and a three-module import cycle with no direct pair. Cases were not tuned to make the
+// baseline fail; they were picked for their ground truth.
+//
 // kind `real`: a real maestro refactor, REVERTED: the plant restores the code as it was before the source
-//   commit, so the right proposal is that commit's refactor again. `refactor.source` names the commit.
-// kind `seeded`: a structural problem planted on the pinned tree (a helper duplicated across two concepts,
-//   pattern drift in one file of a family, a new dependency cycle, an export nothing imports).
+//   commit, so the right proposals are that commit's refactors again. `refactor.source` names the commit.
+// kind `seeded`: a structural problem planted on the pinned tree (a helper re-implemented under other
+//   names in two files, a new three-module dependency cycle).
 // kind `clean`: a neighbourhood with no change and no warranted refactor; every proposal on it is a false
 //   finding. The pinned tree is real code, so a clean neighbourhood is only as clean as the author's reading
 //   of it (the 066 clean diffs have the same limit); `refactor.tolerated` lists real, pre-existing
 //   duplicates that a proposal may name without being scored false.
 //
 // `refactor.touched`: files the change touched when the case plants nothing (clean). `refactor.extra`: files
-// added to the scope by hand: files the source commit also touched or the other concept's copy that the
-// import graph does not link to the planted file (a barrel import hides the helper's file), and maestro's
-// plugin scripts, which are .cjs and outside the code index. `refactor.expected`: { id, category, file (regex on the path token of a
+// added to the scope by hand: files the source commit also touched or the canonical copy that the
+// import graph does not link to the planted file, and maestro's plugin scripts, which are .cjs/.js and outside
+// the code index. `refactor.expected`: { id, category, file (regex on the path token of a
 // proposal), change: [regex, ...] (every one must match the proposal) }. `samples.good` / `samples.bad` are
 // outputs the unit tests grade (good must be fully credited with no false finding, bad must score nothing).
 //
@@ -28,21 +36,22 @@ const base = {
   skills: ['task-queue', 'installing-maestro', 'updating-maestro', 'maestro-architecture'],
 };
 
-const CANVAS = 'apps/maestro/src/renderer/src/components/workflow-canvas.tsx';
-const IPC = 'apps/maestro/src/main/ipc.ts';
+const INJECT = 'plugins/maestro/scripts/maestro-inject-agent-context.js';
+const SUBAGENT_LOG = 'plugins/maestro/scripts/maestro-subagent-log.js';
+const TEAM_MEETING = 'plugins/maestro/scripts/maestro-team-meeting.cjs';
 const RESUME = 'plugins/maestro/scripts/maestro-resume-target.cjs';
 const CHECK = 'plugins/maestro/scripts/maestro-check-runtime.cjs';
 const SESSION_LIB = 'plugins/maestro/scripts/lib/maestro-session.cjs';
-const TASKS = 'apps/maestro/src/core/tasks.ts';
 const EPICS = 'apps/maestro/src/core/epics.ts';
-const CHANNELS = 'apps/maestro/src/core/handoff-channels.ts';
-const TEXT = 'apps/maestro/src/core/text.ts';
+const SESSION_TITLE = 'apps/maestro/src/core/session-title.ts';
+const SESSION_PATHS = 'apps/maestro/src/core/session-paths.ts';
 
-const READ_LOG_LINES = `function readLogLines(p) {
-  if (!p) return []; // \`064\`: no session directory resolved — treat it as an empty log.
-  let text;
+// The four copies of readLogLines that maestro 05d5b76 removed (each script carried its own; they differ in
+// the null guard and in the comments, as the originals did).
+const readLogLinesCopy = (param, { guard, comment }) => `function readLogLines(${param}) {
+${guard ? `  if (!${param}) return []; // \`064\`: no session directory resolved — treat it as an empty log.\n` : ''}  let text;
   try {
-    text = fs.readFileSync(p, "utf8");
+    text = fs.readFileSync(${param}, "utf8");
   } catch {
     return [];
   }
@@ -52,94 +61,90 @@ const READ_LOG_LINES = `function readLogLines(p) {
     try {
       lines.push(JSON.parse(raw));
     } catch {
-      // A malformed line is skipped, not fatal — best-effort read of a hook-written log.
+      // ${comment}
     }
   }
   return lines;
 }
 `;
 
+const INJECT_COPY = `// The resume signal (\`040\`): a \`kind:"handoff"\` entry already logged for this \`agent_id\`, read
+// straight off disk — best-effort, exactly like maestro-resume-target.cjs's own copy of this same
+// tiny reader. A missing or unreadable log comes back \`[]\`, which \`hasCompletedRun\` answers
+// \`false\` for, so the safe fall-through is a first run's full injection.
+${readLogLinesCopy('p', { guard: true, comment: 'A malformed line is skipped, not fatal — best-effort read of a hook-written log.' })}`;
+
+// The payload block of maestro-inject-agent-context.js as 05d5b76 found it: payloadRoutes and
+// payloadRequirement called once in the first-run branch and again in a second, resumed-run branch.
+const PAYLOAD_FROM = `    );
+  }
+
+  // Per-route payload protocol, resolved across the three tiers above so the communication
+  // contract is owned here rather than duplicated in the agent files. Only emitted for routes
+  // whose pair resolves to something — a wired route with no template anywhere (\`scribe ->
+  // reviewer\`) is silently skipped, exactly as the install-time sync skips it.
+  //
+  // \`036\`: the payload no longer rides in the final-message JSON. Each route names the CHANNEL
+  // FILE to write it to instead — \`.claude/channels/<receiver>/<sender>.1.md\` — which the
+  // receiving agent's own SubagentStart delivers on its next invocation. The orchestrator never
+  // sees the content at all.
+  //
+  // \`087\`: the write is a REQUIRED step before the HANDOFF line (the SubagentStop hook flags a
+  // route whose payload was not written this run as \`missing_payload\`). A RESUMED run gets the
+  // requirement too, without the shapes: \`040\` drops the routing block above on a resume, and that
+  // is how task 086's second @reviewer pass ended without writing its payload — the one
+  // instruction that governs the NEW hand-back must not be static.
+  if (!offWorkflow && result && result.routes.length > 0) {
+    const routes = payloadRoutes(projectDir, result.routes, readGlobalHandoff);
+    const required = payloadRequirement(routes, { withShapes: !isResume });
+    if (required) parts.push(required);
+  }
+`;
+const PAYLOAD_TO = `    );
+
+    // Per-route payload protocol, resolved across the three tiers above so the communication
+    // contract is owned here rather than duplicated in the agent files. Only emitted for routes
+    // whose pair resolves to something — a wired route with no template anywhere (\`scribe ->
+    // reviewer\`) is silently skipped, exactly as the install-time sync skips it.
+    //
+    // \`036\`: the payload no longer rides in the final-message JSON. Each route names the CHANNEL
+    // FILE to write it to instead — \`.claude/channels/<receiver>/<sender>.1.md\` — which the
+    // receiving agent's own SubagentStart delivers on its next invocation. The orchestrator never
+    // sees the content at all.
+    //
+    // \`087\`: the write is a REQUIRED step before the HANDOFF line (the SubagentStop hook flags a
+    // route whose payload was not written this run as \`missing_payload\`), and the wording comes
+    // from \`payloadRequirement\`, the same helper the resume branch below uses.
+    const required = payloadRequirement(payloadRoutes(projectDir, result.routes, readGlobalHandoff), { withShapes: true });
+    if (required) parts.push(required);
+  }
+
+  // \`087\`: a RESUMED run gets the requirement too, without the shapes. \`040\` drops the routing and
+  // protocol blocks on a resume, and that is how task 086's second @reviewer pass ended without
+  // writing its payload — the one instruction that governs the NEW hand-back must not be static.
+  if (!offWorkflow && isResume && result && result.routes.length > 0) {
+    const required = payloadRequirement(payloadRoutes(projectDir, result.routes, readGlobalHandoff), { withShapes: false });
+    if (required) parts.push(required);
+  }
+`;
+
 export const REFACTOR_CASES = [
   {
     ...base,
-    id: 'f-r1-canvas-align',
+    id: 'f-r5-plugin-scripts-05d5b76',
     kind: 'real',
     refactor: {
-      source: 'maestro 58eb91f "refactor: move alignMainSession into src/core so it is unit-testable" (an extracted helper): the canvas component carried its own alignMainSession, the saved-positions check and the dagre spacing literals; canvas-layout.ts (a pure module) now owns them',
+      source: 'maestro 05d5b76 "refactor: apply task 087 review cleanups" (a deduplication, a merged branch and an aligned pattern in five plugin scripts), reverted whole except the version bump and the mirrors: four hook and CLI scripts carry their own readLogLines again, maestro-inject-agent-context.js resolves payloadRoutes twice again, and maestro-check-runtime.cjs repeats the staleness rule inline again',
+      extra: [SESSION_LIB, 'apps/maestro/src/core/session-runtime.ts', 'apps/maestro/src/core/runtime-version.ts'],
       plant: [
-        { file: CANVAS, from: 'import dagre from "dagre";\nimport {\n  alignMainSession,\n  DAGRE_NODE_BASE_HEIGHT,\n  DAGRE_RANK_SEP,\n  hasSavedPositions,\n} from "../../../core/canvas-layout.js";', to: 'import dagre from "dagre";' },
-        { file: CANVAS, from: '  return DAGRE_NODE_BASE_HEIGHT + skills * 30;', to: '  return 60 + skills * 30;' },
-        { file: CANVAS, from: 'ranksep: DAGRE_RANK_SEP,', to: 'ranksep: 80,' },
-        {
-          file: CANVAS,
-          from: '\n// ── Helpers: MaestroWorkflowV3 <-> React Flow',
-          to: '\n// `main-session` is synthetic and never persisted, so with saved positions it would sit at (0,0)\n// while dagre had put it above the first step. Re-derive the same relation: same x as the first\n// step, one rank (140px) above it.\nfunction alignMainSession(nodes: Node[], edges: Edge[]): Node[] {\n  const entry = edges.find((e) => e.source === "main-session" && e.type === "successEdge");\n  const target = entry && nodes.find((n) => n.id === entry.target);\n  if (!target) return nodes;\n  return nodes.map((n) =>\n    n.id === "main-session" ? { ...n, position: { x: target.position.x, y: target.position.y - 140 } } : n\n  );\n}\n\n// ── Helpers: MaestroWorkflowV3 <-> React Flow',
-        },
-        { file: CANVAS, from: '    const hasPositions = hasSavedPositions(workflow.nodes);', to: '    const hasPositions = workflow.nodes.length > 0 && workflow.nodes.every((n) => n.position != null);' },
-      ],
-      expected: [{ id: 'canvas-use-core-align', category: 'extract', file: 'workflow-canvas|canvas-layout', change: ['(alignMainSession|hasSavedPositions|DAGRE_|main-session)', '(canvas-layout|core|pure|existing|already|import|reuse|use the|replace|delete|remove|duplicat)'], desc: 'workflow-canvas.tsx carries its own alignMainSession (with a 140px literal) and an inline saved-positions check, while core/canvas-layout.ts already exports alignMainSession, hasSavedPositions and the dagre spacing constants: import them and delete the local copy' }],
-      tolerated: [],
-    },
-    samples: {
-      good: 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: dedupe: the component defines its own `alignMainSession` (and an inline saved-positions check) although `core/canvas-layout.ts` already exports `alignMainSession` and `hasSavedPositions`; import them and delete the local copy.',
-      bad: 'PROPOSALS:\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: extract-helper: split the 1200-line component into several files.\n- apps/maestro/src/renderer/src/components/workflow-canvas.tsx: align-pattern: rename `dagreNodeHeight` to match the other layout helpers.',
-    },
-  },
-  {
-    ...base,
-    id: 'f-r2-ipc-core-helpers',
-    kind: 'real',
-    refactor: {
-      source: 'maestro 71569fd "refactor: move session sweep, delete and titles decisions into src/core" (an extracted helper): main/ipc.ts decided the allow-list of project roots and the session titles inline; core/session-ipc.ts now owns composeAllowedRoots and titlesForRefs so they run without Electron',
-      extra: ['apps/maestro/src/core/session-ipc.ts'], // ipc.ts reaches it through the core barrel, so it is no direct neighbour
-      plant: [
-        { file: IPC, from: '  titlesForRefs,\n  composeAllowedRoots,\n', to: '  resolveSessionTitles,\n  sessionTitleKey,\n  dedupeProjectRoots,\n' },
-        {
-          file: IPC,
-          from: '  return composeAllowedRoots(getState());',
-          to: '  const state = getState();\n  const roots = state.current\n    ? [state.current.root, ...state.recent.map((r) => r.root)]\n    : state.recent.map((r) => r.root);\n  return dedupeProjectRoots(roots);',
-        },
-        {
-          file: IPC,
-          from: '    return titlesForRefs(allowedProjectRoots(), list);',
-          to: '    const allowed = new Set(allowedProjectRoots());\n    const asked: Array<{ projectRoot: string; sessionId: string }> = [];\n    const known: Array<{ projectRoot: string; sessionId: string }> = [];\n    if (Array.isArray(list)) {\n      for (const r of list) {\n        if (!r || typeof r.projectRoot !== "string" || typeof r.sessionId !== "string") continue;\n        asked.push(r);\n        if (allowed.has(r.projectRoot)) known.push(r);\n      }\n    }\n    // Every asked-for key is present: refs outside the allow-list resolve to null.\n    const out: Record<string, string | null> = {};\n    for (const r of asked) out[sessionTitleKey(r.projectRoot, r.sessionId)] = null;\n    return Object.assign(out, resolveSessionTitles(known));',
-        },
-      ],
-      expected: [{ id: 'ipc-use-session-ipc', category: 'extract', file: 'main/ipc|session-ipc', change: ['(titlesForRefs|composeAllowedRoots|session-ipc|allowedProjectRoots|sessionsTitles|titles)', '(core|extract|move|helper|unit|test|without electron|existing|already|import|reuse|delegate|inline)'], desc: 'the sessionsTitles handler and allowedProjectRoots in main/ipc.ts decide inline what core/session-ipc.ts already exports as titlesForRefs and composeAllowedRoots: delegate to them (and keep them testable without Electron)' }],
-      tolerated: [],
-    },
-    samples: {
-      good: 'PROPOSALS:\n- apps/maestro/src/main/ipc.ts: extract-helper: the `sessionsTitles` handler and `allowedProjectRoots` decide the allow-list and the title lookup inline, but `core/session-ipc.ts` already exports `titlesForRefs` and `composeAllowedRoots`; delegate to them so the logic stays unit-testable without Electron.',
-      bad: 'PROPOSALS:\n- apps/maestro/src/main/ipc.ts: align-pattern: `registerIpc` is 800 lines long, split it by channel group.',
-    },
-  },
-  {
-    ...base,
-    id: 'f-r3-readloglines-copy',
-    kind: 'real',
-    refactor: {
-      source: 'maestro 05d5b76 "refactor: apply task 087 review cleanups" (a deduplication): readLogLines is exported once from the session lib and the four hook and CLI scripts that each carried a copy now require it; this case restores the copy in maestro-resume-target.cjs',
-      extra: [SESSION_LIB, 'apps/maestro/src/core/session-runtime.ts'],
-      plant: [
+        { file: INJECT, from: '  isRootSkillPath,\n  readLogLines,\n} = require("./lib/maestro-session.cjs");\n\n// ── nested-skill fallback', to: `  isRootSkillPath,\n} = require("./lib/maestro-session.cjs");\n\n${INJECT_COPY}\n// ── nested-skill fallback` },
+        { file: INJECT, from: PAYLOAD_FROM, to: PAYLOAD_TO },
+        { file: SUBAGENT_LOG, from: '  ownerRunLeftovers,\n  readLogLines,\n  retireResumeDeliveries,', to: '  ownerRunLeftovers,\n  retireResumeDeliveries,' },
+        { file: SUBAGENT_LOG, from: '// `108`: this agent\'s routes in the workflow the orchestrator recorded', to: `${readLogLinesCopy('p', { guard: false, comment: 'A malformed line is skipped.' })}\n// \`108\`: this agent's routes in the workflow the orchestrator recorded` },
+        { file: TEAM_MEETING, from: '  renderMetricsDigest,\n  readLogLines,\n} = require("./lib/maestro-session.cjs");', to: '  renderMetricsDigest,\n} = require("./lib/maestro-session.cjs");' },
+        { file: TEAM_MEETING, from: 'function readText(file) {', to: `${readLogLinesCopy('file', { guard: false, comment: 'tolerate a partial line' })}\nfunction readText(file) {` },
         { file: RESUME, from: 'const path = require("path");\nconst {\n  readJson,\n  readLogLines,\n  readSession,', to: 'const fs = require("fs");\nconst path = require("path");\nconst {\n  readJson,\n  readSession,' },
-        { file: RESUME, from: '} = require("./lib/maestro-session.cjs");\n\n// The global handoff tier,', to: `} = require("./lib/maestro-session.cjs");\n\n${READ_LOG_LINES}\n// The global handoff tier,` },
-      ],
-      expected: [{ id: 'resume-target-readloglines', category: 'dedupe', file: 'maestro-resume-target|maestro-session', change: ['readLogLines', '(lib|maestro-session|shared|exported|already|duplicat|copy|require|import|reuse|remove|delete|session-runtime)'], desc: 'maestro-resume-target.cjs defines its own readLogLines, a copy of the one the session lib already exports: require it from lib/maestro-session.cjs and delete the local function' }],
-      tolerated: [],
-    },
-    samples: {
-      good: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-resume-target.cjs: dedupe: it defines its own `readLogLines`, a copy of the helper `lib/maestro-session.cjs` already exports; require that one and delete the local function and the now-unused `fs` import.',
-      bad: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-resume-target.cjs: extract-helper: the 120-line header comment should move to a doc file.',
-    },
-  },
-  {
-    ...base,
-    id: 'f-r4-stale-rule-inline',
-    kind: 'real',
-    refactor: {
-      source: 'maestro 05d5b76 "refactor: apply task 087 review cleanups" (an aligned pattern): maestro-check-runtime.cjs called runtimeNeedsRefresh instead of repeating its rule inline (the app and the other scripts already decide staleness through it); this case restores the inline rule',
-      extra: [SESSION_LIB, 'apps/maestro/src/core/runtime-version.ts'],
-      plant: [
+        { file: RESUME, from: '} = require("./lib/maestro-session.cjs");\n\n// The global handoff tier,', to: `} = require("./lib/maestro-session.cjs");\n\n${readLogLinesCopy('p', { guard: true, comment: 'A malformed line is skipped, not fatal — best-effort read of a hook-written log.' })}\n// The global handoff tier,` },
         { file: CHECK, from: '  const { verdict, stale } = versionVerdict(config.runtimeVersion, match.version);', to: '  const verdict = versionVerdict(config.runtimeVersion, match.version);\n  const stale = verdict === "older" || (verdict === "unknown" && config.runtimeVersion !== match.version);' },
         {
           file: CHECK,
@@ -147,92 +152,67 @@ export const REFACTOR_CASES = [
           to: '// `compareRuntimeVersions` lives in the generated session lib (apps/maestro/src/core/runtime-version.ts,\n// shared with the app\'s refreshStaleRuntime so both reach the same verdict). Required lazily and\n// defensively: a copy whose lib predates it answers "unknown", which is the old equality check.\nfunction versionVerdict(projectVersion, pluginVersion) {\n  try {\n    const { compareRuntimeVersions } = require("./lib/maestro-session.cjs");\n    if (typeof compareRuntimeVersions === "function") return compareRuntimeVersions(projectVersion, pluginVersion);\n  } catch {\n    /* fall through */\n  }\n  return "unknown";\n}',
         },
       ],
-      expected: [{ id: 'check-runtime-needs-refresh', category: 'align', file: 'maestro-check-runtime|maestro-session|runtime-version', change: ['(runtimeNeedsRefresh|stale)', '(inline|repeat|duplicat|same rule|reuse|use|call|already|lib|session lib|shared|app|align|consistent)'], desc: 'maestro-check-runtime.cjs recomputes the staleness rule inline (older, or unknown and different) although the session lib exports runtimeNeedsRefresh, the one rule the app uses: call it' }],
+      expected: [
+        { id: 'plugin-readloglines-copies', category: 'dedupe', file: 'maestro-inject-agent-context|maestro-subagent-log|maestro-team-meeting|maestro-resume-target|maestro-session', change: ['readLogLines', '(lib|maestro-session|shared|exported|already|duplicat|cop(y|ies)|require|import|reuse|remove|delete|session-runtime)'], desc: 'four plugin scripts (inject-agent-context, subagent-log, team-meeting, resume-target) each define their own readLogLines, copies of the one lib/maestro-session.cjs already exports: require it and delete the local functions' },
+        { id: 'inject-payload-routes-twice', category: 'dedupe', file: 'maestro-inject-agent-context', change: ['(payloadRoutes|payloadRequirement)', '(twice|two (places|calls|branches|blocks|ifs?)|both|duplicat|repeat|once|merge|combin|collaps|single|unif|consolidat)'], desc: 'maestro-inject-agent-context.js resolves payloadRoutes and calls payloadRequirement twice, once for the first run and once for the resumed run: resolve the routes once and pass withShapes: !isResume' },
+        { id: 'check-runtime-needs-refresh', category: 'align', file: 'maestro-check-runtime|maestro-session|runtime-version', change: ['(runtimeNeedsRefresh|stale)', '(inline|repeat|duplicat|same rule|reuse|use|call|already|lib|session lib|shared|app|align|consistent)'], desc: 'maestro-check-runtime.cjs recomputes the staleness rule inline (older, or unknown and different) although the session lib exports runtimeNeedsRefresh, the one rule the app uses: call it' },
+      ],
       tolerated: [],
     },
     samples: {
-      good: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-check-runtime.cjs: align-pattern: `checkRuntime` repeats the staleness rule inline (`older`, or `unknown` and different) although the session lib exports `runtimeNeedsRefresh`, the rule the app uses; call it so both reach the same verdict.',
-      bad: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-check-runtime.cjs: remove-unused: the `INSTRUCTIONS` export is never imported.',
+      good: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-subagent-log.js: dedupe: `maestro-inject-agent-context.js`, `maestro-subagent-log.js`, `maestro-team-meeting.cjs` and `maestro-resume-target.cjs` each define their own `readLogLines`, copies of the one `lib/maestro-session.cjs` already exports; require it and delete the local functions.\n- plugins/maestro/scripts/maestro-inject-agent-context.js: dedupe: `payloadRoutes` and `payloadRequirement` are called twice, in the first-run branch and again in the resumed-run branch; resolve the routes once and pass `withShapes: !isResume`.\n- plugins/maestro/scripts/maestro-check-runtime.cjs: align-pattern: `checkRuntime` repeats the staleness rule inline although the session lib exports `runtimeNeedsRefresh`, the rule the app uses; call it so both reach the same verdict.',
+      bad: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-inject-agent-context.js: extract-helper: the 400-line main function should be split into one function per injected block.\n- plugins/maestro/scripts/maestro-team-meeting.cjs: remove-unused: the `listDir` helper is never called.',
     },
   },
   {
     ...base,
-    id: 'f-s1-dup-readjson',
+    id: 'f-s5-titlecase-copies',
     kind: 'seeded',
     refactor: {
-      source: 'seeded: tasks.ts (task-queue) gets a private copy of session-runtime.ts readJson (maestro-architecture), the helper-duplicated-across-two-concepts class; the pinned tree already has older copies in detect.ts, marketplaces.ts and config.ts, which are tolerated',
-      extra: ['apps/maestro/src/core/session-runtime.ts'], // the other concept's copy, not an import neighbour of tasks.ts
-      plant: [{
-        file: TASKS,
-        from: 'function readStatusMap(dir: string): StatusMap {\n  try {\n    const data: unknown = JSON.parse(fs.readFileSync(path.join(dir, STATUS_FILE), "utf8"));\n    return data && typeof data === "object" ? (data as StatusMap) : {};\n  } catch {\n    return {};\n  }\n}',
-        to: '/** Reads a JSON file; null when it is missing or not valid JSON. */\nfunction readJsonOrNull<T>(p: string): T | null {\n  try {\n    return JSON.parse(fs.readFileSync(p, "utf8")) as T;\n  } catch {\n    return null;\n  }\n}\n\nfunction readStatusMap(dir: string): StatusMap {\n  const data = readJsonOrNull<unknown>(path.join(dir, STATUS_FILE));\n  return data && typeof data === "object" ? (data as StatusMap) : {};\n}',
-      }],
-      expected: [{ id: 'tasks-dup-readjson', category: 'dedupe', file: 'tasks\\.ts|session-runtime', change: ['(readJson|readJsonOrNull)', '(duplicat|copy|identical|same|already|session-runtime|share|reuse|import|exists)'], desc: 'tasks.ts (task-queue) defines readJsonOrNull, the same read-or-null helper session-runtime.ts (maestro-architecture) exports as readJson: import the shared one' }],
-      tolerated: [{ file: 'detect|marketplaces|config\\.ts|session-runtime', change: ['readJson'] }],
-    },
-    samples: {
-      good: 'PROPOSALS:\n- apps/maestro/src/core/tasks.ts: dedupe: the new `readJsonOrNull` is the same read-or-null helper `session-runtime.ts` already exports as `readJson`; import that one instead of keeping a copy in another concept.\n- apps/maestro/src/core/detect.ts: dedupe: it also has its own `readJson`, the same helper again.',
-      bad: 'PROPOSALS:\n- apps/maestro/src/core/tasks.ts: extract-helper: `tasksFromFiles` is long and should be split in two.',
-    },
-  },
-  {
-    ...base,
-    id: 'f-s2-drift-epic-write',
-    kind: 'seeded',
-    refactor: {
-      source: 'seeded: writeEpicState in epics.ts stops writing through a temp file and a rename, while the sibling stores (writeStatusMap in tasks.ts, writeSession, the meeting state) all write atomically; pattern drift in one file of a family',
-      plant: [{
-        file: EPICS,
-        from: '  const tmp = `${target}.${process.pid}.tmp`;\n  fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\\n`);\n  fs.renameSync(tmp, target);',
-        to: '  fs.writeFileSync(target, `${JSON.stringify(state, null, 2)}\\n`);',
-      }],
-      expected: [{ id: 'epics-nonatomic-write', category: 'align', file: 'epics', change: ['(atomic|tmp|temp file|rename|writeFileSync|write)', '(tasks\\.ts|writeStatusMap|writeSession|sibling|other (stores|writers|modules)|pattern|consisten|align|drift|elsewhere|unlike|match|same)'], desc: 'writeEpicState writes the state file in place, unlike its siblings (writeStatusMap in tasks.ts and the other JSON stores), which write a temp file and rename it: restore the atomic write' }],
-      tolerated: [],
-    },
-    samples: {
-      good: 'PROPOSALS:\n- apps/maestro/src/core/epics.ts: align-pattern: `writeEpicState` writes the state in place with `writeFileSync`, unlike `writeStatusMap` in tasks.ts and the other stores, which write a temp file and rename it; use the same atomic write.',
-      bad: 'PROPOSALS:\n- apps/maestro/src/core/epics.ts: extract-helper: the epic log entry types should be moved to contracts.ts.',
-    },
-  },
-  {
-    ...base,
-    id: 'f-s3-cycle-claims-channels',
-    kind: 'seeded',
-    refactor: {
-      source: 'seeded: handoff-channels.ts imports claims.ts, while claims.ts already imports CLAIM_IDLE_CAP_MS from handoff-channels.ts: a new two-module import cycle across the task-queue and maestro-architecture concepts',
+      source: 'seeded: epics.ts (task-queue) and session-title.ts (claude-session-bridge) each get a private helper that title-cases a dash-separated name (epicTitle, prettyTaskName), re-implementing titleFromName of text.ts (which neither file imports) under other names and with different code; the canonical copy is in a third file. The pinned tree already pairs taskHeading (session-title.ts) with parseTitle (tasks.ts), which is tolerated',
+      extra: ['apps/maestro/src/core/text.ts'], // neither planted file imports it, so the import graph does not link it
       plant: [
-        { file: CHANNELS, from: 'import type { PendingLane } from "./contracts.js";', to: 'import type { PendingLane } from "./contracts.js";\nimport { claimPathFor } from "./claims.js";' },
         {
-          file: CHANNELS,
-          from: 'const SCRIBE_LANE = "scribe";',
-          to: 'const SCRIBE_LANE = "scribe";\n\n/** Where the claim for a task file lives, so a lane listing can show who holds it. */\nexport function claimFileForTask(projectDir: string, filename: string): string {\n  return claimPathFor(path.join(projectDir, ".claude", "maestro-tasks"), filename);\n}',
+          file: EPICS,
+          from: '/** Create the epic directory, its EPIC.md and state.json. Refuses an existing epic or a bad slug. */',
+          to: '/** "haiku-subagents" -> "Haiku Subagents", for the EPIC.md heading. */\nfunction epicTitle(slug: string): string {\n  return slug\n    .split("-")\n    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))\n    .join(" ");\n}\n\n/** Create the epic directory, its EPIC.md and state.json. Refuses an existing epic or a bad slug. */',
+        },
+        { file: EPICS, from: '`# Epic: ${slug}\\n\\n## Goal', to: '`# Epic: ${epicTitle(slug)}\\n\\n## Goal' },
+        {
+          file: SESSION_TITLE,
+          from: '/** First `# ` heading of a task file\'s text, else null. */',
+          to: '/** "087-fix-the-thing.md" -> "087 Fix The Thing", the title shown for a task file with no heading. */\nfunction prettyTaskName(filename: string): string {\n  return filename\n    .replace(/\\.md$/, "")\n    .split("-")\n    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))\n    .join(" ");\n}\n\n/** First `# ` heading of a task file\'s text, else null. */',
+        },
+        { file: SESSION_TITLE, from: '    return clean(filename);', to: '    return clean(prettyTaskName(filename));' },
+      ],
+      expected: [{ id: 'titlecase-reimplemented', category: 'dedupe', file: 'epics\\.ts|session-title|text\\.ts', change: ['(epicTitle|prettyTaskName)', '(titleFromName|text\\.ts)'], desc: 'epicTitle (epics.ts) and prettyTaskName (session-title.ts) are each a private re-implementation of titleFromName in text.ts, the shared title-casing helper: import that one instead' }],
+      tolerated: [{ file: 'session-title|tasks\\.ts', change: ['(taskHeading|parseTitle)'] }],
+    },
+    samples: {
+      good: 'PROPOSALS:\n- apps/maestro/src/core/epics.ts: dedupe: `epicTitle` (and `prettyTaskName` in session-title.ts) re-implements `titleFromName` from text.ts, which already title-cases a dash-separated name; import the shared helper in both files.',
+      bad: 'PROPOSALS:\n- apps/maestro/src/core/epics.ts: extract-helper: split `createEpic` into one function per file it writes.',
+    },
+  },
+  {
+    ...base,
+    id: 'f-s6-cycle-tasks-session-paths',
+    kind: 'seeded',
+    refactor: {
+      source: 'seeded: session-paths.ts (a leaf that tasks.ts reaches through claims.ts) imports tasks.ts, while tasks.ts imports claims.ts and claims.ts imports session-paths.ts: a three-module import cycle with no pair of modules importing each other directly; the new wrapper sessionTasksDir has no caller and is tolerated',
+      plant: [
+        { file: SESSION_PATHS, from: 'import type { WorktreePointer } from "./worktree.js";', to: 'import type { WorktreePointer } from "./worktree.js";\nimport { tasksDirFor } from "./tasks.js";' },
+        {
+          file: SESSION_PATHS,
+          from: '/** Validated, never sanitised — see the header. */\nexport function isValidSessionId(id: unknown): id is string {\n  return typeof id === "string" && SESSION_ID_RE.test(id);\n}',
+          to: '/** Validated, never sanitised — see the header. */\nexport function isValidSessionId(id: unknown): id is string {\n  return typeof id === "string" && SESSION_ID_RE.test(id);\n}\n\n/** The task queue directory next to a session\'s own directory, so a session listing can show its queue. */\nexport function sessionTasksDir(projectRoot: string): string {\n  return tasksDirFor(projectRoot);\n}',
         },
       ],
-      expected: [{ id: 'claims-channels-cycle', category: 'cycle', file: 'handoff-channels|claims', change: ['(cycl|circular|mutual|each other|both (import|depend)|back-?edge|import loop)', '(claims|handoff-channels)'], desc: 'handoff-channels.ts and claims.ts now import each other (claims.ts takes CLAIM_IDLE_CAP_MS from handoff-channels.ts): break the cycle, e.g. by moving the constant or the claim path helper to a leaf module' }],
-      tolerated: [{ file: 'handoff-channels', change: ['(unused|never used|not used|nothing imports|no (caller|consumer|importer))'] }],
+      expected: [{ id: 'paths-tasks-claims-cycle', category: 'cycle', file: 'session-paths|tasks\\.ts|claims', change: ['(cycl|circular|import loop|back-?edge|depends? on each other|mutual)', 'session-paths', '(tasks|claims)'], desc: 'session-paths.ts now imports tasks.ts, which imports claims.ts, which imports session-paths.ts: a three-module import cycle; break it, e.g. by not importing tasks.ts from the leaf session-paths.ts' }],
+      tolerated: [{ file: 'session-paths', change: ['(sessionTasksDir)', '(unused|never used|not used|nothing imports|no (caller|consumer|importer)|dead)'] }],
     },
     samples: {
-      good: 'PROPOSALS:\n- apps/maestro/src/core/handoff-channels.ts: break-cycle: it now imports `claims.ts` while `claims.ts` imports `CLAIM_IDLE_CAP_MS` from it, so the two modules form an import cycle; move the constant to a leaf module.',
-      bad: 'PROPOSALS:\n- apps/maestro/src/core/handoff-channels.ts: extract-helper: split the channel listing into its own module.',
-    },
-  },
-  {
-    ...base,
-    id: 'f-s4-unused-export-pluralize',
-    kind: 'seeded',
-    refactor: {
-      source: 'seeded: text.ts (the shared string helpers) gets an exported pluralize that no file imports',
-      plant: [{
-        file: TEXT,
-        from: 'export function joinOxford(items: string[]): string {\n  if (items.length === 0) return "";\n  if (items.length === 1) return items[0];\n  return items.slice(0, -1).join(", ") + " or " + items.slice(-1)[0];\n}',
-        to: 'export function joinOxford(items: string[]): string {\n  if (items.length === 0) return "";\n  if (items.length === 1) return items[0];\n  return items.slice(0, -1).join(", ") + " or " + items.slice(-1)[0];\n}\n\n/** "1 task", "2 tasks". */\nexport function pluralize(count: number, noun: string): string {\n  return `${count} ${noun}${count === 1 ? "" : "s"}`;\n}',
-      }],
-      expected: [{ id: 'text-unused-pluralize', category: 'unused', file: 'text\\.ts', change: ['pluralize', '(unused|never (used|imported|called)|no (caller|importer|consumer|import)|nothing (imports|uses|calls)|dead|not (used|imported|referenced)|remove|delete)'], desc: 'text.ts exports pluralize and no file imports it (neither core/index.ts nor the renderer re-export): remove it' }],
-      tolerated: [],
-    },
-    samples: {
-      good: 'PROPOSALS:\n- apps/maestro/src/core/text.ts: remove-unused: `pluralize` is exported but no file imports it (core/index.ts does not re-export it either); delete it.',
-      bad: 'PROPOSALS:\n- apps/maestro/src/core/text.ts: dedupe: `firstSentence` and `clip` overlap, merge them.',
+      good: 'PROPOSALS:\n- apps/maestro/src/core/session-paths.ts: break-cycle: it imports `tasks.ts`, which imports `claims.ts`, which imports `session-paths.ts`, so the three modules form an import cycle; drop the import from the leaf `session-paths.ts`.\n- apps/maestro/src/core/session-paths.ts: remove-unused: `sessionTasksDir` has no caller.',
+      bad: 'PROPOSALS:\n- apps/maestro/src/core/claims.ts: extract-helper: split `claimTask` into smaller functions.',
     },
   },
   {
@@ -240,7 +220,7 @@ export const REFACTOR_CASES = [
     id: 'f-c1-canvas-layout',
     kind: 'clean',
     refactor: {
-      source: 'control for f-r1: the tree as it is, where workflow-canvas.tsx already imports canvas-layout.ts',
+      source: 'a clean control: the tree as it is, where workflow-canvas.tsx already imports canvas-layout.ts (retained from the first set, which its pilot run exercised)',
       touched: ['apps/maestro/src/core/canvas-layout.ts'],
       plant: [],
       expected: [],
@@ -256,11 +236,11 @@ export const REFACTOR_CASES = [
     id: 'f-c2-session-ipc',
     kind: 'clean',
     refactor: {
-      source: 'control for f-r2: the tree as it is, where main/ipc.ts already delegates to session-ipc.ts',
+      source: 'a clean control: the tree as it is, where main/ipc.ts already delegates to session-ipc.ts (retained from the first set; not run in pilot (a)). taskHeading in session-title.ts and parseTitle in tasks.ts are a real pre-existing pair, tolerated',
       touched: ['apps/maestro/src/core/session-ipc.ts'],
       plant: [],
       expected: [],
-      tolerated: [],
+      tolerated: [{ file: 'session-title|tasks\\.ts', change: ['(taskHeading|parseTitle)'] }],
     },
     samples: {
       good: 'PROPOSALS: none',
@@ -269,18 +249,19 @@ export const REFACTOR_CASES = [
   },
   {
     ...base,
-    id: 'f-c3-handoff-label',
+    id: 'f-c4-plugin-scripts',
     kind: 'clean',
     refactor: {
-      source: 'a small, single-purpose module (handoff-label.ts) added in ec72705 and left as is',
-      touched: ['apps/maestro/src/core/handoff-label.ts'],
+      source: 'a clean control for f-r5: the same five plugin scripts and the session lib as they are in the pinned tree (after 05d5b76), a larger neighbourhood with no change',
+      touched: [INJECT, SUBAGENT_LOG, TEAM_MEETING, RESUME, CHECK],
+      extra: [SESSION_LIB],
       plant: [],
       expected: [],
       tolerated: [],
     },
     samples: {
-      good: 'Nothing to change: one purpose, no duplicate, no cycle.\n\nPROPOSALS: none',
-      bad: 'PROPOSALS:\n- apps/maestro/src/core/handoff-label.ts: extract-helper: the label parsing could be its own module.',
+      good: 'The scripts require readLogLines and runtimeNeedsRefresh from the lib.\n\nPROPOSALS: none',
+      bad: 'PROPOSALS:\n- plugins/maestro/scripts/maestro-team-meeting.cjs: extract-helper: the command dispatch should move to its own module.',
     },
   },
 ];

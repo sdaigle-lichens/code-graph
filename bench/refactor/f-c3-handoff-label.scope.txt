@@ -1,3 +1,0 @@
-2 files:
-- apps/maestro/src/core/handoff-check.ts (concept maestro-architecture)
-- apps/maestro/src/core/handoff-label.ts (concept maestro-architecture)

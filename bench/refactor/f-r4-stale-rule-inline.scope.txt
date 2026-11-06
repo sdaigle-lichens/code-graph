@@ -1,4 +1,0 @@
-3 files:
-- apps/maestro/src/core/runtime-version.ts (concept installing-maestro)
-- plugins/maestro/scripts/lib/maestro-session.cjs (concept none: outside every concept)
-- plugins/maestro/scripts/maestro-check-runtime.cjs (concept none: outside every concept)

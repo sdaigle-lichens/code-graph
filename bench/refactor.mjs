@@ -21,8 +21,12 @@ export const REFACTOR_ARMS = {
   'sonnet-spawns-haiku-scouts': { model: SONNET, primer: false, spawn: true, filter: false },
 };
 export const REFACTOR_ARM_NAMES = Object.keys(REFACTOR_ARMS);
-export const DEFAULT_REFACTOR_ARMS = REFACTOR_ARM_NAMES.join(',');
-export const DEFAULT_REFACTOR_RUNS = '3';
+// Post-pilot amendment (docs/evals.md, Ticket 070): the default design is three arms and 2 runs. The spawn
+// arm stays defined and tested but is opt-in (`--arms ...,sonnet-spawns-haiku-scouts`): it is the dearest
+// and the money does not stretch to it.
+export const OPT_IN_REFACTOR_ARMS = ['sonnet-spawns-haiku-scouts'];
+export const DEFAULT_REFACTOR_ARMS = REFACTOR_ARM_NAMES.filter((a) => !OPT_IN_REFACTOR_ARMS.includes(a)).join(',');
+export const DEFAULT_REFACTOR_RUNS = '2';
 export const REFACTOR_BASELINE = 'sonnet-plain';
 export const FILTER_MODEL = SONNET;
 export const CATEGORIES = ['dedupe', 'extract', 'align', 'cycle', 'unused'];
