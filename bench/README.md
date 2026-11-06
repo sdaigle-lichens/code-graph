@@ -368,7 +368,7 @@ has a `structured` column. All-clear text (`PROPOSALS: nothing to do`, `- nothin
 `- No issues found.`, `- Not needed.`, a short bullet saying a thing is fine as written, `PROPOSALS:` followed by
 prose that names no file) is its own `all-clear lines` count per case and arm: not a proposal, not sent
 to the filter, not a false finding. A line in the `<file>: <kind>: <text>` shape is always a proposal, whatever
-its text says; a bullet on the header line (`PROPOSALS: - a.ts: dedupe: x`) is the first item, and an unbulleted shaped line under the header is a proposal too. Limits: an unshaped line opening with an all-clear phrase ("No changes to X, but ...") counts as an all-clear; unusual unshaped all-clear wordings count as false findings; a
+its text says; a bullet on the header line (`PROPOSALS: - a.ts: dedupe: x`) is the first item, and an unbulleted shaped line under the header is a proposal too. A bare marker on the header line (`PROPOSALS: -`) is an empty bullet: the dashless shaped line under it is its content, not a second item. Limits: an unshaped line opening with an all-clear phrase ("No changes to X, but ...") counts as an all-clear; unusual unshaped all-clear wordings count as false findings; a
 shaped line that says "this is fine" is a false finding (not an all-clear), and header prose that names a file
 is kept as one item. The prompt asks for `PROPOSALS: none` and nothing else.
 
@@ -381,7 +381,7 @@ Files:
   CLI on the pinned maestro. `--only <substrings>` limits it; `--check` writes nothing and exits 1 on drift.
 - `refactor/`: the stored scope and primer of each case, committed.
 - `refactor-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 3`, `--budget`, `--run-budget`
-  (no defaults; a paid run needs both), `--dry`, `--keep-ws`, `--init-check`. It refuses to run inside a Claude Code session.
+  (no defaults; a paid run needs both), `--dry`, `--keep-ws`, `--init-check`. A paid run refuses to start inside a Claude Code session (`--dry` and `--init-check` are exempt).
 - `refactor.test.mjs`, `refactor-cli.test.mjs`: offline tests; the CLI tests skip without a maestro checkout.
 
 Commands, from a plain terminal at the repo root (the first four are $0):
