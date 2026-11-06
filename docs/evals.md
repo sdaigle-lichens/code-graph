@@ -1111,7 +1111,7 @@ A run is invalid, not counted, if: the init event shows another model or tool se
 
 ### Status when this was written
 
-Built and checked at $0: cases, graders, stored scopes and primers, the four arms, the runner and its tests. Pilot (a) was run on the original set and was saturated (see the amendment below). **Pending, needing the user:** the re-run baseline pilot on the reworked cases, then the paid run and its results (kept improvements, false findings, cost per case, anchoring, verdicts, a confidence level and a recommendation), which are recorded below only after that run. The measured commit of the paid run is the commit that carries the amendment with `pnpm verify` green, named in the first results entry.
+Built and checked at $0: cases, graders, stored scopes and primers, the four arms, the runner and its tests. Pilot (a) was run on the original set and was saturated (see the amendment below). **Done (2026-11-06):** the baseline pilot on the reworked cases and the paid run were made by the user from a plain terminal; both, the fixed audit, the verdicts and the recommendation are in "Results (pilot rerun and paid run, 2026-11-06)" after the amendment. The "Results template" above is filled there. Nothing is pending for 070 except what the user decides to do with the recommendation.
 
 ### Post-pilot amendment (2026-11-05, written before any paid run)
 
@@ -1171,6 +1171,105 @@ node bench/refactor-run.mjs --dry
 node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 1.45 --run-budget 0.50   # baseline pilot, 6 sessions
 node bench/refactor-run.mjs --budget 7 --run-budget 0.60                                   # paid run: 3 arms, 2 runs (the defaults)
 ```
+
+### Results (pilot rerun and paid run, 2026-11-06)
+
+**Not recommended in the pipeline's pre-registered form: it passes three of the four "worth adding" conditions and misses the cost one by one point (-19% against the 20% line). Confidence: low.** The numbers below are copied from the runner's `report.md` (`bench/results/refactor-2026-11-06T12-32-55-903Z`, gitignored); the verdict tables are the runner's and are not recomputed here.
+
+**Measured commits.** Graders and runner: `9089120` (the last code change to `bench/refactor.mjs` and `bench/refactor-run.mjs`). Cases, stored scopes and primers, arm defaults and the post-pilot amendment: `a449c7b` (it carries the amendment, the commit the paid run is measured against). Caps: `655be90` (docs only: $3 pilot, $7 paid run, $0.60 per session). Nothing under `bench/` or `plugin/` changed after `a449c7b`; this entry is the only change in the results commit.
+
+**Pilot rerun on the reworked set** (`sonnet-plain`, 1 run, 6 cases, `bench/results/refactor-2026-11-06T03-17-11-856Z`): $0.844 of the $1.45 cap; kept 2 of 5 (dedupe 1/3, align 0/1, cycle 1/1); 11 false findings over 6 case-runs; $0.141 per session. Gate: not at the floor (it kept more than 1 of 5), not "no signal" (it raised false findings), so the paid run went ahead. The first pilot (original set, $1.525) is superseded and is not pooled.
+
+**Spend.** Old pilot $1.525 + new pilot $0.844 + paid run $3.198 = **$5.567 of the $10 ceiling** (paid run $3.198 of its $7 cap; the estimate was about $4.32).
+
+**Paid run.** 36 of 36 cells valid (no invalid run, no cell dropped by the pairing rule), 12 paired case-runs per arm (6 cases x 2 runs; 6 of them clean). The spawn arm `sonnet-spawns-haiku-scouts` is opt-in and was not run, so it is not judged.
+
+| arm | valid runs | dedupe | extract | align | cycle | unused | overall kept | false findings kept | all-clear lines | cost per run |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sonnet-plain | 12 | 4/6 | 0/0 | 0/2 | 2/2 | 0/0 | 6/10 | 23 | 0 | $0.139 |
+| haiku-metrics-primer | 12 | 4/6 | 0/0 | 1/2 | 2/2 | 0/0 | 7/10 | 38 | 0 | $0.015 |
+| haiku-scout-sonnet-filter | 12 | 3/6 | 0/0 | 1/2 | 2/2 | 0/0 | 6/10 | 18 | 0 | $0.112 |
+
+False findings kept, by the category of the proposal (every proposal beyond the expected ones, every case):
+
+| arm | dedupe | extract | align | cycle | unused | other | total |
+|---|---|---|---|---|---|---|---|
+| sonnet-plain | 8 | 14 | 1 | 0 | 0 | 0 | 23 |
+| haiku-metrics-primer | 12 | 21 | 2 | 0 | 3 | 0 | 38 |
+| haiku-scout-sonnet-filter | 6 | 11 | 0 | 0 | 1 | 0 | 18 |
+
+Of those, on the 6 clean case-runs (from the per-case table): sonnet-plain 13, haiku-metrics-primer 17, haiku-scout-sonnet-filter 10.
+
+Pipeline anchoring and what the filter did:
+
+| arm | runs with a list | scout proposals | kept | anchoring | lists passed unchanged | expected lost by the filter | false findings removed by the filter |
+|---|---|---|---|---|---|---|---|
+| haiku-scout-sonnet-filter | 12 | 61 | 31 | 51% | 0 | 0 | 30 |
+
+Verdicts against `sonnet-plain` (copied from the report):
+
+| arm | dedupe | extract | align | cycle | unused | overall | false findings (all) | false findings by category (arm vs baseline) | cost per run |
+|---|---|---|---|---|---|---|---|---|---|
+| haiku-metrics-primer | inconclusive (baseline misses under 3) (missed 2 -> 2) | inconclusive (0 -> 0) | inconclusive (missed 2 -> 1) | inconclusive (0 -> 0) | inconclusive (0 -> 0) | no effect shown (missed 4 -> 3) | 38 vs 23: more | dedupe 12 vs 8: more; extract 21 vs 14: more; align 2 vs 1: no difference shown; cycle 0 vs 0: no difference shown; unused 3 vs 0: more; other 0 vs 0: no difference shown | -89% |
+| haiku-scout-sonnet-filter | inconclusive (baseline misses under 3) (missed 2 -> 3) | inconclusive (0 -> 0) | inconclusive (missed 2 -> 1) | inconclusive (0 -> 0) | inconclusive (0 -> 0) | no effect shown (missed 4 -> 4) | 18 vs 23: fewer | dedupe 6 vs 8: no difference shown; extract 11 vs 14: fewer; align 0 vs 1: no difference shown; cycle 0 vs 0: no difference shown; unused 1 vs 0: no difference shown; other 0 vs 0: no difference shown | -19% |
+
+(In the verdict table the report repeats "(baseline misses under 3)" in every inconclusive cell; it is shortened here after the first cell of each row.) The baseline screen reads "ok: the baseline missed 4 of 10 and kept 23 false findings over 12 case runs". Every improvements category is **inconclusive (baseline misses under 3)** (the baseline missed 2, 0, 2, 0 and 0), so as the rule says beforehand the recommendation rests on false findings and cost, not on recall. Overall recall reads "no effect shown" for both Haiku arms (kept 7 and 6 of 10 against 6 of 10).
+
+**Cost per case (mean of the 2 runs, from the per-case table; $).** The pipeline figure includes both sessions, and on `f-c1` run 2 the scout proposed nothing, so no filter session ran ($0.007).
+
+| case | sonnet-plain | haiku-metrics-primer | haiku-scout-sonnet-filter |
+|---|---|---|---|
+| f-r5-plugin-scripts-05d5b76 | 0.105 | 0.030 | 0.146 |
+| f-s5-titlecase-copies | 0.132 | 0.013 | 0.120 |
+| f-s6-cycle-tasks-session-paths | 0.150 | 0.009 | 0.117 |
+| f-c1-canvas-layout (clean) | 0.242 | 0.008 | 0.048 |
+| f-c2-session-ipc (clean) | 0.109 | 0.011 | 0.103 |
+| f-c4-plugin-scripts (clean) | 0.098 | 0.024 | 0.141 |
+
+The pipeline is dearer than the baseline on the two cases where the scout lists many proposals for the filter to read (`f-r5`, `f-c4`) and cheaper where the scout lists few or none. The overall saving of 19% rests on `f-c1`: take that case out and the pipeline's mean per case is about $0.125 against the baseline's $0.118, i.e. about 6% dearer. That is an observation on 12 runs, not a rule.
+
+**Fixed audit (limit 3), run after the paid run and reported beside the headline, never in place of it.** All 79 false findings kept (23 + 38 + 18; the pooled count matches the report) were pooled from `runs.json` with the same grader the report uses, for the pipeline the survivors of the filter only. Arm labels were stripped and the list shuffled (seeded); each item was judged before the labels were joined back. **Confirmed** = it names a concrete duplicate (repeated code block, function, type or composition at the cited places), import cycle or unused export that a `grep` of the pinned tree (`3814a30`; the planted lines do not matter for any confirmed item) finds; **unconfirmed** = anything else. Judged by one reader with `grep`; "duplicate" was read generously (a repeated chain of calls counts, whether or not removing it is worth a ticket), and placement or alignment proposals (move a helper, add a guard) are unconfirmed even when true.
+
+| arm | false findings | confirmed | unconfirmed |
+|---|---|---|---|
+| sonnet-plain | 23 | 22 | 1 |
+| haiku-metrics-primer | 38 | 31 | 7 |
+| haiku-scout-sonnet-filter | 18 | 15 | 3 |
+
+68 of 79 (86%) are confirmed. The 11 unconfirmed are: three `align-pattern` proposals, four proposals to move `dedupeProjectRoots` out of `session-log.ts` (a cross-concept edge, not a cycle), a hedged "only worth doing if" proposal on `epics.ts` locks, a `projectSlug` "unused export" that `session-title.test.ts` imports, a `dirname(dirname())` remark, and the `180` / `90` literals of `applyDagreLayout`. Confirmed findings are spread in proportion to the headline (22, 31, 15 against 23, 38, 18), so the audit does not reverse any false-finding verdict; the primer has the most unconfirmed (7 of 38, against 1 of 23 for the baseline), so a part of its extra count is noise rather than extra real duplication. **What the audit says about the metric:** most "false findings" are real, unplanted duplicates in the pinned tree, so the figure counts extra proposals more than wrong ones. The same few recur across arms and runs: `readGlobalHandoff` copied in three scripts (13 proposals mention it), `parseBlockedBy` / `extractPostMortemSection` slicing a heading the same way (11), the ready/blocked rule written twice in `tasks.ts` (6), the repeated option defaulting and removal loop in `session-sweep.ts` (10 proposals concern that file). Counts by pattern match on the proposal text. The headline counts were not adjusted.
+
+Examples a reader may want to act on (lines are in the pinned tree `3814a30`; each was grep-confirmed):
+
+1. `plugins/maestro/scripts/maestro-inject-agent-context.js:140`, `maestro-subagent-log.js:84` and `maestro-resume-target.cjs:67` each define the same `readGlobalHandoff` (a try/catch lazy `require` of `readHandoffDefault`).
+2. `apps/maestro/src/core/tasks.ts`: `parseBlockedBy` (line 44) and `extractPostMortemSection` (line 59) cut a `## Heading` section the same way, and the ready/blocked expression `blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b))` is written at lines 122 and 152.
+3. `apps/maestro/src/core/session-title.ts:38` `SessionTitleRef` and `apps/maestro/src/core/session-sweep.ts:150` `SessionRef` are the same two-field interface.
+4. `apps/maestro/src/core/session-log.ts:66` `readSessionLog` has no caller in `apps`, `packages` or `plugins` (only the barrel re-export at `core/index.ts:183`); `tailSessionLog` (line 94) has no production caller either, only tests.
+5. `apps/maestro/src/core/session-sweep.ts`: the `sessionDirsFor` / `rmSync` removal loop at lines 122 and 179, and the `now` / `idleCapMs` / own-session defaulting at lines 109-112, 161-163 and 190-192.
+
+**Anchoring reading.** The filter kept 31 of 61 proposals (51%), passed no list unchanged and lost none of the expected improvements its scout found (0), and it removed 30 false findings. It is not a rubber stamp: the "worth adding" trigger (near 100% kept with false findings above the baseline's) is not met. Two readings are both consistent with the data: the filter genuinely discriminates, or it cuts about half of any list regardless of content; this run cannot tell them apart (the survivors are still 15 of 18 confirmed; the audit did not grade the 30 removed ones, so it cannot say whether the cut favoured the real ones).
+
+**The pre-registered test, applied literally to the pipeline `haiku-scout-sonnet-filter`:**
+
+| condition | result | passes |
+|---|---|---|
+| no category hurts against `sonnet-plain` | all five categories inconclusive; none hurts (dedupe missed 2 -> 3, a gap of 1; "hurts" needs 3) | yes |
+| false findings kept not more than the baseline's, overall or in any category | 18 vs 23 overall (fewer); no category reads "more" | yes |
+| cheaper than the baseline counting both sessions (at least 20% under) | $0.112 vs $0.139, **-19%** | **no** |
+| no rubber stamp (kept share near 100% with false findings above the baseline's) | 51% kept, 0 lists unchanged, false findings below the baseline's | yes |
+
+**It fails the cost condition by one point (19% against the 20% line; the line is about $0.111 per run, the pipeline cost $0.112), and the rule is not rounded up.** The scout alone `haiku-metrics-primer`, judged on the same lines: no category hurts (pass); false findings are **more** than the baseline's overall (38 vs 23) and in dedupe, extract and unused (fail); it is cheaper (-89%, pass); the anchoring condition does not apply. It fails on false findings. The spawn arm was not run.
+
+**Recommendation (from the pre-registered test).** Do not add the Haiku scout plus Sonnet filter as a step ahead of the reviewer in the form tested: it kept at least as many expected improvements as the baseline (6 of 10, no effect shown) and fewer false findings (18 vs 23), but it does not reach the 20% saving the rule asked for (-19%). The scout alone is not recommended either (more false findings than the baseline: 38 vs 23). Because it misses by a single point on one condition, on 12 runs per arm, a reader who values the false-finding reduction over the cost line has data to support a different call, but that would be a decision to change the rule, made after the result, and is not what was registered. A rerun with more runs or a differently priced filter (for example one that drops the filter on short lists) would be a new, separately registered design.
+
+**Other observations the numbers support (not part of the verdict).**
+
+- The primer arm is 89% cheaper ($0.015 against $0.139 per run) and kept 7 of 10 against the baseline's 6 of 10, with 65% more false findings (38 vs 23); 31 of those 38 are confirmed real duplicates (see the audit). It is a cheap source of many true-but-unplanted duplicate reports, not a precise one.
+- The filter removed 30 false findings at no loss of expected improvements in this run, but the saving it leaves is 19%, because the filter session costs about as much as a baseline pass on the cases where the scout lists many proposals.
+- Dedupe: the pipeline kept 3 of 6 against the baseline's 4 of 6. The one-run swing is within the noise visible below, and the category reads inconclusive, so nothing is claimed.
+- Per-run variance is large. `f-r5`: the pipeline kept 1/3 in run 1 and 2/3 in run 2, the primer the same (1/3 then 2/3), the baseline 1/3 both times. `f-s5`: the pipeline kept 0/1 in run 1 (the scout missed it) and 1/1 in run 2. `f-c4` (clean): the pipeline's false findings were 1 in run 1 and 5 in run 2 (the scout listed 4 then 9 proposals, and the cost went $0.094 to $0.188). A 12-run figure moves by several points with one run.
+- The baseline's recall is low on this set (6 of 10; align 0 of 2: the baseline never found the `check-runtime-needs-refresh` change, each Haiku arm found it once), so "inconclusive" is mainly the case count (limit 4), not the arms matching.
+
+**Confidence: low.** Reasons: 12 paired runs per arm and 6 cases; the baseline misses 4 of 10 but under 3 in every category, so no improvements verdict could fire (limit 4); a single model family (Haiku scout, Sonnet filter and baseline); the one-point cost miss and the false-finding gaps (5 overall, 3 in extract) sit close to the rule's own thresholds of 3 and 20%; per-run swings of 1 to 4 findings on a case; the audit is one reader with `grep`, with a generous reading of "duplicate", and it shows that most false findings are real, so the false-finding metric is a count of extra proposals; the pinned tree is one project (maestro `3814a30`).
 
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
