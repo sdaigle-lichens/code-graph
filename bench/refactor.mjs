@@ -287,21 +287,28 @@ export function proposalsOf(text) {
     const rest = hdr ? hdr[1].trim() : '';
     // findingsOf reads bullet lines only: a `<file>: <kind>: <text>` line with no bullet under the header is
     // a proposal too. A line that follows a bullet or another item without a blank line is its continuation.
+    // A bare marker on the header line (`PROPOSALS: -`) is an empty bullet: findingsOf keeps it as the item
+    // "-", the next dashless shaped line is its content (picked up below), and the marker itself is dropped.
+    const bare = /^(?:[-*•]|\d+[.)])$/.test(rest);
+    let scanned = 0;
     if (hdr) {
       const after = String(text ?? '').slice(hdr.index + hdr[0].length).split('\n').slice(1);
-      // Same bullet test as findingsOf (on the raw line: an empty `- ` is a bullet); a bullet on the header
-      // line opens an item too, so a shaped line right after it is its continuation.
+      // Same bullet test as findingsOf (on the raw line: an empty `- ` is a bullet); a bullet WITH text on
+      // the header line opens an item too, so a shaped line right after it is its continuation.
       const isBullet = (s) => /^\s*(?:[-*•]|\d+[.)])\s+/.test(s);
-      let inBullet = isBullet(`${rest} `);
+      let inBullet = !bare && isBullet(`${rest} `);
       for (const raw of after) {
         const line = raw.trim();
         if (!line) { inBullet = false; continue; }
         if (isBullet(raw)) inBullet = true;
-        else if (!inBullet && SHAPE_RE.test(line)) items.push(line);
+        else if (!inBullet && SHAPE_RE.test(line)) { items.push(line); scanned++; }
       }
     }
     const bullet = /^(?:[-*•]|\d+[.)])\s+/.exec(rest);
-    if (bullet) {
+    if (bare && items.length) {
+      items.shift();
+      if (!scanned) allClear++;
+    } else if (bullet) {
       // `PROPOSALS: - a.ts: dedupe: x`: a bullet on the header line is the first item (findingsOf drops it).
       items.unshift(rest.slice(bullet[0].length).trim());
     } else if (rest && !f.none && items.length && !SHAPE_RE.test(rest) && !PATHY_RE.test(rest)) {

@@ -566,6 +566,25 @@ test('the unbulleted-line scan agrees with findingsOf: an empty "- " bullet or a
   assert.equal(proposalsOf('PROPOSALS: - a.ts: dedupe: x\n\nb.ts: dedupe: y').items.length, 2);
 });
 
+test('a bare bullet marker on the PROPOSALS header line opens an empty bullet: the dashless shaped line is its content, credited once', () => {
+  const T = 'src/a.ts: dedupe: readJson is copied from src/b.ts; import it.';
+  for (const m of ['-', '1.', '•', '- ', '*']) {
+    const p = proposalsOf(`PROPOSALS: ${m}\n${T}`);
+    assert.deepEqual(p.items, [T], m);
+    assert.equal(p.allClear, 0, m);
+    const g = gradePipeline(caseOf('f-c1-canvas-layout'), `PROPOSALS: ${m}\n${T}`, 'VERDICTS:\n- 1: file-it');
+    assert.equal(g.anchor.scout, 1, m);
+    assert.equal(g.falseFindings, 1, m);
+  }
+  assert.equal(proposalsOf(`PROPOSALS: -\n${T}\nsrc/c.ts: dedupe: y`).items.length, 2);
+  assert.equal(proposalsOf(`PROPOSALS: -\n${T}\n- src/c.ts: dedupe: y`).items.length, 2);
+});
+
+test('a dashless shaped line right after "PROPOSALS: - <T>" is that bullet\'s continuation, not a second item', () => {
+  const p = proposalsOf('PROPOSALS: - a.ts: dedupe: x\nb.ts: dedupe: y');
+  assert.deepEqual(p.items, ['a.ts: dedupe: x']);
+});
+
 // Documented limit (docs/evals.md): an all-clear opener followed by "but" in an unshaped line is an all-clear.
 test('documented limit: an unshaped line that opens with an all-clear phrase is an all-clear even when it adds "but ..."', () => {
   const p = proposalsOf('PROPOSALS:\n- No changes needed in src/a.ts, but extract the parser from src/b.ts into a helper.');
