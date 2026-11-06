@@ -1359,9 +1359,66 @@ node bench/refactor-audit.mjs <results-dir> --score
 
 ### Results
 
-Not run yet. To be filled after the user's pilot and paid run: pilot cost per session and r, per-arm cost and useful findings per dollar, per-category verdicts, the 070 figures beside them, the inline arm's verdict shift, the audit counts, and the recommendation.
+Pilot `bench/results/refactor-2026-11-06T20-21-18-673Z` ($0.812 of $3; 6 of 6 valid; `sonnet-plain` only) and paid run `bench/results/refactor-2026-11-06T20-32-24-067Z` ($4.713 of $7; 48 of 48 valid; no invalid run, no stop rule fired). Both are user-run and gitignored.
 
-**Confidence: to be written with the results.** Known limits already: 6 cases and 2 or 3 runs per cell; one model family; the audit is one reader with `grep`; the cost factor for review and batch sessions is estimated from 070, not measured by the pilot; one project (maestro `3814a30`).
+**Pilot stop rule: passed.** The baseline missed 5 of 11 (not saturated) and found 6 of 11 (above the floor). r = 2 from the rule: 18 x 2 x $0.135 = $4.86 against the $5.60 bar (r = 3 would be $7.29).
+
+**Audit.** `--pool` gave 65 distinct proposals: 43 judged by the registry or `git grep`, 22 by hand. The hand verdicts in `audit-verdicts.txt` (paid run folder) are 22 confirmed, 0 unconfirmed, over 13 issue keys. Each was checked against the pinned tree (maestro `3814a30`) and each is a real duplicate or a real extraction target. `--score` wrote `audit-report.md`.
+
+#### Useful findings per dollar and noise, with the 070 figures beside them
+
+12 valid paired runs per arm. "Useful" = expected improvements found + proposals the audit confirmed. Noise share = unconfirmed / (useful + unconfirmed). The 070 columns are the 070 metric on these same runs.
+
+| arm | useful (expected + audited) | useful per $ | noise share | cost per run | 070 kept of 22 | 070 false findings kept |
+|---|---|---|---|---|---|---|
+| sonnet-plain (baseline) | 35 (12 + 23) | 17.1 | 0% (0 of 35) | $0.171 | 12 | 23 |
+| haiku-metrics-primer | 51 (13 + 38) | 286 | 2% (1 of 52) | $0.015 | 13 | 42 |
+| haiku-reviewer-inline | 17 (6 + 11) | 33.1 | 0% (0 of 17) | $0.043 | 6 | 11 |
+| haiku-batched-filter | 19 (7 + 12) | 24.3 | 5% (1 of 20) | $0.065 | 7 | 13 |
+
+Cost per run against the baseline: metrics-primer -91%, reviewer-inline -75%, batched-filter -62%. 070 had the scout at about $0.015 per session and the per-case filter 19% cheaper.
+
+Useful findings by category (all 12 cells):
+
+| arm | dedupe | extract | align | cycle | unused |
+|---|---|---|---|---|---|
+| sonnet-plain | 18 | 17 | 0 | 0 | 0 |
+| haiku-metrics-primer | 23 | 24 | 0 | 0 | 4 |
+| haiku-reviewer-inline | 10 | 6 | 0 | 0 | 1 |
+| haiku-batched-filter | 11 | 7 | 0 | 0 | 1 |
+
+#### Verdicts (decision rule as written, Ticket 071)
+
+| arm | tool output | verdict |
+|---|---|---|
+| haiku-metrics-primer | better per dollar (ratio 16.78, useful 146% of baseline, noise within +10 points) | **better per dollar** |
+| haiku-reviewer-inline | blocked: loses dedupe, extract (ratio 1.94, useful 49%) | **no gain shown** |
+| haiku-batched-filter | blocked: loses dedupe, extract (ratio 1.42, useful 54%) | **no gain shown** |
+
+The two `blocked` lines do not bind. The rule reads a category's loss count as inconclusive when the pilot baseline missed fewer than 3 expected improvements in that category: dedupe 2, extract 1, align 2. With step 3 set aside, both filter arms fail the recall bar (under 70%) and step 4, and neither is below 1x, so both fall to step 7.
+
+- **Category recall verdicts: all inconclusive.** Every category with an expected improvement had fewer than 3 pilot baseline misses. `cycle` and `unused` have no expected improvement and no verdict.
+- **Review shift (inline arm):** the has-findings verdict differs from the control in 0 of 12 cells (0%), under the 10% line, so no shift is reported.
+- **Post hoc, not used for any verdict:** counted over both paid runs, the baseline missed 4 dedupe, 2 extract and 4 align, so dedupe and align would clear the 3-miss bar if the pilot were ignored. Without the 4 `unused` findings (no expected improvement), metrics-primer still passes: 47 useful, 264 per $, 134% of baseline.
+
+#### Cost estimate against the pilot
+
+- The rule's total, 18 x r x c, with r = 2 and c = $0.135 (pilot mean, $0.812 over 6 sessions): $4.86. Spent: $4.713 (3% under). At the $0.14 used at design time: $5.04 (6.5% over).
+- Per cell (one case and run, all arms): $0.393 = 2.9 pilot sessions, against 3.0 estimated.
+- **The miss is the baseline.** `sonnet-plain` ran $0.171 per session against the pilot's $0.135 (+27%): f-s5 +50%, f-l1 +40%, f-l3 +43%, f-l2 15% under. The total held because the estimate's own terms sum to 2.42c (1 + 0.1 + 0.46 + 0.46 + 0.4), not 3.0c, which left slack the paid run's cells used.
+
+**Confidence: low to moderate.** Moderate on the direction: the scout alone is the cheapest arm and kept as many useful findings as the baseline. Low on the size of the gain: the 16.8x per-dollar ratio rests on a $0.015 cost and on an audit bar that accepts any true claim, however minor.
+
+Limits: 6 cases and 2 paid runs per cell; one project (maestro `3814a30`); one model family; the audit is one reader with `grep`. Every category recall verdict is inconclusive, and the review and batch cost terms were estimated, not measured.
+
+**Audit bar (post hoc observation, changes no verdict).** A proposal is confirmed when its claim is true in the pinned tree, whether or not the change is worth making. All 22 hand items were confirmed and only one proposal in each of two arms was refuted, so noise is near zero for every arm: the metric rewards accurate claims, not valuable ones. This is the main reason the scout's per-dollar figure is high. The 070 false-finding count (42 for the scout, against 23) points the other way; this ticket uses the 071 rule.
+
+**Recommendation.**
+
+- **Join the workflow: the scout alone (`haiku-metrics-primer`).** It is the only form the pre-registered rule passes ("better per dollar"). Use it as an advisory list read before any change is filed, not as an automatic action: the bench does not measure whether acting on the list saves time, and its false-finding count is high (42 against 23).
+- **Do not join: either filter.** `haiku-batched-filter` and `haiku-reviewer-inline` are "no gain shown" (useful kept 54% and 49%). Each gives far fewer useful findings per dollar than the scout alone (24 and 33, against 286).
+- **Where the change goes.** Adding the scout to the workflow is a separate ticket in the maestro repo. Nothing in maestro changes here.
+- **Confidence:** low to moderate, as above. A further run is not recommended until the question changes (for example, whether acting on the scout's list pays).
 
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
