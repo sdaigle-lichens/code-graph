@@ -143,10 +143,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 - Resolving a deferred concept with `--approve-drift` looks like the fix and isn't: it accepts every
   candidate unreviewed (ticket 045 cites an installing-maestro run reported as 4 inserted, 2 archived with
   enrichment lost). Have a person run `apply <concept>` and answer the prompts.
-- `bootstrapStore` → `applySchema` (`scribe/bootstrap.ts`) writes `PRAGMA user_version = SCHEMA_VERSION`
-  unconditionally, and `preflight` reads it only afterwards in `checkSchemaVersion`. So a store written by a
-  newer code-graph is downgraded, not refused, by `status`, `search`, `query`, `eval` and `scout`: exit 3 is
-  unreachable from them. Known limitation, not fixed. A version check placed after bootstrap never fires.
+- `bootstrapStore` (`scribe/bootstrap.ts`) reads `PRAGMA user_version` before `applySchema` writes it and throws
+  `NewerStoreError` for a newer store; every store command opens through `openStoreOrExit` (exit 3, store left
+  unchanged). A version check placed after bootstrap would never fire.
 
 ## Relationships
 

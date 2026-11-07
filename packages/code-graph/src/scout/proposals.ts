@@ -6,6 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, posix, relative, sep } from "node:path";
+import { leavesRoot } from "./root.js";
 
 /** Stdin held no `PROPOSALS:` line: no session answered, so there is nothing to print, not a clean result. */
 export const EXIT_SCOUT_NO_PROPOSALS = 13;
@@ -37,7 +38,6 @@ const LINE_REF = /(:\d+(?:-\d+)?)$/;
 const QUOTED_PATH = /^`([^`]+)`(:\d+(?:-\d+)?)?$/;
 
 const toPosix = (p: string) => p.split(sep).join("/");
-const leavesRoot = (rel: string) => rel === ".." || rel.startsWith("../") || isAbsolute(rel);
 
 /**
  * One path, git-root-relative when it is inside the repository, else `null` (the caller keeps it as given).

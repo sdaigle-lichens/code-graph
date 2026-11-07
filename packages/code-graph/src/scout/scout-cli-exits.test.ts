@@ -186,31 +186,21 @@ describe("scout exit 12: the tsconfig key, with and without a store", () => {
 });
 
 describe("scout exit 3: a store written by a newer code-graph", () => {
-  // Known gap, found by this test: preflight() runs bootstrapStore(), whose applySchema() sets
-  // `PRAGMA user_version` back to SCHEMA_VERSION, so checkSchemaVersion() never sees the newer number. scout
-  // then runs against the store and rewrites its version. The assertions below are what the documented exit
-  // 3 requires; remove the `todo` marker to see them fail.
-  it(
-    "dist: a newer store is exit 3, names the upgrade, and is left at its version",
-    {
-      todo: "known gap: bootstrapStore resets user_version before checkSchemaVersion reads it, so exit 3 is unreachable",
-    },
-    () => {
-      const root = project("newer-store");
-      index(root);
-      const db = new DatabaseSync(storeOf(root));
-      db.exec("PRAGMA user_version = 999");
-      db.close();
-      const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
-      assert.equal(r.status, 3, r.stdout + r.stderr);
-      assert.match(r.stderr, /written by a newer code-graph/);
-      assert.equal(r.stdout, "");
-      const after = new DatabaseSync(storeOf(root));
-      const version = after.prepare("PRAGMA user_version").get() as { user_version: number };
-      after.close();
-      assert.equal(version.user_version, 999, "scout does not downgrade a newer store");
-    }
-  );
+  it("dist: a newer store is exit 3, names the upgrade, and is left at its version", () => {
+    const root = project("newer-store");
+    index(root);
+    const db = new DatabaseSync(storeOf(root));
+    db.exec("PRAGMA user_version = 999");
+    db.close();
+    const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    assert.match(r.stderr, /written by a newer code-graph/);
+    assert.equal(r.stdout, "");
+    const after = new DatabaseSync(storeOf(root));
+    const version = after.prepare("PRAGMA user_version").get() as { user_version: number };
+    after.close();
+    assert.equal(version.user_version, 999, "scout does not downgrade a newer store");
+  });
 });
 
 describe("scout plan at the CLI is deterministic", () => {

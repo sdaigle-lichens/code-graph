@@ -103,7 +103,7 @@ program
     ok(`scribe.config.json found (project: ${config.project})`);
 
     const { resolveDbPath } = await lazy.db();
-    const { bootstrapStore, SCHEMA_VERSION } = await lazy.bootstrap();
+    const { openStoreOrExit } = await lazy.bootstrap();
     const dbPath = resolveDbPath(config);
     let bytes: number | null = null;
     try {
@@ -116,12 +116,11 @@ program
     ok(`store ${dbPath} (${(bytes / 1024).toFixed(0)} KiB)`);
 
     try {
-      const store = bootstrapStore(dbPath);
+      // A newer store exits 3 here with the upgrade message; this line only reports a readable one.
+      const store = openStoreOrExit(dbPath);
 
       const version = (store.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
-      version <= SCHEMA_VERSION
-        ? ok(`schema v${version}`)
-        : fail(`schema v${version} is newer than this CLI (v${SCHEMA_VERSION}) \u2014 upgrade code-graph`);
+      ok(`schema v${version}`);
 
       const integrity = (store.prepare("PRAGMA integrity_check").get() as Record<string, string>).integrity_check;
       integrity === "ok" ? ok("integrity_check ok") : fail(`integrity_check: ${integrity}`);
@@ -155,10 +154,10 @@ program
       process.exit(5);
     }
     const { resolveDbPath } = await lazy.db();
-    const { bootstrapStore } = await lazy.bootstrap();
+    const { openStoreOrExit } = await lazy.bootstrap();
     const dbPath = resolveDbPath(config);
     try {
-      bootstrapStore(dbPath);
+      openStoreOrExit(dbPath);
       console.log(`store ready: ${dbPath}`);
     } catch (err) {
       console.error("bootstrap failed:", (err as Error).message);
@@ -176,9 +175,9 @@ program
       process.exit(5);
     }
     const { resolveDbPath } = await lazy.db();
-    const { bootstrapStore, rebuildSearchIndex } = await lazy.bootstrap();
+    const { openStoreOrExit, rebuildSearchIndex } = await lazy.bootstrap();
     try {
-      const store = bootstrapStore(resolveDbPath(config));
+      const store = openStoreOrExit(resolveDbPath(config));
       rebuildSearchIndex(store);
       const n = (store.prepare("SELECT count(*) AS c FROM search_fts").get() as { c: number }).c;
       console.log(`search index rebuilt: ${n} rows`);
@@ -324,6 +323,10 @@ program
       if (report.results.some((r) => r.status === "failed")) process.exitCode = 1;
       else if (report.results.some((r) => r.status === "deferred")) process.exitCode = EXIT_RENAMES_DEFERRED;
     } catch (err) {
+      if ((err as Error).name === "NewerStoreError") {
+        console.error((err as Error).message);
+        process.exit(3);
+      }
       console.error("refresh-skills failed:", (err as Error).message);
       process.exit(1);
     }

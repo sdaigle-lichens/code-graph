@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tryLoadConfig } from "../config.js";
 import { getStore, resolveDbPath } from "./db.js";
+import { assertStoreNotNewer, exitOnNewerStore } from "./bootstrap.js";
 import { toDocs } from "./rows.js";
 import type { Vertex } from "../schema.js";
 
@@ -48,6 +49,11 @@ export function graphFreshness(projectRoot: string, concepts: string[]): Record<
 
   try {
     const store = getStore(dbPath);
+    try {
+      assertStoreNotNewer(store, dbPath);
+    } catch (err) {
+      exitOnNewerStore(err); // exit 3: the one read error `skills status` does not swallow
+    }
     const out: Record<string, GraphFreshness> = {};
     for (const concept of concepts) {
       const live = toDocs<Vertex>(

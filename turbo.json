@@ -33,6 +33,9 @@
       // bundle, and that assertion skips itself when out/ is missing. Without this, a fresh clone
       // would silently not run it.
       "dependsOn": ["^build", "build"],
+      // The plugin's skill and agent files sit outside every package; tests pin their text, so an edit to
+      // one alone must re-run them instead of replaying a cached pass.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/plugin/skills/**", "$TURBO_ROOT$/plugin/agents/**"],
       "outputs": []
     },
     "dev": {

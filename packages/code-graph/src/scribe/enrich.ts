@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { loadConfig } from "../config.js";
 import { resolveDbPath } from "./db.js";
-import { bootstrapStore } from "./bootstrap.js";
+import { openStoreOrExit } from "./bootstrap.js";
 import type { DatabaseSync } from "node:sqlite";
 import { docKey, getRecord, toDocs, vertexId } from "./rows.js";
 import { coreVertices, isThinCore, thinCoreMessage } from "./core.js";
@@ -145,7 +145,7 @@ function touchedSinceApply(v: Vertex, db: Vertex | undefined, conceptApplied: bo
   return db.contentHash !== v.contentHash || db.agent?.touched_at !== undefined || db.agent?.stale === true;
 }
 
-type Store = ReturnType<typeof bootstrapStore>;
+type Store = ReturnType<typeof openStoreOrExit>;
 type Config = ReturnType<typeof loadConfig>;
 
 /** What `collectTargets` works out for one concept; both the per-concept and the roll-up output read it. */
@@ -160,7 +160,7 @@ type ConceptTargets = {
 export function enrichTargets(concept: string, opts: EnrichTargetsOptions): void {
   const config = loadConfig();
   const ast = loadAst(config.configRoot, concept);
-  const store = bootstrapStore(resolveDbPath(config));
+  const store = openStoreOrExit(resolveDbPath(config));
   const { targets, coreSize, leftOut, thin, thinMessage } = collectTargets(config, store, concept, ast, opts);
   const coreInfo = { size: coreSize, leftOut, thin, ...(thinMessage ? { message: thinMessage } : {}) };
   const leftOutLine =
@@ -264,7 +264,7 @@ export type EnrichRollupConcept = {
  */
 export function enrichTargetsRollup(opts: Pick<EnrichTargetsOptions, "json" | "all">): void {
   const config = loadConfig();
-  const store = bootstrapStore(resolveDbPath(config));
+  const store = openStoreOrExit(resolveDbPath(config));
   const concepts: EnrichRollupConcept[] = [];
   for (const concept of Object.keys(config.concepts)) {
     const applied = isConceptApplied(store, concept);
@@ -437,6 +437,8 @@ function orderEdge(e: EnrichedEdge): Record<string, unknown> {
 /** Merge a partial enrichment into `<concept>.enriched.json`: upsert by key, leave the rest alone. */
 export function enrichMerge(concept: string, partialPath: string): void {
   const config = loadConfig();
+  // Merge ends in an apply; refuse a newer store before the enriched file is written.
+  openStoreOrExit(resolveDbPath(config));
   const ast = loadAst(config.configRoot, concept);
   const enrichedPath = join(config.configRoot, "scribe-output", `${concept}.enriched.json`);
   const current = loadEnriched(enrichedPath, concept);
@@ -628,7 +630,7 @@ export function orphanSummary(concept: string, plan: OrphanPlan, dryRun: boolean
 export function enrichPrune(concept: string, opts: { yes: boolean; json: boolean }): void {
   const config = loadConfig();
   const ast = loadAst(config.configRoot, concept);
-  const store = bootstrapStore(resolveDbPath(config));
+  const store = openStoreOrExit(resolveDbPath(config));
   const enrichedPath = join(config.configRoot, "scribe-output", `${concept}.enriched.json`);
   const doc = loadEnriched(enrichedPath, concept);
   const plan = planOrphansInStore(store, concept, ast, doc);

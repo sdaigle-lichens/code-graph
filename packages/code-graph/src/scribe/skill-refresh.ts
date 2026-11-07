@@ -60,7 +60,9 @@ export async function changedSkillConcepts(config: ScribeConfig, dbPath: string)
   const { getStore } = await import("./db.js");
   const { docKey, getRecord } = await import("./rows.js");
   const { isConceptApplied } = await import("./enrich.js"); // lazy: enrich.ts loads the store stack
+  const { assertStoreNotNewer } = await import("./bootstrap.js");
   const store = getStore(dbPath);
+  assertStoreNotNewer(store, dbPath); // throws NewerStoreError: the CLI exits 3, the hook reports it
   const changed: ChangedSkill[] = [];
   for (const concept of Object.keys(config.concepts)) {
     let skill;

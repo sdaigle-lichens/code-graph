@@ -3,6 +3,7 @@
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import { leavesRoot } from "./root.js";
 
 /** The largest scope the bench measured: one Haiku session never gets more files than this. */
 export const MAX_FILES_PER_SESSION = 11;
@@ -15,8 +16,6 @@ export type Split = { sessions: string[][]; notScanned: string[] };
 
 /** The scope file itself is missing or unreadable, as opposed to a bad line in it. */
 export class ScopeFileError extends Error {}
-
-const isOutside = (path: string) => path === ".." || path.startsWith("../");
 
 /**
  * The directory the scope lines are relative to: the nearest one holding `.git` (a directory, or a file
@@ -32,14 +31,16 @@ export function findRepoRoot(start: string): string {
 
 function lineProblem(path: string, repoRoot: string, configRoot: string): string | null {
   if (isAbsolute(path)) return "absolute path";
-  if (isOutside(path)) return "outside the repository";
+  if (leavesRoot(path)) return "outside the repository";
   const absolute = join(repoRoot, path);
   try {
     if (!statSync(absolute).isFile()) return "not a file";
   } catch {
     return "no such file";
   }
-  return isOutside(relative(configRoot, absolute)) ? `outside the config root ${relative(repoRoot, configRoot)}` : null;
+  return leavesRoot(relative(configRoot, absolute))
+    ? `outside the config root ${relative(repoRoot, configRoot)}`
+    : null;
 }
 
 /**

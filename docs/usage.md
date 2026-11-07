@@ -450,7 +450,7 @@ read-only `code-graph:refactor-scout` agent each (`plugin/agents/refactor-scout.
 `--json` prints `{ root, scope, sessions: [{ prompt, files }], notScanned, ignored, skippedLines: [{ line, reason }], nothingScanned }`.
 `nothingScanned` is the reason, or `null` when a session was planned.
 Exit codes: 0, 1 (an unexpected failure, one `scout failed:` line on stderr), 3 (store written by a newer
-code-graph; a known limitation, see Troubleshooting), 5 (no `scribe.config.json`), 8 (no `node:sqlite`), 11 and 12 (see Troubleshooting).
+code-graph), 5 (no `scribe.config.json`), 8 (no `node:sqlite`), 11 and 12 (see Troubleshooting).
 
 `code-graph scout --proposals` is the skill's last step, and calls no model and opens no store. Stdin holds
 the `PROPOSALS:` sections the sessions returned, one after another. It prints one block: `PROPOSALS:` and
@@ -535,7 +535,7 @@ the repo's history.
 | Exit code | Meaning                 | Fix                                          |
 | --------- | ----------------------- | -------------------------------------------- |
 | 2         | *retired*               | Was "ArangoDB unreachable"; no longer emitted |
-| 3         | Store written by a newer code-graph | Upgrade the CLI. **Known limitation:** no command reaches this exit today. The store is bootstrapped (`applySchema` overwrites `user_version`) before the version check reads it, so a newer store is downgraded instead of refused. Fixing the shared preflight is a separate ticket |
+| 3         | Store written by a newer code-graph | Upgrade the CLI. Every store command reads the stored version first and leaves a newer store unchanged |
 | 4         | Ambiguous symbol        | Qualify with concept: `impact concept::name` |
 | 5         | No `scribe.config.json` | Create one at project root                   |
 | 6         | Zero search results     | Rephrase query or use Explore agent          |
