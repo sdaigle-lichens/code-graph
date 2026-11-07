@@ -144,8 +144,9 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   candidate unreviewed (ticket 045 cites an installing-maestro run reported as 4 inserted, 2 archived with
   enrichment lost). Have a person run `apply <concept>` and answer the prompts.
 - `bootstrapStore` (`scribe/bootstrap.ts`) reads `PRAGMA user_version` before `applySchema` writes it and throws
-  `NewerStoreError` for a newer store; every store command opens through `openStoreOrExit` (exit 3, store left
-  unchanged). A version check placed after bootstrap would never fire.
+  `NewerStoreError` for a newer store; the store commands open through `openStoreOrExit` (exit 3, store left
+  unchanged), while `skills status` (`graphFreshness`) and `refresh-skills` call `assertStoreNotNewer` directly. A version
+  check placed after bootstrap would never fire. Guarded by `scribe/schema-version.test.ts`.
 
 ## Relationships
 

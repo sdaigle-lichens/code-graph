@@ -65,6 +65,7 @@ before(() => {
     })
   );
   write("partial.json", JSON.stringify({ concept: "app", vertices: [], edges: [] }));
+  write("scope.txt", "src/app/main.ts\n");
   fs.mkdirSync(path.join(root, "node_modules"));
   fs.symlinkSync(TS_MORPH, path.join(root, "node_modules", "ts-morph"), "dir");
   storePath = path.join(root, "scribe-output", "graph.db");
@@ -96,6 +97,7 @@ describe("every store command refuses a store written by a newer code-graph", ()
     ["skills status", ["skills", "status"]],
     ["refresh-skills", ["refresh-skills"]],
     ["delete-concept", ["delete-concept", "app", "--yes"]],
+    ["scout", ["scout", "scope.txt"]],
   ];
   for (const [name, args] of commands) {
     it(`${name}: exit 3, the upgrade message, the stored version unchanged`, () => {
@@ -109,6 +111,32 @@ describe("every store command refuses a store written by a newer code-graph", ()
       assert.equal(fs.existsSync(path.join(root, "scribe-output", "app.enriched.json")), false);
     });
   }
+});
+
+describe("refresh-skills --hook on a newer store reports the upgrade and never fails the stop", () => {
+  it("exit 0, a systemMessage carrying the upgrade message, the stored version and config unchanged, no lock left", () => {
+    setVersion(storePath, NEWER);
+    const config = fs.readFileSync(path.join(root, "scribe.config.json"), "utf8");
+    const env = { ...process.env, XDG_CACHE_HOME: path.join(tmp, "cache") };
+    delete env.CLAUDE_PLUGIN_DATA;
+    delete env.CLAUDE_PROJECT_DIR;
+    const r = spawnSync("node", [DIST, "refresh-skills", "--hook"], {
+      cwd: root,
+      encoding: "utf8",
+      input: JSON.stringify({ cwd: root }),
+      env,
+      timeout: 120_000,
+    });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const out = JSON.parse(r.stdout.trim()) as { systemMessage?: unknown };
+    assert.equal(typeof out.systemMessage, "string", r.stdout);
+    assert.match(out.systemMessage as string, /written by a newer code-graph/);
+    assert.match(out.systemMessage as string, new RegExp(`${NEWER} > ${SCHEMA_VERSION}`));
+    assert.equal(getVersion(storePath), NEWER);
+    assert.equal(fs.readFileSync(path.join(root, "scribe.config.json"), "utf8"), config);
+    assert.equal(fs.existsSync(path.join(root, "scribe-output", ".refresh-skills.lock")), false);
+    assert.equal(fs.existsSync(path.join(root, "scribe-output", "app.enriched.json")), false);
+  });
 });
 
 describe("a new or older store still opens and is stamped with the current version", () => {

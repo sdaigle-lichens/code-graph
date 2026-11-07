@@ -160,12 +160,12 @@ code-graph refresh-skills [--json]
 
 Runs `extract` then `apply --defer-renames` for every concept whose SKILL.md differs from the body last
 applied to the store (its `docs/<concept>::skill` row). A concept never applied is left to
-`add-concept`. Exit codes: 1 if any concept failed, 10 if any was deferred, else 0. A lock file
+`add-concept`. Exit codes: 1 if any concept failed, 10 if any was deferred, 3 if the store was written by a newer code-graph (left unchanged), else 0. A lock file
 `.refresh-skills.lock` next to `graph.db` stops two runs at once; a lock older than 120 s is taken over.
 
 The plugin runs `refresh-skills --hook` on **Stop** and **SubagentStop** (`plugin/hooks/hooks.json`,
 timeout 120 s), so the "extract + apply after a SKILL.md" rule no longer depends on an agent
-remembering it. The hook reports through a `systemMessage` (refreshed, deferred or failed concepts) and
+remembering it. The hook reports through a `systemMessage` (refreshed, deferred or failed concepts, or a newer store) and
 always exits 0. It is silent when there is no `scribe.config.json`, no concepts, no tsconfig, no store,
 no `node:sqlite`, or no changed SKILL.md. A deferred concept is named with the command to run
 (`code-graph apply <concept>` in a terminal, never `--approve-drift`) and is reported again at every

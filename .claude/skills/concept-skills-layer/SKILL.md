@@ -31,7 +31,8 @@ One target keeps the single-skill output shape.
 globs. An unknown or malformed sha reports unknown freshness instead of failing. When a graph
 store exists the report also carries per-concept graph freshness: changed and stale vertex counts
 and whether the concept was extracted and enriched. `changed` compares `<concept>.ast.json` with the
-store, so it reflects source edits only after `extract`; same for `drift --json`. Source edits nobody
+store, so it reflects source edits only after `extract`; same for `drift --json`. A store written by a newer
+code-graph exits 3 here (`assertStoreNotNewer`), the one store error it does not swallow. Source edits nobody
 has extracted are counted separately as `unextracted {changed,new,removed}` **files**
 (`concepts[].unextracted` in `skills status`, `unextracted` in `drift --json`; text `unextracted: N
 changed, N new, N removed file(s)`): `scribe/unextracted.ts` rescans the globs and diffs against
