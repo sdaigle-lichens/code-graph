@@ -80,6 +80,11 @@
       "name": "haiku-subagents-with-graph-075",
       "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
       "added_at": "2026-11-07T02:02:33.019Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-076",
+      "task": "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "added_at": "2026-11-07T18:36:08.683Z"
     }
   ],
   "log": [
@@ -853,6 +858,56 @@
       "kind": "ack",
       "id": "r023",
       "at": "2026-11-07T18:05:02.152Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "review",
+      "id": "m026",
+      "task": "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.review.md",
+      "at": "2026-11-07T18:53:54.404Z",
+      "from": "haiku-subagents-with-graph-076"
+    },
+    {
+      "kind": "verdict",
+      "id": "m026",
+      "task": "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-07T18:54:15.982Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "review",
+      "id": "m027",
+      "task": "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.review-2.md",
+      "at": "2026-11-07T19:05:17.753Z",
+      "from": "haiku-subagents-with-graph-076"
+    },
+    {
+      "kind": "verdict",
+      "id": "m027",
+      "task": "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-07T19:05:29.128Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r024",
+      "task": "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "file": "inbox/r024-076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md",
+      "at": "2026-11-07T19:21:43.597Z",
+      "from": "haiku-subagents-with-graph-076"
+    },
+    {
+      "kind": "ack",
+      "id": "r024",
+      "at": "2026-11-07T19:22:00.755Z",
       "by": "haiku-with-code-graph-manager"
     }
   ]

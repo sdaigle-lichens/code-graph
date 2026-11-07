@@ -55,7 +55,7 @@ Every earlier ticket (044–054) is done and merged; only 066 is open.
 | 7 | 073 decided-against list for the scout (built, 76cb516, 00c1949) | branch `haiku-subagents-with-graph` | none unless a value needs src (then whoever merges bumps) | `docs/evals.md`, `bench/README.md`, `bench/refactor/` (generated) |
 | 8 | 074 record the 073 results (done, 68fcadc) | branch `haiku-subagents-with-graph` | none | `docs/evals.md` |
 | 9 | 075 ship the scout as a plugin skill (done, 740b987 on `075-refactor-scout`, 0.3.43; not pushed; user smoke run 2026-11-07: Haiku spawn works, 1 session on 4 indexed files, 4 test files ignored, 4 proposals, no code changed, but proposal paths came back absolute instead of git-root-relative; path fix 4a6086e, r023 acked; a second smoke run checks the `--proposals` heredoc step) | `main` at 518d088 | 075 bumps | `plugin/scripts/code-graph.cjs` (generated), the three version files, `docs/usage.md`, `bench/refactor.mjs` if the primer builder is shared |
-| 10 | 076 schema-version check and turbo skill inputs (filed, blocked by 075) | `main` after 075 is merged | 076 bumps, after 075's 0.3.43 | the three version files, `plugin/scripts/code-graph.cjs` (generated), `docs/usage.md`, `scout-cli-exits.test.ts` (075's), `turbo.json` |
+| 10 | 076 schema-version check, turbo skill inputs and one shared scout "leaves the root" helper (done, fbbc18d on `076-schema-version` on top of 2d70eeb, 0.3.44; not pushed; r024 acked: pnpm verify 14/14 and just eval 7/7 on fbbc18d; one manager redirect, m026; stacked on 075 at the user's request, 2026-11-07: no blockedBy edge; the directory-walker cleanup the scout also proposed is skipped for now) | branch `076-schema-version` from `075-refactor-scout` (735751b); merge 075 first, then 076, rebasing if 075 changes | 076 bumps, after 075's 0.3.43 | the three version files, `plugin/scripts/code-graph.cjs` (generated), `docs/usage.md`, `scout-cli-exits.test.ts`, `scout/scope.ts` and `scout/proposals.ts` (075's), `turbo.json` |
 
 069 was dropped, not built (user, 2026-11-06). The epic's work lives on branch
 `haiku-subagents-with-graph` (created from main at 5323c6e, not pushed).
@@ -191,6 +191,22 @@ Every earlier ticket (044–054) is done and merged; only 066 is open.
 - 075's Maestro runtime issues went straight to `maestro-manager-task-158` (user, 2026-11-07, instead
   of a post-mortem): maestro tasks 159 (channel files lost on a resumable restart) and 160 (false
   hand-off flags), both ready there. The code-graph items are covered by 075 round 2 and ticket 076.
+- The scout's final interface went to `maestro-manager-task-158` (user, 2026-11-07, after 076): exit
+  codes 3, 5, 8, 11, 12, 13 and 1; git-root-relative paths; the `nothing scanned:` and
+  `outside the repository:` lines; the `--proposals` heredoc step may prompt outside auto mode; no
+  realpath, and one scout at a time per checkout. No maestro-side change is needed for 075 or 076.
+  Their reply: 158 needs nothing more. Maestro does not parse exit codes or output, and saves what the
+  skill prints. A heredoc prompt in default mode is acceptable. Two optional code-graph improvements,
+  not filed: pass proposals through a Write file instead of a heredoc, and a per-run prompt directory
+  for two epics hitting a boundary at once in one checkout. 158 and 159 are on maestro
+  `feat/epic-boundary-skills` (0.13.28).
+- The answers-file change was made by the manager on `076-schema-version` at the user's request
+  (2026-11-07, no ticket, no worker): the plan prints `answers: <abs path>`
+  (`scribe-output/scout/answers.md`), the skill writes the sections there with Write
+  (`Edit(scribe-output/scout/**)` in `allowed-tools`) and runs `scout --proposals "<answers file>"`;
+  stdin still works without the argument. Still 0.3.44 (076 is unmerged). The forced turbo run was
+  14/14 green with 0 cached; `just eval` was not re-run (no retrieval change). Not yet confirmed by a
+  default-mode skill run. The per-run prompt directory was skipped.
 - Maestro task 158 written by `maestro-bf` (ready, not implemented, reported 2026-11-07), the contract
   for any scout skill: it gets the path of a scope file, one repo-relative existing file per line.
   Epic start scope: `## Touched surfaces` entries that resolve to files. Epic end scope: existing files
