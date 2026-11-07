@@ -23,8 +23,8 @@
     }
   },
   "skills": {
-    "version": "1.1",
-    "last_update": "9f0fd699a9a8e3155bd898b5da694724574e0ef2",
+    "version": "1.2",
+    "last_update": "ad3696951015be5669d0762eacaa3fcf9028fd35",
     "agents": [
       "backend",
       "frontend",

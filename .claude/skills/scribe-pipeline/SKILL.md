@@ -3,8 +3,8 @@ name: scribe-pipeline
 description: How the code-graph write path works — extract a concept to an .ast.json, apply it into the SQLite store with drift detection, and ingest the concept's SKILL.md as a doc vertex. Read before changing packages/code-graph/src/scribe.
 metadata:
   type: concept-skill
-  version: "1.4"
-  last-update: 5dc69015dfa884a1ddb1e262e99232350c67cd9d
+  version: "1.5"
+  last-update: ad3696951015be5669d0762eacaa3fcf9028fd35
 ---
 
 # Scribe pipeline
@@ -23,14 +23,14 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants) |
 | `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `HOOK_TIMEOUT_SECONDS` (120), `takeLock`/`releaseLock`, and re-exports `EXIT_RENAMES_DEFERRED` (10, defined in `scribe/exit-codes.ts`). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
 | `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10); `apply.ts` reads it from here so the write path never imports the hook module |
-| `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`) |
+| `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`); the newer-store refusal: `assertStoreNotNewer` / `NewerStoreError`, and `openStoreOrExit` (exit 3), which every store command opens through (see Gotchas) |
 | `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
 | `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`) and `enrich prune` (orphans `apply` cannot remap; dry run unless `--yes`); orphan planning and remap live here too (`planOrphans`, `applyRemap`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`, `refresh-skills`) |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
-| `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` |
+| `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` (a newer store exits 3 here, the one read error it does not swallow) |
 | `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
 | `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs |
-| `scribe/rows.ts` | row shaping and `toMatchExpr` (query stopwords are stripped in JS) |
+| `scribe/rows.ts` | row shaping and `toMatchExpr`, which quotes and ORs `queryTokens` (query stopwords are stripped in JS; `search` also reads `queryTokens` for its whole-name boost) |
 
 ## Invariants
 
