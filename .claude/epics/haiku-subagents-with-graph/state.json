@@ -75,6 +75,11 @@
       "name": "haiku-subagents-with-graph-074",
       "task": "074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md",
       "added_at": "2026-11-07T00:27:41.329Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-075",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "added_at": "2026-11-07T02:02:33.019Z"
     }
   ],
   "log": [
@@ -770,6 +775,84 @@
       "kind": "ack",
       "id": "r020",
       "at": "2026-11-07T00:36:49.102Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "review",
+      "id": "m024",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.review.md",
+      "at": "2026-11-07T02:19:53.088Z",
+      "from": "haiku-subagents-with-graph-075"
+    },
+    {
+      "kind": "verdict",
+      "id": "m024",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-07T02:20:28.188Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "review",
+      "id": "m025",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.review-2.md",
+      "at": "2026-11-07T02:37:12.961Z",
+      "from": "haiku-subagents-with-graph-075"
+    },
+    {
+      "kind": "verdict",
+      "id": "m025",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-07T02:37:38.772Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r021",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "file": "inbox/r021-075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "at": "2026-11-07T14:05:54.946Z",
+      "from": "haiku-subagents-with-graph-075"
+    },
+    {
+      "kind": "report",
+      "id": "r022",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "file": "inbox/r022-075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "at": "2026-11-07T14:21:08.158Z",
+      "from": "haiku-subagents-with-graph-075"
+    },
+    {
+      "kind": "ack",
+      "id": "r021",
+      "at": "2026-11-07T14:21:22.489Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "ack",
+      "id": "r022",
+      "at": "2026-11-07T14:21:23.066Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r023",
+      "task": "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "file": "inbox/r023-075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md",
+      "at": "2026-11-07T18:04:42.300Z",
+      "from": "haiku-subagents-with-graph-075"
+    },
+    {
+      "kind": "ack",
+      "id": "r023",
+      "at": "2026-11-07T18:05:02.152Z",
       "by": "haiku-with-code-graph-manager"
     }
   ]
