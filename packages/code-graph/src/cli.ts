@@ -673,6 +673,27 @@ program
   });
 
 program
+  .command("scout <scope-file>")
+  .description(
+    "prepare the refactor scout: split a scope file (one file per line, relative to the git root) into Haiku session prompts with a metrics primer; calls no model"
+  )
+  .option("--json", "output the plan as JSON")
+  .action(async (scopeFile: string, opts: { json?: boolean }) => {
+    const { planScout, formatPlan, ScoutStop } = await import("./scout/run.js");
+    try {
+      const plan = await planScout(scopeFile);
+      console.log(opts.json ? JSON.stringify(plan, null, 2) : formatPlan(plan));
+    } catch (err) {
+      if (err instanceof ScoutStop) {
+        console.error(err.message);
+        process.exit(err.exitCode);
+      }
+      console.error("scout failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
   .command("delete-concept <name>")
   .description("archive a concept: marks vertices/edges archived, removes from config + artifacts")
   .option("--yes", "skip interactive confirmation")

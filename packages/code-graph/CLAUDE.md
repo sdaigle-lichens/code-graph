@@ -8,6 +8,10 @@ from here.
 - `src/scribe/` writes the store (bootstrap, extract, apply, enrich, delete-concept); `src/query/` reads it;
   `src/skills/` is layer 1 (`code-graph skills *`); `src/eval/harness.ts` runs Layer-A eval and
   `src/eval/store.ts` opens the stripped temp copy it measures (`--store as-is` measures the store untouched).
+- `src/scout/` is the refactor scout's $0 half (`code-graph scout`, driven by the `refactor-scout` plugin skill). `primer.ts` and
+  `prompt.ts` are ports of the bench's measured text; `bench/refactor.mjs` keeps its own copy (its stored primers are fixed by
+  measured commits) and `scout/scout.test.ts` pins the two together, so change them on purpose. The store holds no import
+  edges: `run.ts` takes fan-in/out, hubs, cycles and exports from the catalog (ts-morph), concepts and cross relations from the store. `splitScope` packs groups largest first, so the session cap drops the smallest sessions.
 - `eval/tasks.json` is the default Layer-A fixture shipped in the npm `files` set — not this
   repo's own gate (that is the root `eval/`).
 

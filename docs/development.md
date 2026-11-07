@@ -96,11 +96,14 @@ code-graph/                 private workspace root — turbo.json, pnpm-workspac
       graph.md              /graph slash command
     hooks/
       hooks.json            Stop + SubagentStop run `refresh-skills --hook` (120 s); no session context
+    agents/
+      refactor-scout.md     read-only Haiku agent that the refactor-scout skill spawns
     skills/                 each <name>/SKILL.md; every one calls only the bundled CLI
       create-concept-skills, update-concept-skills, update-single-concept-skill   the concept-skill flows
       scribe                placement rule, extract+apply rule, gap channel, enrichment procedure
       cleanup-skill, load-concept-skills, explore-concept-skills                    building blocks
       code-architecture-design, use-code-architecture-design-check                  design gate + brief
+      refactor-scout                                                                advisory Haiku scan of a scope file (src/scout/, `code-graph scout`; spawns plugin/agents/refactor-scout.md)
       code-graph-install, code-graph-update, code-graph-uninstall                   per-project setup
       add-concept, code-graph-retrieval                                            graph-side skills (retrieval is user-run, model invocation disabled)
     scripts/
