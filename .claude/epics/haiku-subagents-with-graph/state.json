@@ -2,8 +2,8 @@
   "slug": "haiku-subagents-with-graph",
   "created_at": "2026-10-28T16:07:30.278Z",
   "manager": {
-    "name": "code-graph-manager-haiku-epic",
-    "set_at": "2026-10-29T22:16:29.597Z"
+    "name": "haiku-with-code-graph-manager",
+    "set_at": "2026-11-06T13:54:27.932Z"
   },
   "workers": [
     {
@@ -35,6 +35,46 @@
       "name": "haiku-subagents-with-graph-054",
       "task": "054-stop-steering-claude-code-to-code-graph-before-grep-keep-retrieval-user-run.md",
       "added_at": "2026-10-30T22:30:03.830Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-066",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "added_at": "2026-11-05T14:50:59.354Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-068",
+      "task": "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "added_at": "2026-11-05T16:33:29.371Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-067",
+      "task": "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "added_at": "2026-11-05T18:20:46.148Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-070",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "added_at": "2026-11-05T19:41:15.481Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-071",
+      "task": "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "added_at": "2026-11-06T19:12:31.610Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-072",
+      "task": "072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md",
+      "added_at": "2026-11-06T20:56:47.534Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-073",
+      "task": "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "added_at": "2026-11-06T22:22:04.526Z"
+    },
+    {
+      "name": "haiku-subagents-with-graph-074",
+      "task": "074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md",
+      "added_at": "2026-11-07T00:27:41.329Z"
     }
   ],
   "log": [
@@ -251,6 +291,486 @@
       "file": "inbox/r008-052-primer-from-the-task-text-at-haiku-subagent-start.md",
       "at": "2026-11-01T01:05:12.079Z",
       "from": "maestro-733e9d42"
+    },
+    {
+      "kind": "ack",
+      "id": "r008",
+      "at": "2026-11-05T14:04:38.226Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m007",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.review.md",
+      "at": "2026-11-05T15:05:17.796Z",
+      "from": "haiku-subagents-with-graph-066"
+    },
+    {
+      "kind": "verdict",
+      "id": "m007",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-05T15:05:58.629Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m008",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.review-2.md",
+      "at": "2026-11-05T15:13:22.851Z",
+      "from": "haiku-subagents-with-graph-066"
+    },
+    {
+      "kind": "verdict",
+      "id": "m008",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T15:13:39.484Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m009",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "round": 3,
+      "file": ".claude/maestro-tasks/066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.review-3.md",
+      "at": "2026-11-05T15:35:56.239Z",
+      "from": "haiku-subagents-with-graph-066"
+    },
+    {
+      "kind": "verdict",
+      "id": "m009",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T15:36:13.258Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "report",
+      "id": "r009",
+      "task": "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "file": "inbox/r009-066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "at": "2026-11-05T15:55:29.822Z",
+      "from": "haiku-subagents-with-graph-066"
+    },
+    {
+      "kind": "ack",
+      "id": "r009",
+      "at": "2026-11-05T15:55:54.147Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m010",
+      "task": "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.review.md",
+      "at": "2026-11-05T16:51:08.074Z",
+      "from": "haiku-subagents-with-graph-068"
+    },
+    {
+      "kind": "verdict",
+      "id": "m010",
+      "task": "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-05T16:51:28.104Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m011",
+      "task": "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.review-2.md",
+      "at": "2026-11-05T17:03:39.446Z",
+      "from": "haiku-subagents-with-graph-068"
+    },
+    {
+      "kind": "verdict",
+      "id": "m011",
+      "task": "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T17:04:03.185Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "report",
+      "id": "r010",
+      "task": "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "file": "inbox/r010-068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md",
+      "at": "2026-11-05T17:31:01.120Z",
+      "from": "haiku-subagents-with-graph-068"
+    },
+    {
+      "kind": "ack",
+      "id": "r010",
+      "at": "2026-11-05T17:31:23.940Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m012",
+      "task": "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.review.md",
+      "at": "2026-11-05T18:24:09.721Z",
+      "from": "haiku-subagents-with-graph-067"
+    },
+    {
+      "kind": "verdict",
+      "id": "m012",
+      "task": "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-05T18:24:24.259Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m013",
+      "task": "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.review-2.md",
+      "at": "2026-11-05T18:25:25.604Z",
+      "from": "haiku-subagents-with-graph-067"
+    },
+    {
+      "kind": "verdict",
+      "id": "m013",
+      "task": "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T18:25:45.477Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "report",
+      "id": "r011",
+      "task": "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "file": "inbox/r011-067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "at": "2026-11-05T19:14:49.796Z",
+      "from": "haiku-subagents-with-graph-067"
+    },
+    {
+      "kind": "ack",
+      "id": "r011",
+      "at": "2026-11-05T19:15:19.097Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m014",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review.md",
+      "at": "2026-11-05T20:08:41.376Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m014",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "redirect",
+      "effective": "redirect",
+      "at": "2026-11-05T20:09:01.001Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m015",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 2,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-2.md",
+      "at": "2026-11-05T20:12:54.233Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m015",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T20:13:05.377Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m016",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 3,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-3.md",
+      "at": "2026-11-05T20:35:09.874Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m016",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T20:35:25.762Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m017",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 4,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-4.md",
+      "at": "2026-11-05T21:16:25.573Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m017",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T21:16:44.068Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m018",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 5,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-5.md",
+      "at": "2026-11-05T21:34:19.123Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m018",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T21:34:34.008Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m019",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 6,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-6.md",
+      "at": "2026-11-05T21:54:06.207Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m019",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-05T21:54:17.324Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m020",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 7,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-7.md",
+      "at": "2026-11-06T01:27:43.858Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m020",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-06T01:27:56.052Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "review",
+      "id": "m021",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "round": 8,
+      "file": ".claude/maestro-tasks/070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.review-8.md",
+      "at": "2026-11-06T01:41:58.156Z",
+      "from": "haiku-subagents-with-graph-070"
+    },
+    {
+      "kind": "verdict",
+      "id": "m021",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-06T01:42:09.431Z",
+      "by": "maestro-mgr-1b10b580"
+    },
+    {
+      "kind": "report",
+      "id": "r012",
+      "task": "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "file": "inbox/r012-070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md",
+      "at": "2026-11-06T13:15:29.586Z",
+      "from": "haiku-refactor-agent"
+    },
+    {
+      "kind": "ack",
+      "id": "r012",
+      "at": "2026-11-06T13:18:08.337Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "review",
+      "id": "m022",
+      "task": "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.review.md",
+      "at": "2026-11-06T19:40:28.854Z",
+      "from": "haiku-subagents-with-graph-071"
+    },
+    {
+      "kind": "verdict",
+      "id": "m022",
+      "task": "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-06T19:40:46.977Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r013",
+      "task": "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "file": "inbox/r013-071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "at": "2026-11-06T19:55:41.343Z",
+      "from": "haiku-subagents-with-graph-071"
+    },
+    {
+      "kind": "report",
+      "id": "r014",
+      "task": "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "file": "inbox/r014-071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md",
+      "at": "2026-11-06T20:08:59.728Z",
+      "from": "haiku-subagents-with-graph-071"
+    },
+    {
+      "kind": "ack",
+      "id": "r013",
+      "at": "2026-11-06T20:09:13.817Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "ack",
+      "id": "r014",
+      "at": "2026-11-06T20:09:13.870Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r015",
+      "task": "072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md",
+      "file": "inbox/r015-072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md",
+      "at": "2026-11-06T21:02:27.213Z",
+      "from": "haiku-subagents-with-graph-072"
+    },
+    {
+      "kind": "report",
+      "id": "r016",
+      "task": "072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md",
+      "file": "inbox/r016-072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md",
+      "at": "2026-11-06T21:04:21.901Z",
+      "from": "haiku-subagents-with-graph-072"
+    },
+    {
+      "kind": "ack",
+      "id": "r015",
+      "at": "2026-11-06T21:04:36.502Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "ack",
+      "id": "r016",
+      "at": "2026-11-06T21:04:36.878Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "review",
+      "id": "m023",
+      "task": "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "round": 1,
+      "file": ".claude/maestro-tasks/073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.review.md",
+      "at": "2026-11-06T22:32:43.236Z",
+      "from": "haiku-subagents-with-graph-073"
+    },
+    {
+      "kind": "verdict",
+      "id": "m023",
+      "task": "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "verdict": "on-track",
+      "effective": "on-track",
+      "at": "2026-11-06T22:32:55.371Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r017",
+      "task": "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "file": "inbox/r017-073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "at": "2026-11-06T22:44:24.456Z",
+      "from": "haiku-subagents-with-graph-073"
+    },
+    {
+      "kind": "report",
+      "id": "r018",
+      "task": "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "file": "inbox/r018-073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md",
+      "at": "2026-11-06T22:45:34.750Z",
+      "from": "haiku-subagents-with-graph-073"
+    },
+    {
+      "kind": "ack",
+      "id": "r017",
+      "at": "2026-11-06T22:45:59.699Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "ack",
+      "id": "r018",
+      "at": "2026-11-06T22:46:00.074Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "report",
+      "id": "r019",
+      "task": "074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md",
+      "file": "inbox/r019-074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md",
+      "at": "2026-11-07T00:33:17.447Z",
+      "from": "haiku-subagents-with-graph-074"
+    },
+    {
+      "kind": "report",
+      "id": "r020",
+      "task": "074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md",
+      "file": "inbox/r020-074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md",
+      "at": "2026-11-07T00:36:26.118Z",
+      "from": "haiku-subagents-with-graph-074"
+    },
+    {
+      "kind": "ack",
+      "id": "r019",
+      "at": "2026-11-07T00:36:48.318Z",
+      "by": "haiku-with-code-graph-manager"
+    },
+    {
+      "kind": "ack",
+      "id": "r020",
+      "at": "2026-11-07T00:36:49.102Z",
+      "by": "haiku-with-code-graph-manager"
     }
   ]
 }
