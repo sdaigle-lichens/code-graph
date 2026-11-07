@@ -263,6 +263,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
   `explore-concept-skills`
 - Design: `code-architecture-design`, `use-code-architecture-design-check`
 - Retrieval (on demand, user-run: `/code-graph:code-graph-retrieval` or `/graph`; Claude does not load it by itself): `code-graph-retrieval`
+- Advisory scan: `refactor-scout <scope-file>` — spawns its own read-only Haiku agents (`code-graph:refactor-scout`) over a list of files and prints a `PROPOSALS:` block for a person to triage; changes no code (see [`scout`](#scout-refactor-scout))
 - Lifecycle: `code-graph-install`, `code-graph-update`, `code-graph-uninstall`
 
 ## CLI Reference
@@ -287,6 +288,8 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph query file <filepath>`    | `code-graph query file src/store/workorder.store.ts`                 | Query all live vertices in a file with their edges        |
 | `code-graph catalog --json`           | `code-graph catalog --json --tsconfig tsconfig.app.json`             | Store-free ts-morph digest: units, exports, imports, fan-in/out, hubs (drives concept proposals) |
 | `code-graph deps install`             | `code-graph deps install`                                            | Install pinned ts-morph into the plugin deps directory (`deps status` shows what resolves) |
+| `code-graph scout <scope-file>`       | `code-graph scout .claude/epics/my-epic/scope.txt`                   | Prepare the refactor scout's Haiku session prompts for a list of files; calls no model |
+| `code-graph scout --proposals`        | `code-graph scout --proposals < sections.txt`                        | Print one `PROPOSALS:` block with git-root-relative paths from the sessions' sections on stdin (no scope file) |
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
 | `code-graph eval [--tasks <path>] [--store <stripped\|as-is>]` | `code-graph eval --store as-is`                      | Run layer-A eval harness; `stripped` (default) measures a temp copy without purposes/tags |
 
@@ -390,6 +393,7 @@ window of `skills status` and the graph steps are skipped.
 | `scribe` | Skill vs `docs/` placement; extract + apply after a SKILL.md (enforced by the Stop hook); gap channel (incl. "enrich only" gaps for un-enriched search hits); enrichment procedure | none |
 | `cleanup-skill`, `load-concept-skills`, `explore-concept-skills` | Building blocks the flows call | none |
 | `code-architecture-design`, `use-code-architecture-design-check` | Design gate and brief; explore uses `query cross` / `impact` | none |
+| `refactor-scout` | Advisory `PROPOSALS:` block for a scope file, from its own Haiku agents; needs an index and a `tsconfig` key in `scribe.config.json`, else it says so in one line and stops. A person triages the output; it changes no code | none |
 | `code-graph-install` / `-update` / `-uninstall` | Enable/check/disable the plugin per project; install migrates `.claude/concept-skills.json` into `scribe.config.json` keeping its version | none |
 | `add-concept` | Add one concept to an existing config via seed-driven expansion (`/add-concept [seed]`) | none (hands off to `update-single-concept-skill` for the SKILL.md) |
 
@@ -413,6 +417,59 @@ malformed or unknown to git yields `unknownFreshness: true` (`reason: "malformed
 Each concept also carries `unextracted: { changed, new, removed, files[] }` (text form
 `unextracted: N changed, N new, N removed file(s)`): source files changed since the last `extract`,
 which `graph.changed` cannot see. Null until the next `extract` records `meta.files`.
+
+### `scout` (refactor scout)
+
+Two forms: `code-graph scout <scope-file> [--json]` and `code-graph scout --proposals` (below). The scope file
+is optional only with `--proposals`; `scout` with neither exits 1. The first form does the part of the `refactor-scout` skill that costs no model
+call. The scope file holds one existing file per line, relative to the git root, the nearest directory
+at or above `scribe.config.json` that holds `.git` (the config's own directory outside a git repository).
+A relative `<scope-file>` resolves against the project. A config in a git subdirectory needs an absolute
+`<scope-file>`, and the session started in that subdirectory or `--root`: from the git root the config is not
+found (exit 5), and a relative `<scope-file>` does not resolve from the git root (exit 11 if it is not in the
+config directory). The command writes one prompt file per session to
+`scribe-output/scout/session-<n>.md`, replacing the previous run's, and prints the plan: a `root: <git root>`
+line and one `session <n>: <prompt file>: <files>` line per session. The skill spawns the sessions, one
+read-only `code-graph:refactor-scout` agent each (`plugin/agents/refactor-scout.md`: Haiku, `Read`, `Grep`,
+`Glob`). Every path in the plan and the prompts is relative to the git root, so proposals use the scope's paths.
+
+- **Scope:** blank lines mean nothing. A line that is absolute, leaves the repository, or is not an existing
+  file is named under `skipped lines:` with its reason, and the run goes on. So is an existing file outside the
+  config root, with `scribe.config.json` in a subdirectory of the repository: no index of this config can hold it.
+- **Index:** a file the catalog does not cover (generated, for example) is ignored and counted under `ignored:`.
+- **Split:** up to 11 indexed files form one session. A larger scope is cut along its import links into groups
+  of at most 11; small groups share a session. A run spends at most 5 sessions (55 files), and the files of
+  the smallest sessions past that are named under `not scanned:`.
+- **Nothing to scan:** when no session remains the plan ends with one `nothing scanned: <why>` line, exit 0. It
+  never prints `PROPOSALS: none`, which means a scan ran and proposed nothing: an empty or unscannable scope
+  says nothing about the code.
+- **Primer:** per session, fan-in and fan-out, hubs, import cycles, exports no other source file mentions,
+  cross-concept import edges and `query cross`. Concepts and cross-concept relations come from the store,
+  which holds no import edges; the rest comes from the catalog, so `ts-morph` must resolve (`deps status`).
+
+`--json` prints `{ root, scope, sessions: [{ prompt, files }], notScanned, ignored, skippedLines: [{ line, reason }], nothingScanned }`.
+`nothingScanned` is the reason, or `null` when a session was planned.
+Exit codes: 0, 1 (an unexpected failure, one `scout failed:` line on stderr), 3 (store written by a newer
+code-graph; a known limitation, see Troubleshooting), 5 (no `scribe.config.json`), 8 (no `node:sqlite`), 11 and 12 (see Troubleshooting).
+
+`code-graph scout --proposals` is the skill's last step, and calls no model and opens no store. Stdin holds
+the `PROPOSALS:` sections the sessions returned, one after another. It prints one block: `PROPOSALS:` and
+every bullet found after a `PROPOSALS:` line, prose or not (`- `, `* `, `1. ` or `1) `, each printed as a `- ` line;
+only lines that are not bullets are dropped), or `PROPOSALS: none` when there is none.
+Each line's path (the text before the first `: `, an optional `:<line>` or `:<line>-<line>` suffix kept
+apart and backticks around the path dropped, whether the suffix sits inside them or after them: `` `a.ts:12` ``
+and `` `a.ts`:12 `` both print `a.ts:12`) is made relative to the git root: an absolute path inside the repository
+loses the root, `./` and `a/../` are normalised, and with `scribe.config.json` in a subdirectory a relative
+path is taken from the git root when it exists there, else from the config root when it exists there (for a
+file neither has, the same test runs on its directory; the git root wins a tie). A `../` path is judged from
+the config root, so `../shared/x.ts` from `pkg/` prints `shared/x.ts`; the repository root itself prints `.`.
+An absolute path outside the repository, or a relative one that leaves the git root from the config root, is kept as given and named before the block on one
+`outside the repository: <n> path(s) kept as given: <paths>` line. The rest of each line is kept as returned. There is no realpath: a path written through a symlink or macOS's
+`/tmp` (`/private/tmp`) alias does not match the git root's spelling, so it is kept as given and named as outside the repository.
+It takes no `<scope-file>` and no `--json` (exit 1).
+Exit codes: 0, 1 (a scope file or `--json` given), 5 (no `scribe.config.json`), 8 (no `node:sqlite`, as for
+every `scout`), 13 (no `PROPOSALS:` line on stdin: no session answered, so nothing is printed on stdout and
+never `PROPOSALS: none`).
 
 ### `query vertex` calling forms
 
@@ -478,14 +535,17 @@ the repo's history.
 | Exit code | Meaning                 | Fix                                          |
 | --------- | ----------------------- | -------------------------------------------- |
 | 2         | *retired*               | Was "ArangoDB unreachable"; no longer emitted |
-| 3         | Store written by a newer code-graph | Upgrade the CLI                  |
+| 3         | Store written by a newer code-graph | Upgrade the CLI. **Known limitation:** no command reaches this exit today. The store is bootstrapped (`applySchema` overwrites `user_version`) before the version check reads it, so a newer store is downgraded instead of refused. Fixing the shared preflight is a separate ticket |
 | 4         | Ambiguous symbol        | Qualify with concept: `impact concept::name` |
 | 5         | No `scribe.config.json` | Create one at project root                   |
 | 6         | Zero search results     | Rephrase query or use Explore agent          |
 | 7         | `search` low confidence | Results are printed, but the top cluster is a weak match or its concept is un-enriched (`LOW_CONFIDENCE_MIN_SCORE`, `LOW_CONFIDENCE_MIN_ENRICHED` in `query/search.ts`). Verify with grep or the concept's SKILL.md. `--json` sets `low_confidence: true` and `low_confidence_reason`. An exact symbol-name hit and a docs-only concept are never low confidence |
-| 8         | `node:sqlite` unavailable | Any command that opens the store (`search`, `query *`, `status`, `bootstrap`, `reindex`, `apply`, `drift`, `enrich *`, `eval`, `delete-concept`) on a Node without `node:sqlite`. One stderr line names the requirement: Node >=22.5, no `--no-experimental-sqlite`. Check with `node --version`. `skills *`, `deps *`, `extract` and `catalog` never open the store and still run |
+| 8         | `node:sqlite` unavailable | Any command that opens the store (`search`, `query *`, `status`, `bootstrap`, `reindex`, `apply`, `drift`, `enrich *`, `eval`, `delete-concept`, `scout`) on a Node without `node:sqlite`. One stderr line names the requirement: Node >=22.5, no `--no-experimental-sqlite`. Check with `node --version`. `skills *`, `deps *`, `extract` and `catalog` never open the store and still run |
 | 9         | `skills stamp` computed, not written | The sandbox blocked the SKILL.md write (EROFS/EPERM/EACCES). Output: `stamp computed, not written: <path>`, `reason:`, then `set exactly these lines in its metadata block:` and the lines (unmarked skill: `replace the metadata block (or add it to the frontmatter) with exactly:` and the whole block). Apply them with Edit, then re-run `skills status`. `--print` computes and prints without writing (exit 0); `--json` gives `{ stamped, version, lastUpdate, written: false, blocked: { reason, lines } }`. With several skills, every blocked skill's lines come back in one result (see **Several skills** above) |
 | 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and left the store unwritten for that concept (when an orphan remap was persisted, `scribe-output/<concept>.enriched.json` was updated). Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
+| 11        | `scout`: no scope file  | The scope file is missing or unreadable. One stderr line names it. Nothing is written |
+| 12        | `scout`: no primer      | No `tsconfig` key in `scribe.config.json`, a declared tsconfig missing on disk, no index (no store, or one with no live vertex), or the catalog failed (`ts-morph` missing, broken tsconfig). One stderr line, no proposals. The key comes first and nothing auto-detects a tsconfig for it: without the key `extract` makes every concept docs-only, so add it, then run `extract` + `apply`. For no index, run `extract` + `apply`; otherwise fix the tsconfig. The scout does not run without its primer, because the bench never measured that form |
+| 13        | `scout --proposals`: no section | Stdin held no `PROPOSALS:` line, so no session answered. One stderr line, nothing on stdout. Pass the sessions' returned sections; when every session failed the skill prints its `nothing scanned:` line instead |
 
 ## Zed editor LSP
 

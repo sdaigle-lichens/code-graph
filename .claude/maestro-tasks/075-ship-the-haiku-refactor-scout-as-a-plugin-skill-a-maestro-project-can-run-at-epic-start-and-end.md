@@ -42,3 +42,18 @@ This ticket does not change anything in the maestro repo and does not configure 
 ## Blocked by
 
 None — can start immediately
+
+## Post-Mortem
+
+- **Problem:** Manager redirect (m024) after the first round. Backend picked the `Explore` agent (whose own definition says it doesn't review or audit) and resolved scope paths from the config root, not the git root task 158 uses. Together with skipping bad lines, that let an unscanned scope print `PROPOSALS: none` as if it were clean. The ticket never said which agent form to use, which root paths resolve from, or how to tell "nothing scanned" apart from "nothing found".
+  **Fix:** none
+- **Problem:** Reviewer FAIL in round 1. An omitted `tsconfig` key was misreported as "no index", with a remedy (`extract` + `apply`) that can never fix it. The session cap cut the fullest bin, not the smallest as the docs said. Exits 1 and 3 were missing from the docs. @test round 1 had pinned the wrong "no index" message instead of questioning it.
+  **Fix:** none
+- **Problem:** A session restart stopped the round 2 @test agent so it could not be resumed. It also deleted every `.claude/channels/task-075/` file, including `.consumed/`, so @backend had to rewrite its hand-off before a fresh @test could run.
+  **Fix:** none
+- **Problem:** The `handoff-issues` check flagged "NO HANDOFF line" and "NO PAYLOAD" every time an agent stopped interim while waiting on background work. Each time the flag was false and cleared after the final stop, but it needed a manual timestamp check to tell.
+  **Fix:** none
+- **Problem:** A shared defect from before this ticket was found: `preflight` writes `user_version` before `checkSchemaVersion` reads it, so exit 3 is unreachable for every store command and a newer store is silently downgraded to 1. It was left out of scope and documented as a known limitation; it needs its own ticket.
+  **Fix:** none
+- **Problem:** The first acceptance criterion (the skill spawns Haiku and prints `PROPOSALS:`) is unproven. No paid run was allowed and `claude` is not on the sandbox PATH. The plugin does load the agent and the skill, since this session lists both.
+  **Fix:** none

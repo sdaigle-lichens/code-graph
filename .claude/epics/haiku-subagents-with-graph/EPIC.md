@@ -54,7 +54,8 @@ Every earlier ticket (044–054) is done and merged; only 066 is open.
 | 6 | 072 record the 071 results (done, 84785d3) | branch `haiku-subagents-with-graph` | none | `docs/evals.md` |
 | 7 | 073 decided-against list for the scout (built, 76cb516, 00c1949) | branch `haiku-subagents-with-graph` | none unless a value needs src (then whoever merges bumps) | `docs/evals.md`, `bench/README.md`, `bench/refactor/` (generated) |
 | 8 | 074 record the 073 results (done, 68fcadc) | branch `haiku-subagents-with-graph` | none | `docs/evals.md` |
-| 9 | 075 ship the scout as a plugin skill (filed, not started) | `main` once the user's PR of this branch lands (the primer builder it ports lives in `bench/` here) | 075 bumps | `plugin/scripts/code-graph.cjs` (generated), the three version files, `docs/usage.md`, `bench/refactor.mjs` if the primer builder is shared |
+| 9 | 075 ship the scout as a plugin skill (done, 740b987 on `075-refactor-scout`, 0.3.43; not pushed; user smoke run 2026-11-07: Haiku spawn works, 1 session on 4 indexed files, 4 test files ignored, 4 proposals, no code changed, but proposal paths came back absolute instead of git-root-relative; path fix 4a6086e, r023 acked; a second smoke run checks the `--proposals` heredoc step) | `main` at 518d088 | 075 bumps | `plugin/scripts/code-graph.cjs` (generated), the three version files, `docs/usage.md`, `bench/refactor.mjs` if the primer builder is shared |
+| 10 | 076 schema-version check and turbo skill inputs (filed, blocked by 075) | `main` after 075 is merged | 076 bumps, after 075's 0.3.43 | the three version files, `plugin/scripts/code-graph.cjs` (generated), `docs/usage.md`, `scout-cli-exits.test.ts` (075's), `turbo.json` |
 
 069 was dropped, not built (user, 2026-11-06). The epic's work lives on branch
 `haiku-subagents-with-graph` (created from main at 5323c6e, not pushed).
@@ -187,6 +188,9 @@ Every earlier ticket (044–054) is done and merged; only 066 is open.
   does not join the scout proposal; the scout stays plain and advisory as 071 recommended. Confidence
   moderate. No further paid run on this design without a changed list or recall bar and its own
   pre-registration. Sent to `maestro-bf`.
+- 075's Maestro runtime issues went straight to `maestro-manager-task-158` (user, 2026-11-07, instead
+  of a post-mortem): maestro tasks 159 (channel files lost on a resumable restart) and 160 (false
+  hand-off flags), both ready there. The code-graph items are covered by 075 round 2 and ticket 076.
 - Maestro task 158 written by `maestro-bf` (ready, not implemented, reported 2026-11-07), the contract
   for any scout skill: it gets the path of a scope file, one repo-relative existing file per line.
   Epic start scope: `## Touched surfaces` entries that resolve to files. Epic end scope: existing files

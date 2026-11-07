@@ -673,6 +673,50 @@ program
   });
 
 program
+  .command("scout [scope-file]")
+  .description(
+    "prepare the refactor scout: split a scope file (one file per line, relative to the git root) into Haiku session prompts with a metrics primer; calls no model. With --proposals, read the sessions' PROPOSALS: sections on stdin and print one block with git-root-relative paths"
+  )
+  .option("--json", "output the plan as JSON")
+  .option("--proposals", "read the sessions' returned PROPOSALS: sections on stdin and print one normalised block")
+  .action(async (scopeFile: string | undefined, opts: { json?: boolean; proposals?: boolean }) => {
+    if (opts.proposals) {
+      if (scopeFile !== undefined || opts.json) {
+        console.error("scout --proposals takes no scope file and no --json");
+        process.exit(1);
+      }
+      const { assembleProposals, formatProposals, readStdin, EXIT_SCOUT_NO_PROPOSALS } =
+        await import("./scout/proposals.js");
+      const { loadConfigOrExit } = await import("./query/preflight.js");
+      const { findRepoRoot } = await import("./scout/scope.js");
+      const configRoot = loadConfigOrExit().configRoot;
+      const result = assembleProposals(readStdin(), { repoRoot: findRepoRoot(configRoot), configRoot });
+      if (!result.answered) {
+        console.error("refactor-scout: no PROPOSALS: section on stdin, so no session answered and nothing to print");
+        process.exit(EXIT_SCOUT_NO_PROPOSALS);
+      }
+      console.log(formatProposals(result));
+      return;
+    }
+    if (scopeFile === undefined) {
+      console.error("scout: a <scope-file> is required (or --proposals)");
+      process.exit(1);
+    }
+    const { planScout, formatPlan, ScoutStop } = await import("./scout/run.js");
+    try {
+      const plan = await planScout(scopeFile);
+      console.log(opts.json ? JSON.stringify(plan, null, 2) : formatPlan(plan));
+    } catch (err) {
+      if (err instanceof ScoutStop) {
+        console.error(err.message);
+        process.exit(err.exitCode);
+      }
+      console.error("scout failed:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
   .command("delete-concept <name>")
   .description("archive a concept: marks vertices/edges archived, removes from config + artifacts")
   .option("--yes", "skip interactive confirmation")

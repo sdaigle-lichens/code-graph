@@ -22,6 +22,7 @@ export const STORE_COMMANDS: ReadonlySet<string> = new Set([
   "eval",
   "query",
   "delete-concept",
+  "scout",
 ]);
 
 export function noSqliteMessage(nodeVersion: string = process.version): string {
