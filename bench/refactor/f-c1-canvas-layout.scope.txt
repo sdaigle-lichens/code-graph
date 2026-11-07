@@ -1,0 +1,3 @@
+2 files:
+- apps/maestro/src/core/canvas-layout.ts (concept workflow-view)
+- apps/maestro/src/renderer/src/components/workflow-canvas.tsx (concept workflow-view)

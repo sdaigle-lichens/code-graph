@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-paths.ts b/apps/maestro/src/core/session-paths.ts
+--- a/apps/maestro/src/core/session-paths.ts
++++ b/apps/maestro/src/core/session-paths.ts
+@@ -298,7 +298,7 @@
+  * unrecognised reason must never silently start leaking directories, and `sweepSessions` reaps
+  * what a resumable end leaves behind if the session never returns.
+  */
+-export const RESUMABLE_END_REASONS: readonly string[] = ["prompt_input_exit", "other", "resume"];
++export const RESUMABLE_END_REASONS: readonly string[] = ["prompt_input_exit", "other", "resume", "clear"];
+ 
+ /** True only for a string in {@link RESUMABLE_END_REASONS}. Anything else, including non-strings, is final. */
+ export function isResumableEnd(reason: unknown): boolean {

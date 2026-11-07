@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-sweep.ts b/apps/maestro/src/core/session-sweep.ts
+--- a/apps/maestro/src/core/session-sweep.ts
++++ b/apps/maestro/src/core/session-sweep.ts
+@@ -107,7 +107,7 @@
+  */
+ export function sweepStaleSessions(projectRoots: string[], options: SessionSweepOptions = {}): SessionSweepResult {
+   const now = options.now ?? Date.now();
+-  const idleCapMs = options.idleCapMs ?? SESSION_SWEEP_IDLE_CAP_MS;
++  const idleCapMs = options.idleCapMs ?? SESSION_DELETE_IDLE_CAP_MS;
+   const env = options.env ?? (process.env as SessionIdEnv);
+   const ownId = env?.[SESSION_ID_ENV];
+   const removed: SessionSweepResult["removed"] = [];

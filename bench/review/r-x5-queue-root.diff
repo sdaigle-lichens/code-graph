@@ -1,0 +1,11 @@
+diff --git a/apps/maestro/src/core/tasks.ts b/apps/maestro/src/core/tasks.ts
+--- a/apps/maestro/src/core/tasks.ts
++++ b/apps/maestro/src/core/tasks.ts
+@@ -265,7 +265,6 @@
+  */
+ export function deleteTask(projectRoot: string, filename: string): MaestroTask[] {
+   if (!projectRoot) return [];
+-  projectRoot = mainCheckoutRoot(projectRoot);
+   const dir = tasksDirFor(projectRoot);
+   const files = listTaskFiles(dir);
+   const base = path.basename(filename);

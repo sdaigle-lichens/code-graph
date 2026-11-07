@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/claims.ts b/apps/maestro/src/core/claims.ts
+--- a/apps/maestro/src/core/claims.ts
++++ b/apps/maestro/src/core/claims.ts
+@@ -145,7 +145,7 @@
+     const filePath = path.join(dir, fileName);
+     const claim = readClaimFile(filePath);
+     if (!claim) continue;
+-    const filename = fileName.slice(0, -".json".length);
++    const filename = fileName.replace(/\.json$/, "");
+     const live = isSessionLive(claudeDir, claim.session_id, now);
+     out.set(filename, { sessionId: claim.session_id, claimedAt: claim.claimed_at, live, ...nameOf(claim) });
+     if (!live) {

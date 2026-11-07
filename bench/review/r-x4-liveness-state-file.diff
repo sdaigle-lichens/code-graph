@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/claims.ts b/apps/maestro/src/core/claims.ts
+--- a/apps/maestro/src/core/claims.ts
++++ b/apps/maestro/src/core/claims.ts
+@@ -116,7 +116,7 @@
+   if (!paths) return false;
+   if (!fs.existsSync(paths.dir)) return false;
+   try {
+-    const stat = fs.statSync(paths.log);
++    const stat = fs.statSync(paths.state);
+     return now - stat.mtimeMs <= CLAIM_IDLE_CAP_MS;
+   } catch {
+     return false;

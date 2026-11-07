@@ -1,0 +1,7 @@
+6 files:
+- apps/maestro/src/core/claims.ts (concept task-queue)
+- apps/maestro/src/core/epics.ts (concept task-queue)
+- apps/maestro/src/core/session-ipc.ts (concept claude-session-bridge)
+- apps/maestro/src/core/session-title.ts (concept claude-session-bridge)
+- apps/maestro/src/core/tasks.ts (concept task-queue)
+- apps/maestro/src/core/text.ts (concept none: outside every concept)

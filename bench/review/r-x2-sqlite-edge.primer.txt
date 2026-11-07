@@ -1,0 +1,110 @@
+## Changed symbols
+- apps/maestro/src/core/handoff-channels.ts (concept maestro-architecture): no indexed symbol overlaps the changed lines (module-level change)
+
+## Impact of each changed symbol (callers, depth 2)
+
+none (no indexed symbol changed)
+
+## Untested callers (no test file mentions the caller by name)
+
+none
+
+## New cross-concept edges added by the diff
+
+- apps/maestro/src/core/handoff-channels.ts (maestro-architecture) now imports `./project-tags.js` -> apps/maestro/src/core/project-tags.ts (global-stores)
+
+## Cross-concept relations of the touched concepts (existing edges, before the change)
+
+### maestro-architecture <-> task-queue
+
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::handoffRoutes` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::successPath` --calls--> `task-queue::successPathSteps`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `task-queue::bareAgentName`
+- `maestro-architecture::routesFrom` --calls--> `task-queue::bareAgentName`
+
+### maestro-architecture <-> installing-maestro
+
+- `installing-maestro::installStatus` --calls--> `maestro-architecture::syncManagedRegions`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::syncProjectReports`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::seedSkillsFor`
+- `installing-maestro::installOrchestratorSkill` --calls--> `maestro-architecture::syncManagedRegions`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::seedSkillsFor`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::syncProjectHandoffs`
+
+### maestro-architecture <-> updating-maestro
+
+- `updating-maestro::installRuntime` --calls--> `maestro-architecture::syncProjectReports`
+- `updating-maestro::installRuntime` --calls--> `maestro-architecture::syncProjectHandoffs`
+- `updating-maestro::installRuntime` --calls--> `maestro-architecture::seedSkillsFor`
+- `updating-maestro::renderOrchestrator` --calls--> `maestro-architecture::replaceRegion`
+- `updating-maestro::installStatus` --calls--> `maestro-architecture::syncManagedRegions`
+- `updating-maestro::installRuntime` --calls--> `maestro-architecture::seedSkillsFor`
+- `updating-maestro::installOrchestratorSkill` --calls--> `maestro-architecture::syncManagedRegions`
+
+### maestro-architecture <-> agent-fork-sync
+
+- `maestro-architecture::syncProjectHandoffs` --calls--> `agent-fork-sync::decideSync`
+- `maestro-architecture::syncProjectReports` --calls--> `agent-fork-sync::decideSync`
+- `agent-fork-sync::reportFilePath` --calls--> `maestro-architecture::isValidReportId`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-architecture::readAgentReportDefault`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-architecture::handoffPairs`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-architecture::priorReportSeeds`
+- `agent-fork-sync::handoffFilePath` --calls--> `maestro-architecture::isValidHandoffId`
+- `agent-fork-sync::syncProjectReports` --calls--> `maestro-architecture::isValidReportId`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-architecture::readHandoffDefault`
+- `agent-fork-sync::syncProjectHandoffs` --calls--> `maestro-architecture::handoffRoutes`
+
+### maestro-architecture <-> claude-session-bridge
+
+- `maestro-architecture::liveRunIds` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::tailSessionLogs` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::liveRunIds` --calls--> `claude-session-bridge::listSessionIds`
+- `maestro-architecture::newestSessionLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::appendSessionLog` --calls--> `claude-session-bridge::ensureSessionPaths`
+- `maestro-architecture::sessionLogPath` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::appendSessionLog` --calls--> `claude-session-bridge::deriveUsage`
+- `maestro-architecture::sessionLogFileFor` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::tailSessionLogs` --calls--> `claude-session-bridge::listSessionIds`
+- `maestro-architecture::newestSessionLog` --calls--> `claude-session-bridge::listSessionIds`
+
+### maestro-architecture <-> electron-shell-invariants
+
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::saveProjectHandoffOverride`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::saveProjectReportOverride`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::deleteHandoffDefault`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::writeAgentReportDefault`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::isSeededHandoff`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::seedSkillsFor`
+- `electron-shell-invariants::startTail` --calls--> `maestro-architecture::tailSessionLogs`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::resolvedRoutesFrom`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::pendingLanes`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::readAllHandoffDefaults`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::getResolvedReport`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::seedSkillsFor`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::writeHandoffDefault`
+- `electron-shell-invariants::registerIpc` --calls--> `maestro-architecture::readAllAgentReportDefaults`
+
+### maestro-architecture <-> maestro-config-model
+
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::blankConfig`
+- `maestro-architecture::renderOrchestrator` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::blankConfig`
+- `maestro-architecture::getResolvedReport` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::applyWorkflowSpec` --calls--> `maestro-config-model::duplicateAgentTypes`
+- `maestro-architecture::saveProjectReportOverride` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::syncProjectReports` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::syncProjectHandoffs` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::syncProjectReports` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::saveProjectHandoffOverride` --calls--> `maestro-config-model::readConfig`
+- `maestro-architecture::syncProjectHandoffs` --calls--> `maestro-config-model::writeConfig`
+- `maestro-architecture::resolvedRoutesFrom` --calls--> `maestro-config-model::readConfig`
+
+### maestro-architecture <-> plugin-libs-parity
+
+- `maestro-architecture::applyWorkflowSpec` --calls--> `plugin-libs-parity::sideTracker`
+- `plugin-libs-parity::readSkillSources` --calls--> `maestro-architecture::walkProjectSkillIds`

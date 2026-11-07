@@ -59,8 +59,8 @@
 //   node maestro-epic.cjs review-verdict --task <NNN-task.md> <on-track|redirect|escalate> [--by "<session name>"]
 //       `132`: records the verdict on the ticket's latest review request. The manager runs it when it
 //       decides, the worker when it receives the reply; the second caller gets the recorded verdict
-//       back. Manager redirects are counted per ticket here (not plan.loopbacks): with 2 already
-//       recorded, a redirect is recorded and printed as escalate.
+//       back. Manager redirects are counted per ticket here (not plan.loopbacks): with 1 already
+//       recorded (`150`), a second redirect is recorded and printed as escalate.
 //   node maestro-epic.cjs reports <slug>
 //       the unacknowledged reports and notes, and the review requests waiting for a verdict, oldest first
 //   node maestro-epic.cjs ack <slug> <id>... [--by "<session name>"]

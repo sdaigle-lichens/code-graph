@@ -1,0 +1,57 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/session-paths.ts (concept claude-session-bridge): fan-in 10, fan-out 2, 25 exports
+- apps/maestro/src/core/tasks.ts (concept task-queue): fan-in 4, fan-out 3, 21 exports
+- apps/maestro/src/core/worktree.ts (concept log-view): fan-in 5, fan-out 0, 9 exports
+
+## Hubs among the scope files (the index lists them as high fan-in)
+- apps/maestro/src/core/session-paths.ts
+- apps/maestro/src/core/worktree.ts
+
+## Import cycles that include a scope file
+- apps/maestro/src/core/claims.ts <-> apps/maestro/src/core/handoff-channels.ts <-> apps/maestro/src/core/session-paths.ts <-> apps/maestro/src/core/session-runtime.ts <-> apps/maestro/src/core/tasks.ts
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+- `sessionTasksDir` in apps/maestro/src/core/session-paths.ts
+
+## Cross-concept import edges between scope files
+- apps/maestro/src/core/session-paths.ts (claude-session-bridge) imports apps/maestro/src/core/tasks.ts (task-queue)
+- apps/maestro/src/core/session-paths.ts (claude-session-bridge) imports apps/maestro/src/core/worktree.ts (log-view)
+- apps/maestro/src/core/tasks.ts (task-queue) imports apps/maestro/src/core/worktree.ts (log-view)
+
+## Cross-concept relations of the scope files (query cross)
+
+### claude-session-bridge <-> log-view
+
+- `claude-session-bridge::Entry` --calls--> `log-view::humanizeLog`
+- `claude-session-bridge::rederiveSessionName` --calls--> `log-view::mainCheckoutRoot`
+- `log-view::worktreeHasLog` --calls--> `claude-session-bridge::listSessionIds`
+- `log-view::newestSessionLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::tailSessionLogs` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::worktreeHasLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::newestSessionLog` --calls--> `claude-session-bridge::listSessionIds`
+- `log-view::sessionLogFileFor` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::tailSessionLogs` --calls--> `claude-session-bridge::listSessionIds`
+
+### claude-session-bridge <-> task-queue
+
+- `task-queue::isSessionLive` --calls--> `claude-session-bridge::sessionPathsFor`
+- `task-queue::MaestroTasksPage` --mounts--> `claude-session-bridge::ClaudeRunDialog`
+- `claude-session-bridge::build` --calls--> `task-queue::tasksDirFor`
+- `claude-session-bridge::rederiveSessionName` --calls--> `task-queue::claimsDirFor`
+
+### log-view <-> task-queue
+
+- `task-queue::listTasks` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::showEpic` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::readyTasks` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::writeReport` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::listEpics` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::deleteTask` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::epicDirFor` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::tasksDirFor` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::taskClaimName` --calls--> `log-view::mainCheckoutRoot`
+- `task-queue::closeTask` --calls--> `log-view::mainCheckoutRoot`
+- `log-view::resumeTarget` --calls--> `task-queue::collectAgentSkills`
+- `log-view::resumeTarget` --calls--> `task-queue::bareAgentName`
+- `log-view::resumeTarget` --calls--> `task-queue::resolveSearchList`
+- `log-view::resumeTarget` --calls--> `task-queue::bareAgentName`

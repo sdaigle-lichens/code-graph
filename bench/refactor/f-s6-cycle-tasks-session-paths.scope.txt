@@ -1,0 +1,4 @@
+3 files:
+- apps/maestro/src/core/session-paths.ts (concept claude-session-bridge)
+- apps/maestro/src/core/tasks.ts (concept task-queue)
+- apps/maestro/src/core/worktree.ts (concept log-view)

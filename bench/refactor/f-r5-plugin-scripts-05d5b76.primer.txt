@@ -1,0 +1,32 @@
+## Scope files (fan-in: files importing it; fan-out: files it imports; both from the code index)
+- apps/maestro/src/core/runtime-version.ts (concept installing-maestro): fan-in 1, fan-out 0, 3 exports
+- apps/maestro/src/core/session-runtime.ts (concept maestro-architecture): fan-in 2, fan-out 3, 9 exports
+- plugins/maestro/scripts/lib/maestro-session.cjs (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-check-runtime.cjs (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-inject-agent-context.js (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-resume-target.cjs (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-subagent-log.js (concept none): not in the code index (no metrics)
+- plugins/maestro/scripts/maestro-team-meeting.cjs (concept none): not in the code index (no metrics)
+
+## Hubs among the scope files (the index lists them as high fan-in)
+none
+
+## Import cycles that include a scope file
+none
+
+## Exports of the scope files that no other source file mentions (leads: check re-exports and dynamic use)
+none
+
+## Cross-concept import edges between scope files
+none
+
+## Cross-concept relations of the scope files (query cross)
+
+### installing-maestro <-> maestro-architecture
+
+- `installing-maestro::installStatus` --calls--> `maestro-architecture::syncManagedRegions`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::syncProjectReports`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::seedSkillsFor`
+- `installing-maestro::installOrchestratorSkill` --calls--> `maestro-architecture::syncManagedRegions`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::seedSkillsFor`
+- `installing-maestro::installRuntime` --calls--> `maestro-architecture::syncProjectHandoffs`

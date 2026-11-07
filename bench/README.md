@@ -283,3 +283,182 @@ graph-arm code-graph call that exited 0 with output.
 `bench/oracle/<case>.txt` pasted into the prompt) and `sonnet-nograph`. The runner stops a run whose
 prompt carries stored graph output outside an oracle arm, or lacks it inside one. The cap, thresholds and
 exact commands are in [docs/evals.md](../docs/evals.md), "Ticket 051".
+
+## Review mode (ticket 066)
+
+`node bench/review-run.mjs` measures whether a reviewer catches bugs planted in a diff on the pinned
+maestro checkout (same `maestroFor` resolution and `maestro-setup.sh` no-graph workspace as `run.mjs`). It
+is separate from `run.mjs`, so the edit and read-only sets are unaffected. Plan, task set, decision rule and
+verdict style are in [docs/evals.md](../docs/evals.md), "Ticket 066".
+
+Planned arms (the default, ticket 067): `sonnet-nograph` (baseline), `haiku-nograph`, `haiku-diff-primer`;
+the question is whether a Haiku reviewer misses clearly more than Sonnet, and what the primer does for Haiku.
+`sonnet-diff-primer` (a primer cannot lift a baseline at the ceiling) and `sonnet-spawns-haiku` are dropped
+from the plan but kept, with the spawn-validity check and tests; add them with `--arms`. Each arm pins its
+model and its `--tools` set; only `sonnet-spawns-haiku` has the Agent tool. No arm has the code-graph plugin.
+Default runs per cell: 3; default cap: $13 in all, pilots included (approved by the user; pass
+`--budget` lower by what the pilots cost; see the 067 post-pilot amendment in `docs/evals.md`).
+
+Hardened cases (068, after pilot A saturated: the baseline found 4 of 4 sampled bugs): cross-file bugs
+break only outside the diff (a consumer such as the `maestro-task-status.cjs` twin, `handoff-channels`
+lane liveness or the sibling entry points of `tasks.ts` is not in the diff), and local bugs are boundary,
+ordering or wrong-default mistakes. Each bug case carries `review.source`, the maestro history or invariant
+its bug kind comes from (077 resumable SessionEnd, 074 worktree pointers, 45a3583 repo-root queue, 084
+optional claim `session_name`, the twin-parity fixes, the 064 session id rule, the 066 liveness rule). The
+five clean cases include two plausible correct refactors (`r-c6`, `r-c7`) so false alarms stay measurable.
+
+Files:
+
+- `review.mjs`: arms, prompt, diff builder, primer builder, FINDINGS parser, graders, validity, verdict, report.
+- `review-cases.mjs`: 15 cases (5 local bugs, 5 cross-file bugs, 5 clean diffs), each with a planted change,
+  a grader and a known-good and a known-bad review text for the grader tests.
+- `review-prep.mjs`: the $0 generator. Builds `bench/review/<id>.diff` and `<id>.primer.txt` from the CLI
+  (`query file`, `query impact`, `query cross`) on a graph built from the pinned maestro. `--only <substring>`
+  limits it; `--check` writes nothing and exits 1 if a stored file differs (deterministic output).
+- `review/`: the stored diff and primer of each case, committed. The runner reads these and refuses a case
+  whose stored diff differs from the one computed from its workspace.
+- `review-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 3`, `--budget 13`, `--run-budget 0.4`,
+  `--dry` (prints prompts and args, no model call), `--keep-ws`, `--init-check`.
+- `review.test.mjs`: the unit tests (`node --test bench/*.test.mjs`), all offline.
+- `review-cli.test.mjs`: runs the $0 commands as written (`review-run --dry`, `review-prep --check`); skipped without a maestro checkout. Nothing calls `claude`.
+
+Validity: a run is invalid, not counted, if the init event shows another model or tool set than the arm's, if
+a non-spawn arm lists or calls the Agent tool, or if a shared `lib.mjs` check fails. A `sonnet-spawns-haiku`
+run is also invalid unless the transcript shows a Haiku subagent started (an Agent call with a Haiku model, or
+a subagent message from a Haiku model). The runner stops at the cap, on a usage limit or seccomp, and after a
+second invalid run.
+
+Commands, from a plain terminal at the repo root (all but the last two are $0):
+
+```
+node --test bench/*.test.mjs
+node bench/review-prep.mjs --check
+node bench/review-run.mjs --dry
+node bench/review-run.mjs --init-check
+node bench/review-run.mjs --runs 1 --budget 1.1 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6  # new pilot A: baseline saturation on the hardened cases
+node bench/review-run.mjs --runs 3 --budget 12.19 --run-budget 0.4   # paid run (067): 3 arms x 15 cases x 3 runs, cap $13 less the $0.802 the two pilots cost
+```
+
+`--init-check` with no `--arms` checks the three planned arms. Both pilot A screens saturated (stop rule fired
+twice); the 067 amendment in `docs/evals.md` records that and what is still decided.
+
+Output: `bench/results/review-<timestamp>/` (gitignored): `<case>/<arm>-run<N>.jsonl` transcripts, `runs.json`
+and `report.md` with the per-case table, the per-arm sums by category, and the verdicts against the baseline
+with false alarms and cost per run beside them.
+
+## Refactor mode (ticket 070)
+
+`node bench/refactor-run.mjs` measures whether a cheap Haiku refactor scout, filtered by a Sonnet reviewer,
+finds code-structure improvements as well as a Sonnet refactor pass, at lower cost. It reuses the review
+bench's stream flags, findings parser (`findingsOf(text, 'PROPOSALS')`), spawn evidence, paired-cell rule and
+verdict. Plan, case table, decision rule, stop rule, caps and the post-pilot amendment (2026-11-05, the
+operative design) are in [docs/evals.md](../docs/evals.md), "Ticket 070".
+
+Default arms (3): `sonnet-plain` (baseline), `haiku-metrics-primer`, `haiku-scout-sonnet-filter` (two sessions
+per cell, scored on the proposals the filter keeps, both costs added, anchoring reported). Opt-in, off by default
+(name it in `--arms`): `sonnet-spawns-haiku-scouts` (invalid unless a Haiku subagent appears in the transcript;
+only this arm has the Agent tool). Default runs per cell: 2. All arms run in the no-graph workspace.
+
+Scoring: every proposal beyond an expected improvement (and the case's `tolerated` list) is a false finding on
+every case, clean or not, counted after the filter for the pipeline and split by the proposal's category.
+
+An answer with no `PROPOSALS:` section (or a filter answer with no `VERDICTS:` section) makes the run invalid
+(`answerProblems`), is not counted and is listed in the report; `PROPOSALS: none` is valid. The per-case table
+has a `structured` column. All-clear text (`PROPOSALS: nothing to do`, `- nothing to change here`, `- Leave it as is.`,
+`- No issues found.`, `- Not needed.`, a short bullet saying a thing is fine as written, `PROPOSALS:` followed by
+prose that names no file) is its own `all-clear lines` count per case and arm: not a proposal, not sent
+to the filter, not a false finding. A line in the `<file>: <kind>: <text>` shape is always a proposal, whatever
+its text says; a bullet on the header line (`PROPOSALS: - a.ts: dedupe: x`) is the first item, and an unbulleted shaped line under the header is a proposal too. A bare marker on the header line (`PROPOSALS: -`) is an empty bullet: the dashless shaped line under it is its content, not a second item. Limits: an unshaped line opening with an all-clear phrase ("No changes to X, but ...") counts as an all-clear; unusual unshaped all-clear wordings count as false findings; a
+shaped line that says "this is fine" is a false finding (not an all-clear), and header prose that names a file
+is kept as one item. The prompt asks for `PROPOSALS: none` and nothing else.
+
+Files:
+
+- `refactor.mjs`: arms, prompts, scope and metrics-primer builders, graders, pipeline grading, validity, verdicts, report.
+- `refactor-cases.mjs`: 9 cases (1 reverted real commit naming its maestro source, 5 improvements across
+  several files; 2 seeded problems, a three-file near-duplicate and a three-module cycle; 3 clean
+  neighbourhoods; 3 latent cases of real, unplanted duplicates), each with plants, expected improvements and
+  known-good and known-bad texts. `sets` says which ticket's run uses it (`070`, `071`; `--set`), `batch` the
+  071 filter batch.
+- `refactor-prep.mjs`: the $0 generator of `bench/refactor/<id>.scope.txt` and `<id>.primer.txt` from the code-graph
+  CLI on the pinned maestro. `--only <substrings>` limits it; `--check` writes nothing and exits 1 on drift.
+- `refactor/`: the stored scope and primer of each case, committed.
+- `refactor-run.mjs`: the runner. Options: `--arms`, `--only`, `--runs 2`, `--budget`, `--run-budget`
+  (no defaults; a paid run needs both), `--dry`, `--keep-ws`, `--init-check`. A paid run refuses to start inside a Claude Code session (`--dry` and `--init-check` are exempt).
+- `refactor.test.mjs`, `refactor-cli.test.mjs`: offline tests; the CLI tests skip without a maestro checkout.
+
+Commands of the 070 design (superseded by the 071 commands below; the 070 arms and `--set 070` need the 070 runner from git history), from a plain terminal at the repo root (the first four are $0):
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --init-check
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 1.45 --run-budget 0.50   # pilot: baseline, 6 sessions (the $3 pilot cap is cumulative, $1.525 already spent; see docs/evals.md)
+node bench/refactor-run.mjs --budget 7 --run-budget 0.60                                   # paid run: 3 arms, 2 runs (the defaults)
+```
+
+Output: `bench/results/refactor-<timestamp>/` (gitignored): transcripts, `runs.json` and `report.md`.
+
+### Ticket 071: batched and inline filters, useful findings per dollar
+
+The runner above is the 071 runner now (`--set 071` is the default; `--set 070` selects the retired 070 cases).
+Pre-registration, decision rule, caps and the run-count rule are in [docs/evals.md](../docs/evals.md), "Ticket 071".
+
+Default arms (4, plus a control): `sonnet-plain`; `haiku-metrics-primer` (the scout alone); `haiku-batched-filter`
+(the scout's list goes, with the other cases of its batch of 3, into one Sonnet filter session; that session's cost
+is split over the batch's cases by their share of the proposals); `haiku-reviewer-inline` (the list goes into a
+normal Sonnet review of the case's change, which marks each suggestion in a `VERDICTS:` section before its
+`FINDINGS:`; costed as the scout plus the review's extra spend over `sonnet-review-plain`, the same review without
+the list, which `--arms` pulls in with the inline arm and which is never scored as a refactor arm). One Haiku scout
+session per (case, run) is shared by the three scout arms: its cost counts in each, the spend once. A case with no
+plant gives the review arms a harmless doc-comment edit (`refactor.reviewChange`) to review. The report adds the
+review-verdict shift (cells where the list changes the review's has-findings). The 070 pipeline and spawn arms
+stay defined and tested, but this runner refuses them.
+
+Usefulness, the headline: `refactor-audit.mjs`. A useful finding is an expected improvement the arm kept, or a kept
+proposal the fixed audit confirms (the registry of improvements the 070 audit confirmed, a grep of the pinned tree
+for unused exports and for functions defined twice, else a hand verdict on a blinded, shuffled list); unconfirmed
+and unjudged proposals are noise.
+
+```
+node bench/refactor-audit.mjs bench/results/refactor-<timestamp> --pool    # audit-pool.json, audit-pool.txt (hand list)
+# write audit-verdicts.txt: "<id>: confirmed <issue-key>: <evidence>" or "<id>: unconfirmed: <reason>"
+node bench/refactor-audit.mjs bench/results/refactor-<timestamp> --score   # audit-report.md
+```
+
+Commands, from a plain terminal at the repo root ($0 first):
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --init-check
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 3 --run-budget 0.60   # pilot (the $3 pilot cap)
+node bench/refactor-run.mjs --runs <r> --budget 7 --run-budget 0.60                      # paid run; r from the pilot rule in docs/evals.md
+```
+
+Files: `refactor-audit.mjs` (metric and audit), `refactor-071.test.mjs`, `refactor-audit.test.mjs` (offline tests).
+
+### Ticket 073: a decided-against list for the scout
+
+`--set 073` (5 cases) with `--arms haiku-metrics-primer,haiku-decided-against` compares the plain scout with a scout
+that is also told what was decided against in the case's neighbourhood. Pre-registration, decision rule and caps:
+[docs/evals.md](../docs/evals.md), "Ticket 073". The arm is opt-in: it is not in the default arms.
+
+- `refactor-decided.mjs`: hashing, neighbourhood-only injection, contentHash expiry, repeat counting, verdict and report section.
+- `refactor-decided-prep.mjs`: the $0 generator of `refactor/decided-against.json` from the pinned maestro tree (`--check` exits 1 on drift). The hand-written entries are in this file.
+- `refactor/decided-against.json`: the list, committed. Commit it before any paid run.
+- `refactor-decided.test.mjs`: offline tests (the pinned-tree hash test skips without a maestro checkout).
+
+Commands, from a plain terminal at the repo root ($0 first; `--init-check` needs `claude` on the path):
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-decided-prep.mjs --check
+node bench/refactor-run.mjs --dry --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --init-check --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs 1 --budget 0.50 --run-budget 0.15   # pilot
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs <r> --budget 1.50 --run-budget 0.15  # paid run; r from the rule in docs/evals.md
+```

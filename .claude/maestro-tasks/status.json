@@ -390,5 +390,73 @@
     "status": "done",
     "blockedBy": [],
     "epic": "absorb-concept-skills"
+  },
+  "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md": {
+    "status": "done",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md": {
+    "status": "done",
+    "blockedBy": [
+      "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md",
+      "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "068-harden-the-reviewer-bench-cases-after-the-pilot-saturated-drop-the-sonnet-spawns-haiku-arm-and-spend-the-saving-on-more-sonnet-vs-haiku-runs.md": {
+    "status": "done",
+    "blockedBy": [
+      "066-measure-whether-a-haiku-reviewer-a-primed-sonnet-reviewer-or-a-sonnet-reviewer-spawning-haiku-catches-seeded-bugs-as-well-as-a-plain-sonnet-reviewer.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "069-build-a-reviewer-case-set-from-reverted-real-maestro-bug-fixes-in-realistic-size-diffs-to-test-whether-a-diff-primer-helps-a-reviewer.md": {
+    "status": "done",
+    "blockedBy": [
+      "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md",
+      "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md": {
+    "status": "done",
+    "blockedBy": [
+      "067-record-the-reviewer-bench-pilot-and-paid-run-results-and-recommend-a-reviewer-setup.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md": {
+    "status": "done",
+    "blockedBy": [
+      "070-measure-whether-a-cheap-haiku-refactor-scout-filtered-by-a-sonnet-reviewer-finds-code-structure-improvements-as-well-as-a-sonnet-refactor-pass-at-lower-cost.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md": {
+    "status": "done",
+    "blockedBy": [
+      "071-measure-whether-a-haiku-refactor-scout-with-a-batched-or-reviewer-inline-sonnet-filter-gives-more-useful-findings-per-dollar-than-a-sonnet-refactor-pass.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md": {
+    "status": "done",
+    "blockedBy": [
+      "072-record-the-071-refactor-scout-pilot-and-paid-run-results-and-recommend-which-form-joins-the-workflow.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "074-record-the-073-decided-against-pilot-and-paid-run-results-and-say-whether-the-list-joins-the-scout-proposal.md": {
+    "status": "done",
+    "blockedBy": [
+      "073-measure-whether-a-decided-against-list-cuts-the-haiku-refactor-scout-s-repeated-findings-while-it-keeps-its-recall.md"
+    ],
+    "epic": "haiku-subagents-with-graph"
+  },
+  "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md": {
+    "status": "ready",
+    "blockedBy": [],
+    "epic": "haiku-subagents-with-graph"
   }
 }

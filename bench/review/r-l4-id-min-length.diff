@@ -1,0 +1,12 @@
+diff --git a/apps/maestro/src/core/session-paths.ts b/apps/maestro/src/core/session-paths.ts
+--- a/apps/maestro/src/core/session-paths.ts
++++ b/apps/maestro/src/core/session-paths.ts
+@@ -73,7 +73,7 @@
+   "maestro_session_tasks.json",
+ ] as const;
+ 
+-const SESSION_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
++const SESSION_ID_RE = /^[A-Za-z0-9_-]{0,128}$/;
+ 
+ /** A payload shape carrying a session id — every hook's stdin payload, and nothing else. */
+ export interface SessionIdSource {

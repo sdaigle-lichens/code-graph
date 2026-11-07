@@ -837,6 +837,713 @@ Run as planned in "Pilot outcome and paid-run plan": 4 commands (d2, t3, d3, d4)
 
 **What the set measures.** d3 saturates for `haiku-nograph` (36/36) and t3 is close to the ceiling (83% to 92%), so only d2 has real headroom. The scribe group decides little about skills because of the strip. These tasks mostly measure how thoroughly a model searches for every mention of a changed fact.
 
+## Ticket 066: does a Haiku or a primed reviewer catch seeded bugs as well as a plain Sonnet reviewer (bench/, plan and rule written before any paid run)
+
+Question: 051 found no gain from a graph primer on edit tasks. Review is a different job: read a diff, find what is wrong. A reviewer who sees the changed symbols, their callers and the new cross-concept edges might catch cross-file breakage that a diff alone hides. 066 measures that, and whether Haiku (about 1/9 of Sonnet's cost per run in 044/051) can review as well. Review mode is `bench/review-run.mjs` (separate from `bench/run.mjs`); setup, cases, graders, primer and validity rules are in `bench/README.md`, "Review mode (ticket 066)". Maestro is pinned at `3814a30`, the no-graph workspace from `git archive`.
+
+### Tasks (15 cases, `bench/review-cases.mjs`)
+
+A case is a diff against the pinned tree: the planted change is applied to the workspace (the reviewer reads the files as changed) and the stored diff is the prompt. Bugs are planted by `replaceOnce`, so a stale pin fails loudly.
+
+| id | category | what is planted |
+|---|---|---|
+| `r-l1-future-mtime` | local | `isAbandoned`: `Math.abs(idle)` makes a future mtime read as idle |
+| `r-l2-first-entry` | local | `sweepStaleSessions`: `readdirSync(dir).slice(1)` skips the first entry |
+| `r-l3-no-log-live` | local | `isSessionLive`: the catch returns true, so a session with no log reads live |
+| `r-x1-set-return` | cross | `readAllProjectTags` returns a Set; callers in `installRuntime` and others still index it as an object |
+| `r-x2-sqlite-edge` | cross | `handoff-channels.ts` newly imports `project-tags.ts` (node:sqlite) and reads it at load, which its header says it must never pull in |
+| `r-x3-arg-swap` | cross | `isSessionLive` parameters swapped; callers (`claimTask`, `readClaims`) pass the old order |
+| `r-l4-and-guard` | local | `sweepStaleSessions`: the skip guard `\|\|` becomes `&&`, so the caller's own session is no longer skipped |
+| `r-l5-min-activity` | local | `lastActivityMs`: `Math.max` becomes `Math.min`, so the oldest child mtime decides and an active session reads idle |
+| `r-x4-claim-key` | cross | `readClaims` strips ".md.json" instead of ".json"; callers two hops out (`listTasks`, `showEpic`, `readyTasks`) look claims up by the full ".md" name, so no claim shows |
+| `r-x5-delete-cap` | cross | `SESSION_DELETE_IDLE_CAP_MS` points at the 24h sweep cap instead of the 15-minute claim cap; `deleteSession`, `listDeletableSessions` and the IPC x on a tab inherit it |
+| `r-c1-inline-idle` | clean | an equivalent inline of a helper in `session-sweep.ts` |
+| `r-c2-doc-grammar` | clean | a comment-only wording change in `claims.ts` |
+| `r-c3-regex-suffix` | clean | `slice(0, -".json".length)` becomes `replace(/\.json$/, "")` on names already filtered to `.json` |
+| `r-c4-split-guard` | clean | one `\|\|` guard in `isAbandoned` split into two `if` returns with the same result |
+| `r-c5-comment-hours` | clean | a comment says "24-hour" instead of "24h" |
+
+Per run (one pass over the 15 cases) the planted total is 5 local, 5 cross, 10 overall, with 5 clean diffs. Local means the defect is visible in the changed lines; cross means it only shows from code outside the diff (callers, a header contract, a different runtime). Each bug is graded by a regex pair, file named and defect described, on the FINDINGS list at the end of the review (`FINDINGS: none` is a valid answer). Each grader is unit-tested in `bench/review.test.mjs` against a known-good and a known-bad review text per case. A finding that says the code is fine or correct, or that there is no bug, is not credited even if it names the right keywords (the check is a phrase list: "is fine", "correct as written", "no bug", a bare ", correct," clause; "incorrect" is not matched, so a real finding that says it is incorrect still counts; a phrasing the list misses can still be credited, which is why the transcripts are read), and a spawn run is valid only if the subagent messages in the transcript show a Haiku model (the Agent call's own model field counts only when the stream has no subagent message). A finding that matches no planted bug is counted as *extra*; every finding on a clean diff is a *false alarm*.
+
+### Arms
+
+- `sonnet-nograph` (baseline): Sonnet 5.5, Read/Grep/Glob/Bash, the diff in the prompt, no primer.
+- `sonnet-diff-primer`: as the baseline plus the diff primer in a `<diff-primer>` block.
+- `haiku-diff-primer`: Haiku 5.5 with the same prompt as `sonnet-diff-primer`.
+- `sonnet-spawns-haiku`: Sonnet 5.5 with the Agent tool, told to delegate the reading and the first pass to a Haiku subagent and then give the findings.
+- `haiku-nograph` (optional, `--arms` to add): Haiku 5.5, no primer. It separates the model effect from the primer effect for Haiku.
+
+No arm has the code-graph plugin or CLI. The tool set is pinned by `--tools` per arm; the Agent tool exists only in `sonnet-spawns-haiku`.
+
+**The primer** is generated at $0 by `node bench/review-prep.mjs` from the diff and the pre-change index of the pinned tree only (never from the bug list or the grader): the changed symbols with their line ranges and concept (`query file`), their callers to depth 2 (`query impact`), which callers no test file names, the cross-concept edges the diff adds (new relative imports resolved to a vertex of another concept), and the existing cross-concept edges of the touched concepts (`query cross`). Per-case output is stored as `bench/review/<id>.primer.txt` beside `<id>.diff` and committed, so the primer a run saw is auditable; `--check` regenerates and reports any drift. The runner refuses a run whose stored diff differs from the one computed from the workspace.
+
+### Validity
+
+A run is invalid, not counted, if: the init event shows another model or tool set than the arm's, an arm other than the spawn arm lists the Agent tool or calls it, or the shared bench checks fail (seccomp, error result, concept skills missing, code-graph present). **A `sonnet-spawns-haiku` run is invalid unless the transcript shows a Haiku subagent was started**: an Agent call whose model is Haiku, or a subagent message (`parent_tool_use_id` set) from a Haiku model. A Sonnet that reviews alone is a `sonnet-nograph` run and does not count. The runner stops on a usage limit, on seccomp, and on a second invalid run.
+
+### Decision rule (fixed before any result)
+
+The cap ($10), pilot cap ($1.50), per-run cap ($0.40) and 2 runs per cell are the user's. **Pre-registration: the paid run is measured against the commit that holds this section.** This section cannot name its own commit, so that sha is written into the first results entry below once the paid run is made. The cases, graders, arms and rule are as they stand at that commit. Any change after the pilot, to a case, a grader, a number or a rule, is recorded here as a post-pilot amendment with its date and reason, before the paid run starts; an unrecorded change invalidates the comparison to that commit.
+
+Bugs found are summed per arm over its paired valid runs (see the cap bullet), in three groups: **local**, **cross** and **overall**. For an arm, *missed* is planted minus found. Baseline B = `sonnet-nograph`.
+
+- **Spend cap (set by the user): $10 in all, pilot included** (`--budget 10`), per run cap `--run-budget 0.40`. The pilot is capped at $1.50. No run starts once spent plus the run budget would pass the cap. **2 runs per cell**: 15 cases x 4 arms x 2 = 120 runs, so each arm faces 10 local, 10 cross and 10 clean-diff reviews. The runner loops run number outermost, so a cap stop leaves a whole first pass. At the Sonnet cost seen in 051 (about $0.12 per run) the 90 Sonnet-model runs cost about $11 and the cap may bind in the second pass; the report scores only paired cells: a (case, run) cell counts only when every arm planned there has a valid run, so a cap stop or an invalid run drops that cell for all arms and every arm is scored on the same cells. The report prints how many valid runs were left out. The missing cells can be rerun with `--only` and `--arms`; a rerun is its own invocation, so combine it by hand only if the plan is the same.
+- **Matches the baseline.** Arm X *recovers* in a group if `missed(B) - missed(X)` is at least one third of `missed(B)` and at least 3 (the 051 rule). A cheaper arm that does not recover is read with the **hurts** line below: if it does not miss at least 3 more than B, it is reported as "no effect shown" next to its lower cost, not as a match.
+- **Cannot discriminate.** If B misses fewer than 3 bugs in a group, the verdict for that group is **inconclusive (baseline misses under 3)**. If X misses at least 3 more than B, it **hurts**; anything else is **no effect shown**. Arms with different numbers of valid runs are not compared.
+- **Per category, and overall never overrides a category.** Every verdict is given for local, for cross and overall. A primer gain on cross must not be hidden by a local tie, and an overall pass must not stand if a category hurts.
+- **Saturation guard, written before the pilot.** The rule above is useless if the baseline finds everything, so the cases are built so `sonnet-nograph` should plausibly miss at least 3 per category over the planned runs (5 bugs x 2 runs = 10 planted per category; 3 misses is 30%):
+  - *Local* (`l1` to `l5`): the changed line is correct-looking and only wrong given a convention stated elsewhere. `l1` (`Math.abs` of an idle time) and `l3` (`catch` returns `true`) look like defensive code; `l4` is one operator (`||` to `&&`) in a guard whose intent is two lines away; `l5` is `Math.max` to `Math.min` in a loop that reads as a plausible "oldest" scan; `l2` is `slice(1)` in a loop that looks like it skips `.`. A grep-and-read reviewer that does not trace what the value feeds waves these through, the same way 051's Sonnet left stale docs.
+  - *Cross* (`x1` to `x5`): the diff does not show the break. `x4` breaks lookups two hops away (the key is read by `listTasks`, `showEpic` and `readyTasks`; the last two have no test naming them), `x3` swaps two `string` parameters that still type-check, `x5` changes a constant whose meaning lives in a comment 20 lines above and whose consumers are the IPC delete path, `x1` needs the callers of `readAllProjectTags` in four files, `x2` needs the bundling contract in a header. Each needs a grep for callers, which a plain reviewer that trusts the diff does not do.
+  - These are priors, not results. If the pilot contradicts them, the stop rule below applies.
+- **Stop rule before the paid run.** The pilot samples 2 of the 5 local bugs, 2 of the 5 cross bugs and 1 clean diff with `sonnet-nograph` (list below). Each pilot bug stands for 5 planted bugs of its category in the paid run (10 planted per category over 2 runs, from 2 sampled), so extrapolated misses = pilot misses of the category x 5. Under 3 extrapolated misses means 0 misses in the 2 sampled bugs: that category cannot discriminate on this evidence, so do not spend the paid run. Any miss extrapolates to 5, which clears the floor of 3. This rests on 2 bugs per category and one reviewer run each, so it is a coarse screen, not an estimate: it catches a saturated category and nothing finer. Harden or add cases for that category (a caller two hops away, an untested caller, a subtler condition), regenerate `bench/review/` with `node bench/review-prep.mjs`, rerun the offline checks and a new pilot, and write the change here. The same applies if the baseline already finds nothing in a category (floor): add easier cases. A pilot is a rule input, not a result.
+- **False alarms and cost beside every verdict.** For each arm: findings on the 5 clean diffs (false alarms), per run and in total, so the figure rests on `valid runs x 5` clean reviews per arm (2 runs x 5 clean diffs = 10 per arm, fewer when a cell is left out as unpaired; the report prints the count beside the number), extra findings on bug diffs, and cost per run, each next to the baseline's. A verdict that finds more bugs at more false alarms is reported as such; it is not a pass for use as a reviewer until the false-alarm count is stated. Cost saving: X is cheaper if its cost per run is at least 20% under B's.
+- **Delegation** (`sonnet-spawns-haiku`): judged on the same rule against B, with cost beside it; valid runs only.
+- **Report per case and arm:** bugs found of planted, findings, extras, false alarms, structured or not, cost, turns. Then a plain verdict per group with confidence at n=2 per cell (small: say so). Results go below this section, only after the paid run.
+
+#### Results template (filled in only after the paid run)
+
+| arm | valid runs | local found / planted | cross found / planted | overall | false alarms (clean runs) | extra | cost per run |
+|---|---|---|---|---|---|---|---|
+| sonnet-nograph, sonnet-diff-primer, haiku-diff-primer, sonnet-spawns-haiku | | | | | | | |
+
+| arm vs baseline | local | cross | overall | false alarms vs baseline | cost vs baseline |
+|---|---|---|---|---|---|
+| each non-baseline arm | helps, no effect shown, hurts or inconclusive | same | same | n vs n | percent |
+
+### Preflight, pilot and paid run (all from a plain terminal at the repo root; the agent that built this could not run them)
+
+`claude` is not on the PATH inside the agent sandbox, so none of the following was run when the bench was written: the `--init-check` preflight failed with `spawn claude ENOENT`, and no pilot was run. The unit tests, `review-prep.mjs --check` and `review-run.mjs --dry` all pass at $0.
+
+1. `node --test bench/*.test.mjs` (offline).
+2. `node bench/review-prep.mjs --check` (offline; exits non-zero if a stored diff or primer drifted).
+3. `node bench/review-run.mjs --dry` (offline; prints each run's prompt size and `claude` args).
+4. **$0 preflight per arm**, with the API endpoint pointed at a dead address, checks model, tool set and plugins from the init event: `node bench/review-run.mjs --init-check --arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph`.
+5. **Pilot**, capped at $1.50 in all (a full 60-run pass would cost about $7, so the pilot is two parts and samples cases; `--only` takes a comma-separated list of id substrings). (a) Saturation check on the baseline, $1.10: `node bench/review-run.mjs --runs 1 --budget 1.1 --run-budget 0.4 --arms sonnet-nograph --only r-l1,r-l4,r-x3,r-x4,r-c1`. That is 2 local, 2 cross and 1 clean case, about $0.60 at $0.12 per run, so the run-budget reserve (no run starts once spent plus $0.40 passes $1.10) does not cut it short unless runs cost over about $0.17 each (the fifth run would then not start); the runner plans them in case-file order (l1, x3, l4, x4, c1), so the clean case is the one dropped if the cap stops it. (b) Spawn validity on one case, $0.40: `node bench/review-run.mjs --runs 1 --budget 0.4 --run-budget 0.4 --arms sonnet-spawns-haiku --only r-x3`; an invalid spawn run is listed in the report. (a) plus (b) is at most $1.50.
+6. **Paid run**, after the user confirms the numbers: `node bench/review-run.mjs --runs 2 --budget 10 --run-budget 0.4`. Add `--arms sonnet-nograph,sonnet-diff-primer,haiku-diff-primer,sonnet-spawns-haiku,haiku-nograph` to include the optional arm. Rerun missing cells after a usage limit with `--only` and `--arms`.
+
+### Post-pilot amendment (2026-11-05, ticket 068)
+
+The sections above are the pre-pilot plan and stay as written, including the decision rule and the stop rule. This amendment changes cases, arms and numbers only, and is recorded before any paid run.
+
+**Pilot A (user-run, 2026-11-05).** Results `bench/results/review-2026-11-05T16-16-04-363Z`, spend $0.335. `sonnet-nograph` found 4 of 4 sampled bugs (2 of 2 local, 2 of 2 cross) and raised no false alarm on the clean diff, mostly in 2 turns at about $0.07 per run.
+
+**Stop rule outcome.** The stop rule fired for both categories (0 misses in the 2 sampled bugs, so under 3 extrapolated misses). No paid run on the old cases. The user chose to harden the cases.
+
+**Hardened cases (15, `bench/review-cases.mjs`).** Cross-file bugs now break only outside the diff; local bugs are boundary, ordering or wrong-default mistakes. Each bug case carries `review.source`, the maestro history or invariant its kind comes from. The old ids are replaced; the stored diffs and primers in `bench/review/` are regenerated.
+
+| id | category | what is planted | where the bug kind comes from |
+|---|---|---|---|
+| `r-l1-resumable-clear` | local | `"clear"` added to `RESUMABLE_END_REASONS` in `session-paths.ts` | 077 / bf86ba8, resumable SessionEnd reasons |
+| `r-l2-sweep-default-cap` | local | sweep default `idleCapMs` becomes `SESSION_DELETE_IDLE_CAP_MS` | wrong-default kind, as in the 051 d1-d4 cap tasks |
+| `r-l3-count-before-remove` | local | `removed.push` moved before the `rmSync` loop, so the count includes failures | ordering kind, cf. a733966 |
+| `r-l4-id-min-length` | local | `SESSION_ID_RE` `{1,128}` becomes `{0,128}` | 064 rule: validated never sanitised, empty rejected |
+| `r-l5-empty-dir-zero` | local | `let newest = 0` instead of the directory's own mtime | "cannot tell = live" liveness rule |
+| `r-x1-list-skips-worktree` | cross | `listSessionIds` skips sessions with a worktree pointer; `liveRunIds`, `pendingLanes`, the sweep and session-log break | 074 worktree pointers, dc0df43 / df66f1a session tabs |
+| `r-x2-sqlite-edge` | cross | unchanged: `handoff-channels.ts` newly imports `project-tags.ts` (node:sqlite) | bundling contract in a header (kept from the first set) |
+| `r-x3-claim-requires-name` | cross | `readClaimFile` requires `session_name`; claims written by the `maestro-task-status.cjs` twin without a name read as absent | 084 optional claim `session_name`, twin-parity fixes 809e023 / 161b91c |
+| `r-x4-liveness-state-file` | cross | `isSessionLive` stats the state file instead of the log | 066 liveness rule |
+| `r-x5-queue-root` | cross | `deleteTask` drops `mainCheckoutRoot(projectRoot)`, unlike `listTasks` and `closeTask` | 074 and 45a3583, the repo-root `.claude` queue |
+| `r-c1-inline-idle`, `r-c3-regex-suffix`, `r-c4-split-guard` | clean | kept | |
+| `r-c6-drop-exists-guard` | clean | a redundant `existsSync` removed in `isSessionLive` | new, a correct refactor |
+| `r-c7-hoist-claude-dir` | clean | `claudeDir` hoisted in `deleteSession` | new, a correct refactor |
+
+The comment-only clean cases `r-c2` and `r-c5` are dropped as trivial. Totals are unchanged: 5 local, 5 cross, 5 clean.
+
+**Arms.** `sonnet-spawns-haiku` is dropped from the plan for now; its code and spawn-validity check are kept and tested, and it is added back with `--arms`. Planned arms: `sonnet-nograph` (baseline), `sonnet-diff-primer`, `haiku-diff-primer` and `haiku-nograph` (promoted from optional), so Haiku is compared with and without the primer. The delegation bullet of the decision rule applies only if the spawn arm is added back.
+
+**Runs and caps (approved by the user).** 3 runs per cell: 15 cases x 4 arms x 3 = 180 runs, so each arm faces 15 local, 15 cross and 15 clean-diff reviews. Spend cap $13 in all, pilot included (`--budget 13`); pilot cap $1.10; per run cap $0.40. The 2 runs per cell, $10 cap and $1.50 pilot cap in the rule text above are superseded by these numbers. The estimate is about $10.7 (sonnet-nograph about $0.09, sonnet-diff-primer about $0.12, Haiku arms about $0.012 to $0.015 per run); if the cap binds, passes 1 and 2 (about $7.1) still complete.
+
+**New pilot A sample (named before the pilot).** 2 local, 2 cross, 1 clean, `sonnet-nograph`: `r-l1-resumable-clear`, `r-l4-id-min-length`, `r-x1-list-skips-worktree`, `r-x4-liveness-state-file`, `r-c6-drop-exists-guard`. The stop rule above is applied to this sample before any paid run; with the new numbers the paid run is 3 runs per cell, so each pilot bug stands for 5 planted bugs of its category per pass, 15 over 3 passes, and a single miss still clears the floor of 3.
+
+**Commands (from a plain terminal at the repo root).**
+
+1. `node --test bench/*.test.mjs`, `node bench/review-prep.mjs --check` and `node bench/review-run.mjs --dry --runs 1` (offline).
+2. $0 preflight over the four planned arms: `node bench/review-run.mjs --init-check`.
+3. New pilot A, $1.10 cap: `node bench/review-run.mjs --runs 1 --budget 1.1 --run-budget 0.4 --arms sonnet-nograph --only r-l1,r-l4,r-x1,r-x4,r-c6`.
+4. Paid run, only after the stop rule is applied to the new pilot A: `node bench/review-run.mjs --runs 3 --budget 13 --run-budget 0.4`.
+
+**Grader change (2026-11-05, before any paid run).** The pre-paid-run review found that `gradeReview` matched a case's file regex against the whole finding text, so a finding on another file that merely used a word like "claims" was credited as a hit. It now matches the file regex against the path token (the text before the first `: `) only; the defect regex still reads the whole finding. This can only lower found counts, was fixed before any run on the hardened cases, and is pinned by a test (commit `f214e33`).
+
+**Measured against commit:** `f214e33` (holds the cases, graders including the path-token file match, and arms; `550ca20` added the amendment and cases; later commits only record this sha). The paid run is measured against that commit; the cases, graders, arms, numbers and rules are as they stand there.
+
+### Post-pilot amendment (2026-11-05, ticket 067, before any Haiku data exists)
+
+Recorded before any paid run. It changes arms, the question and how verdicts are read; cases, graders, per-run cap and 3 runs per cell are as in the 068 amendment above (commit `f214e33`).
+
+**Both pilot A screens.**
+
+- 066 pilot A (results `bench/results/review-2026-11-05T16-16-04-363Z`, $0.335): `sonnet-nograph` 4 of 4 (2 of 2 local, 2 of 2 cross), no false alarm. That grader later turned out to credit wrong-file findings (fixed in `f214e33`).
+- 068 pilot A on the hardened cases (results `bench/results/review-2026-11-05T18-12-18-331Z`, $0.467, user-run preflight passed): `sonnet-nograph` 4 of 4 (2 of 2 local, 2 of 2 cross) on `r-l1`, `r-l4`, `r-x1`, `r-x4`, 1 false alarm on `r-c6`, 6 extra findings, 3 to 8 turns, about $0.093 per run.
+
+**Double stop-rule outcome.** The stop rule fired twice: 0 misses in the 2 sampled bugs of each category on the old cases and again on the hardened ones, so under 3 extrapolated misses in both categories, both times. The baseline is at the ceiling on the pilot sample. The user decided (2026-11-05) to stop hardening and spend the paid run on one question only: **does a Haiku reviewer miss clearly more than Sonnet?** This overrides the stop rule's "do not spend the paid run" on purpose, since the answer that is still open (Haiku against a ceiling baseline) is worth its cost.
+
+**Planned arms (changed).** `sonnet-nograph` (baseline), `haiku-nograph` and `haiku-diff-primer`. `sonnet-diff-primer` is dropped: a primer cannot lift a baseline that is at the ceiling. `sonnet-spawns-haiku` stays unplanned (code and tests kept, add with `--arms`). `DEFAULT_REVIEW_ARMS` in `bench/review.mjs` now matches.
+
+**Verdicts decided (rule change).** Any "recovers" verdict is declared **inconclusive in advance**: with the baseline at the ceiling no arm can show it helps, so none is claimed. Only **hurts** (an arm missing at least 3 more than `sonnet-nograph` in a category, per the committed rule) or **no effect shown** is decided, per category (local, cross) and overall, overall never overriding a category. False alarms on the clean diffs and cost per run are printed beside each verdict, as the committed rule says. The report's "helps" or "matches" wording, if it appears, is not a result of this run.
+
+**Cross category is softer than intended.** `r-x3` and `r-x5` can be read off the changed line (the diff itself shows the inconsistency), so a cross miss rate measured here understates what a diff-only reviewer would miss on a real cross-file break. Read the cross verdict with that in mind.
+
+**Runs and caps (the user's).** 3 runs per cell: 15 cases x 3 arms x 3 = 135 runs, so each arm faces 15 local, 15 cross and 15 clean reviews. Total cap $13 including both pilots; the pilots cost $0.335 + $0.467 = $0.802, so the paid run is `--budget 12.19` (about $12.2 of headroom); per run cap `--run-budget 0.40`.
+
+**Cost estimate (from the pilot per-run figures).** `sonnet-nograph`: 45 runs x about $0.093 = about $4.2. Haiku arms: 90 runs x about $0.012 to $0.015 (from 051) = about $1.1 to $1.4. Total about $5.3 to $5.6 for the paid run, about $6.1 to $6.4 with both pilots, well under the $13 cap; the cap and the $0.40 per run cap cannot bind unless a run costs several times the pilot figure.
+
+**Command (plain terminal, repo root).** Optional $0 preflight first: `node bench/review-run.mjs --init-check` (checks the three planned arms). Paid run: `node bench/review-run.mjs --runs 3 --budget 12.19 --run-budget 0.4`.
+
+**Measured against commit:** `6fea03c` (holds this amendment and the new defaults; `pnpm verify` green on it; a later docs-only commit only records this sha). The pre-registration rule above applies: the cases, graders, arms, numbers and rules are as they stand there, with the changes in this amendment.
+
+### Results (paid run)
+
+User-run, 2026-11-05. Results `bench/results/review-2026-11-05T18-27-15-901Z` (gitignored; full report in `docs/test-report.md`). Measured commit `6fea03c` (the 067 amendment and the new defaults; `1b9c6ae` only records its sha). Command: `node bench/review-run.mjs --runs 3 --budget 12.19 --run-budget 0.4`. **Counted 135 of 135 valid runs** (no invalid run, 0 left out as unpaired), $3.363 spent of the $12.19 cap (the estimate was $5.3 to $5.6; Sonnet ran at $0.064 per run, below the pilots' $0.093). No arm had the code-graph plugin; `haiku-diff-primer` carried the stored primer.
+
+**Per arm** (45 valid runs each: 15 local, 15 cross and 15 clean-diff reviews; "false alarms" counts findings on the clean diffs, over 15 clean runs):
+
+| arm | local found | cross found | overall found | false alarms on clean diffs (15 clean runs) | extra findings on bug diffs and clean diffs | cost per run |
+|---|---|---|---|---|---|---|
+| sonnet-nograph | 15/15 | 15/15 | 30/30 | 3 | 18 | $0.064 |
+| haiku-diff-primer | 15/15 | 15/15 | 30/30 | 8 | 22 | $0.006 |
+| haiku-nograph | 15/15 | 15/15 | 30/30 | 10 | 42 | $0.005 |
+
+The "30/30" is 15 local plus 15 cross planted bugs (5 bugs x 3 runs per category); every arm found every planted bug in every run, so missed is 0 for all three arms in every group.
+
+**Verdicts under the amended rule** (hurts = the arm misses at least 3 more than `sonnet-nograph` in a category; otherwise no effect shown; "recovers" is inconclusive in advance, per the 067 amendment; overall never overrides a category):
+
+| arm | local | cross | overall | false alarms vs baseline | cost per run vs baseline |
+|---|---|---|---|---|---|
+| haiku-diff-primer | no effect shown (missed 0 vs 0) | no effect shown (missed 0 vs 0) | no effect shown (missed 0 vs 0) | 8 vs 3 | -91% ($0.006 vs $0.064) |
+| haiku-nograph | no effect shown (missed 0 vs 0) | no effect shown (missed 0 vs 0) | no effect shown (missed 0 vs 0) | 10 vs 3 | -92% ($0.005 vs $0.064) |
+
+How the tool's label maps to the amended wording. The report prints "inconclusive (baseline misses under 3)" in each cell: that is the original "Cannot discriminate" clause of the committed rule, which the 067 amendment did not remove, so the tool's text was not changed and still applies. Read together with the amendment, it means the same thing as the amended outcome here: no Haiku arm misses 3 or more bugs more than the baseline (the difference is 0, so **no hurts verdict in any group**), and nothing else can be decided because the baseline missed nothing. "No effect shown" is the amended wording for that; it is a statement about the absence of a measured gap on saturated cases, not evidence that Haiku equals Sonnet. To be explicit: the tool prints "inconclusive (baseline misses under 3)", while "no effect shown" is our reading of the amended rule for the baseline-at-ceiling case, not a label the tool prints. The user should confirm that reading. No rule or number was changed after the run.
+
+**False alarms are a real cost and are reported beside every verdict.** Sonnet raised 3 (`r-c3` run 1, `r-c6` runs 2 and 3, one each). `haiku-diff-primer` raised 8: 5 on `r-c6` (2, 3 and 0 in runs 1 to 3) and 3 on `r-c3` run 2. `haiku-nograph` raised 10, all on `r-c6` (2, 3 and 5). So `r-c6` (the redundant `existsSync` removed in `isSessionLive`, a correct refactor) drives most of the Haiku false alarms, and the Haiku arms flagged it as a problem in 5 of 6 runs where Sonnet did in 2 of 3. The other clean diffs (`r-c1`, `r-c4`, `r-c7`) drew none from any arm. A reviewer that cries wolf on a correct refactor costs the reader time that the $0.06 per run saved does not give back, so the price difference is not the whole picture. Extra findings (anything beyond the planted bug, on bug and clean diffs): 18, 22 and 42; the plain Haiku arm writes about 2.3 times Sonnet's extra findings and the primed one about 1.2 times.
+
+**Haiku vs Sonnet.** With and without the primer, Haiku found everything Sonnet found (30/30 each) at about a tenth of the cost, with more false alarms (8 and 10 against 3) and more extra findings. On these 15 cases no measurable detection gap exists; the only measured differences are cost (Haiku far cheaper) and noise in the findings (Haiku noisier).
+
+**The primer's effect on Haiku (descriptive, `haiku-diff-primer` vs `haiku-nograph`).** Same bugs found (30/30 both). False alarms 8 against 10, extra findings 22 against 42, cost $0.006 against $0.005 per run (about $0.001 more, the primer text plus slightly more turns on a few cases). So with the primer, Haiku's noise was lower by about 20% (false alarms) and about 48% (extras), and detection was the same. The net gap of 2 hides two larger opposite swings: on `r-c6` run 3 plain Haiku raised 5 against 0 primed, and on `r-c3` run 2 primed Haiku raised 3 against 0 plain (the only false alarms either Haiku arm raised on `r-c3`). Those offset; at n=15 clean runs read the primer's effect as a direction, not an effect. The primer's own cost (building the graph and running the three query commands) is not in these figures.
+
+**Confidence: low.** Small n (3 runs per cell, 5 cases per category, 15 clean runs per arm, one model pair, one repository). All arms are at the ceiling, so the cases do not separate any arms: the baseline missed nothing, so no arm could show that it helps, and the "hurts" test could fire only if Haiku had missed 3 or more bugs, which it did not (0 missed in 60 Haiku bug reviews, 30 per arm). The cases are probably still easier than real review: two cross cases (`r-x3`, `r-x5`) can be read off the changed line, so the cross category is softer than intended, and the stop rule had already fired twice on the Sonnet baseline. The firm statements are limited to these: on these cases Haiku did not miss more than Sonnet, it costs about a tenth as much, and it raises more false alarms.
+
+**Recommendation for the reviewer agent (a decision for its own ticket in the maestro repo, not made here; confidence low, see above).** The arms separate on false alarms and cost, not on detection, because every arm found every planted bug. **Sonnet plain** raised the fewest false alarms (3, against 8 for Haiku plus primer and 10 for plain Haiku) and is the only arm measured as a baseline at the ceiling, so it is the choice where a false alarm costs most. **Haiku plus the primer** is the cheaper candidate: about 9% of Sonnet's cost per run, the same detection, and fewer false alarms and extras than plain Haiku. Its edge over plain Haiku is a direction, not an effect: the two arms offset on `r-c6` and `r-c3`, the false alarms concentrate on `r-c6` (a correct refactor), and the primer's own build cost is not in the cost figures. **Haiku plain** is not preferred, since it raised the most false alarms at about the same cost, but its gap to Haiku plus primer is within this run's noise. A sensible setup is Haiku plus primer for routine reviews with Sonnet kept for a second look where the Haiku review flags something, but that combination was not measured either. **Not measured:** Sonnet plus primer (dropped in the 067 amendment) and Sonnet spawning Haiku (`sonnet-spawns-haiku`, unplanned); no statement is made about them. Because the cases saturated, a harder case set would be needed to say that Haiku never misses more; this run only fails to find a gap. A reviewer model or workflow change in the maestro repo is out of scope here.
+
+## Ticket 070: does a Haiku refactor scout filtered by a Sonnet reviewer find structure improvements as well as a Sonnet refactor pass (bench/, plan and rule written before any paid run)
+
+Question: the user wants a cheap Haiku refactor agent ahead of the Sonnet reviewer on every task, suggesting code-quality improvements, with the Sonnet reviewer filtering its false alarms and deciding which suggestions deserve a refactor ticket. 067 measured Haiku as a reviewer: it found every seeded bug but raised 8 to 10 false alarms on 15 clean diffs against Sonnet's 3. A refactor scout lives on exactly that weakness (proposals are opinions), so the filter has to do real work. 070 measures whether the pipeline is worth adding. Refactor mode is `bench/refactor-run.mjs` (it reuses the review bench's stream flags, findings parser, spawn evidence, paired-cell rule and 051-style verdict from `bench/review.mjs`); setup, files, graders and validity are in `bench/README.md`, "Refactor mode (ticket 070)". Maestro is pinned at `3814a30`, the no-graph workspace from `git archive`. Nothing in the maestro repo changes; adding the scout or the step to its workflow is its own ticket there.
+
+> **Operative design: the post-pilot amendment (2026-11-05) at the end of this section.** Pilot (a) came back saturated, so the cases, the arm set, the run count, the caps arithmetic and the pilot gate were reworked before any paid run. Everything from here down to the amendment is the **original design as pre-registered**: where it says 11 cases, four arms, 3 runs or 132 cells it is history, kept so the change can be audited. The question, the metrics primer, the scoring and validity rules, the decision rule and the "worth adding" test are unchanged unless the amendment says so.
+
+### Cases (original set of 11, `bench/refactor-cases.mjs` before the amendment; retired in part, see the amendment)
+
+A case is a neighbourhood of the pinned tree, with the planted change applied (the agent reads the files as changed), a stored file list (`bench/refactor/<id>.scope.txt`) and a stored metrics primer (`<id>.primer.txt`). The scope is the change's files plus the direct import-graph neighbours the change mentions (a neighbour's file name or one of its exports appears in the planted text; if the change mentions none, the least-imported non-hub neighbours), plus a few files added by hand and said so in the case (`extra`: the helper's file where the core barrel hides the import, the other concept's copy, and the `.cjs` plugin scripts the code index does not cover); at most 12 files, listed without any label of which were touched. The graph part comes from `catalog --json` (imports, fan-in, fan-out, hubs, exports) and `query file`, run before and after the planted change.
+
+| id | kind | source or plant | expected improvement (category) |
+|---|---|---|---|
+| `f-r1-canvas-align` | real | maestro `58eb91f` reverted (an extracted helper): `workflow-canvas.tsx` carries its own `alignMainSession`, saved-positions check and dagre literals again | import `canvas-layout.ts` and delete the local copy (extract) |
+| `f-r2-ipc-core-helpers` | real | maestro `71569fd` reverted (an extracted helper): `main/ipc.ts` decides the allow-list and session titles inline again | delegate to `session-ipc.ts` `composeAllowedRoots` and `titlesForRefs` (extract) |
+| `f-r3-readloglines-copy` | real | maestro `05d5b76` reverted (a deduplication): `maestro-resume-target.cjs` has its own `readLogLines` again | require the one in `lib/maestro-session.cjs` (dedupe) |
+| `f-r4-stale-rule-inline` | real | maestro `05d5b76` reverted (an aligned pattern): `maestro-check-runtime.cjs` repeats the staleness rule instead of `runtimeNeedsRefresh` | call `runtimeNeedsRefresh` (align) |
+| `f-s1-dup-readjson` | seeded | `tasks.ts` (task-queue) gets a private copy of `session-runtime.ts` `readJson` (maestro-architecture); older copies elsewhere in the tree are tolerated | import the shared helper (dedupe, across two concepts) |
+| `f-s2-drift-epic-write` | seeded | `writeEpicState` writes in place while its siblings write a temp file and rename | restore the atomic write (align, one file of a family) |
+| `f-s3-cycle-claims-channels` | seeded | `handoff-channels.ts` imports `claims.ts`, which already imports it | break the cycle (cycle) |
+| `f-s4-unused-export-pluralize` | seeded | `text.ts` exports `pluralize`, which nothing imports | remove it (unused) |
+| `f-c1-canvas-layout`, `f-c2-session-ipc`, `f-c3-handoff-label` | clean | the same neighbourhoods as `f-r1`, `f-r2` and a small single-purpose module, with no change | none: every proposal is a false finding |
+
+Per run (one pass over the 11 cases) the expected total is 8 improvements: dedupe 2, extract 2, align 2, cycle 1, unused 1, with 3 clean neighbourhoods. Over 3 runs that is 24 expected improvements (6, 6, 6, 3, 3), 33 case-runs per arm (9 of them clean) and every proposal beyond the expected ones counted as a false finding on all 33. **Known limits, said before the run.**
+
+1. **Real refactors: 4, and the cycle category is seeded only. This is accepted** (decided before the run, not a gap to close later). No removed-cycle refactor exists in the pinned history (`3814a30` and its ancestors), so the cycle case is a seeded plant. The two `05d5b76` cases (`f-r3`, `f-r4`) are two distinct changes inside that one commit: different files, `maestro-resume-target.cjs` (a duplicated `readLogLines`, category dedupe) and `maestro-check-runtime.cjs` (an inlined staleness rule instead of `runtimeNeedsRefresh`, category align). Reverting each in isolation gives two separate neighbourhoods and two separate expected improvements; they share a source commit, not a change.
+2. **False findings count on every case.** On all 11 cases, every proposal that does not match an expected improvement and is not on the case's `tolerated` list is a false finding, as in 066's clean diffs; for the pipeline it is counted after the filter (the survivors). They are split by the category of the proposal's stated kind (dedupe, extract, align, cycle, unused, other) per arm. The 067 result is why: Haiku and Sonnet differed in false alarms (8 to 10 against 3), not in recall, so this is the metric the verdict leans on, and 3 clean neighbourhoods alone are too few to measure it.
+3. **Some false findings may be real improvements.** The pinned tree is real code and real duplicates exist beside the seeded ones; `tolerated` lists the ones known when the cases were written (the older `readJson` copies, the unused `claimFileForTask` remark), and a clean neighbourhood is clean only as far as the author's reading goes. The headline count is not adjusted for this, ever: the verdict uses the raw figure for every arm, so the bias applies to all arms alike and is not a post-hoc judgement. A fixed audit is run after the paid run and reported beside the headline, never in place of it: pool every false finding kept (all arms, all runs), strip the arm labels, and mark each *confirmed* only if it names a concrete duplicate, import cycle or unused export that a `grep` of the pinned workspace confirms exists; anything else is *unconfirmed*. The report lists confirmed counts per arm. If confirmed findings are unevenly spread across arms, that is said next to the false-finding verdict and lowers its confidence; the verdict itself is not recomputed.
+4. **3 planted per category over 3 runs is likely inconclusive per category.** Each category has 6 (dedupe, extract, align) or 3 (cycle, unused) expected improvements over 3 runs. Under the 051 rule a group where the baseline misses fewer than 3 is *inconclusive*, and "helps" needs a gain of at least 3, so for cycle and unused the rule can fire only if the baseline misses all 3, and for the others only if it misses at least 3 of 6. Pre-registered expectation: most per-category improvement verdicts will read *inconclusive* or *no effect shown*; that is a limit of the case count, not a finding. The false-finding figures (33 case-runs per arm) are what can separate the arms.
+5. A reverted real refactor is reconstructed from the source commit's diff; the plant restores the code as that commit found it and each plant is applied with `replaceOnce`, so a stale pin fails loudly.
+
+### Metrics primer (deterministic, $0, stored)
+
+`node bench/refactor-prep.mjs` writes `bench/refactor/<id>.primer.txt` from the code-graph CLI on the tree after the planted change (so a seeded cycle or unused export is visible to the primer arms) and never from the expected-improvement list: fan-in and fan-out per scope file, hubs, import cycles that include a scope file (strongly connected components of the catalog's import edges), exports no other source file mentions, cross-concept import edges between scope files and `query cross` of their concepts. **What the CLI exposes was enough: no package source change and no `pnpm build` were needed.** Two metrics are computed by the bench rather than read from the CLI: cycles (the CLI lists import edges, not components) and unused exports (the CLI exposes fan-in per file, not per export, so the bench scans the source text for the export's name; a barrel re-export or a dynamic use only shows as a mention, so the primer calls them leads). Duplication and pattern drift are not measured by the index, and the primer says so. `--check` regenerates everything and exits non-zero on drift; the unit tests also pin the stored files (sections present, planted files in scope, no machine path).
+
+### Arms
+
+All four run in the no-graph workspace (maestro's concept skills, Read/Grep/Glob/Bash/Skill, no plugin): the graph is not what is measured, the metrics primer is. The tool set is pinned by `--tools` per session.
+
+- `sonnet-plain` (baseline B): Sonnet 5.5, the neighbourhood in the prompt, no primer.
+- `haiku-metrics-primer` (the scout alone): Haiku 5.5, the same prompt plus the stored metrics primer.
+- `haiku-scout-sonnet-filter` (the user's pipeline): the Haiku scout above, then a second Sonnet 5.5 session that gets the scout's numbered proposals and the neighbourhood and returns `VERDICTS:` with `file-it` or `drop-it` for each. It is told not to rule on the change, add proposals or edit; a proposal with no readable verdict does not survive, and a verdict for a number outside the list is counted and ignored. **The arm is scored on the proposals that survive** (file-it), with both sessions' cost added.
+- `sonnet-spawns-haiku-scouts`: Sonnet 5.5 with the Agent tool, told to hand the survey of the neighbourhood to Haiku subagents and then judge their reports and write the proposals.
+
+### Scoring and validity
+
+Each proposal is a line `- <file>: <kind>: <problem and change>` under `PROPOSALS:` (`PROPOSALS: none` is valid). An expected improvement is *kept* when one proposal names its file (the path token before the first `: `) and matches every change pattern; a proposal that says the code is fine is not credited. Scores per arm: **expected improvements kept** (by category and overall), **false findings kept** (every proposal beyond the expected ones and the case's tolerated list, on every case, by the category of the proposal's kind; for the pipeline, the ones the filter kept), and **total cost per run** (scout plus filter for the pipeline). **Anchoring** (pipeline only): kept over the scout's proposals, how many lists passed unchanged, and, from grading the scout's list too, the expected improvements the filter threw away and the false findings it removed. An anchoring near 100% with false findings kept means the filter rubber-stamped the scout.
+
+**An unstructured answer is an invalid run.** An answer with no `PROPOSALS:` section (or, for the pipeline's filter, no `VERDICTS:` section) is not read as "nothing proposed": the run is marked invalid with the problem "unstructured", is not counted, and its cell is rerun or reported as missing (the pairing rule then drops that (case, run) for every arm). `PROPOSALS: none` is structured and valid. The per-case table has a `structured` column (for the pipeline, the scout's and the filter's). **All-clear text is its own count, not a false finding (decided now).** The prompt asks for `PROPOSALS: none` and nothing else when nothing is warranted. Text that only says nothing is warranted is classified as an *all-clear line*: header-line text (`PROPOSALS: no proposals`, `nothing to do`, `No refactor is warranted`), a bullet such as `- nothing to change here`, `Leave it as is.`, `No issues found.`, `Not needed.`, `Nothing found.`, `none`, a short bullet that says its subject is fine or correct as written, and `PROPOSALS:` followed by prose that names no file path and is not in the `<file>: <kind>: <text>` form (one all-clear). The phrase tests are anchored to the whole line and apply only to a line without the `<file>: <kind>: <text>` shape; a line in that shape is always a proposal and is graded and filtered as one. A bullet on the header line (`PROPOSALS: - a.ts: dedupe: x`) is the first item, and a `<file>: <kind>: <text>` line with no bullet under the header is a proposal too (it is not dropped). A bare marker on the header line (`PROPOSALS: -`) is an empty bullet, so the dashless shaped line under it is its content, not a second item. Documented classifier limits: an unshaped line that opens with an all-clear phrase and then adds a proposal ("No changes to X, but ...") counts as an all-clear; header prose that names no file is one all-clear; unusual unshaped all-clear wordings the list does not know count as false findings for the arm that wrote them. An all-clear line is never credited, is not a proposal, is not sent to the filter, and is not a false finding: it is reported as its own count per case and per arm, so a formatting habit (likely commoner in one model) does not inflate that arm's false findings. On a case with expected improvements, an all-clear is a legitimate zero; on a clean case it is a correct answer in an unwanted shape. The classification is a phrase list with residual limits, stated here and not corrected after the fact: a shaped line whose text says the code is fine ("`a.ts: dedupe: this is fine as written`") is a proposal, so it counts as a false finding for the arm that wrote it; header prose that names a file path (`PROPOSALS: src/a.ts duplicates src/core/json.ts`) is kept as one item, so an all-clear sentence that happens to name a file is a false finding; an unshaped, unusual all-clear wording that the list does not know is a false finding too. These fall on the arm that phrased the text so, not on every arm alike; the all-clear and false-finding counts are printed per arm so the reader can see when one arm's gap rests on them. The arm-level all-clear counts are printed beside the false-finding verdict. The rule "overall false findings never override a category in which X keeps more" is applied by the reader from the two printed tables; the report does not compute it.
+
+A run is invalid, not counted, if: the init event shows another model or tool set than the session's, a session other than the spawn arm's lists or calls the Agent tool, or the shared bench checks fail (seccomp, error result, concept skills missing, code-graph present). **A `sonnet-spawns-haiku-scouts` run is invalid unless the transcript shows a Haiku subagent was started** (an Agent call whose model is Haiku, or a subagent message from a Haiku model, which wins over the call's own field). A pipeline cell is invalid if either of its sessions is. The runner stops on a usage limit, on seccomp, and on a second invalid run.
+
+### Decision rule (fixed before any result)
+
+**Pre-registration: the paid run is measured against the commit that holds this section.** This section cannot name its own commit, so that sha is written into the first results entry once the paid run is made; `pnpm verify` must be green on that commit. The cases, graders, arms, numbers and rule are as they stand there. Any change after the pilot, to a case, a grader, a number or a rule, is recorded below as a post-pilot amendment with its date and reason, before the paid run starts; an unrecorded change invalidates the comparison.
+
+- **Caps (original design; the run count, arms and cell arithmetic are superseded by the amendment, the $10 / $3 / $7 / $0.60 caps stand).** Combined ceiling **$10**: pilot cap `--budget` = **$3**, paid-run cap `--budget` = **$7** (`--budget` is per invocation, so the two invocations together stay at or under $10). Per-session cap: `--run-budget` = **$0.60**. If the pilot shows the full 3-run design cannot fit the $7 paid-run cap, the design is reduced before the paid run (`--runs 2`, or dropping the spawn arm) and the reduced design is recorded here first; if even that cannot fit, the study stops and says so rather than reporting a truncated run. The runner has no default for the first and the third and refuses a paid run without both. The pipeline arm has two sessions per cell, so the runner reserves twice the per-session cap before it starts one. **Runs per cell: 3** (11 cases x 4 arms x 3 = 132 cells: Sonnet sessions 99, Haiku sessions 66, plus the Haiku subagents of the spawn arm). Cost per session is unknown until the pilot: 066 saw $0.064 per Sonnet review of a diff and $0.005 per Haiku review, and a refactor session reads a whole neighbourhood, so expect more; the pilot gives the figure the user sets the cap from. The runner loops run number outermost, so a cap stop leaves a whole first pass, and the report scores only paired cells (a (case, run) cell counts only when every arm planned there has a valid run).
+- **Improvements, per category (the 051 rule as 066 amended it).** Counts are *kept* of *expected*, summed over paired valid runs, for dedupe, extract, align, cycle, unused and overall. *Missed* = expected minus kept. Arm X **hurts** in a group if it misses at least 3 more than B; **helps** if `missed(B) - missed(X)` is at least a third of `missed(B)` and at least 3; if B misses fewer than 3 the group is **inconclusive (baseline misses under 3)**; anything else is **no effect shown**. Arms with different numbers of valid runs are not compared. **Overall never overrides a category:** an overall pass does not stand if a category hurts.
+- **False findings kept (every case).** X against B over the same paired case-runs (33 per arm at 3 runs, the 9 clean ones included), overall and per proposal category (dedupe, extract, align, cycle, unused, other): **fewer** if X keeps at least 3 fewer, **more** if at least 3 more, else **no difference shown**. For the pipeline this is the count after the filter. Overall false findings never override a category in which X keeps **more**. The report prints both tables.
+- **Cost.** X is **cheaper** if its total cost per run is at least 20% under B's (both sessions for the pipeline; the spawn arm's cost includes its subagents). The metrics primer is stored, so building it costs $0 per run here; in a real workflow its build is a cost not counted.
+- **What "worth adding" means, fixed now.** The pipeline `haiku-scout-sonnet-filter` is recommended as a step ahead of the reviewer only if all hold: no category **hurts** against B; false findings kept are not **more** than B's, overall or in any category; it is **cheaper** than B counting both sessions; and the anchoring figures do not show a rubber stamp (kept share near 100% with false findings kept above B's). If it hurts, or keeps more false findings, or is not cheaper, it is not recommended in that form. If B misses fewer than 3 in the groups, the improvements verdicts are inconclusive by the rule and the recommendation rests on false findings and cost alone, said as such. The scout alone (`haiku-metrics-primer`) and the spawn arm are judged on the same lines; the scout alone is reported next to the pipeline so the filter's contribution (false findings removed, expected improvements lost) is visible. A confidence level (low, medium, high) is stated with the results, from the number of paired runs, the baseline's headroom and the limits above.
+- **Stop rule before the paid run (original rule; the amendment changes what stops the paid run).** Pilot the baseline: `sonnet-plain`, 1 run of all 11 cases (8 expected improvements, 3 clean). The pilot is **saturated** if B misses fewer than 3 of the 8 (the improvements verdict could not show a gap), and at the **floor** if it keeps fewer than a third of them, 2 or fewer (the cases or the grader are too hard or too strict). Either means: do not spend the paid run; rework the cases (a subtler duplicate, a non-obvious cycle, a neighbour two hops away; or easier cases for a floor), regenerate `bench/refactor/` with `node bench/refactor-prep.mjs`, rerun the offline checks and a new pilot, and record the change here. This rests on one run per case, so it is a coarse screen. `pilotScreen` in `bench/refactor.mjs` prints the verdict at the end of the baseline's report. A pilot is a rule input, not a result.
+- **Report per case and arm:** expected kept of expected, proposals, false findings (by category), anchoring, cost (scout + filter), turns. Then a plain verdict per group, with confidence. Results go below this section, only after the paid run.
+
+#### Results template (filled in only after the paid run)
+
+| arm | valid runs | dedupe | extract | align | cycle | unused | overall kept | false findings kept (all cases) | cost per run |
+|---|---|---|---|---|---|---|---|---|---|
+| sonnet-plain, haiku-metrics-primer, haiku-scout-sonnet-filter, sonnet-spawns-haiku-scouts | | | | | | | | | | |
+
+| arm vs baseline | per category | overall | false findings vs baseline (all, then per category) | confirmed false findings (audit, beside, never instead) | cost vs baseline | anchoring (pipeline) |
+|---|---|---|---|---|---|---|
+| each non-baseline arm | helps, no effect shown, hurts or inconclusive | same | n vs n: fewer, more or no difference shown | n per arm | percent | kept/scout, lists unchanged, expected lost, false removed |
+
+### Preflight, pilot and paid run (all from a plain terminal at the repo root; the agent that built this could not run the model steps)
+
+`claude` runs inside a nested sandbox badly, so the runner refuses a paid run inside a Claude Code session (`--dry` and `--init-check` are exempt). Steps 1 to 3 were run at $0 when the bench was written and pass; steps 4 to 7 below are the original commands. **Steps 5 to 7 are superseded by the amendment's commands** (pilot (a) was run once on the original set; pilot (b) is dropped).
+
+1. `node --test bench/*.test.mjs` (offline).
+2. `node bench/refactor-prep.mjs --check` (offline; exits non-zero if a stored scope or primer drifted, or a plant no longer applies).
+3. `node bench/refactor-run.mjs --dry` (offline; prints each cell's prompt size and `claude` args; needs no cap).
+4. **$0 preflight** per arm and session, with the API endpoint pointed at a dead address, checks model, tool set and plugins from the init event: `node bench/refactor-run.mjs --init-check`.
+5. **Pilot (a), baseline saturation**: `node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 2 --run-budget 0.60` ($2 of the $3 pilot cap). Read "Baseline screen" at the end of the report; saturated or floor stops the plan.
+6. **Pilot (b), pipeline and spawn validity** on two cases (`--only` takes a comma-separated list of id substrings): `node bench/refactor-run.mjs --runs 1 --arms haiku-scout-sonnet-filter,sonnet-spawns-haiku-scouts --only f-r3,f-c1 --budget 1 --run-budget 0.60` ($1, the rest of the $3 pilot cap). An invalid spawn run is listed in the report; the pipeline row shows both sessions' cost and the anchoring. (a) plus (b) stay within the $3 pilot cap.
+7. **Paid run**, after the caps are written into this section: `node bench/refactor-run.mjs --runs 3 --budget 7 --run-budget 0.60` (or the reduced design recorded above). Rerun missing cells after a usage limit with `--only` and `--arms`.
+
+### Status when this was written
+
+Built and checked at $0: cases, graders, stored scopes and primers, the four arms, the runner and its tests. Pilot (a) was run on the original set and was saturated (see the amendment below). **Done (2026-11-06):** the baseline pilot on the reworked cases and the paid run were made by the user from a plain terminal; both, the fixed audit, the verdicts and the recommendation are in "Results (pilot rerun and paid run, 2026-11-06)" after the amendment. The "Results template" above is filled there. Nothing is pending for 070 except what the user decides to do with the recommendation.
+
+### Post-pilot amendment (2026-11-05, written before any paid run)
+
+**Pilot (a) result.** `sonnet-plain`, 1 run, original set, measured commit `9089120`: **saturated**. The baseline kept 8 of 8 expected improvements (missed 0; the rule calls a pilot saturated under 3 misses). It cost $1.525 for 9 completed case-runs, about **$0.169 per Sonnet session**, and raised **11 false findings over those 9 case-runs, 4 of them on `f-c1-canvas-layout`**. Pilot (b) was not run. The pilot is a rule input, not a result; its stop rule fired ("rework the cases"). The old pilot numbers are **superseded**: they are not pooled with anything from the reworked set, and they are not a baseline for it.
+
+**Why the cases changed.** Every expected improvement of the original set was one copied function (or one inline rule) readable from the one file the agent was pointed at, so a plain Sonnet pass found all of them and no arm could show a gap on recall (the same ceiling 066/067 hit). What the baseline did show was noise: 11 false findings, the metric the verdict leans on, but over a set where recall could not move. The reworked cases keep that false-finding signal and add improvements that need more than one file read.
+
+**Why the design shrank.** The original design (11 cases, 4 arms, 3 runs, 132 cells: 99 Sonnet sessions) at the measured $0.169 per Sonnet session is about $17 for Sonnet alone against a $7 paid-run cap. Pilot (b) and the spawn arm were the two cheapest things to cut without losing the question the user asked (is Haiku scout plus Sonnet filter as good as a Sonnet pass, and cheaper).
+
+**How the new cases were chosen (recorded so they cannot be read as tuned).** The pilot's answers were not read to pick them; the only pilot input was the saturation figure above. The criteria were fixed first: subtler duplication across files rather than a single copied function; improvements that need more than one file read; larger neighbourhoods (6 to 8 files); clean controls kept; ground truth that stays honest, meaning a reverted real refactor names its source commit and a seeded problem is unambiguous in the planted text. Two pre-existing real near-duplicates in the pinned tree (`taskHeading` in `session-title.ts` and `parseTitle` in `tasks.ts`) are on the `tolerated` list of the cases whose scope holds them. Several other pre-existing near-duplicates (`claude-preview.ts` inline truncations against `clip`, `bareAgentName` in `success-path.ts`, the `[A-Za-z0-9_-]+` regex validators) were left out of the scopes instead of tolerated, because deciding whether they are improvements is a judgement; limit 3 below (a clean neighbourhood is clean only as far as the author's reading goes) still covers whatever remains.
+
+**New case list (6, `bench/refactor-cases.mjs`; stored scope and primer per case in `bench/refactor/`).**
+
+| id | kind | source or plant | expected improvements (category) | scope |
+|---|---|---|---|---|
+| `f-r5-plugin-scripts-05d5b76` | real | maestro `05d5b76` ("deduplicate the plugin scripts") reverted whole, except its version bump and mirrors: `readLogLines` copies in `maestro-inject-agent-context.js`, `maestro-subagent-log.js`, `maestro-team-meeting.cjs` and `maestro-resume-target.cjs`; the `payloadRoutes` / `payloadRequirement` branches written twice in the inject script; the staleness rule inline in `maestro-check-runtime.cjs` | 3: `plugin-readloglines-copies` (dedupe), `inject-payload-routes-twice` (dedupe), `check-runtime-needs-refresh` (align) | 8 files (5 scripts, the session lib, `session-runtime.ts`, `runtime-version.ts`) |
+| `f-s5-titlecase-copies` | seeded | `epicTitle` (planted in `epics.ts`, used in the epic heading) and `prettyTaskName` (planted in `session-title.ts`, used in the filename fallback) each re-implement `titleFromName` of `text.ts` under other names and with different code; `text.ts` is the third file in scope | 1: `titlecase-reimplemented` (dedupe, across three files). Tolerated: the real pair `taskHeading` / `parseTitle` | 6 files |
+| `f-s6-cycle-tasks-session-paths` | seeded | `session-paths.ts` imports `tasksDirFor` from `tasks.ts` (and gets an unused `sessionTasksDir` wrapper): the cycle is `session-paths` to `tasks` to `claims` to `session-paths`, and the middle module `claims.ts` is outside the 3-file scope, so no pair of scope files imports each other. The primer shows the larger strongly connected component that holds the planted edge | 1: `paths-tasks-claims-cycle` (cycle). Tolerated: `sessionTasksDir` unused | 3 files |
+| `f-c1-canvas-layout` | clean | kept from the original set | none | as before |
+| `f-c2-session-ipc` | clean | kept from the original set; now tolerates the `taskHeading` / `parseTitle` pair | none | as before |
+| `f-c4-plugin-scripts` | clean | the control for `f-r5`: the same five scripts and the lib, with no change | none | 6 files |
+
+Per run (one pass over the 6 cases) the expected total is **5 improvements** (dedupe 3, align 1, cycle 1) with **3 clean neighbourhoods**. Over 2 runs: 10 expected improvements (6, 2, 2) and 12 case-runs per arm (6 clean). The extract and unused categories are no longer planted, so they carry no improvements verdict; a proposal of those kinds is still a false finding by category.
+
+**Retired and kept.** Retired (their stored files are deleted): `f-r1-canvas-align`, `f-r2-ipc-core-helpers`, `f-r3-readloglines-copy`, `f-r4-stale-rule-inline`, `f-s1-dup-readjson`, `f-s2-drift-epic-write`, `f-s3-cycle-claims-channels`, `f-s4-unused-export-pluralize`, `f-c3-handoff-label`. `f-r3` and `f-r4` live on inside `f-r5` (the same commit `05d5b76`, now whole). Kept: `f-c1-canvas-layout`, `f-c2-session-ipc`. New: `f-r5`, `f-s5`, `f-s6`, `f-c4`.
+
+**New design.**
+
+- **Arms (3 by default):** `sonnet-plain` (baseline), `haiku-metrics-primer`, `haiku-scout-sonnet-filter`. `sonnet-spawns-haiku-scouts` stays in the code with its tests and its validity rule but is **opt-in and off by default** (`--arms` must name it); it is not part of the pre-registered comparison, and any run of it is exploratory and reported apart. The "worth adding" test above applies to the pipeline; the spawn arm is not judged in this run.
+- **Runs per cell: 2** (`--runs 2` is the new default; the runner loops run number outermost, so a cap stop leaves a whole first pass). 6 cases x 3 arms x 2 runs = 36 cells.
+- **Pilot (b) is dropped.** The pipeline and spawn validity check it was for is covered at $0 by the offline tests and `--init-check`, and at paid cost by the first full pass of the paid run (the runner stops on a second invalid run).
+- **Grader semantics are unchanged** (the pipeline, tolerated and all-clear rules above stand). The only code changes are the default arm and run count and the new cases.
+
+**Cost arithmetic.** Measured: $0.169 per Sonnet session. Assumed: Haiku about $0.01 per session (066 saw $0.005 on small diffs; neighbourhoods are larger); the filter is a Sonnet session priced at the same $0.17 (an upper bound: it is skipped when the scout proposes nothing).
+
+| arm | sessions | estimate |
+|---|---|---|
+| `sonnet-plain` | 12 Sonnet | 12 x 0.17 = $2.04 |
+| `haiku-metrics-primer` | 12 Haiku | 12 x 0.01 = $0.12 |
+| `haiku-scout-sonnet-filter` | 12 Haiku + 12 Sonnet | 12 x (0.01 + 0.17) = $2.16 |
+| **paid run** | | **about $4.32 against the $7 cap, headroom $2.68** |
+
+Three runs would be $6.48 (headroom $0.52, too thin for one over-budget cell), and the spawn arm (about $0.20 or more per cell with its subagents, 12 cells) would take the total near the cap, so neither is in. The runner reserves `--run-budget` x sessions per cell before it starts one ($0.60 for a one-session cell, $1.20 for a pipeline cell), so it stops only if spent exceeds $5.80, well above the $4.32 estimate. The caps stand: per-session `--run-budget` $0.60, paid run `--budget` $7.
+
+**Pilot caps are cumulative, the flag is not.** The runner's `--budget` counts only the invocation it belongs to; it cannot see earlier spend. The $3 pilot ceiling is cumulative across invocations by decision: $1.525 is spent on the old pilot, so $1.475 is left, and the new baseline pilot is run with `--budget 1.45` (worst case total $2.975, and with the paid run's $7 the combined worst case is $9.975, under the $10 ceiling). The pilot is 6 Sonnet sessions (6 cases x 1 run), about $1.02. Its per-session cap is `--run-budget 0.50`, not 0.60: the runner starts a cell only if spent plus the per-session cap fits under `--budget`, and at 0.60 the sixth cell would not start once five cells had cost about $0.85.
+
+**Amended gate for the paid run (replaces the saturation stop of the original rule).** With only 5 expected improvements per pass, "baseline misses fewer than 3" is true for any baseline that keeps 3 or more, so a one-run saturation stop would fire on nearly every outcome and cannot be the gate. The paid run is held back only in two cases: (1) the **floor**: the baseline keeps 1 or fewer of the 5 (`found * 3 < planted`, as `pilotScreen` computes); the cases or the grader are too hard or too strict; (2) **no signal**: the baseline keeps 5 of 5 **and** raises 0 false findings on all 6 case-runs, so neither recall nor noise could separate the arms. A pilot that is saturated but shows false findings goes ahead, because false findings are the metric the verdict leans on (067), and the improvements verdicts will then read *inconclusive (baseline misses under 3)* by the 051 rule, with the recommendation resting on false findings and cost, said as such. `pilotScreen` still prints its original "saturated" label; under this amendment that label is information, the two cases above are the gate. A pilot is a rule input, not a result.
+
+**Limits restated for the reworked set.** The limits above stand with these changes: limit 1 (real refactors, the cycle seeded only) now reads 1 real case and 2 seeded, the cycle still seeded (no removed-cycle refactor exists in the pinned history); limit 2 (false findings count on every case) now covers 12 case-runs per arm (6 of them clean); limit 3 (some false findings may be real, the audit is run after and reported beside the headline) is unchanged and is why the two `taskHeading` / `parseTitle` tolerated entries exist; limit 4 (inconclusive per category) is stronger: with 6 dedupe, 2 align and 2 cycle expected improvements over 2 runs the 051 rule's "helps" needs a gain of at least 3, so only dedupe can show it, and the pre-registered expectation is that align and cycle read *inconclusive*; limit 5 (plants applied with `replaceOnce`) is unchanged. With 2 runs the false-finding gap of at least 3 is measured over 12 case-runs per arm, so confidence will be low at best.
+
+**Commands (plain terminal, repo root; the first three are $0):**
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 1.45 --run-budget 0.50   # baseline pilot, 6 sessions
+node bench/refactor-run.mjs --budget 7 --run-budget 0.60                                   # paid run: 3 arms, 2 runs (the defaults)
+```
+
+### Results (pilot rerun and paid run, 2026-11-06)
+
+**Not recommended in the pipeline's pre-registered form: it passes three of the four "worth adding" conditions and misses the cost one by one point (-19% against the 20% line). Confidence: low.** The numbers below are copied from the runner's `report.md` (`bench/results/refactor-2026-11-06T12-32-55-903Z`, gitignored); the verdict tables are the runner's and are not recomputed here.
+
+**Measured commits.** Graders and runner: `9089120` (the last code change to `bench/refactor.mjs` and `bench/refactor-run.mjs`). Cases, stored scopes and primers, arm defaults and the post-pilot amendment: `a449c7b` (it carries the amendment, the commit the paid run is measured against). Caps: `655be90` (docs only: $3 pilot, $7 paid run, $0.60 per session). Nothing under `bench/` or `plugin/` changed after `a449c7b`; this entry is the only change in the results commit.
+
+**Pilot rerun on the reworked set** (`sonnet-plain`, 1 run, 6 cases, `bench/results/refactor-2026-11-06T03-17-11-856Z`): $0.844 of the $1.45 cap; kept 2 of 5 (dedupe 1/3, align 0/1, cycle 1/1); 11 false findings over 6 case-runs; $0.141 per session. Gate: not at the floor (it kept more than 1 of 5), not "no signal" (it raised false findings), so the paid run went ahead. The first pilot (original set, $1.525) is superseded and is not pooled.
+
+**Spend.** Old pilot $1.525 + new pilot $0.844 + paid run $3.198 = **$5.567 of the $10 ceiling** (paid run $3.198 of its $7 cap; the estimate was about $4.32).
+
+**Paid run.** 36 of 36 cells valid (no invalid run, no cell dropped by the pairing rule), 12 paired case-runs per arm (6 cases x 2 runs; 6 of them clean). The spawn arm `sonnet-spawns-haiku-scouts` is opt-in and was not run, so it is not judged.
+
+| arm | valid runs | dedupe | extract | align | cycle | unused | overall kept | false findings kept | all-clear lines | cost per run |
+|---|---|---|---|---|---|---|---|---|---|---|
+| sonnet-plain | 12 | 4/6 | 0/0 | 0/2 | 2/2 | 0/0 | 6/10 | 23 | 0 | $0.139 |
+| haiku-metrics-primer | 12 | 4/6 | 0/0 | 1/2 | 2/2 | 0/0 | 7/10 | 38 | 0 | $0.015 |
+| haiku-scout-sonnet-filter | 12 | 3/6 | 0/0 | 1/2 | 2/2 | 0/0 | 6/10 | 18 | 0 | $0.112 |
+
+False findings kept, by the category of the proposal (every proposal beyond the expected ones, every case):
+
+| arm | dedupe | extract | align | cycle | unused | other | total |
+|---|---|---|---|---|---|---|---|
+| sonnet-plain | 8 | 14 | 1 | 0 | 0 | 0 | 23 |
+| haiku-metrics-primer | 12 | 21 | 2 | 0 | 3 | 0 | 38 |
+| haiku-scout-sonnet-filter | 6 | 11 | 0 | 0 | 1 | 0 | 18 |
+
+Of those, on the 6 clean case-runs (from the per-case table): sonnet-plain 13, haiku-metrics-primer 17, haiku-scout-sonnet-filter 10.
+
+Pipeline anchoring and what the filter did:
+
+| arm | runs with a list | scout proposals | kept | anchoring | lists passed unchanged | expected lost by the filter | false findings removed by the filter |
+|---|---|---|---|---|---|---|---|
+| haiku-scout-sonnet-filter | 12 | 61 | 31 | 51% | 0 | 0 | 30 |
+
+Verdicts against `sonnet-plain` (copied from the report):
+
+| arm | dedupe | extract | align | cycle | unused | overall | false findings (all) | false findings by category (arm vs baseline) | cost per run |
+|---|---|---|---|---|---|---|---|---|---|
+| haiku-metrics-primer | inconclusive (baseline misses under 3) (missed 2 -> 2) | inconclusive (0 -> 0) | inconclusive (missed 2 -> 1) | inconclusive (0 -> 0) | inconclusive (0 -> 0) | no effect shown (missed 4 -> 3) | 38 vs 23: more | dedupe 12 vs 8: more; extract 21 vs 14: more; align 2 vs 1: no difference shown; cycle 0 vs 0: no difference shown; unused 3 vs 0: more; other 0 vs 0: no difference shown | -89% |
+| haiku-scout-sonnet-filter | inconclusive (baseline misses under 3) (missed 2 -> 3) | inconclusive (0 -> 0) | inconclusive (missed 2 -> 1) | inconclusive (0 -> 0) | inconclusive (0 -> 0) | no effect shown (missed 4 -> 4) | 18 vs 23: fewer | dedupe 6 vs 8: no difference shown; extract 11 vs 14: fewer; align 0 vs 1: no difference shown; cycle 0 vs 0: no difference shown; unused 1 vs 0: no difference shown; other 0 vs 0: no difference shown | -19% |
+
+(In the verdict table the report repeats "(baseline misses under 3)" in every inconclusive cell; it is shortened here after the first cell of each row.) The baseline screen reads "ok: the baseline missed 4 of 10 and kept 23 false findings over 12 case runs". Every improvements category is **inconclusive (baseline misses under 3)** (the baseline missed 2, 0, 2, 0 and 0), so as the rule says beforehand the recommendation rests on false findings and cost, not on recall. Overall recall reads "no effect shown" for both Haiku arms (kept 7 and 6 of 10 against 6 of 10).
+
+**Cost per case (mean of the 2 runs, from the per-case table; $).** The pipeline figure includes both sessions, and on `f-c1` run 2 the scout proposed nothing, so no filter session ran ($0.007).
+
+| case | sonnet-plain | haiku-metrics-primer | haiku-scout-sonnet-filter |
+|---|---|---|---|
+| f-r5-plugin-scripts-05d5b76 | 0.105 | 0.030 | 0.146 |
+| f-s5-titlecase-copies | 0.132 | 0.013 | 0.120 |
+| f-s6-cycle-tasks-session-paths | 0.150 | 0.009 | 0.117 |
+| f-c1-canvas-layout (clean) | 0.242 | 0.008 | 0.048 |
+| f-c2-session-ipc (clean) | 0.109 | 0.011 | 0.103 |
+| f-c4-plugin-scripts (clean) | 0.098 | 0.024 | 0.141 |
+
+The pipeline is dearer than the baseline on the two cases where the scout lists many proposals for the filter to read (`f-r5`, `f-c4`) and cheaper where the scout lists few or none. The overall saving of 19% rests on `f-c1`: take that case out and the pipeline's mean per case is about $0.125 against the baseline's $0.118, i.e. about 6% dearer. That is an observation on 12 runs, not a rule.
+
+**Fixed audit (limit 3), run after the paid run and reported beside the headline, never in place of it.** All 79 false findings kept (23 + 38 + 18; the pooled count matches the report) were pooled from `runs.json` with the same grader the report uses, for the pipeline the survivors of the filter only. Arm labels were stripped and the list shuffled (seeded); each item was judged before the labels were joined back. **Confirmed** = it names a concrete duplicate (repeated code block, function, type or composition at the cited places), import cycle or unused export that a `grep` of the pinned tree (`3814a30`; the planted lines do not matter for any confirmed item) finds; **unconfirmed** = anything else. Judged by one reader with `grep`; "duplicate" was read generously (a repeated chain of calls counts, whether or not removing it is worth a ticket), and placement or alignment proposals (move a helper, add a guard) are unconfirmed even when true.
+
+| arm | false findings | confirmed | unconfirmed |
+|---|---|---|---|
+| sonnet-plain | 23 | 22 | 1 |
+| haiku-metrics-primer | 38 | 31 | 7 |
+| haiku-scout-sonnet-filter | 18 | 15 | 3 |
+
+68 of 79 (86%) are confirmed. The 11 unconfirmed are: three `align-pattern` proposals, four proposals to move `dedupeProjectRoots` out of `session-log.ts` (a cross-concept edge, not a cycle), a hedged "only worth doing if" proposal on `epics.ts` locks, a `projectSlug` "unused export" that `session-title.test.ts` imports, a `dirname(dirname())` remark, and the `180` / `90` literals of `applyDagreLayout`. Confirmed findings are spread in proportion to the headline (22, 31, 15 against 23, 38, 18), so the audit does not reverse any false-finding verdict; the primer has the most unconfirmed (7 of 38, against 1 of 23 for the baseline), so a part of its extra count is noise rather than extra real duplication. **What the audit says about the metric:** most "false findings" are real, unplanted duplicates in the pinned tree, so the figure counts extra proposals more than wrong ones. The same few recur across arms and runs: `readGlobalHandoff` copied in three scripts (13 proposals mention it), `parseBlockedBy` / `extractPostMortemSection` slicing a heading the same way (11), the ready/blocked rule written twice in `tasks.ts` (6), the repeated option defaulting and removal loop in `session-sweep.ts` (10 proposals concern that file). Counts by pattern match on the proposal text. The headline counts were not adjusted.
+
+Examples a reader may want to act on (lines are in the pinned tree `3814a30`; each was grep-confirmed):
+
+1. `plugins/maestro/scripts/maestro-inject-agent-context.js:140`, `maestro-subagent-log.js:84` and `maestro-resume-target.cjs:67` each define the same `readGlobalHandoff` (a try/catch lazy `require` of `readHandoffDefault`).
+2. `apps/maestro/src/core/tasks.ts`: `parseBlockedBy` (line 44) and `extractPostMortemSection` (line 59) cut a `## Heading` section the same way, and the ready/blocked expression `blockedBy.every((b) => doneSet.has(b) || !fileSet.has(b))` is written at lines 122 and 152.
+3. `apps/maestro/src/core/session-title.ts:38` `SessionTitleRef` and `apps/maestro/src/core/session-sweep.ts:150` `SessionRef` are the same two-field interface.
+4. `apps/maestro/src/core/session-log.ts:66` `readSessionLog` has no caller in `apps`, `packages` or `plugins` (only the barrel re-export at `core/index.ts:183`); `tailSessionLog` (line 94) has no production caller either, only tests.
+5. `apps/maestro/src/core/session-sweep.ts`: the `sessionDirsFor` / `rmSync` removal loop at lines 122 and 179, and the `now` / `idleCapMs` / own-session defaulting at lines 109-112, 161-163 and 190-192.
+
+**Anchoring reading.** The filter kept 31 of 61 proposals (51%), passed no list unchanged and lost none of the expected improvements its scout found (0), and it removed 30 false findings. It is not a rubber stamp: the "worth adding" trigger (near 100% kept with false findings above the baseline's) is not met. Two readings are both consistent with the data: the filter genuinely discriminates, or it cuts about half of any list regardless of content; this run cannot tell them apart (the survivors are still 15 of 18 confirmed; the audit did not grade the 30 removed ones, so it cannot say whether the cut favoured the real ones).
+
+**The pre-registered test, applied literally to the pipeline `haiku-scout-sonnet-filter`:**
+
+| condition | result | passes |
+|---|---|---|
+| no category hurts against `sonnet-plain` | all five categories inconclusive; none hurts (dedupe missed 2 -> 3, a gap of 1; "hurts" needs 3) | yes |
+| false findings kept not more than the baseline's, overall or in any category | 18 vs 23 overall (fewer); no category reads "more" | yes |
+| cheaper than the baseline counting both sessions (at least 20% under) | $0.112 vs $0.139, **-19%** | **no** |
+| no rubber stamp (kept share near 100% with false findings above the baseline's) | 51% kept, 0 lists unchanged, false findings below the baseline's | yes |
+
+**It fails the cost condition by one point (19% against the 20% line; the line is about $0.111 per run, the pipeline cost $0.112), and the rule is not rounded up.** The scout alone `haiku-metrics-primer`, judged on the same lines: no category hurts (pass); false findings are **more** than the baseline's overall (38 vs 23) and in dedupe, extract and unused (fail); it is cheaper (-89%, pass); the anchoring condition does not apply. It fails on false findings. The spawn arm was not run.
+
+**Recommendation (from the pre-registered test).** Do not add the Haiku scout plus Sonnet filter as a step ahead of the reviewer in the form tested: it kept at least as many expected improvements as the baseline (6 of 10, no effect shown) and fewer false findings (18 vs 23), but it does not reach the 20% saving the rule asked for (-19%). The scout alone is not recommended either (more false findings than the baseline: 38 vs 23). Because it misses by a single point on one condition, on 12 runs per arm, a reader who values the false-finding reduction over the cost line has data to support a different call, but that would be a decision to change the rule, made after the result, and is not what was registered. A rerun with more runs or a differently priced filter (for example one that drops the filter on short lists) would be a new, separately registered design.
+
+**Other observations the numbers support (not part of the verdict).**
+
+- The primer arm is 89% cheaper ($0.015 against $0.139 per run) and kept 7 of 10 against the baseline's 6 of 10, with 65% more false findings (38 vs 23); 31 of those 38 are confirmed real duplicates (see the audit). It is a cheap source of many true-but-unplanted duplicate reports, not a precise one.
+- The filter removed 30 false findings at no loss of expected improvements in this run, but the saving it leaves is 19%, because the filter session costs about as much as a baseline pass on the cases where the scout lists many proposals.
+- Dedupe: the pipeline kept 3 of 6 against the baseline's 4 of 6. The one-run swing is within the noise visible below, and the category reads inconclusive, so nothing is claimed.
+- Per-run variance is large. `f-r5`: the pipeline kept 1/3 in run 1 and 2/3 in run 2, the primer the same (1/3 then 2/3), the baseline 1/3 both times. `f-s5`: the pipeline kept 0/1 in run 1 (the scout missed it) and 1/1 in run 2. `f-c4` (clean): the pipeline's false findings were 1 in run 1 and 5 in run 2 (the scout listed 4 then 9 proposals, and the cost went $0.094 to $0.188). A 12-run figure moves by several points with one run.
+- The baseline's recall is low on this set (6 of 10; align 0 of 2: the baseline never found the `check-runtime-needs-refresh` change, each Haiku arm found it once), so "inconclusive" is mainly the case count (limit 4), not the arms matching.
+
+**Confidence: low.** Reasons: 12 paired runs per arm and 6 cases; the baseline misses 4 of 10 but under 3 in every category, so no improvements verdict could fire (limit 4); a single model family (Haiku scout, Sonnet filter and baseline); the one-point cost miss and the false-finding gaps (5 overall, 3 in extract) sit close to the rule's own thresholds of 3 and 20%; per-run swings of 1 to 4 findings on a case; the audit is one reader with `grep`, with a generous reading of "duplicate", and it shows that most false findings are real, so the false-finding metric is a count of extra proposals; the pinned tree is one project (maestro `3814a30`).
+
+## Ticket 071: does a Haiku refactor scout with a batched or reviewer-inline Sonnet filter give more useful findings per dollar than a Sonnet refactor pass (bench/, pre-registration written before any paid run)
+
+The commit that holds this section is the **measured commit**, `c850a00` (full `pnpm verify` green on it, 14/14, 718 code-graph tests; 231 bench tests; this line is the only later change, docs only): the bench code, the cases, the audit and this rule are fixed by it. Anything changed after it is an amendment, written before the run it affects. No paid run had been started when this was written; results and the recommendation are filled in under "Results" after the user's run. Ticket 070 (above) found the Haiku scout cheap (about $0.015 per session) and noisy, and the per-case Sonnet filter only 19% cheaper than the baseline because the filter session costs about as much as a baseline pass. 071 tests two cheaper ways to filter, and judges by useful findings per dollar instead of kept improvements and false findings.
+
+### Cases (6, `bench/refactor-cases.mjs`, set `071`; pinned tree maestro `3814a30`)
+
+| case | kind | source | expected improvements |
+|---|---|---|---|
+| `f-r5-plugin-scripts-05d5b76` | reverted real refactor | maestro `05d5b76` (task 087 review cleanups), reverted except the version bump and mirrors | dedupe 2 (`plugin-readloglines-copies`, `inject-payload-routes-twice`), align 1 (`check-runtime-needs-refresh`) |
+| `f-s5-titlecase-copies` | seeded | two private title-case helpers re-implementing `titleFromName` | dedupe 1 |
+| `f-c2-session-ipc` | clean neighbourhood | the tree as it is; a harmless doc-comment edit (`reviewChange`) gives the review arms a diff | none |
+| `f-l1-tasks-sections` | latent, no plant | 070 fixed audit, example 2: `tasks.ts` ready rule written twice, `## Heading` sections cut twice | dedupe 1, extract 1 |
+| `f-l2-session-sweep` | latent, no plant | 070 fixed audit, examples 3 and 5: `SessionRef` / `SessionTitleRef`, the removal loop twice, the options defaults | dedupe 1, extract 2 |
+| `f-l3-atomic-json-writes` | latent, no plant | a grep of `writeFileSync` / `renameSync` before any 071 run: four write-then-rename copies, two in-place JSON writes | extract 1, align 1 |
+
+Totals: **11 expected improvements: dedupe 5, extract 4, align 2**. The latent cases are problems the 070 audit (or a grep made before any run) showed to exist in the pinned tree, so a finding there is checkable and not a seeded guess. `f-s6` (cycle), `f-c1` and `f-c4` are retired from this set (they stay in set `070`): the baseline found the cycle every time, and the two clean controls added cost and no recall signal; `f-c2` stays as the one clean neighbourhood (its `reviewChange` gives the review arms a diff). The `unused` and `cycle` categories have no expected improvement here and get no verdict.
+
+The selection aimed at categories where the 070 baseline missed (dedupe, extract, align). The "at least 3 baseline misses" condition is checked by the pilot, not assumed: the stop rule below checks it for the whole set; per category it is read by hand (see the decision rule).
+
+### Arms
+
+- `sonnet-plain`: the baseline, one Sonnet refactor pass per (case, run). Unchanged from 070.
+- `haiku-metrics-primer`: the scout alone (Haiku, the stored metrics primer, `PROPOSALS:` list).
+- `haiku-batched-filter`: the same scout, then **one Sonnet session per batch of 3 cases** reads the combined backlog of the batch (each case's proposals, numbered globally, tagged `<neighbourhood-backlog case="id">`) and marks each file-it or drop-it. Its cost is split over the batch's cases in proportion to each case's proposal count (equal split if none), and each case also carries its scout's cost.
+- `haiku-reviewer-inline`: the scout's list handed to a normal Sonnet review of the case's diff (the plant's diff, or the `reviewChange` for the no-plant cases) in a `<scout-suggestions>` block; the reviewer writes a `VERDICTS:` section (file-it or drop-it per suggestion) before its usual `FINDINGS:`. The suggestions never enter the merge verdict: the review's own verdict is whether `FINDINGS:` has items.
+- `sonnet-review-plain`: the control for the inline arm, the same review without the list. It is pulled in automatically with the inline arm and is not in the refactor tables. The inline arm's cost is **scout + (inline review - control review)**, unclamped, i.e. the extra the list adds; if the control is missing or invalid the inline row is invalid. The report gives the verdict shift: the cells where has-findings differs between inline and control.
+- One scout session per (case, run) serves all three Haiku arms; its cost is counted in each arm and in `spent` once. The Sonnet-spawns-Haiku arm stays out; the 070 per-case filter arm stays defined but the 071 runner refuses it.
+
+### Batch size: 3 (fixed batches)
+
+B1 = `f-r5`, `f-c2`, `f-l1`; B2 = `f-s5`, `f-l2`, `f-l3`. Six cases make two equal batches. The 070 filter sessions cost $0.10 to $0.17 per case list, so a 3-case batch stays under the $0.60 session cap. An invalid batch loses 3 of the 12 cells of a run; a batch of 6 would lose the whole run on one failure and send a long context to one session; a batch of 2 gives most of the saving away (three filter sessions instead of two). Batches are fixed, not randomised, so a cell is comparable across runs.
+
+### Runs per cell and the pilot
+
+The pilot is `sonnet-plain`, 1 run, 6 cases (about 6 x $0.14 = $0.85 against the $3 cap). It is a **rule input, not a result**: it fixes the runs per cell and tells whether the set can show a recall verdict. 070 measured $0.139 per baseline session. With c the mean pilot session cost, one cell across the four arms costs about 3.0 baseline-session equivalents (baseline 1, scout 0.1, review control and inline review about 0.46 each, batch share about 0.4, set against the 070 review at $0.064 against $0.139); the full run is 6 cases, so about 18 x r x c. **Pick the largest r in {1, 2, 3} with 18 x r x c <= $5.60** (80% of the $7 cap). If r would be 1, do not start the paid run; amend the design first. At c = $0.14 that gives r = 2 (about $5.0). `f-r5`'s plant diff is about 29 KB, so its reviews cost more than the factor assumes; the runner's per-session cap and the run budget bound the total in any case.
+
+### Metric: useful findings per dollar
+
+A finding is **useful** when it matches an expected improvement, or it is a proposal confirmed by the fixed audit below. A proposal the audit does not confirm is **noise**, including one nobody judged. Tolerated findings and repeats are neutral. Useful findings per dollar = useful / (arm cost over the valid paired cells). The 070 figures (kept improvements, false findings) are printed beside it.
+
+### Audit (fixed before any paid run; `bench/refactor-audit.mjs`)
+
+1. Registry: the improvements the 070 audit already confirmed (`KNOWN_CONFIRMED`, 7 entries, each keyed) count as confirmed once per key.
+2. Mechanical check by `git grep` at the pinned commit: an "unused export" proposal is refuted when a real importer other than a barrel exists and confirmed when only the file and a barrel mention it; a "defined twice" proposal is confirmed when the name has two definitions.
+3. The remaining proposals go to a blinded pool: arm labels stripped, one entry per distinct (case, text), deterministic hash order, expected and tolerated items left out. The reader writes `<id>: confirmed <issue-key>: <evidence>` or `<id>: unconfirmed: <reason>` after a `grep` of the pinned tree; an issue counts once per key. A pool entry without a verdict is noise.
+4. `--score` writes `audit-report.md` with the table, the decision verdicts and the 070 figures.
+
+### Decision rule (fixed before any result, 051 style)
+
+Per arm against `sonnet-plain`, on valid paired cells. The ratio, recall and noise bars are applied to the **overall** figures (all categories together). The categories (dedupe, extract, align) enter only as a loss test. This is `usefulVerdict` in `bench/refactor-audit.mjs`, checked in this order, first match wins:
+
+1. Different valid-run counts: `not comparable`.
+2. No cost, or no useful finding in the baseline: `inconclusive`.
+3. **Per category:** the arm loses 3 or more useful findings in a category against the baseline: `blocked: loses <category>`.
+4. **better per dollar:** overall useful per dollar >= 1.5x the baseline's, overall useful >= 70% of the baseline's, and overall noise share no more than 10 points above the baseline's.
+5. Per-dollar and useful bars met, noise share too high: `cheaper per useful finding but noisier than the bar allows`.
+6. Overall useful per dollar below 1x the baseline's: `worse per dollar`.
+7. Otherwise: `no gain shown`.
+
+- **The overall figures never override a category.** Step 3 comes before step 4, so a blocked category stands even when the overall per-dollar and recall bars pass. No category is rated "better" on its own.
+- **The 3-baseline-misses condition is not in the verdict code.** The pilot stop rule (below) checks it for the whole set (a pilot baseline missing fewer than 3 of the 11 stops the plan). Per category, read a category's loss count as inconclusive when the pilot's baseline missed fewer than 3 expected improvements in that category. The code does not check this per category; the reader does.
+- The inline arm: also report the review-verdict shift. More than 10% of cells flipping (has-findings differing from the control) is reported as the list changing the review, not as a pass.
+
+### Stop rule
+
+Applied to the pilot (the 070 `pilotScreen`): **saturated** if the baseline misses fewer than 3 of the 11 expected improvements (the set cannot show a recall difference; amend the cases before a paid run); **floor** if the baseline finds fewer than a third of the planned improvements (the set is too hard to measure). Either result stops the plan until the cases are amended, and the amendment is written here before the run. During the paid run: stop on a usage limit, on a seccomp failure, or after more than one invalid session in a run.
+
+### Caps
+
+$0.60 per session, $3 for the pilot, $7 for the paid run, $10 in total including the pilot. The caps are 071's own, not cumulative with 070's spend.
+
+### Preflight, pilot and paid run (plain terminal, repo root)
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-run.mjs --dry
+node bench/refactor-run.mjs --init-check
+node bench/refactor-run.mjs --runs 1 --arms sonnet-plain --budget 3 --run-budget 0.60
+node bench/refactor-run.mjs --runs <r> --budget 7 --run-budget 0.60
+node bench/refactor-audit.mjs <results-dir> --pool
+node bench/refactor-audit.mjs <results-dir> --score
+```
+
+`<r>` comes from the runs-per-cell rule; the verdicts file goes in `<results-dir>/audit-verdicts.txt`.
+
+### Results
+
+Pilot `bench/results/refactor-2026-11-06T20-21-18-673Z` ($0.812 of $3; 6 of 6 valid; `sonnet-plain` only) and paid run `bench/results/refactor-2026-11-06T20-32-24-067Z` ($4.713 of $7; 48 of 48 valid; no invalid run, no stop rule fired). Both are user-run and gitignored.
+
+**Pilot stop rule: passed.** The baseline missed 5 of 11 (not saturated) and found 6 of 11 (above the floor). r = 2 from the rule: 18 x 2 x $0.135 = $4.86 against the $5.60 bar (r = 3 would be $7.29).
+
+**Audit.** `--pool` gave 65 distinct proposals: 43 judged by the registry or `git grep`, 22 by hand. The hand verdicts in `audit-verdicts.txt` (paid run folder) are 22 confirmed, 0 unconfirmed, over 13 issue keys. Each was checked against the pinned tree (maestro `3814a30`) and each is a real duplicate or a real extraction target. `--score` wrote `audit-report.md`.
+
+#### Useful findings per dollar and noise, with the 070 figures beside them
+
+12 valid paired runs per arm. "Useful" = expected improvements found + proposals the audit confirmed. Noise share = unconfirmed / (useful + unconfirmed). The 070 columns are the 070 metric on these same runs.
+
+| arm | useful (expected + audited) | useful per $ | noise share | cost per run | 070 kept of 22 | 070 false findings kept |
+|---|---|---|---|---|---|---|
+| sonnet-plain (baseline) | 35 (12 + 23) | 17.1 | 0% (0 of 35) | $0.171 | 12 | 23 |
+| haiku-metrics-primer | 51 (13 + 38) | 286 | 2% (1 of 52) | $0.015 | 13 | 42 |
+| haiku-reviewer-inline | 17 (6 + 11) | 33.1 | 0% (0 of 17) | $0.043 | 6 | 11 |
+| haiku-batched-filter | 19 (7 + 12) | 24.3 | 5% (1 of 20) | $0.065 | 7 | 13 |
+
+Cost per run against the baseline: metrics-primer -91%, reviewer-inline -75%, batched-filter -62%. 070 had the scout at about $0.015 per session and the per-case filter 19% cheaper.
+
+Useful findings by category (all 12 cells):
+
+| arm | dedupe | extract | align | cycle | unused |
+|---|---|---|---|---|---|
+| sonnet-plain | 18 | 17 | 0 | 0 | 0 |
+| haiku-metrics-primer | 23 | 24 | 0 | 0 | 4 |
+| haiku-reviewer-inline | 10 | 6 | 0 | 0 | 1 |
+| haiku-batched-filter | 11 | 7 | 0 | 0 | 1 |
+
+#### Verdicts (decision rule as written, Ticket 071)
+
+| arm | tool output | verdict |
+|---|---|---|
+| haiku-metrics-primer | better per dollar (ratio 16.78, useful 146% of baseline, noise within +10 points) | **better per dollar** |
+| haiku-reviewer-inline | blocked: loses dedupe, extract (ratio 1.94, useful 49%) | **no gain shown** |
+| haiku-batched-filter | blocked: loses dedupe, extract (ratio 1.42, useful 54%) | **no gain shown** |
+
+The two `blocked` lines do not bind. The rule reads a category's loss count as inconclusive when the pilot baseline missed fewer than 3 expected improvements in that category: dedupe 2, extract 1, align 2. With step 3 set aside, both filter arms fail the recall bar (under 70%) and step 4, and neither is below 1x, so both fall to step 7.
+
+- **Category recall verdicts: all inconclusive.** Every category with an expected improvement had fewer than 3 pilot baseline misses. `cycle` and `unused` have no expected improvement and no verdict.
+- **Review shift (inline arm):** the has-findings verdict differs from the control in 0 of 12 cells (0%), under the 10% line, so no shift is reported.
+- **Post hoc, not used for any verdict:** counted over both paid runs, the baseline missed 4 dedupe, 2 extract and 4 align, so dedupe and align would clear the 3-miss bar if the pilot were ignored. Without the 4 `unused` findings (no expected improvement), metrics-primer still passes: 47 useful, 264 per $, 134% of baseline.
+
+#### Cost estimate against the pilot
+
+- The rule's total, 18 x r x c, with r = 2 and c = $0.135 (pilot mean, $0.812 over 6 sessions): $4.86. Spent: $4.713 (3% under). At the $0.14 used at design time: $5.04 (6.5% over).
+- Per cell (one case and run, all arms): $0.393 = 2.9 pilot sessions, against 3.0 estimated.
+- **The miss is the baseline.** `sonnet-plain` ran $0.171 per session against the pilot's $0.135 (+27%): f-s5 +50%, f-l1 +40%, f-l3 +43%, f-l2 15% under. The total held because the estimate's own terms sum to 2.42c (1 + 0.1 + 0.46 + 0.46 + 0.4), not 3.0c, which left slack the paid run's cells used.
+
+**Confidence: low to moderate.** Moderate on the direction: the scout alone is the cheapest arm and kept as many useful findings as the baseline. Low on the size of the gain: the 16.8x per-dollar ratio rests on a $0.015 cost and on an audit bar that accepts any true claim, however minor.
+
+Limits: 6 cases and 2 paid runs per cell; one project (maestro `3814a30`); one model family; the audit is one reader with `grep`. Every category recall verdict is inconclusive, and the review and batch cost terms were estimated, not measured.
+
+**Audit bar (post hoc observation, changes no verdict).** A proposal is confirmed when its claim is true in the pinned tree, whether or not the change is worth making. All 22 hand items were confirmed and only one proposal in each of two arms was refuted, so noise is near zero for every arm: the metric rewards accurate claims, not valuable ones. This is the main reason the scout's per-dollar figure is high. The 070 false-finding count (42 for the scout, against 23) points the other way; this ticket uses the 071 rule.
+
+**Recommendation.**
+
+- **Join the workflow: the scout alone (`haiku-metrics-primer`).** It is the only form the pre-registered rule passes ("better per dollar"). Use it as an advisory list read before any change is filed, not as an automatic action: the bench does not measure whether acting on the list saves time, and its false-finding count is high (42 against 23).
+- **Do not join: either filter.** `haiku-batched-filter` and `haiku-reviewer-inline` are "no gain shown" (useful kept 54% and 49%). Each gives far fewer useful findings per dollar than the scout alone (24 and 33, against 286).
+- **Where the change goes.** Adding the scout to the workflow is a separate ticket in the maestro repo. Nothing in maestro changes here.
+- **Confidence:** low to moderate, as above. A further run is not recommended until the question changes (for example, whether acting on the scout's list pays).
+
+## Ticket 073: does a decided-against list cut the Haiku refactor scout's repeated findings while it keeps its recall (bench/, pre-registration written before any paid run)
+
+The commit that holds this section is the **measured commit**, `76cb516` (full `pnpm verify` green on it, 14/14; 244 bench tests; the line naming it is the only later change, docs only): the bench code (`bench/refactor-decided.mjs`, `bench/refactor-decided-prep.mjs`, the `haiku-decided-against` arm in `bench/refactor.mjs` and `bench/refactor-run.mjs`), the stored list `bench/refactor/decided-against.json`, the cases and this rule are fixed by it. Its hash is filled in here right after the commit (`git log -1 --format=%h -- docs/evals.md`); a later change is an amendment, written before the run it affects, and a docs-only change is said to be docs only. The list must be committed before any paid run. No paid run had been started when this was written; results and the recommendation are recorded by a follow-up ticket. 071 found the plain scout (`haiku-metrics-primer`) the only cheap form worth using, as an advisory list. Its list repeats findings a person has already looked at and declined. 073 tests whether telling the scout what was decided against cuts those repeats without costing it the findings that are worth filing.
+
+### The list (`bench/refactor/decided-against.json`, built by `bench/refactor-decided-prep.mjs`)
+
+14 entries, built by hand at $0 from the 071 paid-run proposals (`bench/results/refactor-2026-11-06T20-32-24-067Z/runs.json`, local) that are not expected improvements: duplicates or extractions the scout reports again and again which a person would decline (a one-line wrapper, a constant spelled out where a shared one is not worth an import, a type exported but kept for the public surface). Each entry has a code reference (`file`, `symbol`), a `contentHash`, a `claim` and a `reason`; the `match` patterns and `source` are bench-side only and never reach the prompt.
+
+- **contentHash:** the first 16 hex digits of the sha256 of the declaration text of the symbol (from its declaration line to the first closing line at column 0, or the declaration line alone when it ends in `;`), line-end blanks removed. Symbol level, so an edit elsewhere in the file (the `f-r5` plant) leaves it alone.
+- **Expiry:** at injection the hash is recomputed from the code in the case workspace. A changed hash, a missing symbol or a missing file expires the entry: it is not injected and the dry run fails if any entry for the case expired.
+- **Neighbourhood only:** only entries whose `file` is in the case's scope list are injected (`decidedFor`). Per case: `f-r5` 2, `f-s5` 6, `f-c2` 2, `f-l1` 7, `f-l3` 7; the others of the 14 are not shown to that case's scout.
+- **Not in the list, by rule:** every 071 expected improvement (the atomic-write copies and in-place JSON writes, the tasks section slicing and ready rule, `SessionRef`, the removal loop, the options defaults, the `readLogLines` copies, the payload routes, the check-runtime staleness rule). A stored-list test fails if an entry matches an expected improvement or a good sample of any case. A decided-against list that hides what the bench expects would remove recall, not repeats.
+- **The reasons are author-written:** the bench author wrote each reason, standing in for the person or reviewer who declined. The repeat counts come from the 071 rows, which is how the entries were chosen (selection effect: the entries are the ones the scout repeats).
+
+### Cases (5, set `073`; pinned tree maestro `3814a30`)
+
+`f-r5-plugin-scripts-05d5b76`, `f-s5-titlecase-copies`, `f-c2-session-ipc`, `f-l1-tasks-sections`, `f-l3-atomic-json-writes` (their 071 definitions, unchanged, and so the same expected improvements: 8 per run, `f-r5` 3, `f-s5` 1, `f-c2` 0, `f-l1` 2, `f-l3` 2). `f-l2-session-sweep` is left out: no declined finding concerns its neighbourhood files, so its arm would be the same prompt as the control. `f-c2` stays as the clean neighbourhood: any new finding there is read against the list.
+
+### Arms
+
+- `haiku-metrics-primer`: the control, the plain scout of 071, unchanged.
+- `haiku-decided-against`: the same Haiku scout and primer, plus a `<decided-against>` block with the neighbourhood's entries (code reference, claim, reason) after the primer. It is its own session. The two prompts differ only by that block. The other 071 arms are not run in 073.
+
+### Runs per cell, pilot, caps
+
+- **Pilot:** 1 run, both arms, 5 cases: 10 sessions, about $0.17 at $0.015 to $0.02 per Haiku session. A rule input, not a result. Cap $0.50.
+- **Runs per cell:** with c the mean pilot session cost, **the largest r in {4, 5, 6} with 10 x r x c <= $1.20** (80% of the paid cap). If no r reaches 4, do not start the paid run; amend the design first. At c = $0.02 that gives r = 6 (60 sessions, $1.20).
+- **Caps:** $0.15 per session, $0.50 for the pilot, $1.50 for the paid run, **$2 in total including the pilot**.
+
+### Metrics (the report's "Decided-against list (073)" section)
+
+On valid paired cells only (a (case, run) cell counts when both arms have a valid run). Per arm:
+
+- **repeated:** distinct listed entries (those injected into that cell for the decided arm, those that would be for the control) that one or more of the arm's proposals repeat. A proposal repeats an entry when it names the entry's file and its `change` patterns match. A proposal that is an expected improvement or tolerated is never a repeat.
+- **found:** expected improvements found, out of those planned.
+- **new findings:** distinct proposals that are not expected, not tolerated and match no entry of the whole list.
+- cost, and the proposals in repeated entries.
+
+### Decision rule (fixed before any result; `decidedVerdict`, first match wins)
+
+1. Different paired-cell counts: `not comparable`.
+2. The control repeats fewer than 6 listed entries over the paired cells: `inconclusive` (nothing to cut).
+3. The decided arm's repeated is more than 50% of the control's, i.e. the cut is under 50%: `no cut shown`.
+4. The decided arm finds under 90% of the control's expected improvements: `cuts repeats but loses recall`.
+5. The decided arm's new findings are under 50% of the control's: `cuts repeats but over-broad` (the list silences the scout beyond the entries).
+6. Otherwise: `cuts repeats and keeps recall`.
+
+The thresholds are the constants `REPEAT_CUT`, `RECALL_KEEP`, `NEW_KEEP`, `MIN_CONTROL_REPEATS` in `bench/refactor-decided.mjs`.
+
+### Stop rule
+
+Pilot: the plain scout repeats fewer than 5 listed entries over its 5 cells (`PILOT_MIN_REPEATS`; nothing to cut, amend the list before a paid run), or any invalid run, or a usage limit or seccomp failure. Paid run: stop on a usage limit, on a seccomp failure, or after more than one invalid session in a run.
+
+### Preflight, pilot and paid run (plain terminal, repo root)
+
+```
+node --test bench/*.test.mjs
+node bench/refactor-prep.mjs --check
+node bench/refactor-decided-prep.mjs --check
+node bench/refactor-run.mjs --dry --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --init-check --set 073 --arms haiku-metrics-primer,haiku-decided-against
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs 1 --budget 0.50 --run-budget 0.15
+node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-against --runs <r> --budget 1.50 --run-budget 0.15
+```
+
+### Limits
+
+5 cases and at most 6 runs per cell; one project (maestro `3814a30`); one model family (Haiku); entries chosen from the very runs that show the repeats; the reasons are author-written, not a real reviewer's; the metric counts repeats by pattern, so a reworded repeat can be missed. The `--init-check` needs `claude` on the path and was not run by the author (not available in the sandbox). Recording the results and the recommendation is a follow-up ticket.
+
+#### Results (ticket 074; recorded from the user's runs, no paid run started here)
+
+- **Pilot** `bench/results/refactor-2026-11-06T23-36-42-976Z`: $0.123 of $0.50, 10 of 10 valid. A rule input, not a result: it screened (the plain scout repeated 8 listed entries, at least 5) and is in no verdict below.
+- **Paid** `bench/results/refactor-2026-11-06T23-50-00-772Z`: $0.760 of $1.50, 60 of 60 valid, r = 6. 30 paired cells (5 cases x 6 runs), both arms on every cell.
+- **Study total:** $0.883 of the $2 cap.
+- The paid output's `next:` audit line does not apply: 073 has no audit step.
+
+##### Repeats, recall, new findings and cost (paid run)
+
+| arm | listed entries repeated | proposals repeating one | expected found | new findings | cost per session |
+|---|---|---|---|---|---|
+| haiku-metrics-primer (control) | 47 | 50 | 26/48 | 50 | $0.0123 |
+| haiku-decided-against | 9 | 9 | 19/48 | 68 (report) | $0.0131 |
+
+- **Cost per arm:** control $0.370 over 30 sessions, decided $0.393 over 30 (summed from the per-row costs in the report; the rows total $0.763 against $0.760 spent, the rounding of $0.001 per row). The decided arm costs 6% more per cell.
+- **Repeats by case** (control, then decided): `f-r5` 5 to 0, `f-s5` 6 to 1, `f-c2` 9 to 2, `f-l1` 13 to 3, `f-l3` 14 to 3.
+- **Repeats by run** (control, then decided, runs 1 to 6): 6/1, 10/2, 9/1, 6/2, 8/2, 8/1. The decided arm repeats fewer in every run.
+- **Expected found by case** (control, then decided): `f-r5` 10 to 9 of 18, `f-s5` 5 to 2 of 6, `f-c2` 0 of 0, `f-l1` 7 to 5 of 12, `f-l3` 4 to 3 of 12.
+- **Expected found by run** (control, then decided): 4/3, 5/4, 4/1, 4/3, 4/5, 5/3. Run 5 is the one run where the decided arm found more.
+- **New findings:** 68 for the decided arm over 30 cells and 50 for the control, matching the report's totals (the per-cell column sums to the same figures). Step 5 is not reached, see below.
+
+##### Verdict (pre-registered rule, applied as written; first match wins)
+
+1. Paired-cell counts are equal (30 and 30): comparable.
+2. The control repeats 47 listed entries, which is at least 6: the rule proceeds.
+3. The decided arm repeats 9 of the control's 47, a cut of 81%, which is more than 50%: the rule proceeds.
+4. The decided arm finds 19 of the control's 26 expected improvements, which is 73% and under 90%: **cuts repeats but loses recall**.
+
+Step 5 is not reached. For the record, the decided arm's new findings are 68 of 50 (136%), which would not have fired it either way.
+
+##### Post hoc readings (labelled; none changes the verdict)
+
+- **Repeats cut and new findings rose:** the new-findings count went from 50 to 68 (report), so the list moved the scout onto other proposals as well as cutting repeats.
+- **False findings kept:** 100 for the control, 77 for the decided arm (report, all cases). The 073 rule does not use this count.
+- **Recall loss concentrates in `f-s5` (5 to 2) and `f-l1` (7 to 5).** This is one reading of six runs, not tested.
+- **Recall gap is noisy:** run 5 went the other way (5 decided against 4 control), so the 26-to-19 gap is about 6 runs of 5 cases.
+
+##### Cost estimate against the pilot
+
+- The pilot's mean was $0.123 / 10 = **$0.0123 per session**, which gave r = 6 (10 x 6 x $0.0123 = $0.738).
+- **Spent: $0.760.** Miss: +$0.022, +3.0% against the pilot's estimate. The design-time $0.02 estimate (60 sessions = $1.20) was 58% above the actual spend.
+- **Per arm, the miss goes both ways:** control $0.0142 in the pilot against $0.0123 paid (-13%); decided $0.0106 in the pilot against $0.0131 paid (+24%). The total held; the split between arms did not.
+
+##### Confidence
+
+- **That the list cuts repeats: moderate-high.** The decided arm repeats fewer in every run and in every case (47 to 9). The entries were chosen from the same runs that show the repeats (selection effect, as the design section says), so the size of the cut is probably overstated.
+- **That the list costs recall: moderate on direction, low-to-moderate on size.** 19 of 26 is 73%, and the 6-run noise is visible (run 5).
+- **Overall confidence in the verdict:** moderate.
+
+##### Recommendation
+
+- **The decided-against list does not join the workflow proposal sent to the maestro session.** The verdict is "cuts repeats but loses recall", not "cuts repeats and keeps recall". The proposal stays as 071 recommended: the plain scout (`haiku-metrics-primer`) as an advisory list read before any change is filed.
+- **No further paid run is recommended on this design.** A new run needs an amended list or recall bar and its own pre-registration, which is not this ticket's call.
+- **Nothing in the maestro repo changes here.** Any change to the proposal is its own ticket there.
+
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
 User decision, epic `haiku-subagents-with-graph`. The plugin stops pushing sessions to the graph instead of grep and read, and graph retrieval stays available on demand.

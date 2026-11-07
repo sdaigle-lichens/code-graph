@@ -1,0 +1,114 @@
+## Changed symbols
+- apps/maestro/src/core/session-sweep.ts (concept claude-session-bridge): `isAbandoned` (L90-102)
+
+## Impact of each changed symbol (callers, depth 2)
+
+### `isAbandoned` in apps/maestro/src/core/session-sweep.ts
+
+## Direct callers
+
+- @apps/maestro/src/core/session-sweep.ts:120 — `sweepStaleSessions`
+- @apps/maestro/src/core/session-sweep.ts:177 — `deleteSession`
+- @apps/maestro/src/core/session-sweep.ts:199 — `listDeletableSessions`
+
+## Indirect callers (depth 2)
+
+- @apps/maestro/src/core/session-ipc.ts:54 — `sweepAndRetarget`
+- @apps/maestro/src/core/session-ipc.ts:61 — `deleteAndRetarget`
+- @apps/maestro/src/main/ipc.ts:492 — `registerIpc`
+
+## Untested callers (no test file mentions the caller by name)
+
+none
+
+## New cross-concept edges added by the diff
+
+none
+
+## Cross-concept relations of the touched concepts (existing edges, before the change)
+
+### claude-session-bridge <-> task-queue
+
+- `task-queue::isSessionLive` --calls--> `claude-session-bridge::sessionPathsFor`
+- `task-queue::MaestroTasksPage` --mounts--> `claude-session-bridge::ClaudeRunDialog`
+- `claude-session-bridge::build` --calls--> `task-queue::tasksDirFor`
+- `claude-session-bridge::rederiveSessionName` --calls--> `task-queue::claimsDirFor`
+
+### claude-session-bridge <-> maestro-architecture
+
+- `maestro-architecture::liveRunIds` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::tailSessionLogs` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::liveRunIds` --calls--> `claude-session-bridge::listSessionIds`
+- `maestro-architecture::newestSessionLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::appendSessionLog` --calls--> `claude-session-bridge::ensureSessionPaths`
+- `maestro-architecture::sessionLogPath` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::appendSessionLog` --calls--> `claude-session-bridge::deriveUsage`
+- `maestro-architecture::sessionLogFileFor` --calls--> `claude-session-bridge::sessionPathsFor`
+- `maestro-architecture::tailSessionLogs` --calls--> `claude-session-bridge::listSessionIds`
+- `maestro-architecture::newestSessionLog` --calls--> `claude-session-bridge::listSessionIds`
+
+### claude-session-bridge <-> create-skills-architecture
+
+- `claude-session-bridge::buildCreate` --calls--> `create-skills-architecture::resolveCreateTarget`
+- `claude-session-bridge::buildHandoff` --calls--> `create-skills-architecture::resolveCreateTarget`
+- `claude-session-bridge::projectSkillsForTagging` --calls--> `create-skills-architecture::readSkillsFromDir`
+- `create-skills-architecture::readScopeFor` --calls--> `claude-session-bridge::buildReadScope`
+- `create-skills-architecture::CreateShell` --uses-hook--> `claude-session-bridge::useSession`
+- `create-skills-architecture::previewClaudeRun` --calls--> `claude-session-bridge::issueInvocation`
+- `create-skills-architecture::previewClaudeRun` --calls--> `claude-session-bridge::resolveClaudeCli`
+- `create-skills-architecture::readScopeFor` --calls--> `claude-session-bridge::buildReadScope`
+- `create-skills-architecture::readScopeFor` --calls--> `claude-session-bridge::buildReadScope`
+- `create-skills-architecture::previewClaudeRun` --calls--> `claude-session-bridge::cliNotFoundMessage`
+
+### claude-session-bridge <-> docs-view
+
+- `docs-view::GlobalDocsIndex` --uses-hook--> `claude-session-bridge::useSession`
+
+### claude-session-bridge <-> electron-shell-invariants
+
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionPane` --uses-hook--> `electron-shell-invariants::useProject`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::openSession` --calls--> `electron-shell-invariants::bundledPluginDir`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --uses-hook--> `electron-shell-invariants::useProject`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::ClaudeRunDialog` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `claude-session-bridge::SessionProvider` --calls--> `electron-shell-invariants::callMain`
+- `electron-shell-invariants::registerIpc` --calls--> `claude-session-bridge::describeResume`
+- `electron-shell-invariants::disposeIpc` --calls--> `claude-session-bridge::disposeSessions`
+- `electron-shell-invariants::registerIpc` --calls--> `claude-session-bridge::resumeSession`
+- `electron-shell-invariants::registerIpc` --calls--> `claude-session-bridge::runPreviewedClaude`
+- `electron-shell-invariants::registerIpc` --calls--> `claude-session-bridge::saySession`
+- `electron-shell-invariants::registerIpc` --calls--> `claude-session-bridge::continueSession`
+... (29 more lines)
+
+### claude-session-bridge <-> global-stores
+
+- `claude-session-bridge::applyUpdateSkillTagsIfAny` --calls--> `global-stores::readAllProjectTags`
+- `claude-session-bridge::buildUpdateSkillTags` --calls--> `global-stores::readAllProjectTags`
+- `claude-session-bridge::projectSkillsForTagging` --calls--> `global-stores::readAllSkillTags`
+- `claude-session-bridge::applyUpdateSkillTagsIfAny` --calls--> `global-stores::parseSkillTagsBlock`
+- `claude-session-bridge::applyUpdateSkillTagsIfAny` --calls--> `global-stores::applySkillTagsBlock`
+
+### claude-session-bridge <-> log-view
+
+- `claude-session-bridge::Entry` --calls--> `log-view::humanizeLog`
+- `claude-session-bridge::rederiveSessionName` --calls--> `log-view::mainCheckoutRoot`
+- `log-view::worktreeHasLog` --calls--> `claude-session-bridge::listSessionIds`
+- `log-view::newestSessionLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::tailSessionLogs` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::worktreeHasLog` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::newestSessionLog` --calls--> `claude-session-bridge::listSessionIds`
+- `log-view::sessionLogFileFor` --calls--> `claude-session-bridge::sessionPathsFor`
+- `log-view::tailSessionLogs` --calls--> `claude-session-bridge::listSessionIds`

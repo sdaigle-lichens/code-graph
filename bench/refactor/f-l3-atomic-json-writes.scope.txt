@@ -1,0 +1,11 @@
+10 files:
+- apps/maestro/src/core/agent-fork-record.ts (concept agent-fork-sync)
+- apps/maestro/src/core/agent-fork.ts (concept agent-fork-sync)
+- apps/maestro/src/core/agent-sync.ts (concept agent-fork-sync)
+- apps/maestro/src/core/config-watch.ts (concept maestro-config-model)
+- apps/maestro/src/core/config.ts (concept maestro-config-model)
+- apps/maestro/src/core/epics.ts (concept task-queue)
+- apps/maestro/src/core/handoffs.ts (concept maestro-architecture)
+- apps/maestro/src/core/meeting-mode.ts (concept none: outside every concept)
+- apps/maestro/src/core/run-metrics.ts (concept none: outside every concept)
+- apps/maestro/src/core/session-runtime.ts (concept maestro-architecture)

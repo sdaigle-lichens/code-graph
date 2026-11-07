@@ -259,12 +259,16 @@ var STATUS_FILE = "status.json";
 function tasksDirFor(projectRoot) {
   return import_node_path6.default.join(mainCheckoutRoot(projectRoot), TASKS_SUBDIR);
 }
-function parseBlockedBy(content) {
-  const start = content.search(/^##\s+Blocked by\s*$/m);
-  if (start === -1) return [];
+function sectionOf(content, headingPattern) {
+  const start = content.search(headingPattern);
+  if (start === -1) return null;
   const rest = content.slice(start);
   const nextHeading = rest.slice(1).search(/^##\s/m);
-  const body = nextHeading === -1 ? rest : rest.slice(0, nextHeading + 1);
+  return nextHeading === -1 ? rest : rest.slice(0, nextHeading + 1);
+}
+function parseBlockedBy(content) {
+  const body = sectionOf(content, /^##\s+Blocked by\s*$/m);
+  if (body === null) return [];
   const refs = body.match(/`(\d{3}-[\w-]+\.md)`/g) ?? [];
   return Array.from(new Set(refs.map((r) => r.replace(/`/g, ""))));
 }
@@ -408,7 +412,7 @@ var LOCK_DIR = ".lock";
 var LOCK_WAIT_MS = 5e3;
 var LOCK_STALE_MS = 15e3;
 var REVIEW_VERDICTS = ["on-track", "redirect", "escalate"];
-var MANAGER_REDIRECT_CAP = 2;
+var MANAGER_REDIRECT_CAP = 1;
 var SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
 function isValidEpicSlug(slug) {
   return SLUG.test(slug);
