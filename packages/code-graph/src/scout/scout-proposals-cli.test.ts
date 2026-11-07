@@ -392,17 +392,52 @@ describe("scout --proposals: exit 13, no PROPOSALS: section on stdin", () => {
   }
 });
 
-describe("scout --proposals: bad combinations are exit 1", () => {
+describe("scout --proposals <answers-file>: the skill's form", () => {
   for (const [name, cli] of CLIS) {
-    it(`${name}: a scope file with --proposals is exit 1 and prints nothing`, () => {
-      const root = repo(`combo-scope-${name}`);
-      fs.writeFileSync(path.join(root, "scope.txt"), "src/a.ts\n");
-      const r = run(cli(), root, ["scout", "scope.txt", "--proposals"], sections("PROPOSALS:", "- src/a.ts: k: p"));
-      assert.equal(r.status, 1, r.stdout + r.stderr);
-      assert.equal(r.stdout, "");
-      assert.match(r.stderr, /takes no scope file and no --json/);
+    it(`${name}: reads the sections from the file, ignores stdin, and prints the same block`, () => {
+      const root = repo(`answers-${name}`, ["src/a.ts"]);
+      const answers = path.join(root, "scribe-output/scout/answers.md");
+      write(
+        root,
+        "scribe-output/scout/answers.md",
+        sections("PROPOSALS:", `- \`${path.join(root, "src/a.ts")}\`:3: k: p`)
+      );
+      const r = run(cli(), root, ["scout", "--proposals", answers], sections("PROPOSALS:", "- src/stdin.ts: k: no"));
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stderr, "");
+      assert.equal(r.stdout, "PROPOSALS:\n- src/a.ts:3: k: p\n");
     });
 
+    it(`${name}: an answers file with no PROPOSALS: line is exit 13, nothing on stdout`, () => {
+      const root = repo(`answers-empty-${name}`);
+      write(root, "answers.md", "the session said nothing useful\n");
+      const r = run(cli(), root, ["scout", "--proposals", path.join(root, "answers.md")]);
+      assert.equal(r.status, 13, r.stdout + r.stderr);
+      assert.equal(r.stdout, "");
+    });
+
+    it(`${name}: a missing answers file is exit 1, one stderr line naming it, nothing on stdout`, () => {
+      const root = repo(`answers-missing-${name}`);
+      const missing = path.join(root, "scribe-output/scout/answers.md");
+      const r = run(cli(), root, ["scout", "--proposals", missing], sections("PROPOSALS:", "- src/a.ts: k: p"));
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.equal(r.stdout, "");
+      assert.equal(r.stderr.trim().split("\n").length, 1, r.stderr);
+      assert.ok(r.stderr.includes(`cannot read the answers file ${missing}: no such file`), r.stderr);
+    });
+
+    it(`${name}: a relative answers file resolves from the config root`, () => {
+      const root = repo(`answers-rel-${name}`, ["src/a.ts"]);
+      write(root, "out/answers.md", sections("PROPOSALS:", "- ./src/a.ts: k: p"));
+      const r = run(cli(), root, ["scout", "--proposals", "out/answers.md"]);
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, "PROPOSALS:\n- src/a.ts: k: p\n");
+    });
+  }
+});
+
+describe("scout --proposals: bad combinations are exit 1", () => {
+  for (const [name, cli] of CLIS) {
     it(`${name}: --json with --proposals is exit 1 and prints nothing`, () => {
       const root = repo(`combo-json-${name}`);
       const r = run(cli(), root, ["scout", "--proposals", "--json"], sections("PROPOSALS:", "- src/a.ts: k: p"));
@@ -447,11 +482,17 @@ describe("scout --proposals: node:sqlite (documented exit 8, as for every scout 
 describe("the refactor-scout skill's step 3 calls --proposals", () => {
   const skill = fs.readFileSync(SKILL, "utf8");
 
-  it("pipes the returned sections to scout --proposals through a quoted heredoc", () => {
+  it("writes the returned sections to the answers file and passes its path, with no heredoc", () => {
+    assert.match(skill, /to the answers file from step 1 with the Write tool/);
     assert.match(
       skill,
-      /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/code-graph\.cjs" scout --proposals <<'SCOUT_PROPOSALS'\n[\s\S]*\n\s*SCOUT_PROPOSALS\n/
+      /\n\s*node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/code-graph\.cjs" scout --proposals "<answers file>"\n/
     );
+    assert.doesNotMatch(skill, /<</, "a heredoc does not match the allowed-tools Bash pattern");
+  });
+
+  it("step 1 names the answers: line the plan prints", () => {
+    assert.match(skill, /an `answers: <answers file>` line/);
   });
 
   it("keeps the nothing-scanned rule for a run where no session answered", () => {
@@ -474,5 +515,12 @@ describe("the refactor-scout skill's step 3 calls --proposals", () => {
   it("the allowed-tools pattern covers scout with --proposals", () => {
     const frontmatter = skill.split("---")[1];
     assert.match(frontmatter, /Bash\(node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/code-graph\.cjs" scout \*\)/);
+  });
+
+  it("the allowed-tools pre-approve the answers-file write (an Edit rule covers Write) and nothing wider", () => {
+    const frontmatter = skill.split("---")[1];
+    const tools = /^allowed-tools: (.*)$/m.exec(frontmatter)?.[1] ?? "";
+    assert.match(tools, /(^|, )Edit\(scribe-output\/scout\/\*\*\)(,|$)/);
+    assert.doesNotMatch(tools, /(^|, )(Write|Edit)(,|$)/, "no unscoped Write or Edit");
   });
 });

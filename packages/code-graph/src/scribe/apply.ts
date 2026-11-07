@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
 import { reportAndThrow as fail } from "../concept-batch.js";
 import { resolveDbPath } from "./db.js";
-import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
+import { openStoreOrExit, rebuildSearchIndex } from "./bootstrap.js";
 import {
   applyRemap,
   enrichmentIsCurrent,
@@ -213,7 +213,7 @@ export async function apply(
   const now = nowISO();
 
   // Creates the store file + schema on first run; cheap and idempotent after.
-  const store = bootstrapStore(resolveDbPath(config));
+  const store = openStoreOrExit(resolveDbPath(config));
 
   // Load ast.json (required)
   const astPath = join(configRoot, "scribe-output", `${concept}.ast.json`);

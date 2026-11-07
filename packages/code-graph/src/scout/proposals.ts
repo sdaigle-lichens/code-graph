@@ -6,6 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, posix, relative, sep } from "node:path";
+import { leavesRoot } from "./root.js";
 
 /** Stdin held no `PROPOSALS:` line: no session answered, so there is nothing to print, not a clean result. */
 export const EXIT_SCOUT_NO_PROPOSALS = 13;
@@ -37,7 +38,6 @@ const LINE_REF = /(:\d+(?:-\d+)?)$/;
 const QUOTED_PATH = /^`([^`]+)`(:\d+(?:-\d+)?)?$/;
 
 const toPosix = (p: string) => p.split(sep).join("/");
-const leavesRoot = (rel: string) => rel === ".." || rel.startsWith("../") || isAbsolute(rel);
 
 /**
  * One path, git-root-relative when it is inside the repository, else `null` (the caller keeps it as given).
@@ -103,6 +103,16 @@ export function readStdin(): string {
     return readFileSync(0, "utf8");
   } catch {
     return "";
+  }
+}
+
+/** The answers file the skill wrote (a relative path resolves from the working directory), or why it can't be read. */
+export function readAnswersFile(path: string): { text: string; error: null } | { text: ""; error: string } {
+  try {
+    return { text: readFileSync(path, "utf8"), error: null };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return { text: "", error: code === "ENOENT" ? "no such file" : (err as Error).message };
   }
 }
 

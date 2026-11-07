@@ -160,12 +160,12 @@ code-graph refresh-skills [--json]
 
 Runs `extract` then `apply --defer-renames` for every concept whose SKILL.md differs from the body last
 applied to the store (its `docs/<concept>::skill` row). A concept never applied is left to
-`add-concept`. Exit codes: 1 if any concept failed, 10 if any was deferred, else 0. A lock file
+`add-concept`. Exit codes: 1 if any concept failed, 10 if any was deferred, 3 if the store was written by a newer code-graph (left unchanged), else 0. A lock file
 `.refresh-skills.lock` next to `graph.db` stops two runs at once; a lock older than 120 s is taken over.
 
 The plugin runs `refresh-skills --hook` on **Stop** and **SubagentStop** (`plugin/hooks/hooks.json`,
 timeout 120 s), so the "extract + apply after a SKILL.md" rule no longer depends on an agent
-remembering it. The hook reports through a `systemMessage` (refreshed, deferred or failed concepts) and
+remembering it. The hook reports through a `systemMessage` (refreshed, deferred or failed concepts, or a newer store) and
 always exits 0. It is silent when there is no `scribe.config.json`, no concepts, no tsconfig, no store,
 no `node:sqlite`, or no changed SKILL.md. A deferred concept is named with the command to run
 (`code-graph apply <concept>` in a terminal, never `--approve-drift`) and is reported again at every
@@ -289,7 +289,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph catalog --json`           | `code-graph catalog --json --tsconfig tsconfig.app.json`             | Store-free ts-morph digest: units, exports, imports, fan-in/out, hubs (drives concept proposals) |
 | `code-graph deps install`             | `code-graph deps install`                                            | Install pinned ts-morph into the plugin deps directory (`deps status` shows what resolves) |
 | `code-graph scout <scope-file>`       | `code-graph scout .claude/epics/my-epic/scope.txt`                   | Prepare the refactor scout's Haiku session prompts for a list of files; calls no model |
-| `code-graph scout --proposals`        | `code-graph scout --proposals < sections.txt`                        | Print one `PROPOSALS:` block with git-root-relative paths from the sessions' sections on stdin (no scope file) |
+| `code-graph scout --proposals [file]` | `code-graph scout --proposals scribe-output/scout/answers.md`        | Print one `PROPOSALS:` block with git-root-relative paths from the sessions' sections in the answers file (stdin without one) |
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
 | `code-graph eval [--tasks <path>] [--store <stripped\|as-is>]` | `code-graph eval --store as-is`                      | Run layer-A eval harness; `stripped` (default) measures a temp copy without purposes/tags |
 
@@ -420,8 +420,8 @@ which `graph.changed` cannot see. Null until the next `extract` records `meta.fi
 
 ### `scout` (refactor scout)
 
-Two forms: `code-graph scout <scope-file> [--json]` and `code-graph scout --proposals` (below). The scope file
-is optional only with `--proposals`; `scout` with neither exits 1. The first form does the part of the `refactor-scout` skill that costs no model
+Two forms: `code-graph scout <scope-file> [--json]` and `code-graph scout --proposals [answers-file]` (below). The
+scope file is optional only with `--proposals`; `scout` with neither exits 1. The first form does the part of the `refactor-scout` skill that costs no model
 call. The scope file holds one existing file per line, relative to the git root, the nearest directory
 at or above `scribe.config.json` that holds `.git` (the config's own directory outside a git repository).
 A relative `<scope-file>` resolves against the project. A config in a git subdirectory needs an absolute
@@ -429,7 +429,8 @@ A relative `<scope-file>` resolves against the project. A config in a git subdir
 found (exit 5), and a relative `<scope-file>` does not resolve from the git root (exit 11 if it is not in the
 config directory). The command writes one prompt file per session to
 `scribe-output/scout/session-<n>.md`, replacing the previous run's, and prints the plan: a `root: <git root>`
-line and one `session <n>: <prompt file>: <files>` line per session. The skill spawns the sessions, one
+line, an `answers: <path>` line (the absolute `scribe-output/scout/answers.md` the skill writes the returned
+sections to, printed only when a session is planned) and one `session <n>: <prompt file>: <files>` line per session. The skill spawns the sessions, one
 read-only `code-graph:refactor-scout` agent each (`plugin/agents/refactor-scout.md`: Haiku, `Read`, `Grep`,
 `Glob`). Every path in the plan and the prompts is relative to the git root, so proposals use the scope's paths.
 
@@ -447,13 +448,16 @@ read-only `code-graph:refactor-scout` agent each (`plugin/agents/refactor-scout.
   cross-concept import edges and `query cross`. Concepts and cross-concept relations come from the store,
   which holds no import edges; the rest comes from the catalog, so `ts-morph` must resolve (`deps status`).
 
-`--json` prints `{ root, scope, sessions: [{ prompt, files }], notScanned, ignored, skippedLines: [{ line, reason }], nothingScanned }`.
-`nothingScanned` is the reason, or `null` when a session was planned.
+`--json` prints `{ root, scope, sessions: [{ prompt, files }], answers, notScanned, ignored, skippedLines: [{ line, reason }], nothingScanned }`.
+`nothingScanned` is the reason, or `null` when a session was planned; `answers` is `null` when none was.
 Exit codes: 0, 1 (an unexpected failure, one `scout failed:` line on stderr), 3 (store written by a newer
-code-graph; a known limitation, see Troubleshooting), 5 (no `scribe.config.json`), 8 (no `node:sqlite`), 11 and 12 (see Troubleshooting).
+code-graph), 5 (no `scribe.config.json`), 8 (no `node:sqlite`), 11 and 12 (see Troubleshooting).
 
-`code-graph scout --proposals` is the skill's last step, and calls no model and opens no store. Stdin holds
-the `PROPOSALS:` sections the sessions returned, one after another. It prints one block: `PROPOSALS:` and
+`code-graph scout --proposals [answers-file]` is the skill's last step, and calls no model and opens no store.
+The answers file (the plan's `answers:` path, which the skill writes with its Write tool so the step is one plain
+command its `allowed-tools` match, with no heredoc) holds the `PROPOSALS:` sections the sessions returned, one
+after another; with no file argument they are read from stdin. An answers file that can't be read is exit 1,
+one stderr line. It prints one block: `PROPOSALS:` and
 every bullet found after a `PROPOSALS:` line, prose or not (`- `, `* `, `1. ` or `1) `, each printed as a `- ` line;
 only lines that are not bullets are dropped), or `PROPOSALS: none` when there is none.
 Each line's path (the text before the first `: `, an optional `:<line>` or `:<line>-<line>` suffix kept
@@ -466,7 +470,7 @@ the config root, so `../shared/x.ts` from `pkg/` prints `shared/x.ts`; the repos
 An absolute path outside the repository, or a relative one that leaves the git root from the config root, is kept as given and named before the block on one
 `outside the repository: <n> path(s) kept as given: <paths>` line. The rest of each line is kept as returned. There is no realpath: a path written through a symlink or macOS's
 `/tmp` (`/private/tmp`) alias does not match the git root's spelling, so it is kept as given and named as outside the repository.
-It takes no `<scope-file>` and no `--json` (exit 1).
+It takes no `--json` (exit 1).
 Exit codes: 0, 1 (a scope file or `--json` given), 5 (no `scribe.config.json`), 8 (no `node:sqlite`, as for
 every `scout`), 13 (no `PROPOSALS:` line on stdin: no session answered, so nothing is printed on stdout and
 never `PROPOSALS: none`).
@@ -535,7 +539,7 @@ the repo's history.
 | Exit code | Meaning                 | Fix                                          |
 | --------- | ----------------------- | -------------------------------------------- |
 | 2         | *retired*               | Was "ArangoDB unreachable"; no longer emitted |
-| 3         | Store written by a newer code-graph | Upgrade the CLI. **Known limitation:** no command reaches this exit today. The store is bootstrapped (`applySchema` overwrites `user_version`) before the version check reads it, so a newer store is downgraded instead of refused. Fixing the shared preflight is a separate ticket |
+| 3         | Store written by a newer code-graph | Upgrade the CLI. Every store command reads the stored version first and leaves a newer store unchanged |
 | 4         | Ambiguous symbol        | Qualify with concept: `impact concept::name` |
 | 5         | No `scribe.config.json` | Create one at project root                   |
 | 6         | Zero search results     | Rephrase query or use Explore agent          |

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
 import { resolveDbPath } from "./db.js";
-import { bootstrapStore, rebuildSearchIndex } from "./bootstrap.js";
+import { openStoreOrExit, rebuildSearchIndex } from "./bootstrap.js";
 import type { DatabaseSync } from "node:sqlite";
 import { docKey, inTransaction, toDocs } from "./rows.js";
 
@@ -192,7 +192,7 @@ export async function deleteConcept(conceptName: string, opts: { yes?: boolean }
 
   // Creates the store if this is a fresh project, in which case there is simply
   // nothing to archive.
-  const store = bootstrapStore(resolveDbPath(config));
+  const store = openStoreOrExit(resolveDbPath(config));
 
   // ── 1. Collect deleted concept's vertex keys (for dangling ref detection) ──
   const deletedVertices = toDocs<VertexSummary>(

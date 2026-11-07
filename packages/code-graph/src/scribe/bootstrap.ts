@@ -91,6 +91,25 @@ export const FTS_FORMAT = 2;
 /** Column weights for bm25(), mirroring the boosts the ArangoSearch view used. */
 export const FTS_WEIGHTS = { name: 3.0, purpose: 2.0, tags: 1.5, body_md: 1.0 };
 
+/** `PRAGMA user_version` of an open store (0 for a new file). */
+export function storedSchemaVersion(store: DatabaseSync): number {
+  return (store.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
+}
+
+/** Thrown by `bootstrapStore` for a store written by a newer code-graph; nothing was written to it. */
+export class NewerStoreError extends Error {
+  constructor(
+    readonly dbPath: string,
+    readonly storedVersion: number
+  ) {
+    super(
+      `store "${dbPath}" was written by a newer code-graph (schema ${storedVersion} > ${SCHEMA_VERSION}); upgrade the CLI`
+    );
+    this.name = "NewerStoreError";
+  }
+}
+
+/** Creates the tables and stamps the version. Callers must have refused a newer store first (`bootstrapStore`). */
 export function applySchema(store: DatabaseSync): void {
   store.exec(SCHEMA_SQL);
   store.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -174,6 +193,32 @@ export function ensureSearchIndexFormat(store: DatabaseSync): IndexFormatCheck {
 /** Creates the store file and schema if absent; safe to call repeatedly. */
 export function bootstrapStore(dbPath: string): DatabaseSync {
   const store = getStore(dbPath);
+  // Read the stored version before anything writes it: a newer store is refused untouched.
+  assertStoreNotNewer(store, dbPath);
   applySchema(store);
   return store;
+}
+
+/** Throws `NewerStoreError` when the store was written by a newer code-graph; writes nothing. */
+export function assertStoreNotNewer(store: DatabaseSync, dbPath: string): void {
+  const stored = storedSchemaVersion(store);
+  if (stored > SCHEMA_VERSION) throw new NewerStoreError(dbPath, stored);
+}
+
+/** Prints the upgrade message and exits 3 for a `NewerStoreError`; any other error is rethrown. */
+export function exitOnNewerStore(err: unknown): never {
+  if (err instanceof NewerStoreError) {
+    console.error(err.message);
+    process.exit(3);
+  }
+  throw err;
+}
+
+/** `bootstrapStore` for CLI commands: a newer store prints the message and exits 3, leaving it unchanged. */
+export function openStoreOrExit(dbPath: string): DatabaseSync {
+  try {
+    return bootstrapStore(dbPath);
+  } catch (err) {
+    return exitOnNewerStore(err);
+  }
 }

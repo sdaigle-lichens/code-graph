@@ -460,10 +460,8 @@
     "epic": "haiku-subagents-with-graph"
   },
   "076-make-the-store-s-schema-version-check-fire-and-make-skill-only-edits-re-run-the-tests.md": {
-    "status": "ready",
-    "blockedBy": [
-      "075-ship-the-haiku-refactor-scout-as-a-plugin-skill-a-maestro-project-can-run-at-epic-start-and-end.md"
-    ],
+    "status": "done",
+    "blockedBy": [],
     "epic": "haiku-subagents-with-graph"
   }
 }

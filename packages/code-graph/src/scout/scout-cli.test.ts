@@ -226,6 +226,8 @@ describe("scout plan", () => {
         const plan = JSON.parse(json.stdout);
         assert.equal(plan.nothingScanned, why);
         assert.deepEqual(plan.sessions, []);
+        assert.equal(plan.answers, null);
+        assert.doesNotMatch(text.stdout, /^answers:/m);
       });
     }
   }
@@ -234,6 +236,30 @@ describe("scout plan", () => {
     const scope = scopeFile(root, ["src/app/main.ts"]);
     assert.doesNotMatch(run(DIST, root, ["scout", scope]).stdout, /nothing scanned/);
     assert.equal(JSON.parse(run(DIST, root, ["scout", scope, "--json"]).stdout).nothingScanned, null);
+  });
+
+  for (const [name, cli] of [
+    ["dist", DIST],
+    ["bundle", BUNDLE],
+  ] as const) {
+    it(`${name}: a plan with a session names an absolute answers file in the prompt directory, not yet written`, () => {
+      const scope = scopeFile(root, ["src/app/main.ts"]);
+      const answers = path.join(root, "scribe-output", "scout", "answers.md");
+      const text = run(cli, root, ["scout", scope]);
+      assert.equal(text.status, 0, text.stderr);
+      assert.ok(text.stdout.split("\n").includes(`answers: ${answers}`), text.stdout);
+      assert.equal(JSON.parse(run(cli, root, ["scout", scope, "--json"]).stdout).answers, answers);
+      assert.ok(!fs.existsSync(answers), "the skill writes it, the plan does not");
+    });
+  }
+
+  it("a new run clears the previous run's answers file", () => {
+    const scope = scopeFile(root, ["src/app/main.ts"]);
+    const answers = path.join(root, "scribe-output", "scout", "answers.md");
+    run(DIST, root, ["scout", scope]);
+    fs.writeFileSync(answers, "PROPOSALS:\n- src/app/main.ts: k: stale\n");
+    run(DIST, root, ["scout", scope]);
+    assert.ok(!fs.existsSync(answers), "a stale answers file would be read as this run's");
   });
 
   it("keeps its prompts out of git and changes no source", () => {
@@ -351,7 +377,9 @@ describe("the refactor-scout skill", () => {
     assert.match(skill, /subagent_type: "code-graph:refactor-scout"/);
     assert.doesNotMatch(skill, /Explore/);
     assert.match(skill, /model: "haiku"/);
-    assert.doesNotMatch(skill.split("---")[1], /\b(Edit|Write)\b/);
+    // The skill changes no code: its one file-tool grant is the answers file in the gitignored prompt directory.
+    const frontmatter = skill.split("---")[1].replace("Edit(scribe-output/scout/**)", "");
+    assert.doesNotMatch(frontmatter, /\b(Edit|Write|NotebookEdit)\b/);
   });
 
   it("ships an agent that is read-only by its tool list, on Haiku, with a minimal system prompt", () => {

@@ -54,6 +54,12 @@ export type ScoutPlan = {
   /** Usable scope lines. */
   scope: number;
   sessions: ScoutSession[];
+  /**
+   * Where the skill writes the sessions' returned sections for `scout --proposals <file>` (absolute, in the
+   * prompt directory), or null when no session was planned. A file, not a heredoc, so the skill's step 3 is one
+   * plain command its `allowed-tools` pattern matches.
+   */
+  answers: string | null;
   /** Files in the index, past the session cap. */
   notScanned: string[];
   /** Existing files the index does not cover. */
@@ -213,6 +219,9 @@ async function sessionPrompt(
   return scoutPrompt(buildScopeBlock(files.map((file) => ({ file, concept: conceptOf(file) }))), primer);
 }
 
+/** The skill writes the returned sections here; the next run's `freshPromptDir` removes it. */
+const ANSWERS_FILE = "answers.md";
+
 /** Inside the project so a session reads it without a permission prompt; ignored even where `scribe-output/` is committed. */
 function freshPromptDir(root: string): string {
   const dir = join(root, "scribe-output", "scout");
@@ -271,6 +280,7 @@ export async function planScout(scopePath: string): Promise<ScoutPlan> {
     root: repoRoot,
     scope: scope.files.length,
     sessions: planned,
+    answers: planned.length > 0 ? join(dir, ANSWERS_FILE) : null,
     notScanned,
     ignored,
     skippedLines: scope.skipped,
@@ -295,6 +305,7 @@ export function formatPlan(plan: ScoutPlan): string {
     `scout: ${plural(plan.scope, "file")} in scope, ${plural(plan.sessions.length, "session")} (at most ${MAX_FILES_PER_SESSION} files each, at most ${MAX_SESSIONS} sessions)`,
     `root: ${plan.root}`,
   ];
+  if (plan.answers) lines.push(`answers: ${plan.answers}`);
   plan.sessions.forEach((s, i) => lines.push(`session ${i + 1}: ${s.prompt}: ${s.files.join(", ")}`));
   if (plan.ignored > 0) lines.push(`ignored: ${plural(plan.ignored, "file")} outside the code index`);
   if (plan.notScanned.length > 0) {
