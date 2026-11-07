@@ -1489,6 +1489,61 @@ node bench/refactor-run.mjs --set 073 --arms haiku-metrics-primer,haiku-decided-
 
 5 cases and at most 6 runs per cell; one project (maestro `3814a30`); one model family (Haiku); entries chosen from the very runs that show the repeats; the reasons are author-written, not a real reviewer's; the metric counts repeats by pattern, so a reworded repeat can be missed. The `--init-check` needs `claude` on the path and was not run by the author (not available in the sandbox). Recording the results and the recommendation is a follow-up ticket.
 
+#### Results (ticket 074; recorded from the user's runs, no paid run started here)
+
+- **Pilot** `bench/results/refactor-2026-11-06T23-36-42-976Z`: $0.123 of $0.50, 10 of 10 valid. A rule input, not a result: it screened (the plain scout repeated 8 listed entries, at least 5) and is in no verdict below.
+- **Paid** `bench/results/refactor-2026-11-06T23-50-00-772Z`: $0.760 of $1.50, 60 of 60 valid, r = 6. 30 paired cells (5 cases x 6 runs), both arms on every cell.
+- **Study total:** $0.883 of the $2 cap.
+- The paid output's `next:` audit line does not apply: 073 has no audit step.
+
+##### Repeats, recall, new findings and cost (paid run)
+
+| arm | listed entries repeated | proposals repeating one | expected found | new findings | cost per session |
+|---|---|---|---|---|---|
+| haiku-metrics-primer (control) | 47 | 50 | 26/48 | 50 | $0.0123 |
+| haiku-decided-against | 9 | 9 | 19/48 | 68 (report) | $0.0131 |
+
+- **Cost per arm:** control $0.370 over 30 sessions, decided $0.393 over 30 (summed from the per-row costs in the report; the rows total $0.763 against $0.760 spent, the rounding of $0.001 per row). The decided arm costs 6% more per cell.
+- **Repeats by case** (control, then decided): `f-r5` 5 to 0, `f-s5` 6 to 1, `f-c2` 9 to 2, `f-l1` 13 to 3, `f-l3` 14 to 3.
+- **Repeats by run** (control, then decided, runs 1 to 6): 6/1, 10/2, 9/1, 6/2, 8/2, 8/1. The decided arm repeats fewer in every run.
+- **Expected found by case** (control, then decided): `f-r5` 10 to 9 of 18, `f-s5` 5 to 2 of 6, `f-c2` 0 of 0, `f-l1` 7 to 5 of 12, `f-l3` 4 to 3 of 12.
+- **Expected found by run** (control, then decided): 4/3, 5/4, 4/1, 4/3, 4/5, 5/3. Run 5 is the one run where the decided arm found more.
+- **New findings:** 68 for the decided arm over 30 cells and 50 for the control, matching the report's totals (the per-cell column sums to the same figures). Step 5 is not reached, see below.
+
+##### Verdict (pre-registered rule, applied as written; first match wins)
+
+1. Paired-cell counts are equal (30 and 30): comparable.
+2. The control repeats 47 listed entries, which is at least 6: the rule proceeds.
+3. The decided arm repeats 9 of the control's 47, a cut of 81%, which is more than 50%: the rule proceeds.
+4. The decided arm finds 19 of the control's 26 expected improvements, which is 73% and under 90%: **cuts repeats but loses recall**.
+
+Step 5 is not reached. For the record, the decided arm's new findings are 68 of 50 (136%), which would not have fired it either way.
+
+##### Post hoc readings (labelled; none changes the verdict)
+
+- **Repeats cut and new findings rose:** the new-findings count went from 50 to 68 (report), so the list moved the scout onto other proposals as well as cutting repeats.
+- **False findings kept:** 100 for the control, 77 for the decided arm (report, all cases). The 073 rule does not use this count.
+- **Recall loss concentrates in `f-s5` (5 to 2) and `f-l1` (7 to 5).** This is one reading of six runs, not tested.
+- **Recall gap is noisy:** run 5 went the other way (5 decided against 4 control), so the 26-to-19 gap is about 6 runs of 5 cases.
+
+##### Cost estimate against the pilot
+
+- The pilot's mean was $0.123 / 10 = **$0.0123 per session**, which gave r = 6 (10 x 6 x $0.0123 = $0.738).
+- **Spent: $0.760.** Miss: +$0.022, +3.0% against the pilot's estimate. The design-time $0.02 estimate (60 sessions = $1.20) was 58% above the actual spend.
+- **Per arm, the miss goes both ways:** control $0.0142 in the pilot against $0.0123 paid (-13%); decided $0.0106 in the pilot against $0.0131 paid (+24%). The total held; the split between arms did not.
+
+##### Confidence
+
+- **That the list cuts repeats: moderate-high.** The decided arm repeats fewer in every run and in every case (47 to 9). The entries were chosen from the same runs that show the repeats (selection effect, as the design section says), so the size of the cut is probably overstated.
+- **That the list costs recall: moderate on direction, low-to-moderate on size.** 19 of 26 is 73%, and the 6-run noise is visible (run 5).
+- **Overall confidence in the verdict:** moderate.
+
+##### Recommendation
+
+- **The decided-against list does not join the workflow proposal sent to the maestro session.** The verdict is "cuts repeats but loses recall", not "cuts repeats and keeps recall". The proposal stays as 071 recommended: the plain scout (`haiku-metrics-primer`) as an advisory list read before any change is filed.
+- **No further paid run is recommended on this design.** A new run needs an amended list or recall bar and its own pre-registration, which is not this ticket's call.
+- **Nothing in the maestro repo changes here.** Any change to the proposal is its own ticket there.
+
 ## Decision (2026-10-30, ticket 054): retrieval is user-run, the plugin no longer steers to the graph
 
 User decision, epic `haiku-subagents-with-graph`. The plugin stops pushing sessions to the graph instead of grep and read, and graph retrieval stays available on demand.
