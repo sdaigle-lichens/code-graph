@@ -99,6 +99,7 @@ const {
   resolveProjectSkillPath,
   isRootSkillPath,
   readLogLines,
+  readGlobalHandoff,
 } = require("./lib/maestro-session.cjs");
 
 // ── nested-skill fallback (`061`) ───────────────────────────────────────────
@@ -138,19 +139,11 @@ function nestedSkillNote(nested) {
 // `payloadRoutes` (`087`, apps/maestro/src/core/handoff-payload.ts), the one resolver this hook
 // and the SubagentStop payload check share, so they cannot disagree about which routes need one.
 
-// The global tier: ~/.claude/maestro-handoff-defaults.sqlite. Wrapped in try/catch like every
-// other caller of a generated sqlite lib — an older `node` on this session's PATH (< 22.5, no
-// node:sqlite) or a missing bundle degrades to null, and `resolveHandoff` then falls through to
-// the SEED, which travels inside lib/maestro-session.cjs and needs no sqlite at all. That
-// fall-through is the whole reason the seeds were split out of the store.
-function readGlobalHandoff(handoffId) {
-  try {
-    const { readHandoffDefault } = require("./lib/maestro-handoff-defaults.cjs");
-    return readHandoffDefault(handoffId);
-  } catch {
-    return null;
-  }
-}
+// The global tier: ~/.claude/maestro-handoff-defaults.sqlite, read by `readGlobalHandoff`
+// (lib/maestro-session.cjs, source apps/maestro/src/core/global-handoff.ts). It requires the sqlite
+// bundle lazily inside try/catch — an older `node` (< 22.5, no node:sqlite) or a missing bundle
+// degrades to null, and `resolveHandoff` then falls through to the SEED, which travels inside
+// lib/maestro-session.cjs and needs no sqlite at all.
 
 // Project file -> global row -> shipped seed -> nothing: `payloadRoutes` applies `resolveHandoff`,
 // the same pure function apps/maestro's own surfaces call, so the hook and the app cannot disagree

@@ -51,6 +51,7 @@ const {
   payloadRoutes,
   payloadWrittenSince,
   runStartedAt,
+  runProfile,
   writeSession,
   ownerRunFor,
   ownerRunLeftovers,
@@ -60,6 +61,8 @@ const {
   acknowledgeGaps,
   channelScopeOf,
   resolveSessionId,
+  appendHandoffIssue,
+  readGlobalHandoff,
 } = require("./lib/maestro-session.cjs");
 
 // Resolve the loaded/referenced skills the SubagentStart hook would offer this
@@ -84,15 +87,6 @@ function offeredSkills(claudeDir, agentType, sessionStatePath) {
 
 // `087`: the routes this agent may take whose receiver expects a payload — the same resolution
 // (project file, global sqlite, seed) maestro-inject-agent-context.js told the agent to write.
-function readGlobalHandoff(handoffId) {
-  try {
-    const { readHandoffDefault } = require("./lib/maestro-handoff-defaults.cjs");
-    return readHandoffDefault(handoffId);
-  } catch {
-    return null;
-  }
-}
-
 function agentPayloadRoutes(cwd, scope, claudeDir, agentType, sessionStatePath) {
   const cfg = readJson(path.join(claudeDir, "maestro.json"));
   if (!cfg || cfg.version !== 3) return [];
@@ -217,6 +211,14 @@ function parseHandoff(msg) {
         // `124`: SubagentStop fires BEFORE Claude Code has flushed the agent's final hand-back
         // tool_use to that transcript, so a single read missed it and every hand-back agent was
         // flagged `missing`. awaitHandback re-reads until the call lands (bounded).
+        // `153`: this run's dispatch time, so a hand-back older than it (an earlier run's, seen
+        // before the resume prompt reached the transcript) is never taken for this run's.
+        let runSince = null;
+        try {
+          runSince = runStartedAt(readLogLines(sess.log), agentId);
+        } catch {
+          runSince = null;
+        }
         if (!inMeeting && !inOwnerRun && status === "unknown" && p.agent_transcript_path) {
           try {
             const viaSend = await awaitHandback(
@@ -227,7 +229,10 @@ function parseHandoff(msg) {
                   return null;
                 }
               },
-              (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+              (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+              undefined,
+              undefined,
+              runSince
             );
             if (viaSend) {
               handoffMsg = viaSend;
@@ -255,10 +260,23 @@ function parseHandoff(msg) {
           // file left from an earlier pass (or a loop-back's first run) does not count.
           if (!issue) {
             try {
-              const since = runStartedAt(readLogLines(sess.log), agentId);
-              issue = checkPayload(handoffMsg, agentPayloadRoutes(cwd, scope, claudeDir, agentType, sess.state), (r) =>
-                payloadWrittenSince(cwd, r, since)
-              );
+              const since = runSince;
+              // `153`: a resumed run that changed no file only re-verified; it has no payload to write.
+              let reverifyOnly = false;
+              if (p.agent_transcript_path) {
+                try {
+                  const prof = runProfile(fs.readFileSync(p.agent_transcript_path, "utf8"), runSince);
+                  reverifyOnly = prof.resumed && !prof.wroteFiles;
+                } catch {
+                  // Unreadable transcript — keep checking.
+                }
+              }
+              if (!reverifyOnly)
+                issue = checkPayload(
+                  handoffMsg,
+                  agentPayloadRoutes(cwd, scope, claudeDir, agentType, sess.state),
+                  (r) => payloadWrittenSince(cwd, r, since)
+                );
             } catch {
               // Best-effort — never fail the agent on a payload check.
             }
@@ -366,8 +384,8 @@ function parseHandoff(msg) {
         if (issue) {
           try {
             const session = readSession(sess.state);
-            const pending = Array.isArray(session.handoff_issues) ? session.handoff_issues : [];
-            pending.push({
+            // The stop hook can fire twice for one resumed run: appendHandoffIssue lists an issue once.
+            const pending = appendHandoffIssue(session.handoff_issues, {
               ts: new Date().toISOString(),
               agent: agentType,
               agent_id: agentId,

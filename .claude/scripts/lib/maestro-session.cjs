@@ -74,6 +74,7 @@ __export(maestro_session_exports, {
   bareAgentName: () => bareAgentName,
   buildRunRecord: () => buildRunRecord,
   channelDir: () => channelDir,
+  channelFileMtime: () => channelFileMtime,
   channelRelPath: () => channelRelPath,
   channelScopeFromState: () => channelScopeFromState,
   channelScopeOf: () => channelScopeOf,
@@ -160,6 +161,7 @@ __export(maestro_session_exports, {
   processInfo: () => processInfo,
   projectOwnsHook: () => projectOwnsHook,
   promptEntranceRole: () => promptEntranceRole,
+  readGlobalHandoff: () => readGlobalHandoff,
   readJson: () => readJson,
   readLane: () => readLane,
   readLogLines: () => readLogLines,
@@ -191,6 +193,7 @@ __export(maestro_session_exports, {
   retireScope: () => retireScope,
   reviewFileName: () => reviewFileName,
   routesFrom: () => routesFrom,
+  runProfile: () => runProfile,
   runStartedAt: () => runStartedAt,
   runtimeNeedsRefresh: () => runtimeNeedsRefresh,
   sendMessageHandoff: () => sendMessageHandoff,
@@ -308,6 +311,17 @@ function workflowNodeLabels(wf, instances) {
     if (l) labels.add(l);
   }
   return labels;
+}
+
+// src/core/global-handoff.ts
+var SQLITE_BUNDLE = "./maestro-handoff-defaults.cjs";
+function readGlobalHandoff(handoffId2) {
+  try {
+    const lib = require(SQLITE_BUNDLE);
+    return lib.readHandoffDefault(handoffId2);
+  } catch {
+    return null;
+  }
 }
 
 // src/core/hook-arbitration.ts
@@ -1732,7 +1746,7 @@ function bareRecipient(to) {
   return typeof to === "string" ? to.replace(/\s*\[[^\]]*\]\s*$/, "").trim() : "";
 }
 var HUMAN_SECTIONS = "'## Changed' (files and areas), '## Did' (one line per agent), '## Deviations from the ticket' and, on a re-review, '## Corrections since the last round'";
-var BRIEF_SECTIONS = "'## Goal', '## Done', '## Deviations', '## Decisions', '## Touches' (files and modules by name, never a diff), '## Sibling impact' and '## Questions'";
+var BRIEF_SECTIONS = "'## Goal', '## Deviations', '## Decisions', '## Touches' (files and modules by name, never a diff), '## Sibling impact' and '## Questions'";
 function checkHumanReview(input) {
   if (input.toolName !== "AskUserQuestion" && input.toolName !== "SendMessage") return { allow: true };
   const state = input.state;
@@ -1778,17 +1792,46 @@ function messageText(input) {
   }
   return "";
 }
-function handbackHandoff(transcript) {
-  return scanHandbacks(transcript).text;
+function handbackHandoff(transcript, sinceMs = null) {
+  return scanHandbacks(transcript, sinceMs).text;
 }
-function hasHandbackCall(transcript) {
-  return scanHandbacks(transcript).sawCall;
+function hasHandbackCall(transcript, sinceMs = null) {
+  return scanHandbacks(transcript, sinceMs).sawCall;
 }
-function scanHandbacks(transcript) {
+var DISPATCH_SLACK_MS = 1e3;
+function startsRun(e, state, sawCall) {
+  if (e.type !== "user") return false;
+  const content = e.message?.content ?? e.content;
+  if (Array.isArray(content) && content.length > 0 && content.every((b) => b && b.type === "tool_result")) {
+    return false;
+  }
+  const opens = e.isMeta !== true || e.origin?.kind === "coordinator";
+  if (typeof e.promptId === "string") {
+    const changed = e.promptId !== state.prompt && (state.prompt !== null || sawCall);
+    state.prompt = e.promptId;
+    return changed && opens;
+  }
+  return opens;
+}
+function scanHandbacks(transcript, sinceMs = null) {
+  const { text, sawCall } = scanRun(transcript, sinceMs);
+  return { text, sawCall };
+}
+var EDIT_TOOLS = ["Write", "Edit", "MultiEdit", "NotebookEdit"];
+function runProfile(transcript, sinceMs = null) {
+  const { resumed, wroteFiles } = scanRun(transcript, sinceMs);
+  return { resumed, wroteFiles };
+}
+function scanRun(transcript, sinceMs) {
   let found = null;
   let sawCall = false;
+  let resumed = false;
+  let wroteFiles = false;
+  const state = { prompt: null };
   for (const line of transcript.split("\n")) {
-    if (!HANDBACK_TOOLS.some((t) => line.includes(t))) continue;
+    const named = HANDBACK_TOOLS.some((t) => line.includes(t));
+    const edits = EDIT_TOOLS.some((t) => line.includes(`"${t}"`));
+    if (!named && !edits && !line.includes('"user"')) continue;
     let entry;
     try {
       entry = JSON.parse(line);
@@ -1796,26 +1839,47 @@ function scanHandbacks(transcript) {
       continue;
     }
     const e = entry;
+    if (!e || typeof e !== "object") continue;
+    if (startsRun(e, state, sawCall || resumed)) {
+      if (sawCall) resumed = true;
+      found = null;
+      sawCall = false;
+      wroteFiles = false;
+      continue;
+    }
+    if (edits) {
+      const c = e?.message?.content ?? e?.content;
+      const editAt = typeof e.timestamp === "string" ? Date.parse(e.timestamp) : NaN;
+      const earlier = sinceMs !== null && !Number.isNaN(editAt) && editAt < sinceMs - DISPATCH_SLACK_MS;
+      if (!earlier && Array.isArray(c) && c.some((b) => b && b.type === "tool_use" && EDIT_TOOLS.includes(b.name)))
+        wroteFiles = true;
+    }
+    if (!named) continue;
     const content = e?.message?.content ?? e?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
       if (block && block.type === "tool_use" && HANDBACK_TOOLS.includes(block.name)) {
+        const at = typeof e.timestamp === "string" ? Date.parse(e.timestamp) : NaN;
+        if (sinceMs !== null && !Number.isNaN(at) && at < sinceMs - DISPATCH_SLACK_MS) {
+          resumed = true;
+          continue;
+        }
         sawCall = true;
         const text = messageText(block.input);
         if (text) found = text;
       }
     }
   }
-  return { text: found, sawCall };
+  return { text: found, sawCall, resumed, wroteFiles };
 }
 var HANDBACK_WAIT_MS = 3e3;
 var HANDBACK_POLL_MS = 100;
-async function awaitHandback(read, sleep, waitMs = HANDBACK_WAIT_MS, pollMs = HANDBACK_POLL_MS) {
+async function awaitHandback(read, sleep, waitMs = HANDBACK_WAIT_MS, pollMs = HANDBACK_POLL_MS, sinceMs = null) {
   const attempts = Math.max(1, Math.ceil(waitMs / pollMs) + 1);
   for (let i = 0; i < attempts; i++) {
     const transcript = read();
     if (transcript === null) return null;
-    const scan = scanHandbacks(transcript);
+    const scan = scanHandbacks(transcript, sinceMs);
     if (scan.sawCall) return scan.text;
     if (i < attempts - 1) await sleep(pollMs);
   }
@@ -1954,7 +2018,9 @@ var MTIME_SLACK_MS = 1e3;
 function payloadWrittenSince(projectDir, route, sinceMs) {
   const candidates = [laneFor(projectDir, route.scope, route.sender, route.receiver)];
   for (const entry of readLane(projectDir, route.scope, route.receiver)) {
-    if (entry.sender === route.sender && isGapReport(entry)) candidates.push(entry.path);
+    if (entry.sender === route.sender && (isGapReport(entry) || /\.\d+\.md$/.test(entry.fileName))) {
+      candidates.push(entry.path);
+    }
   }
   return candidates.some((filePath) => writtenSince(filePath, sinceMs));
 }
@@ -1971,6 +2037,8 @@ function writtenSince(filePath, sinceMs) {
 }
 
 // src/core/resume-delivery.ts
+var import_node_fs13 = __toESM(require("node:fs"), 1);
+var import_node_path11 = __toESM(require("node:path"), 1);
 function pendingResumeDeliveries(projectDir, scope, receiver, runId) {
   if (!runId) return [];
   const bare = bareAgentName(receiver);
@@ -2036,11 +2104,25 @@ function missingLoopbackPayload(latest, expected, deliveries, now = /* @__PURE__
     message: `The loop-back to ${receivers.join(", ")} expects ${files.join(", ")} from this run, and it is not in the channel. Do not dispatch or resume ${receivers.join(", ")} without it: resume this agent (SendMessage to its agent_id) and ask it to write that file, then route.`
   };
 }
-function dropResolvedMissingPayloads(issues, present) {
+var RESOLVED_SLACK_MS = 1e3;
+function channelFileMtime(projectDir, file) {
+  try {
+    return import_node_fs13.default.statSync(import_node_path11.default.join(projectDir, ...file.split("/"))).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+function dropResolvedMissingPayloads(issues, present, writtenAt) {
   const list = Array.isArray(issues) ? issues : [];
   const files = new Set(present.map((d) => d.file));
+  const fresh2 = (file, ts) => {
+    if (!writtenAt) return true;
+    const warned = Date.parse(ts);
+    const at = writtenAt(file);
+    return Number.isFinite(warned) && at !== null && at >= warned - RESOLVED_SLACK_MS;
+  };
   return list.filter(
-    (i) => i.kind !== "missing_payload" || !i.files || i.files.length === 0 || !i.files.every((f) => files.has(f))
+    (i) => i.kind !== "missing_payload" || !i.files || i.files.length === 0 || !i.files.every((f) => files.has(f) && fresh2(f, i.ts))
   );
 }
 function appendHandoffIssue(issues, issue) {
@@ -2093,8 +2175,8 @@ function runtimeNeedsRefresh(projectVersion, pluginVersion) {
 }
 
 // src/core/worktree-write-guard.ts
-var import_node_fs13 = __toESM(require("node:fs"), 1);
-var import_node_path11 = __toESM(require("node:path"), 1);
+var import_node_fs14 = __toESM(require("node:fs"), 1);
+var import_node_path12 = __toESM(require("node:path"), 1);
 var MAIN_CHECKOUT_SHARED_DIRS = ["maestro-tasks", "channels", "maestro_sessions"];
 var WRITE_TOOL_PATH_KEYS2 = {
   Write: "file_path",
@@ -2103,29 +2185,29 @@ var WRITE_TOOL_PATH_KEYS2 = {
   NotebookEdit: "notebook_path"
 };
 function realResolve2(p) {
-  let cur = import_node_path11.default.resolve(p);
+  let cur = import_node_path12.default.resolve(p);
   const tail = [];
   for (; ; ) {
     let exists = true;
     try {
-      import_node_fs13.default.lstatSync(cur);
+      import_node_fs14.default.lstatSync(cur);
     } catch {
       exists = false;
     }
     if (exists) {
       try {
-        return import_node_path11.default.join(import_node_fs13.default.realpathSync(cur), ...tail);
+        return import_node_path12.default.join(import_node_fs14.default.realpathSync(cur), ...tail);
       } catch {
         return null;
       }
     }
-    const parent = import_node_path11.default.dirname(cur);
-    if (parent === cur) return import_node_path11.default.join(cur, ...tail);
-    tail.unshift(import_node_path11.default.basename(cur));
+    const parent = import_node_path12.default.dirname(cur);
+    if (parent === cur) return import_node_path12.default.join(cur, ...tail);
+    tail.unshift(import_node_path12.default.basename(cur));
     cur = parent;
   }
 }
-var within = (target, root) => target === root || target.startsWith(root + import_node_path11.default.sep);
+var within = (target, root) => target === root || target.startsWith(root + import_node_path12.default.sep);
 function checkWorktreeWrite(input) {
   const { cwd, toolName, toolInput, worktree, channelScope } = input;
   const key = toolName ? WRITE_TOOL_PATH_KEYS2[toolName] : void 0;
@@ -2136,13 +2218,13 @@ function checkWorktreeWrite(input) {
   if (typeof raw !== "string" || raw === "") return { allow: true };
   const wt = realResolve2(worktree.path);
   const main = realResolve2(worktree.main_root);
-  const target = realResolve2(import_node_path11.default.resolve(cwd || worktree.path, raw));
+  const target = realResolve2(import_node_path12.default.resolve(cwd || worktree.path, raw));
   if (!wt || !main || !target) return { allow: true };
   if (isChannelScope(channelScope)) {
     for (const base of [main, wt]) {
-      const channels = realResolve2(import_node_path11.default.join(base, ".claude", "channels"));
+      const channels = realResolve2(import_node_path12.default.join(base, ".claude", "channels"));
       if (!channels || !within(target, channels)) continue;
-      if (within(target, import_node_path11.default.join(channels, channelScope))) break;
+      if (within(target, import_node_path12.default.join(channels, channelScope))) break;
       return {
         allow: false,
         reason: `Blocked: "${raw}" is in a channel scope that is not this session's. This session may write handoff channel files only under .claude/channels/${channelScope}/ \u2014 another task's lanes, and the legacy unscoped .claude/channels/<receiver>/ layout, are off limits.`
@@ -2151,7 +2233,7 @@ function checkWorktreeWrite(input) {
   }
   if (within(target, wt)) return { allow: true };
   if (!within(target, main)) return { allow: true };
-  if (MAIN_CHECKOUT_SHARED_DIRS.some((d) => within(target, import_node_path11.default.join(main, ".claude", d)))) return { allow: true };
+  if (MAIN_CHECKOUT_SHARED_DIRS.some((d) => within(target, import_node_path12.default.join(main, ".claude", d)))) return { allow: true };
   return {
     allow: false,
     reason: `Blocked: this session runs its task in the git worktree ${worktree.path}, and "${raw}" resolves to ${target}, inside the main checkout (${worktree.main_root}), which another session may be using and which a merge would later refuse to overwrite. Write the file at the same relative path under ${worktree.path} instead. Only ${MAIN_CHECKOUT_SHARED_DIRS.map((d) => `.claude/${d}/`).join(", ")} stay in the main checkout.`
@@ -2159,8 +2241,8 @@ function checkWorktreeWrite(input) {
 }
 
 // src/core/run-metrics.ts
-var import_node_fs14 = __toESM(require("node:fs"), 1);
-var import_node_path12 = __toESM(require("node:path"), 1);
+var import_node_fs15 = __toESM(require("node:fs"), 1);
+var import_node_path13 = __toESM(require("node:path"), 1);
 var METRICS_DIR_NAME = "maestro-metrics";
 var METRICS_FILE_NAME = "metrics.json";
 var DEFAULT_RECENT_RUNS = 10;
@@ -2170,10 +2252,10 @@ function emptyMetrics() {
   return { version: 1, runs: [], totals: { by_workflow: {}, by_agent: {} } };
 }
 function metricsDirFor(projectRoot) {
-  return import_node_path12.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
+  return import_node_path13.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
 }
 function metricsFileFor(projectRoot) {
-  return import_node_path12.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
+  return import_node_path13.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
 }
 function day(ts) {
   return typeof ts === "string" ? ts.slice(0, 10) : "";
@@ -2370,7 +2452,7 @@ function buildRunRecord(entries, session, cfg, sessionId) {
   return {
     id: session?.run_id || sessionId,
     workflow,
-    task: session?.active_task ? import_node_path12.default.basename(session.active_task) : null,
+    task: session?.active_task ? import_node_path13.default.basename(session.active_task) : null,
     started_at,
     ended_at,
     duration_ms,
@@ -2388,20 +2470,20 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 function withLock(dir, fn) {
-  import_node_fs14.default.mkdirSync(dir, { recursive: true });
-  const lock = import_node_path12.default.join(dir, "lock");
+  import_node_fs15.default.mkdirSync(dir, { recursive: true });
+  const lock = import_node_path13.default.join(dir, "lock");
   const deadline = Date.now() + LOCK_WAIT_MS;
   let held = false;
   for (; ; ) {
     try {
-      import_node_fs14.default.mkdirSync(lock);
+      import_node_fs15.default.mkdirSync(lock);
       held = true;
       break;
     } catch (err) {
       if (err.code !== "EEXIST") break;
       try {
-        if (Date.now() - import_node_fs14.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
-          import_node_fs14.default.rmSync(lock, { recursive: true, force: true });
+        if (Date.now() - import_node_fs15.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
+          import_node_fs15.default.rmSync(lock, { recursive: true, force: true });
           continue;
         }
       } catch {
@@ -2414,12 +2496,12 @@ function withLock(dir, fn) {
   try {
     return fn();
   } finally {
-    if (held) import_node_fs14.default.rmSync(lock, { recursive: true, force: true });
+    if (held) import_node_fs15.default.rmSync(lock, { recursive: true, force: true });
   }
 }
 function readMetrics(projectRoot) {
   try {
-    const v = JSON.parse(import_node_fs14.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
+    const v = JSON.parse(import_node_fs15.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
     if (v && v.version === 1 && Array.isArray(v.runs) && v.totals?.by_workflow && v.totals?.by_agent) return v;
   } catch {
   }
@@ -2432,25 +2514,25 @@ function recentRunsLimit(cfg) {
 function recordRun(projectRoot, run, keep = DEFAULT_RECENT_RUNS) {
   const dir = metricsDirFor(projectRoot);
   withLock(dir, () => {
-    const gi = import_node_path12.default.join(dir, ".gitignore");
-    if (!import_node_fs14.default.existsSync(gi)) import_node_fs14.default.writeFileSync(gi, "*\n");
+    const gi = import_node_path13.default.join(dir, ".gitignore");
+    if (!import_node_fs15.default.existsSync(gi)) import_node_fs15.default.writeFileSync(gi, "*\n");
     const file = readMetrics(projectRoot);
     const runs = file.runs.filter((r) => r.id !== run.id);
     runs.push(run);
     const next = compact({ ...file, runs }, keep);
     const target = metricsFileFor(projectRoot);
     const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-    import_node_fs14.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
-    import_node_fs14.default.renameSync(tmp, target);
+    import_node_fs15.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
+    import_node_fs15.default.renameSync(tmp, target);
   });
 }
 function recordSessionRun(projectRoot, sessionId) {
-  const claudeDir = import_node_path12.default.join(projectRoot, ".claude");
+  const claudeDir = import_node_path13.default.join(projectRoot, ".claude");
   const paths = sessionPathsFor(claudeDir, sessionId);
   if (!paths) return false;
   let raw;
   try {
-    raw = import_node_fs14.default.readFileSync(paths.log, "utf8");
+    raw = import_node_fs15.default.readFileSync(paths.log, "utf8");
   } catch {
     return false;
   }
@@ -2464,12 +2546,12 @@ function recordSessionRun(projectRoot, sessionId) {
   }
   const readJson2 = (p) => {
     try {
-      return JSON.parse(import_node_fs14.default.readFileSync(p, "utf8"));
+      return JSON.parse(import_node_fs15.default.readFileSync(p, "utf8"));
     } catch {
       return null;
     }
   };
-  const cfg = readJson2(import_node_path12.default.join(claudeDir, "maestro.json"));
+  const cfg = readJson2(import_node_path13.default.join(claudeDir, "maestro.json"));
   const run = buildRunRecord(entries, readJson2(paths.state), cfg, paths.id);
   if (!run) return false;
   recordRun(projectRoot, run, recentRunsLimit(cfg));
@@ -2517,15 +2599,15 @@ function renderMetricsDigest(file) {
 }
 
 // src/core/session-name.ts
-var import_node_fs16 = __toESM(require("node:fs"), 1);
-var import_node_path14 = __toESM(require("node:path"), 1);
+var import_node_fs17 = __toESM(require("node:fs"), 1);
+var import_node_path15 = __toESM(require("node:path"), 1);
 
 // src/core/claims.ts
-var import_node_fs15 = __toESM(require("node:fs"), 1);
-var import_node_path13 = __toESM(require("node:path"), 1);
+var import_node_fs16 = __toESM(require("node:fs"), 1);
+var import_node_path14 = __toESM(require("node:path"), 1);
 var CLAIMS_DIR_NAME = "claims";
 function claimsDirFor(tasksDir) {
-  return import_node_path13.default.join(tasksDir, CLAIMS_DIR_NAME);
+  return import_node_path14.default.join(tasksDir, CLAIMS_DIR_NAME);
 }
 
 // src/core/session-name.ts
@@ -2550,7 +2632,7 @@ function promptEntranceRole(prompt) {
 }
 function hasMaestroConfig(claudeDir) {
   try {
-    return import_node_fs16.default.statSync(import_node_path14.default.join(claudeDir, "maestro.json")).isFile();
+    return import_node_fs17.default.statSync(import_node_path15.default.join(claudeDir, "maestro.json")).isFile();
   } catch {
     return false;
   }
@@ -2590,14 +2672,14 @@ function noteEntrance(claudeDir, sessionId, role) {
 }
 function listJson(dir) {
   try {
-    return import_node_fs16.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    return import_node_fs17.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
   } catch {
     return [];
   }
 }
 function listDirs2(dir) {
   try {
-    return import_node_fs16.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    return import_node_fs17.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   } catch {
     return [];
   }
@@ -2607,10 +2689,10 @@ function roleOfName(name) {
 }
 function rederiveSessionName(claudeDir, sessionId) {
   if (!isValidSessionId(sessionId)) return null;
-  const root = mainCheckoutRoot(import_node_path14.default.dirname(claudeDir));
-  const claims = claimsDirFor(import_node_path14.default.join(root, ".claude", "maestro-tasks"));
+  const root = mainCheckoutRoot(import_node_path15.default.dirname(claudeDir));
+  const claims = claimsDirFor(import_node_path15.default.join(root, ".claude", "maestro-tasks"));
   for (const file of listJson(claims)) {
-    const claim = readJson(import_node_path14.default.join(claims, file));
+    const claim = readJson(import_node_path15.default.join(claims, file));
     if (!claim || claim.session_id !== sessionId) continue;
     if (typeof claim.session_name === "string" && claim.session_name.trim()) {
       const name = claim.session_name.trim();
@@ -2619,11 +2701,11 @@ function rederiveSessionName(claudeDir, sessionId) {
   }
   const manager = sessionNameFor(sessionId, "manager");
   const worker = sessionNameFor(sessionId, "worker");
-  const epicsRoot = import_node_path14.default.join(root, ".claude", "epics");
+  const epicsRoot = import_node_path15.default.join(root, ".claude", "epics");
   let asWorker = null;
   for (const slug of listDirs2(epicsRoot)) {
     const state = readJson(
-      import_node_path14.default.join(epicsRoot, slug, "state.json")
+      import_node_path15.default.join(epicsRoot, slug, "state.json")
     );
     if (!state) continue;
     if (manager && state.manager?.name === manager) return { name: manager, role: "manager" };
@@ -2677,13 +2759,13 @@ function titleFor(claudeDir, payload) {
 }
 
 // src/core/meeting-mode.ts
-var import_node_fs17 = __toESM(require("node:fs"), 1);
-var import_node_path15 = __toESM(require("node:path"), 1);
+var import_node_fs18 = __toESM(require("node:fs"), 1);
+var import_node_path16 = __toESM(require("node:path"), 1);
 var MEETING_DIR_NAME = "meeting";
 var MEETING_LEFTOVERS_KEY = "meeting_leftovers";
 var MEETING_MODES = ["review", "post-mortem"];
 function meetingDirFor(sessionDir) {
-  return import_node_path15.default.join(sessionDir, MEETING_DIR_NAME);
+  return import_node_path16.default.join(sessionDir, MEETING_DIR_NAME);
 }
 function readMeeting(session) {
   if (!session || typeof session !== "object") return null;
@@ -2715,22 +2797,22 @@ function withoutMeeting(session) {
 }
 function readRawState(statePath) {
   try {
-    const parsed = JSON.parse(import_node_fs17.default.readFileSync(statePath, "utf8"));
+    const parsed = JSON.parse(import_node_fs18.default.readFileSync(statePath, "utf8"));
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 function writeRawState(statePath, state) {
-  import_node_fs17.default.mkdirSync(import_node_path15.default.dirname(statePath), { recursive: true });
+  import_node_fs18.default.mkdirSync(import_node_path16.default.dirname(statePath), { recursive: true });
   const tmp = statePath + ".tmp";
-  import_node_fs17.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
-  import_node_fs17.default.renameSync(tmp, statePath);
+  import_node_fs18.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  import_node_fs18.default.renameSync(tmp, statePath);
 }
 function startMeeting(statePath, sessionDir, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const dir = meetingDirFor(sessionDir);
-  import_node_fs17.default.mkdirSync(dir, { recursive: true });
+  import_node_fs18.default.mkdirSync(dir, { recursive: true });
   const meeting = {
     id: `m-${now.getTime()}`,
     mode: opts.mode,
@@ -2761,13 +2843,13 @@ function closeMeeting(session, projectDir, scope) {
   return { state, ended: true };
 }
 function projectDirOfState(statePath) {
-  return import_node_path15.default.resolve(statePath, "..", "..", "..", "..");
+  return import_node_path16.default.resolve(statePath, "..", "..", "..", "..");
 }
 function scopeOfState(statePath, state) {
-  return channelScopeFromState(state, import_node_path15.default.basename(import_node_path15.default.dirname(statePath)));
+  return channelScopeFromState(state, import_node_path16.default.basename(import_node_path16.default.dirname(statePath)));
 }
 function endMeeting(statePath, projectDir = projectDirOfState(statePath)) {
-  if (!import_node_fs17.default.existsSync(statePath)) return false;
+  if (!import_node_fs18.default.existsSync(statePath)) return false;
   const raw = readRawState(statePath);
   const { state, ended } = closeMeeting(raw, projectDir, scopeOfState(statePath, raw));
   if (ended) writeRawState(statePath, state);
@@ -2823,7 +2905,7 @@ function closeOwnerRuns(session, projectDir, scope) {
   return { state, ended: true };
 }
 function endOwnerRuns(statePath, projectDir = projectDirOfState(statePath)) {
-  if (!import_node_fs17.default.existsSync(statePath)) return false;
+  if (!import_node_fs18.default.existsSync(statePath)) return false;
   const raw = readRawState(statePath);
   const { state, ended } = closeOwnerRuns(raw, projectDir, scopeOfState(statePath, raw));
   if (ended) writeRawState(statePath, state);
@@ -2887,6 +2969,7 @@ function meetingNotice(meeting, agentType) {
   bareAgentName,
   buildRunRecord,
   channelDir,
+  channelFileMtime,
   channelRelPath,
   channelScopeFromState,
   channelScopeOf,
@@ -2973,6 +3056,7 @@ function meetingNotice(meeting, agentType) {
   processInfo,
   projectOwnsHook,
   promptEntranceRole,
+  readGlobalHandoff,
   readJson,
   readLane,
   readLogLines,
@@ -3004,6 +3088,7 @@ function meetingNotice(meeting, agentType) {
   retireScope,
   reviewFileName,
   routesFrom,
+  runProfile,
   runStartedAt,
   runtimeNeedsRefresh,
   sendMessageHandoff,
