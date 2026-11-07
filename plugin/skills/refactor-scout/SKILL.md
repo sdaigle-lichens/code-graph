@@ -57,11 +57,23 @@ Print, in this order:
 1. The `ignored:`, `not scanned:` and `skipped lines:` lines from step 1, as they are.
 2. For a session that failed or returned no `PROPOSALS:` line:
    `session <n> failed, not scanned: <its files>`.
-3. `PROPOSALS:` followed by every `- <file path>: <kind>: <problem and change>` line of every session,
-   as returned. Keep them all, and do not judge, reword or rank them. If sessions answered and all of
-   them answered `PROPOSALS: none`, print `PROPOSALS: none`. If no session answered, print
+3. If no session answered, print
    `nothing scanned: every session failed; this is not a clean result, the scout read no code` and no
-   `PROPOSALS:` line.
+   `PROPOSALS:` line. Otherwise pass the `PROPOSALS:` sections of every session that answered, as
+   returned, to the CLI on stdin, and print its output as it is:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" scout --proposals <<'SCOUT_PROPOSALS'
+   <the returned sections, one after another>
+   SCOUT_PROPOSALS
+   ```
+
+   It prints `PROPOSALS:` and every `- <file path>: <kind>: <problem and change>` line with the path made
+   relative to the git root (absolute, `./`, backticked and config-root-relative answers alike; `* ` and
+   numbered bullets come out as `- ` lines), or `PROPOSALS: none`
+   when every section was none. A path outside the repository is kept as given and named on an
+   `outside the repository:` line. Keep every line, and do not judge, reword or rank them. On a non-zero
+   exit print its stderr line and no `PROPOSALS:` line.
 
 Then stop. The list is advisory and a person triages it. Do not edit code, create tasks, or hand a
 proposal to any agent or worker.

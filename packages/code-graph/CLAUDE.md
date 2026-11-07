@@ -11,7 +11,7 @@ from here.
 - `src/scout/` is the refactor scout's $0 half (`code-graph scout`, driven by the `refactor-scout` plugin skill). `primer.ts` and
   `prompt.ts` are ports of the bench's measured text; `bench/refactor.mjs` keeps its own copy (its stored primers are fixed by
   measured commits) and `scout/scout.test.ts` pins the two together, so change them on purpose. The store holds no import
-  edges: `run.ts` takes fan-in/out, hubs, cycles and exports from the catalog (ts-morph), concepts and cross relations from the store. `splitScope` packs groups largest first, so the session cap drops the smallest sessions.
+  edges: `run.ts` takes fan-in/out, hubs, cycles and exports from the catalog (ts-morph), concepts and cross relations from the store. `splitScope` packs groups largest first, so the session cap drops the smallest sessions. `proposals.ts` is `scout --proposals`: it makes the sessions' `PROPOSALS:` paths relative to the git root (exit 13 when stdin has no `PROPOSALS:` line). Known limits: no realpath (a symlinked checkout or macOS `/private/tmp` is kept as given); the skill's quoted-heredoc form under `allowed-tools` is unverified until a real skill run.
 - `eval/tasks.json` is the default Layer-A fixture shipped in the npm `files` set — not this
   repo's own gate (that is the root `eval/`).
 

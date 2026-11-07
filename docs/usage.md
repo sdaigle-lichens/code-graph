@@ -289,6 +289,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph catalog --json`           | `code-graph catalog --json --tsconfig tsconfig.app.json`             | Store-free ts-morph digest: units, exports, imports, fan-in/out, hubs (drives concept proposals) |
 | `code-graph deps install`             | `code-graph deps install`                                            | Install pinned ts-morph into the plugin deps directory (`deps status` shows what resolves) |
 | `code-graph scout <scope-file>`       | `code-graph scout .claude/epics/my-epic/scope.txt`                   | Prepare the refactor scout's Haiku session prompts for a list of files; calls no model |
+| `code-graph scout --proposals`        | `code-graph scout --proposals < sections.txt`                        | Print one `PROPOSALS:` block with git-root-relative paths from the sessions' sections on stdin (no scope file) |
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
 | `code-graph eval [--tasks <path>] [--store <stripped\|as-is>]` | `code-graph eval --store as-is`                      | Run layer-A eval harness; `stripped` (default) measures a temp copy without purposes/tags |
 
@@ -419,7 +420,8 @@ which `graph.changed` cannot see. Null until the next `extract` records `meta.fi
 
 ### `scout` (refactor scout)
 
-`code-graph scout <scope-file> [--json]` does the part of the `refactor-scout` skill that costs no model
+Two forms: `code-graph scout <scope-file> [--json]` and `code-graph scout --proposals` (below). The scope file
+is optional only with `--proposals`; `scout` with neither exits 1. The first form does the part of the `refactor-scout` skill that costs no model
 call. The scope file holds one existing file per line, relative to the git root, the nearest directory
 at or above `scribe.config.json` that holds `.git` (the config's own directory outside a git repository).
 A relative `<scope-file>` resolves against the project. A config in a git subdirectory needs an absolute
@@ -449,6 +451,25 @@ read-only `code-graph:refactor-scout` agent each (`plugin/agents/refactor-scout.
 `nothingScanned` is the reason, or `null` when a session was planned.
 Exit codes: 0, 1 (an unexpected failure, one `scout failed:` line on stderr), 3 (store written by a newer
 code-graph; a known limitation, see Troubleshooting), 5 (no `scribe.config.json`), 8 (no `node:sqlite`), 11 and 12 (see Troubleshooting).
+
+`code-graph scout --proposals` is the skill's last step, and calls no model and opens no store. Stdin holds
+the `PROPOSALS:` sections the sessions returned, one after another. It prints one block: `PROPOSALS:` and
+every bullet found after a `PROPOSALS:` line, prose or not (`- `, `* `, `1. ` or `1) `, each printed as a `- ` line;
+only lines that are not bullets are dropped), or `PROPOSALS: none` when there is none.
+Each line's path (the text before the first `: `, an optional `:<line>` or `:<line>-<line>` suffix kept
+apart and backticks around the path dropped, whether the suffix sits inside them or after them: `` `a.ts:12` ``
+and `` `a.ts`:12 `` both print `a.ts:12`) is made relative to the git root: an absolute path inside the repository
+loses the root, `./` and `a/../` are normalised, and with `scribe.config.json` in a subdirectory a relative
+path is taken from the git root when it exists there, else from the config root when it exists there (for a
+file neither has, the same test runs on its directory; the git root wins a tie). A `../` path is judged from
+the config root, so `../shared/x.ts` from `pkg/` prints `shared/x.ts`; the repository root itself prints `.`.
+An absolute path outside the repository, or a relative one that leaves the git root from the config root, is kept as given and named before the block on one
+`outside the repository: <n> path(s) kept as given: <paths>` line. The rest of each line is kept as returned. There is no realpath: a path written through a symlink or macOS's
+`/tmp` (`/private/tmp`) alias does not match the git root's spelling, so it is kept as given and named as outside the repository.
+It takes no `<scope-file>` and no `--json` (exit 1).
+Exit codes: 0, 1 (a scope file or `--json` given), 5 (no `scribe.config.json`), 8 (no `node:sqlite`, as for
+every `scout`), 13 (no `PROPOSALS:` line on stdin: no session answered, so nothing is printed on stdout and
+never `PROPOSALS: none`).
 
 ### `query vertex` calling forms
 
@@ -524,6 +545,7 @@ the repo's history.
 | 10        | Renames deferred        | `apply --defer-renames` (or `refresh-skills`) found rename candidates and left the store unwritten for that concept (when an orphan remap was persisted, `scribe-output/<concept>.enriched.json` was updated). Run `code-graph apply <concept>` in a terminal and answer the prompts; do not use `--approve-drift` |
 | 11        | `scout`: no scope file  | The scope file is missing or unreadable. One stderr line names it. Nothing is written |
 | 12        | `scout`: no primer      | No `tsconfig` key in `scribe.config.json`, a declared tsconfig missing on disk, no index (no store, or one with no live vertex), or the catalog failed (`ts-morph` missing, broken tsconfig). One stderr line, no proposals. The key comes first and nothing auto-detects a tsconfig for it: without the key `extract` makes every concept docs-only, so add it, then run `extract` + `apply`. For no index, run `extract` + `apply`; otherwise fix the tsconfig. The scout does not run without its primer, because the bench never measured that form |
+| 13        | `scout --proposals`: no section | Stdin held no `PROPOSALS:` line, so no session answered. One stderr line, nothing on stdout. Pass the sessions' returned sections; when every session failed the skill prints its `nothing scanned:` line instead |
 
 ## Zed editor LSP
 
