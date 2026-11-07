@@ -678,22 +678,35 @@ program
 program
   .command("scout [scope-file]")
   .description(
-    "prepare the refactor scout: split a scope file (one file per line, relative to the git root) into Haiku session prompts with a metrics primer; calls no model. With --proposals, read the sessions' PROPOSALS: sections on stdin and print one block with git-root-relative paths"
+    "prepare the refactor scout: split a scope file (one file per line, relative to the git root) into Haiku session prompts with a metrics primer; calls no model. With --proposals, read the sessions' PROPOSALS: sections from the given answers file (else stdin) and print one block with git-root-relative paths"
   )
   .option("--json", "output the plan as JSON")
-  .option("--proposals", "read the sessions' returned PROPOSALS: sections on stdin and print one normalised block")
-  .action(async (scopeFile: string | undefined, opts: { json?: boolean; proposals?: boolean }) => {
+  .option(
+    "--proposals",
+    "read the sessions' returned PROPOSALS: sections from the file argument (the plan's answers: path; stdin without one) and print one normalised block"
+  )
+  .action(async (fileArg: string | undefined, opts: { json?: boolean; proposals?: boolean }) => {
     if (opts.proposals) {
-      if (scopeFile !== undefined || opts.json) {
-        console.error("scout --proposals takes no scope file and no --json");
+      if (opts.json) {
+        console.error("scout --proposals takes no --json");
         process.exit(1);
       }
-      const { assembleProposals, formatProposals, readStdin, EXIT_SCOUT_NO_PROPOSALS } =
+      const { assembleProposals, formatProposals, readStdin, readAnswersFile, EXIT_SCOUT_NO_PROPOSALS } =
         await import("./scout/proposals.js");
       const { loadConfigOrExit } = await import("./query/preflight.js");
       const { findRepoRoot } = await import("./scout/scope.js");
       const configRoot = loadConfigOrExit().configRoot;
-      const result = assembleProposals(readStdin(), { repoRoot: findRepoRoot(configRoot), configRoot });
+      let text: string;
+      if (fileArg === undefined) text = readStdin();
+      else {
+        const read = readAnswersFile(fileArg);
+        if (read.error !== null) {
+          console.error(`refactor-scout: cannot read the answers file ${fileArg}: ${read.error}`);
+          process.exit(1);
+        }
+        text = read.text;
+      }
+      const result = assembleProposals(text, { repoRoot: findRepoRoot(configRoot), configRoot });
       if (!result.answered) {
         console.error("refactor-scout: no PROPOSALS: section on stdin, so no session answered and nothing to print");
         process.exit(EXIT_SCOUT_NO_PROPOSALS);
@@ -701,13 +714,13 @@ program
       console.log(formatProposals(result));
       return;
     }
-    if (scopeFile === undefined) {
+    if (fileArg === undefined) {
       console.error("scout: a <scope-file> is required (or --proposals)");
       process.exit(1);
     }
     const { planScout, formatPlan, ScoutStop } = await import("./scout/run.js");
     try {
-      const plan = await planScout(scopeFile);
+      const plan = await planScout(fileArg);
       console.log(opts.json ? JSON.stringify(plan, null, 2) : formatPlan(plan));
     } catch (err) {
       if (err instanceof ScoutStop) {

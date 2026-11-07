@@ -334,12 +334,24 @@ describe("formatPlan", () => {
     ignored: 0,
     skippedLines: [],
     nothingScanned: null,
+    answers: null,
   };
 
   it("with no session states in one line that nothing was scanned, and never reads as a result", () => {
     const out = formatPlan({ ...plan, nothingScanned: "the scope file lists no files" });
     assert.match(out, /\nnothing scanned: the scope file lists no files; this is not a clean result[^\n]*$/);
     assert.doesNotMatch(out, /PROPOSALS/);
+    assert.doesNotMatch(out, /^answers:/m, "no session, no answers file");
+  });
+
+  it("prints the answers file right after the root, before the sessions", () => {
+    const out = formatPlan({
+      ...plan,
+      scope: 1,
+      sessions: [{ prompt: "/p/session-1.md", files: ["a.ts"] }],
+      answers: "/p/answers.md",
+    });
+    assert.match(out, /\nroot: \/repo\nanswers: \/p\/answers\.md\nsession 1: /);
   });
 
   it("says one file and one session", () => {

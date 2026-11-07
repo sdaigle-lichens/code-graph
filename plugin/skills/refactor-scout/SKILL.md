@@ -2,7 +2,7 @@
 name: refactor-scout
 description: "Advisory refactor scan of a given list of files: takes the path of a scope file (one existing file per line, relative to the git root), spawns its own Haiku agents with a metrics primer and prints a PROPOSALS: block for a person to triage. Changes no code. Run it when a project configures it for an epic boundary or the user asks for it by name, not as a search or review step."
 argument-hint: "<scope-file>"
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" scout *), Agent
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" scout *), Agent, Edit(scribe-output/scout/**)
 ---
 
 # Refactor Scout
@@ -31,8 +31,8 @@ there is no fallback to a plain scan. Exit 11 means the scope file is missing or
 no `PROPOSALS:` line. `PROPOSALS: none` means a scan ran and proposed nothing, so never write it here:
 an empty or unscannable scope says nothing about the code.
 
-**Otherwise** the output has a `root: <git root>` line and one `session <n>: <prompt file>: <files>`
-line per session. Keep the `ignored:`, `not scanned:` and `skipped lines:` lines for step 3. Those are
+**Otherwise** the output has a `root: <git root>` line, an `answers: <answers file>` line (an absolute
+path for step 3) and one `session <n>: <prompt file>: <files>` line per session. Keep the `ignored:`, `not scanned:` and `skipped lines:` lines for step 3. Those are
 the limits of this run: a scope over 11 files is split along its import links, each session gets at most
 11 files, a run spends at most 5 sessions, and the files past that are named, never dropped. A line
 naming a file outside the config root is under `skipped lines:`, because the index cannot hold it.
@@ -59,13 +59,12 @@ Print, in this order:
    `session <n> failed, not scanned: <its files>`.
 3. If no session answered, print
    `nothing scanned: every session failed; this is not a clean result, the scout read no code` and no
-   `PROPOSALS:` line. Otherwise pass the `PROPOSALS:` sections of every session that answered, as
-   returned, to the CLI on stdin, and print its output as it is:
+   `PROPOSALS:` line. Otherwise write the `PROPOSALS:` sections of every session that answered, as
+   returned and one after another, to the answers file from step 1 with the Write tool (a new file:
+   step 1 cleared the directory), then pass that path to the CLI and print its output as it is:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" scout --proposals <<'SCOUT_PROPOSALS'
-   <the returned sections, one after another>
-   SCOUT_PROPOSALS
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" scout --proposals "<answers file>"
    ```
 
    It prints `PROPOSALS:` and every `- <file path>: <kind>: <problem and change>` line with the path made

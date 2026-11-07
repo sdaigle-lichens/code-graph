@@ -106,6 +106,16 @@ export function readStdin(): string {
   }
 }
 
+/** The answers file the skill wrote (a relative path resolves from the working directory), or why it can't be read. */
+export function readAnswersFile(path: string): { text: string; error: null } | { text: ""; error: string } {
+  try {
+    return { text: readFileSync(path, "utf8"), error: null };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return { text: "", error: code === "ENOENT" ? "no such file" : (err as Error).message };
+  }
+}
+
 /** Reads the sessions' returned sections: every bullet after a `PROPOSALS:` line, prose ignored. */
 export function assembleProposals(text: string, roots: ProposalRoots): AssembledProposals {
   const lines: string[] = [];
