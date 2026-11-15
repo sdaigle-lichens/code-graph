@@ -104,7 +104,8 @@ describe("scout stops", () => {
       assert.equal(r.status, 12, r.stderr);
       assert.equal(r.stdout, "");
       assert.equal(r.stderr.trim().split("\n").length, 1);
-      assert.match(r.stderr, /no index/);
+      assert.match(r.stderr, /^refactor-scout not run: no index/);
+      assert.doesNotMatch(r.stdout + r.stderr, /PROPOSALS:/);
       assert.ok(!fs.existsSync(path.join(root, "scribe-output")));
     });
 
@@ -127,7 +128,7 @@ describe("scout stops", () => {
     assert.equal(run(DIST, root, ["bootstrap"]).status, 0);
     const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
     assert.equal(r.status, 12);
-    assert.match(r.stderr, /no index/);
+    assert.match(r.stderr, /^refactor-scout not run: no index/);
   });
 
   it("no config is exit 5", () => {
@@ -142,9 +143,10 @@ describe("scout stops", () => {
     fs.rmSync(path.join(root, "tsconfig.json"));
     const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
     assert.equal(r.status, 12, r.stderr);
-    assert.match(r.stderr, /no tsconfig/);
+    assert.match(r.stderr, /^refactor-scout not run: no tsconfig/);
     assert.equal(r.stderr.trim().split("\n").length, 1);
     assert.equal(r.stdout, "");
+    assert.doesNotMatch(r.stderr, /PROPOSALS:/);
     assert.ok(!fs.existsSync(path.join(root, "scribe-output", "scout")));
   });
 });
@@ -412,7 +414,14 @@ describe("the refactor-scout skill", () => {
 
   it("states the stop, the output and the limits of the evidence", () => {
     assert.match(skill, /PROPOSALS: none/);
-    assert.match(skill, /no index or no tsconfig/);
+    assert.match(skill, /no index, no tsconfig \(or no `tsconfig` key\) or no ts-morph/);
+    assert.match(skill, /starts `refactor-scout not run: ` followed by the reason/);
+    assert.match(skill, /stderr unchanged/);
+    assert.match(skill, /## Use at Maestro epic boundaries/);
+    assert.match(skill, /`end_skills\.maestro_manager`/);
+    assert.match(skill, /`start_skills\.maestro_manager`/);
+    assert.match(skill, /Do not put it in\s+`end_skills\.maestro`/);
+    assert.match(skill, /A boundary run with no index, no tsconfig or no ts-morph/);
     assert.match(skill, /Accurate is not valuable/);
     assert.match(skill, /\*\*Not measured:\*\* split scopes/);
     assert.match(skill, /epic-start or epic-end use/);

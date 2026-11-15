@@ -132,7 +132,8 @@ describe("scout stops and plans, real CLI", () => {
     assert.equal(r.status, 12, r.stdout + r.stderr);
     assert.equal(r.stdout, "");
     assert.equal(r.stderr.trim().split("\n").length, 1, r.stderr);
-    assert.match(r.stderr, /deps install/);
+    assert.match(r.stderr, /^refactor-scout not run: no catalog \(.*deps install/);
+    assert.doesNotMatch(r.stderr, /PROPOSALS:/);
     assert.ok(!fs.existsSync(path.join(root, "scribe-output", "scout")));
   });
 
@@ -143,7 +144,7 @@ describe("scout stops and plans, real CLI", () => {
     fs.writeFileSync(path.join(root, "src", "other.json"), "{}");
     const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
     assert.equal(r.status, 12, r.stderr);
-    assert.match(r.stderr, /no tsconfig/);
+    assert.match(r.stderr, /^refactor-scout not run: no tsconfig/);
   });
 
   for (const [name, cli] of [
@@ -158,7 +159,7 @@ describe("scout stops and plans, real CLI", () => {
       assert.equal(r.status, 12, r.stdout + r.stderr);
       assert.equal(r.stdout, "");
       assert.equal(r.stderr.trim().split("\n").length, 1);
-      assert.match(r.stderr, /no `tsconfig` key in scribe\.config\.json/);
+      assert.match(r.stderr, /^refactor-scout not run: no `tsconfig` key in scribe\.config\.json/);
       assert.doesNotMatch(r.stderr, /no index/);
     });
   }
@@ -167,7 +168,7 @@ describe("scout stops and plans, real CLI", () => {
     const root = project("no-key-no-store", { declareTsconfig: false });
     const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
     assert.equal(r.status, 12, r.stdout + r.stderr);
-    assert.match(r.stderr, /no `tsconfig` key/);
+    assert.match(r.stderr, /^refactor-scout not run: no `tsconfig` key/);
     assert.ok(!fs.existsSync(path.join(root, "scribe-output")));
   });
 
@@ -179,7 +180,7 @@ describe("scout stops and plans, real CLI", () => {
     fs.writeFileSync(file, JSON.stringify(config));
     const r = run(DIST, root, ["scout", scopeFile(root, ["src/app/main.ts"])]);
     assert.equal(r.status, 12, r.stdout + r.stderr);
-    assert.match(r.stderr, /no `tsconfig` key/);
+    assert.match(r.stderr, /^refactor-scout not run: no `tsconfig` key/);
     assert.ok(!fs.existsSync(path.join(root, "scribe-output", "scout")));
   });
 

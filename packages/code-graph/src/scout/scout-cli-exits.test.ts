@@ -147,7 +147,7 @@ describe("scout exit 12: the tsconfig key, with and without a store", () => {
       assert.equal(r.status, 12, r.stdout + r.stderr);
       assert.equal(r.stdout, "");
       assert.equal(r.stderr.trim().split("\n").length, 1, r.stderr);
-      assert.match(r.stderr, /no `tsconfig` key in scribe\.config\.json/);
+      assert.match(r.stderr, /^refactor-scout not run: no `tsconfig` key in scribe\.config\.json/);
       assert.ok(!fs.existsSync(path.join(root, "scribe-output")));
     });
 
@@ -163,7 +163,7 @@ describe("scout exit 12: the tsconfig key, with and without a store", () => {
       assert.equal(r.status, 12, r.stdout + r.stderr);
       assert.equal(r.stdout, "");
       assert.equal(r.stderr.trim().split("\n").length, 1, r.stderr);
-      assert.match(r.stderr, /no `tsconfig` key in scribe\.config\.json/);
+      assert.match(r.stderr, /^refactor-scout not run: no `tsconfig` key in scribe\.config\.json/);
       assert.doesNotMatch(r.stderr, /no index/);
       assert.ok(!fs.existsSync(path.join(root, "scribe-output", "scout")));
       assert.ok(fs.readFileSync(storeOf(root)).equals(before), "the store is not rewritten");

@@ -23,9 +23,12 @@ file. This skill takes one input, the scope file: there is no list of declined f
 node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" scout "$ARGUMENTS"
 ```
 
-**Non-zero exit:** print the one line it wrote to stderr, with no `PROPOSALS:` line, and stop. Exit 12
-means no index or no tsconfig, so no metrics primer; the bench never measured a scout without one, so
-there is no fallback to a plain scan. Exit 11 means the scope file is missing or unreadable.
+**Non-zero exit:** print the one line it wrote to stderr unchanged, with no `PROPOSALS:` line, and
+stop. Exit 12 means no index, no tsconfig (or no `tsconfig` key) or no ts-morph, so no metrics primer;
+its line starts `refactor-scout not run: ` followed by the reason, so a saved output reads as a skipped
+run, not a failed one. Keep that prefix: do not reword or add to the line. The bench never measured a
+scout without the primer, so there is no fallback to a plain scan. Exit 11 means the scope file is
+missing or unreadable.
 
 **Output with a `nothing scanned:` line:** no agent will run. Print the output as it is and stop, with
 no `PROPOSALS:` line. `PROPOSALS: none` means a scan ran and proposed nothing, so never write it here:
@@ -96,3 +99,17 @@ nor a decided-against list earned its place.
   This agent has a one-line system prompt, gets its prompt from a file, and has only the three read tools.
 - **Repeats are expected.** The scout has no memory of what was declined, so a run at epic end may
   repeat what a person declined at epic start.
+
+## Use at Maestro epic boundaries
+
+A Maestro project runs this skill by configuration alone. In `.claude/maestro.json`, `end_skills` and
+`start_skills` are objects keyed by caller; add `"code-graph:refactor-scout"` to the
+`end_skills.maestro_manager` list (and, if wanted, `start_skills.maestro_manager`). Maestro reads these lists only when `maestro.json` is version 3; on an older file the entry does nothing. Only those
+`maestro_manager` lists run at epic boundaries: there Maestro builds the scope file (start: the tasks'
+touched surfaces; end: the files changed since the epic base), passes its absolute path as the argument
+and saves this skill's output beside it. No wrapper skill is needed. Do not put it in
+`end_skills.maestro`: that list runs at the end of every task and passes no scope file, so the run stops
+with its own `refactor-scout: no scope file given` line and no CLI call. A boundary run with no index, no tsconfig or no ts-morph saves the one
+`refactor-scout not run: ` line, never a `PROPOSALS:` line. This use is experimental: epic-start and
+epic-end runs were never measured (see above), and the run needs the code-graph index and a `tsconfig`
+key.

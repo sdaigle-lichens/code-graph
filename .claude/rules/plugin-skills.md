@@ -11,8 +11,9 @@ read-only agent (`plugin/agents/refactor-scout.md`). Rules when editing them:
 
 - Every flow must work with no tsconfig: graph steps (`catalog`, `extract`, `apply`, `drift`) are
   skipped and staleness comes from `skills status`' git-diff window. Exception: `refactor-scout` stops
-  with exit 12 and no proposals when there is no `tsconfig` key or no index, because the bench never
-  measured a scout without its metrics primer. Its SKILL.md says so.
+  with exit 12 and no proposals when there is no `tsconfig` key, no index or no ts-morph; its one stderr
+  line starts `refactor-scout not run: `. The bench never measured a scout without its metrics primer.
+  Its SKILL.md says so.
 - Repo-level `skills stamp` without `--bump` **refuses** over an existing version (1.0 only when none exists). Create = `--bump initial`,
   update = `--bump minor`, single-skill deepening = `--bump major`; install's migration of
   `.claude/concept-skills.json` uses `skills agents-set` (seeds the block, version untouched).

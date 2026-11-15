@@ -1,6 +1,6 @@
 ---
 name: code-graph-update
-description: "Checks that this project's code-graph setup is current: the plugin is enabled, any legacy .claude/concept-skills.json is migrated into scribe.config.json, the agents list is up to date, the ts-morph deps dir is readable from the session, and the concept-skill list is not behind HEAD. Repairs the setup and points at update-concept-skills for the content. Use when the user runs /code-graph-update or after updating the code-graph plugin."
+description: "Checks that this project's code-graph setup is current: the plugin is enabled, any legacy .claude/concept-skills.json is migrated into scribe.config.json, the agents list is up to date, the ts-morph deps dir is readable from the session, and the concept-skill list is not behind HEAD; in a Maestro project, suggests the experimental refactor-scout end_skills.maestro_manager entry. Repairs the setup and points at update-concept-skills for the content. Use when the user runs /code-graph-update or after updating the code-graph plugin."
 disable-model-invocation: true
 ---
 
@@ -49,4 +49,17 @@ $ARGUMENTS
    anything trails. Run `cg skills check --json` and mention concepts with no SKILL.md, path
    mismatches or unmarked skills.
 
-6. **Report** what was checked, what was changed, and what is left for the user to decide.
+6. **Refactor scout at epic boundaries?** Only when `${CLAUDE_PROJECT_DIR:-.}/.claude/maestro.json`
+   exists. Read it: `end_skills` and `start_skills` are objects keyed by caller, and only their
+   `maestro_manager` lists run at epic boundaries. If `end_skills.maestro_manager` (missing counts as
+   empty) does not contain `"code-graph:refactor-scout"`, suggest adding it there (and, optionally, to
+   `start_skills.maestro_manager`): Maestro then passes the epic's scope file to `refactor-scout` at each
+   boundary and saves its advisory `PROPOSALS:` list beside it. Warn against `end_skills.maestro`: that
+   list runs at every task end with no scope file, so the scout stops at its own `no scope file given` line. Maestro reads these lists only when `maestro.json` is version 3; on an older file, say so and suggest nothing. Say plainly
+   that this is **experimental**: epic-boundary use was never measured, it needs the code-graph index
+   and a `tsconfig` key (without them each boundary saves one `refactor-scout not run: ` line), and it
+   can repeat findings a person declined earlier, since it remembers nothing. Never edit `maestro.json`
+   yourself: the user adds the entry, or the Maestro desktop app does. Record nothing when the user
+   declines; the next run suggests it again. Already listed, or no `maestro.json`: say nothing.
+
+7. **Report** what was checked, what was changed, and what is left for the user to decide.

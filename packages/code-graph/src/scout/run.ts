@@ -36,7 +36,10 @@ import {
 
 /** The scope file itself is missing or unreadable. */
 export const EXIT_SCOUT_NO_SCOPE = 11;
-/** No index or no tsconfig: the primer cannot be built and the scout does not run without it. */
+/**
+ * No index, no tsconfig (or no `tsconfig` key) or no ts-morph: the primer cannot be built and the scout
+ * does not run without it. The one stderr line starts with `SCOUT_NOT_RUN_PREFIX`.
+ */
 export const EXIT_SCOUT_NO_PRIMER = 12;
 
 /** Concept pairs of one primer that get a `query cross` section, as the bench capped them. */
@@ -79,8 +82,14 @@ export class ScoutStop extends Error {
   }
 }
 
+/**
+ * Every exit-12 line starts with this prefix, so an output saved at a Maestro epic boundary (end_skills /
+ * start_skills) reads as a skipped skill, not a failed one. One line, never a `PROPOSALS:` line.
+ */
+export const SCOUT_NOT_RUN_PREFIX = "refactor-scout not run: ";
+
 const noPrimer = (reason: string) =>
-  new ScoutStop(`refactor-scout: ${reason}, so no metrics primer and no proposals`, EXIT_SCOUT_NO_PRIMER);
+  new ScoutStop(`${SCOUT_NOT_RUN_PREFIX}${reason}, so no metrics primer and no proposals`, EXIT_SCOUT_NO_PRIMER);
 
 function hasLiveVertices(db: DatabaseSync): boolean {
   return db.prepare("SELECT 1 FROM vertices WHERE status = 'live' LIMIT 1").get() !== undefined;
