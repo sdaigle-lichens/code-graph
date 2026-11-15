@@ -42,3 +42,11 @@ README.md
 
 # Rust/wasm editor extension — cargo fmt owns it
 editor/
+.claude/reports/
+.claude/handoffs/
+.claude/maestro.json
+.claude/maestro_sessions/
+.claude/channels/
+.claude/maestro-tasks/
+.claude/maestro-metrics/
+.claude/skills/maestro/

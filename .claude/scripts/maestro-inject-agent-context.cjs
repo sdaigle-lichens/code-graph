@@ -62,6 +62,11 @@
 // (a resumed workflow agent carries its first run's routing in its history; the notice overrides
 // it). The skills blocks stay on a first run: they are what a participant reviews.
 //
+// TEST HINTS (`155`): an implementer (`TEST_HINT_SENDERS` in apps/maestro/src/core/handoff-routes.ts)
+// with `@test` later on its success path but no edge of its own into it is told to write its
+// `<sender>/test` shape to `.claude/channels/<scope>/test/<sender>.1.md` on `HANDOFF: success`. The
+// channel delivery branch above then hands it to `@test` with no further routing.
+//
 // OWNER RUNS (`081`): an agent type listed in session.json's `owner_runs` (a closed meeting's
 // approved change being applied) gets the skills and an owner-run notice, and NO routing, payload
 // protocols, channel delivery or report — it is a normal agent outside the workflow. Not write-confined.
@@ -84,11 +89,16 @@ const {
   routesFrom,
   payloadRoutes,
   payloadRequirement,
+  testHintRoutes,
+  laterSuccessSteps,
+  testHintRequirement,
   readLane,
   retire,
+  restoreInterruptedDeliveries,
   isGapReport,
   channelScopeOf,
   channelRelPath,
+  channelPathFor,
   resolveSessionId,
   ensureSessionPaths,
   hasCompletedRun,
@@ -176,6 +186,10 @@ function collect(cfg, sessionPath, agentType) {
   // agents (`maestro:test`): the receiver used to be compared and pathed un-bared and resolved no
   // protocol at all, silently.
   const routes = routesFrom(handoffRoutes(searchList, instances), agentType);
+  // `155`: an implementer with `@test` later on its success path but no edge of its own into it.
+  const hintRoutes = routesFrom(testHintRoutes(searchList, instances), agentType);
+  // Guarded: an older lib next to this script (a half-refreshed install) has no such export.
+  const laterSteps = typeof laterSuccessSteps === "function" ? laterSuccessSteps(searchList, instances, agentType) : [];
 
   if (matchedInstances.length === 0) return null;
 
@@ -202,8 +216,27 @@ function collect(cfg, sessionPath, agentType) {
     loadedSkills: loadedList,
     referencedSkills: referencedList,
     routes,
+    hintRoutes,
+    laterSteps,
     warning,
   };
+}
+
+// `172`: the one-line reminder a RESUMED run gets in place of the static blocks. A workflow agent
+// (it has handoff routes) keeps the original line byte-for-byte. An agent on no workflow — a helper
+// like Explore or plan-reviewer, or a node with no outgoing route — had no routing block on its
+// first run, so its line must not mention handoff routes; it names only what it was given (skills,
+// an output format), and nothing at all when it was given neither.
+function resumeLine(result, hasReport) {
+  if (result && result.routes.length > 0) {
+    return "Resumed run — the skills, handoff routes and output format from your first run still apply.";
+  }
+  const given = [];
+  if (result && (result.loadedSkills.length > 0 || result.referencedSkills.length > 0)) given.push("skills");
+  if (hasReport) given.push("output format");
+  if (given.length === 0) return null;
+  const verb = given.length === 1 && given[0] === "output format" ? "still applies" : "still apply";
+  return `Resumed run — the ${given.join(" and ")} from your first run ${verb}.`;
 }
 
 // ── report injection — independent of workflow matching ────────────────────
@@ -286,8 +319,11 @@ function collectReportContext(cfg, projectDir, agentType) {
   // on resumed runs too — a subagent that edits the main checkout instead would defeat the isolation.
   const sessionState = sess ? readJson(sess.state) : null;
   const wt = sessionState && sessionState.worktree;
+  // `163`: set in a worktree session; every channel path shown below goes through channelPathFor with it.
+  let worktreeRef = null;
   if (wt && typeof wt.path === "string" && wt.path) {
     const mainRoot = typeof wt.main_root === "string" && wt.main_root ? wt.main_root : projectDir;
+    worktreeRef = { main_root: mainRoot };
     parts.push(
       `Git worktree: this task runs in an isolated worktree, because another Maestro session is working in the main checkout.\n` +
         `- Work ONLY inside ${wt.path} (branch ${wt.branch || "unknown"}). Use that directory as your working directory and absolute paths under it for every read, edit and command.\n` +
@@ -350,7 +386,8 @@ function collectReportContext(cfg, projectDir, agentType) {
   } else if (ownerRun) {
     parts.push(ownerRunNotice(ownerRun, agentType));
   } else if (isResume) {
-    parts.push("Resumed run — the skills, handoff routes and output format from your first run still apply.");
+    const line = resumeLine(result, collectReportContext(cfg, projectDir, agentType) != null);
+    if (line) parts.push(line);
   }
 
   if (!offWorkflow && !isResume && result && result.routes.length > 0) {
@@ -365,9 +402,20 @@ function collectReportContext(cfg, projectDir, agentType) {
       `Handoff routing for the \`${agentType}\` agent. End your final message with exactly one \`HANDOFF:\` line so ` +
         `the orchestrator can route deterministically:\n${lines.join("\n")}` +
         (hasSuccess ? "" : "\n(No success path leaves this node — it only feeds back via the condition above.)") +
+        // Which steps still run after this one: work they own (docs for @scribe) is not a defect here.
+        (result.laterSteps && result.laterSteps.length
+          ? `\n\nStill to run after you on this workflow's success path: ${result.laterSteps.join(" → ")}. ` +
+            "Work one of those steps owns is not your failure: note it in your report, never FAIL on it."
+          : "") +
         "\n\nYour report's verdict and your HANDOFF line must agree. A real defect must end with the matching condition label " +
         "when one is listed above. A report verdict of FAIL with `HANDOFF: success` is invalid, and so is ending with no " +
-        "HANDOFF line at all — the orchestrator is told about both and will not treat either as success."
+        "HANDOFF line at all — the orchestrator is told about both and will not treat either as success." +
+        // Two kinds of failure, two outcomes: a code defect takes its condition route back to the
+        // implementer; a problem only the user can fix stops the run for them.
+        "\n\nIf you cannot go on because of something only the user can fix (setup or environment: a port in use, a " +
+        "service that will not start, missing credentials, a dependency you cannot install), end with " +
+        "`HANDOFF: blocked` and say exactly what the user must do. The run stops for them and resumes you after. " +
+        "Never use it for a code defect."
     );
   }
 
@@ -387,8 +435,16 @@ function collectReportContext(cfg, projectDir, agentType) {
   // is how task 086's second @reviewer pass ended without writing its payload — the one
   // instruction that governs the NEW hand-back must not be static.
   if (!offWorkflow && result && result.routes.length > 0) {
-    const routes = payloadRoutes(projectDir, scope, result.routes, readGlobalHandoff);
+    const routes = payloadRoutes(projectDir, scope, result.routes, readGlobalHandoff, worktreeRef);
     const required = payloadRequirement(routes, { withShapes: !isResume });
+    if (required) parts.push(required);
+  }
+
+  // `155`: test hints for a later `@test` step that no route of this agent reaches. Same three-tier
+  // resolution of the `<sender>/test` shape; on a resume, file names only, like the block above.
+  if (!offWorkflow && result && result.hintRoutes.length > 0) {
+    const hints = payloadRoutes(projectDir, scope, result.hintRoutes, readGlobalHandoff, worktreeRef);
+    const required = testHintRequirement(hints, { withShapes: !isResume });
     if (required) parts.push(required);
   }
 
@@ -403,9 +459,25 @@ function collectReportContext(cfg, projectDir, agentType) {
   // agent's next workflow step is still there when that step runs.
   if (!offWorkflow) {
     const bareAgent = bareAgentName(agentType);
+    // `159`: a cold re-run after a restart the session resumed from — a payload this run delivered
+    // to the cut-off run goes back into the lane, so it is inlined again below instead of lost.
+    // A resume is handled by maestro-resume-target.cjs, which hands its files over by path.
+    if (!isResume && sess) {
+      try {
+        restoreInterruptedDeliveries(
+          projectDir,
+          scope,
+          bareAgent,
+          ensureSessionRunId(sess.state),
+          readLogLines(sess.log)
+        );
+      } catch {
+        // Best-effort — never fail the hook over it; the lane is read as it is.
+      }
+    }
     const entries = readLane(projectDir, scope, bareAgent);
-    const laneDir = channelRelPath(scope, bareAgent, "");
-    const fileOf = (e) => channelRelPath(scope, bareAgent, e.fileName);
+    const laneDir = channelPathFor(channelRelPath(scope, bareAgent, ""), worktreeRef);
+    const fileOf = (e) => channelPathFor(channelRelPath(scope, bareAgent, e.fileName), worktreeRef);
     if (entries.length > 0) {
       // `064`: no session directory ⇒ no `run_id` to mint or compare against, so nothing matches
       // and every entry falls into `waiting` — MENTIONED rather than inlined. That is the same
@@ -526,8 +598,8 @@ function collectReportContext(cfg, projectDir, agentType) {
       // `<scope>`, resolved here so the agent never has to work it out.
       parts.push(
         `Channel scope for this session: \`${scope}\`. Every channel file you write goes under ` +
-          `\`.claude/channels/${scope}/\` — a skill-gap report is ` +
-          `\`${channelRelPath(scope, "scribe", `${bareAgentName(agentType)}.1.md`)}\`.`
+          `\`${channelPathFor(`.claude/channels/${scope}/`, worktreeRef)}\` — a skill-gap report is ` +
+          `\`${channelPathFor(channelRelPath(scope, "scribe", `${bareAgentName(agentType)}.1.md`), worktreeRef)}\`.`
       );
     }
   }

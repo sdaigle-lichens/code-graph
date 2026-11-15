@@ -33,34 +33,79 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/core/plugin-entries/maestro-epic.ts
 var maestro_epic_exports = {};
 __export(maestro_epic_exports, {
+  APPROVAL_STOPS: () => APPROVAL_STOPS,
   DEFAULT_SPAWN_CAP: () => DEFAULT_SPAWN_CAP,
   EPICS_DIR: () => EPICS_DIR,
+  ESCALATION_REASONS: () => ESCALATION_REASONS,
+  ESCALATION_TEXT: () => ESCALATION_TEXT,
+  MANAGER_MESSAGE_MARKER: () => MANAGER_MESSAGE_MARKER,
   MANAGER_REDIRECT_CAP: () => MANAGER_REDIRECT_CAP,
   REVIEW_VERDICTS: () => REVIEW_VERDICTS,
+  WATCH_DEFAULT_INTERVAL_SECONDS: () => WATCH_DEFAULT_INTERVAL_SECONDS,
+  WATCH_DEFAULT_SECONDS: () => WATCH_DEFAULT_SECONDS,
+  WATCH_MAX_SECONDS: () => WATCH_MAX_SECONDS,
   acknowledgeReport: () => acknowledgeReport,
   addWorker: () => addWorker,
+  approvalFile: () => approvalFile,
+  approvalGuidance: () => approvalGuidance,
+  approvalsDir: () => approvalsDir,
+  approveStop: () => approveStop,
+  checkApproval: () => checkApproval,
   checkNoteRoute: () => checkNoteRoute,
+  checkReportCommit: () => checkReportCommit,
+  classifyEscalation: () => classifyEscalation,
+  classifyGitOperation: () => classifyGitOperation,
   createEpic: () => createEpic,
+  currentLaunchSettings: () => currentLaunchSettings,
+  declaresDone: () => declaresDone,
+  deliveryWords: () => deliveryWords,
   epicDirFor: () => epicDirFor,
   epicOfTask: () => epicOfTask,
+  escalateStop: () => escalateStop,
+  escalationMarker: () => escalationMarker,
+  findApproval: () => findApproval,
+  finishWorker: () => finishWorker,
+  formatBoundary: () => formatBoundary,
   formatEpic: () => formatEpic,
   formatInboxEntry: () => formatInboxEntry,
   formatReady: () => formatReady,
+  gateManagerApproval: () => gateManagerApproval,
+  inboxPointer: () => inboxPointer,
+  isConfigSurface: () => isConfigSurface,
+  isContainerWorker: () => isContainerWorker,
+  isEscalationReason: () => isEscalationReason,
   isReviewVerdict: () => isReviewVerdict,
   isValidEpicSlug: () => isValidEpicSlug,
+  isValidPaneId: () => isValidPaneId,
   launchCommandFor: () => launchCommandFor,
   linkTasks: () => linkTasks,
   listEpicSummaries: () => listEpicSummaries,
   listEpics: () => listEpics,
+  managerApprovalApplies: () => managerApprovalApplies,
+  managerApprovalForTask: () => managerApprovalForTask,
+  newInboxAnnouncements: () => newInboxAnnouncements,
+  normalizeStop: () => normalizeStop,
+  parseEscalationAnswer: () => parseEscalationAnswer,
+  projectKeyFor: () => projectKeyFor,
   readEpicState: () => readEpicState,
+  readPendingEscalation: () => readPendingEscalation,
   readyTasks: () => readyTasks,
   recordReviewVerdict: () => recordReviewVerdict,
+  recordUserAnswer: () => recordUserAnswer,
+  recordedManagerApproval: () => recordedManagerApproval,
+  refreshRuntimeWords: () => refreshRuntimeWords,
   removeWorker: () => removeWorker,
   reportCommandFor: () => reportCommandFor,
+  resolveManagerApproval: () => resolveManagerApproval,
+  reviewDeliveryWords: () => reviewDeliveryWords,
   reviewHistory: () => reviewHistory,
+  runEpicBoundary: () => runEpicBoundary,
+  sameCommit: () => sameCommit,
   setManager: () => setManager,
+  shaCandidates: () => shaCandidates,
   showEpic: () => showEpic,
   taskClaimName: () => taskClaimName,
+  taskStatusOf: () => taskStatusOf,
   unacknowledgedReports: () => unacknowledgedReports,
   unlinkTasks: () => unlinkTasks,
   workerNameFor: () => workerNameFor,
@@ -71,12 +116,20 @@ __export(maestro_epic_exports, {
 module.exports = __toCommonJS(maestro_epic_exports);
 
 // src/core/epics.ts
-var import_node_fs10 = __toESM(require("node:fs"), 1);
-var import_node_path8 = __toESM(require("node:path"), 1);
+var import_node_fs12 = __toESM(require("node:fs"), 1);
+var import_node_path10 = __toESM(require("node:path"), 1);
 
 // src/core/worktree.ts
 var import_node_fs = __toESM(require("node:fs"), 1);
 var import_node_path = __toESM(require("node:path"), 1);
+function taskNumber(filename) {
+  const m = /^(\d+)-/.exec(import_node_path.default.basename(filename));
+  return m ? m[1] : null;
+}
+function worktreeBranchFor(filename) {
+  const n = taskNumber(filename);
+  return n ? `task-${n}` : null;
+}
 function mainCheckoutRoot(dir) {
   const gitEntry = import_node_path.default.join(dir, ".git");
   try {
@@ -99,18 +152,340 @@ var REVIEW_FILE_PATTERN = /\.review(-\d+)?\.md$/;
 function isReviewFile(filename) {
   return REVIEW_FILE_PATTERN.test(filename);
 }
+function gateManagerApproval(input) {
+  if (!input.containerWorker) return false;
+  return typeof input.recorded === "boolean" ? input.recorded : input.live;
+}
+
+// src/core/manager-approval.ts
+var import_node_crypto = __toESM(require("node:crypto"), 1);
+var import_node_fs2 = __toESM(require("node:fs"), 1);
+var import_node_path2 = __toESM(require("node:path"), 1);
+var APPROVAL_STOPS = ["human review", "commit", "merge"];
+var APPROVALS_DIR_ENV = "MAESTRO_APPROVALS_DIR";
+var APPROVALS_REL = import_node_path2.default.join(".config", "maestro", "approvals");
+function resolveManagerApproval(cfg) {
+  if (!cfg || cfg.version !== 3) return false;
+  const v = cfg.manager_approval;
+  return v === true;
+}
+function managerApprovalApplies(cfg, containerWorker) {
+  return containerWorker && resolveManagerApproval(cfg);
+}
+function approvalsDir(home, env = process.env) {
+  const override = env[APPROVALS_DIR_ENV]?.trim();
+  return override ? override : import_node_path2.default.join(home, APPROVALS_REL);
+}
+function normalizeStop(stop) {
+  if (typeof stop !== "string") return null;
+  const s = stop.trim().toLowerCase().replace(/[-_\s]+/g, " ");
+  return APPROVAL_STOPS.includes(s) ? s : null;
+}
+function stopSlug(stop) {
+  return stop.replace(/ /g, "-");
+}
+function taskStem(task) {
+  return import_node_path2.default.basename(task).replace(/\.md$/, "");
+}
+function projectKeyFor(projectRoot) {
+  const root = import_node_path2.default.resolve(mainCheckoutRoot(import_node_path2.default.resolve(projectRoot)));
+  const slug = import_node_path2.default.basename(root).toLowerCase().replace(/[^a-z0-9_.-]/g, "-").replace(/^[-.]+/, "") || "project";
+  return `${slug}-${import_node_crypto.default.createHash("sha256").update(root).digest("hex").slice(0, 10)}`;
+}
+function keyDir(root, key) {
+  return import_node_path2.default.join(root, key.project, key.epic, taskStem(key.task));
+}
+function approvalFile(root, key) {
+  return import_node_path2.default.join(keyDir(root, key), `${stopSlug(key.stop)}.json`);
+}
+function escalationFile(root, key) {
+  return import_node_path2.default.join(keyDir(root, key), `${stopSlug(key.stop)}.escalation.json`);
+}
+function writeJson(file, value) {
+  import_node_fs2.default.mkdirSync(import_node_path2.default.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  import_node_fs2.default.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}
+`);
+  import_node_fs2.default.renameSync(tmp, file);
+}
+function readJson(file) {
+  try {
+    return JSON.parse(import_node_fs2.default.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function writeApproval(root, input) {
+  const record = {
+    version: 1,
+    project: input.project,
+    epic: input.epic,
+    task: import_node_path2.default.basename(input.task),
+    stop: input.stop,
+    commit: input.commit.trim(),
+    decision: input.decision,
+    ...input.note?.trim() ? { note: input.note.trim() } : {},
+    source: input.source,
+    ...input.escalation ? { escalation: input.escalation } : {},
+    ...input.answer ? { answer: input.answer } : {},
+    ts: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  const file = approvalFile(root, input);
+  writeJson(file, record);
+  if (input.source === "user") import_node_fs2.default.rmSync(escalationFile(root, input), { force: true });
+  return { file, record };
+}
+function readApproval(root, key) {
+  const raw = readJson(approvalFile(root, key));
+  return raw && typeof raw === "object" ? raw : null;
+}
+function writePendingEscalation(root, key, commit, reason) {
+  const pending = {
+    version: 1,
+    project: key.project,
+    epic: key.epic,
+    task: import_node_path2.default.basename(key.task),
+    stop: key.stop,
+    commit: commit.trim(),
+    reason,
+    ts: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  const file = escalationFile(root, key);
+  writeJson(file, pending);
+  return { file };
+}
+function readPendingEscalation(root, key) {
+  const raw = readJson(escalationFile(root, key));
+  return raw && typeof raw === "object" ? raw : null;
+}
+function sameCommit(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const x = a.trim().toLowerCase();
+  const y = b.trim().toLowerCase();
+  if (x.length < 7 || y.length < 7 || !/^[0-9a-f]+$/.test(x) || !/^[0-9a-f]+$/.test(y)) return false;
+  return x.startsWith(y) || y.startsWith(x);
+}
+function checkApproval(record, want) {
+  if (!record) return { ok: false, code: "missing", reason: "no approval record exists for this stop yet" };
+  if (record.version !== 1 || typeof record.task !== "string" || typeof record.commit !== "string")
+    return { ok: false, code: "malformed", reason: "the approval record is malformed" };
+  if (import_node_path2.default.basename(record.task) !== import_node_path2.default.basename(want.task))
+    return {
+      ok: false,
+      code: "wrong-task",
+      reason: `the record is for task ${record.task}, not ${import_node_path2.default.basename(want.task)}`
+    };
+  if (record.stop !== want.stop)
+    return { ok: false, code: "wrong-stop", reason: `the record is for the "${record.stop}" stop, not "${want.stop}"` };
+  if (!sameCommit(record.commit, want.commit))
+    return {
+      ok: false,
+      code: "wrong-commit",
+      reason: `the record approves commit ${record.commit}, not ${want.commit || "(no commit given)"}`
+    };
+  if (record.decision !== "approved")
+    return {
+      ok: false,
+      code: "rejected",
+      reason: `the manager rejected this stop${record.note ? `: ${record.note}` : ""}`
+    };
+  return { ok: true, record };
+}
+function findApproval(root, key, commit) {
+  return checkApproval(readApproval(root, key), { task: key.task, stop: key.stop, commit });
+}
+var ESCALATION_REASONS = [
+  "suite-not-green",
+  "scope-change",
+  "decision-conflict",
+  "outward-git",
+  "config-change",
+  "security-finding",
+  "second-redirect"
+];
+function isEscalationReason(v) {
+  return typeof v === "string" && ESCALATION_REASONS.includes(v);
+}
+var ESCALATION_TEXT = {
+  "suite-not-green": "the full suite is red or only partly run",
+  "scope-change": "the work changes the ticket's scope",
+  "decision-conflict": "the work conflicts with an epic decision",
+  "outward-git": "a push, or another outward-facing or destructive git operation",
+  "config-change": "a change to agents, skills, workflows, rules or settings",
+  "security-finding": "a security finding",
+  "second-redirect": "a second redirect on the same ticket"
+};
+function classifyGitOperation(text) {
+  const t = text.trim().replace(/\s+/g, " ");
+  if (/\bgit\b[^;&|]*\bpush\b/.test(t)) {
+    return /(\s--force(-with-lease)?\b|\s-f\b|\s\+[\w/.-]+)/.test(t) ? "force-push" : "push";
+  }
+  if (/\bgit\b[^;&|]*\bbranch\b[^;&|]*(\s-d\b|\s-D\b|\s--delete\b)/.test(t)) return "branch-delete";
+  if (/\bgit\b[^;&|]*\b(rebase|filter-branch|filter-repo|replace)\b/.test(t)) return "history-rewrite";
+  if (/\bgit\b[^;&|]*\bcommit\b[^;&|]*--amend\b/.test(t)) return "history-rewrite";
+  if (/\bgit\b[^;&|]*\breset\b[^;&|]*--hard\b/.test(t)) return "history-rewrite";
+  if (/(^|[;&| ])(gh|glab)\s/.test(t)) return "hosting";
+  return null;
+}
+var CONFIG_SURFACES = [
+  /(^|\/)\.claude\/(agents|skills|rules|workflows|handoffs|reports)\//,
+  /(^|\/)\.claude\/maestro\.json$/,
+  /(^|\/)\.claude\/settings(\.local)?\.json$/,
+  /(^|\/)plugins\/[^/]+\/(agents|skills|hooks|templates)\//,
+  /(^|\/)(CLAUDE|AGENTS)\.md$/
+];
+function isConfigSurface(file) {
+  const p = file.replace(/\\/g, "/");
+  return CONFIG_SURFACES.some((re) => re.test(p));
+}
+function classifyEscalation(facts) {
+  const out = [];
+  if ((facts.suite ?? "").trim().toLowerCase() !== "green") out.push("suite-not-green");
+  if (facts.scopeChange) out.push("scope-change");
+  if (facts.decisionConflict) out.push("decision-conflict");
+  if ((facts.operations ?? []).some((op) => classifyGitOperation(op) !== null)) out.push("outward-git");
+  if ((facts.changedPaths ?? []).some(isConfigSurface)) out.push("config-change");
+  if (facts.securityFinding) out.push("security-finding");
+  if ((facts.redirects ?? 0) >= 2) out.push("second-redirect");
+  return out;
+}
+function escalationMarker(task, stop) {
+  return `approval-escalation:${import_node_path2.default.basename(task)}:${stopSlug(stop)}`;
+}
+var MARKER_RE = /approval-escalation:([^\s:]+\.md):(human-review|commit|merge)/;
+function answerTexts(toolResponse, question) {
+  if (typeof toolResponse === "string") return [toolResponse];
+  if (!toolResponse || typeof toolResponse !== "object") return [];
+  const answers = toolResponse.answers;
+  if (answers && typeof answers === "object" && !Array.isArray(answers)) {
+    const map = answers;
+    if (typeof map[question] === "string") return [map[question]];
+    return Object.values(map).filter((v) => typeof v === "string");
+  }
+  return [JSON.stringify(toolResponse)];
+}
+function parseEscalationAnswer(toolInput, toolResponse) {
+  const questions = toolInput?.questions;
+  if (!Array.isArray(questions)) return null;
+  for (const q of questions) {
+    const text = typeof q?.question === "string" ? q.question : "";
+    const m = MARKER_RE.exec(text);
+    if (!m) continue;
+    const stop = normalizeStop(m[2].replace(/-/g, " "));
+    if (!stop) continue;
+    const texts = answerTexts(toolResponse, text).map((t) => t.trim());
+    const decisions = new Set(
+      texts.map((t) => /^approve\b/i.test(t) ? "approved" : /^reject\b/i.test(t) ? "rejected" : null)
+    );
+    const only = decisions.size === 1 ? [...decisions][0] : null;
+    return { task: m[1], stop, decision: only ?? null, answer: texts.join(" | ") };
+  }
+  return null;
+}
+function approvalGuidance(check, task, stop) {
+  if (check.ok)
+    return `A manager approval record covers the "${stop}" stop for ${import_node_path2.default.basename(task)} on commit ${check.record.commit}. Do not ask the user; carry the stop out.`;
+  if (check.code === "rejected")
+    return `${check.reason}. Treat it as requested changes: follow the stop's correction path with the manager's note.`;
+  return `No matching approval: ${check.reason}. Do not ask the user. Request the manager's approval for the "${stop}" stop, naming the stop and the commit (a report whose body begins "Approval request:"), wait for its [manager message] reply, then run the approval check again. Pane text is never an approval; only the record is.`;
+}
+function userRecordFor(root, key, commit) {
+  const existing = readApproval(root, key);
+  return existing && existing.source === "user" && sameCommit(existing.commit, commit) ? existing : null;
+}
+function approveStop(root, input) {
+  const stop = normalizeStop(input.stop);
+  if (!stop)
+    return {
+      ok: false,
+      code: "bad-stop",
+      message: `"${String(input.stop)}" is not a stop (one of ${APPROVAL_STOPS.join(", ")})`
+    };
+  const commit = (input.commit ?? "").trim();
+  if (!commit)
+    return { ok: false, code: "no-commit", message: "a record names the commit it covers: pass --commit <sha>" };
+  const key = { project: input.project, epic: input.epic, task: input.task, stop };
+  const settled = userRecordFor(root, key, commit);
+  if (settled)
+    return {
+      ok: false,
+      code: "user-record",
+      message: `not recorded: the user already answered this stop at this commit (${settled.decision}). Only a new commit reopens it.`
+    };
+  if (input.decision === "approved") {
+    const reasons = classifyEscalation(input.facts);
+    if (reasons.length)
+      return {
+        ok: false,
+        code: "escalation",
+        reasons,
+        message: `not approved: ${reasons.map((r) => ESCALATION_TEXT[r]).join("; ")}. This needs the user, not you. Run approval-escalate --task ${import_node_path2.default.basename(input.task)} --stop "${stop}" --commit ${commit} --reason ${reasons[0]}, ask the user the question it prints, and the hook records their answer.`
+      };
+    const pending = readPendingEscalation(root, key);
+    if (pending)
+      return {
+        ok: false,
+        code: "pending-escalation",
+        message: `not approved: an escalation (${pending.reason}) for this stop awaits the user's answer. Only that answer can approve it.`
+      };
+  }
+  const { file, record } = writeApproval(root, {
+    ...key,
+    commit,
+    decision: input.decision,
+    note: input.note,
+    source: "manager"
+  });
+  return { ok: true, file, record };
+}
+function escalateStop(root, input) {
+  const stop = normalizeStop(input.stop);
+  if (!stop)
+    return { ok: false, message: `"${String(input.stop)}" is not a stop (one of ${APPROVAL_STOPS.join(", ")})` };
+  if (!isEscalationReason(input.reason))
+    return {
+      ok: false,
+      message: `"${String(input.reason)}" is not an escalation reason (one of ${ESCALATION_REASONS.join(", ")})`
+    };
+  const commit = (input.commit ?? "").trim();
+  if (!commit) return { ok: false, message: "pass --commit <sha>" };
+  const key = { project: input.project, epic: input.epic, task: input.task, stop };
+  if (userRecordFor(root, key, commit))
+    return { ok: false, message: "the user already answered this stop at this commit; only a new commit reopens it" };
+  import_node_fs2.default.rmSync(approvalFile(root, key), { force: true });
+  const { file } = writePendingEscalation(root, key, commit, input.reason);
+  const question = `[${escalationMarker(input.task, stop)}] Approve the "${stop}" stop of ${import_node_path2.default.basename(input.task)} at commit ${commit}? It needs you because ${ESCALATION_TEXT[input.reason]}.`;
+  return { ok: true, file, question };
+}
+function recordUserAnswer(root, input) {
+  const { answer } = input;
+  if (!answer.decision) return { ok: false, message: "the answer is not a clear Approve or Reject" };
+  const key = { project: input.project, epic: input.epic, task: answer.task, stop: answer.stop };
+  const pending = readPendingEscalation(root, key);
+  if (!pending) return { ok: false, message: "no escalation is pending for this stop" };
+  const { file } = writeApproval(root, {
+    ...key,
+    commit: pending.commit,
+    decision: answer.decision,
+    note: answer.decision === "rejected" ? answer.answer : void 0,
+    source: "user",
+    escalation: pending.reason,
+    answer: answer.answer
+  });
+  return { ok: true, file };
+}
 
 // src/core/tasks.ts
+var import_node_fs9 = __toESM(require("node:fs"), 1);
+var import_node_path7 = __toESM(require("node:path"), 1);
+
+// src/core/claims.ts
 var import_node_fs8 = __toESM(require("node:fs"), 1);
 var import_node_path6 = __toESM(require("node:path"), 1);
 
-// src/core/claims.ts
-var import_node_fs7 = __toESM(require("node:fs"), 1);
-var import_node_path5 = __toESM(require("node:path"), 1);
-
 // src/core/session-paths.ts
-var import_node_fs2 = __toESM(require("node:fs"), 1);
-var import_node_path2 = __toESM(require("node:path"), 1);
+var import_node_fs3 = __toESM(require("node:fs"), 1);
+var import_node_path3 = __toESM(require("node:path"), 1);
 var SESSIONS_DIR_NAME = "maestro_sessions";
 var SESSION_LOG_NAME = "log.jsonl";
 var SESSION_STATE_NAME = "session.json";
@@ -122,17 +497,17 @@ function isValidSessionId(id) {
   return typeof id === "string" && SESSION_ID_RE.test(id);
 }
 function sessionsRoot(claudeDir) {
-  return import_node_path2.default.join(claudeDir, SESSIONS_DIR_NAME);
+  return import_node_path3.default.join(claudeDir, SESSIONS_DIR_NAME);
 }
 function readWorktreePointer(claudeDir, id) {
   if (!claudeDir || !isValidSessionId(id)) return null;
   try {
     const raw = JSON.parse(
-      import_node_fs2.default.readFileSync(import_node_path2.default.join(sessionsRoot(claudeDir), id, SESSION_WORKTREE_NAME), "utf8")
+      import_node_fs3.default.readFileSync(import_node_path3.default.join(sessionsRoot(claudeDir), id, SESSION_WORKTREE_NAME), "utf8")
     );
     const p = raw;
-    if (!p || typeof p.path !== "string" || !import_node_path2.default.isAbsolute(p.path)) return null;
-    if (!import_node_fs2.default.statSync(p.path).isDirectory()) return null;
+    if (!p || typeof p.path !== "string" || !import_node_path3.default.isAbsolute(p.path)) return null;
+    if (!import_node_fs3.default.statSync(p.path).isDirectory()) return null;
     return p;
   } catch {
     return null;
@@ -140,29 +515,29 @@ function readWorktreePointer(claudeDir, id) {
 }
 function effectiveClaudeDir(claudeDir, id) {
   const pointer = readWorktreePointer(claudeDir, id);
-  return pointer ? import_node_path2.default.join(pointer.path, ".claude") : claudeDir;
+  return pointer ? import_node_path3.default.join(pointer.path, ".claude") : claudeDir;
 }
 function sessionPathsFor(claudeDir, id) {
   if (!claudeDir || !isValidSessionId(id)) return null;
-  const dir = import_node_path2.default.join(sessionsRoot(effectiveClaudeDir(claudeDir, id)), id);
+  const dir = import_node_path3.default.join(sessionsRoot(effectiveClaudeDir(claudeDir, id)), id);
   return {
     id,
     dir,
-    log: import_node_path2.default.join(dir, SESSION_LOG_NAME),
-    state: import_node_path2.default.join(dir, SESSION_STATE_NAME),
-    tasks: import_node_path2.default.join(dir, SESSION_TASKS_NAME)
+    log: import_node_path3.default.join(dir, SESSION_LOG_NAME),
+    state: import_node_path3.default.join(dir, SESSION_STATE_NAME),
+    tasks: import_node_path3.default.join(dir, SESSION_TASKS_NAME)
   };
 }
 
 // src/core/handoff-channels.ts
-var import_node_fs5 = __toESM(require("node:fs"), 1);
-var import_node_path3 = __toESM(require("node:path"), 1);
+var import_node_fs6 = __toESM(require("node:fs"), 1);
+var import_node_path4 = __toESM(require("node:path"), 1);
 
 // src/core/session-runtime.ts
-var import_node_fs4 = __toESM(require("node:fs"), 1);
+var import_node_fs5 = __toESM(require("node:fs"), 1);
 
 // src/core/session-usage.ts
-var import_node_fs3 = __toESM(require("node:fs"), 1);
+var import_node_fs4 = __toESM(require("node:fs"), 1);
 var TAIL_CHUNK_BYTES = 64 * 1024;
 var MAX_TAIL_BYTES = 4 * 1024 * 1024;
 
@@ -174,12 +549,12 @@ var HEARTBEAT_STALE_MS = 3 * 60 * 1e3;
 var EMPTY_DIR_GRACE_MS = 60 * 60 * 1e3;
 
 // src/core/session-heartbeat.ts
-var import_node_fs6 = __toESM(require("node:fs"), 1);
-var import_node_path4 = __toESM(require("node:path"), 1);
+var import_node_fs7 = __toESM(require("node:fs"), 1);
+var import_node_path5 = __toESM(require("node:path"), 1);
 function heartbeatVerdict(dir, now2 = Date.now()) {
   let mtimeMs;
   try {
-    mtimeMs = import_node_fs6.default.statSync(import_node_path4.default.join(dir, SESSION_HEARTBEAT_NAME)).mtimeMs;
+    mtimeMs = import_node_fs7.default.statSync(import_node_path5.default.join(dir, SESSION_HEARTBEAT_NAME)).mtimeMs;
   } catch {
     return null;
   }
@@ -189,17 +564,17 @@ function heartbeatVerdict(dir, now2 = Date.now()) {
 // src/core/claims.ts
 var CLAIMS_DIR_NAME = "claims";
 function claimsDirFor(tasksDir) {
-  return import_node_path5.default.join(tasksDir, CLAIMS_DIR_NAME);
+  return import_node_path6.default.join(tasksDir, CLAIMS_DIR_NAME);
 }
 function claimPathFor(tasksDir, filename) {
-  return import_node_path5.default.join(claimsDirFor(tasksDir), `${import_node_path5.default.basename(filename)}.json`);
+  return import_node_path6.default.join(claimsDirFor(tasksDir), `${import_node_path6.default.basename(filename)}.json`);
 }
 function nameOf(claim) {
   return typeof claim.session_name === "string" && claim.session_name ? { sessionName: claim.session_name } : {};
 }
 function readClaimFile(filePath) {
   try {
-    const data = JSON.parse(import_node_fs7.default.readFileSync(filePath, "utf8"));
+    const data = JSON.parse(import_node_fs8.default.readFileSync(filePath, "utf8"));
     if (data && typeof data === "object" && typeof data.session_id === "string" && typeof data.claimed_at === "string") {
       return data;
     }
@@ -215,11 +590,11 @@ function claimSessionName(tasksDir, filename) {
 function isSessionLive(claudeDir, sessionId, now2 = Date.now()) {
   const paths = sessionPathsFor(claudeDir, sessionId);
   if (!paths) return false;
-  if (!import_node_fs7.default.existsSync(paths.dir)) return false;
+  if (!import_node_fs8.default.existsSync(paths.dir)) return false;
   const heartbeat = heartbeatVerdict(paths.dir, now2);
   if (heartbeat !== null) return heartbeat;
   try {
-    const stat = import_node_fs7.default.statSync(paths.log);
+    const stat = import_node_fs8.default.statSync(paths.log);
     return now2 - stat.mtimeMs <= CLAIM_IDLE_CAP_MS;
   } catch {
     return false;
@@ -227,17 +602,17 @@ function isSessionLive(claudeDir, sessionId, now2 = Date.now()) {
 }
 function listClaimFiles(dir) {
   try {
-    return import_node_fs7.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    return import_node_fs8.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
   } catch {
     return [];
   }
 }
 function readClaims(projectRoot, tasksDir, now2 = Date.now()) {
-  const claudeDir = import_node_path5.default.join(projectRoot, ".claude");
+  const claudeDir = import_node_path6.default.join(projectRoot, ".claude");
   const dir = claimsDirFor(tasksDir);
   const out = /* @__PURE__ */ new Map();
   for (const fileName of listClaimFiles(dir)) {
-    const filePath = import_node_path5.default.join(dir, fileName);
+    const filePath = import_node_path6.default.join(dir, fileName);
     const claim = readClaimFile(filePath);
     if (!claim) continue;
     const filename = fileName.slice(0, -".json".length);
@@ -245,7 +620,7 @@ function readClaims(projectRoot, tasksDir, now2 = Date.now()) {
     out.set(filename, { sessionId: claim.session_id, claimedAt: claim.claimed_at, live, ...nameOf(claim) });
     if (!live) {
       try {
-        import_node_fs7.default.rmSync(filePath, { force: true });
+        import_node_fs8.default.rmSync(filePath, { force: true });
       } catch {
       }
     }
@@ -254,10 +629,10 @@ function readClaims(projectRoot, tasksDir, now2 = Date.now()) {
 }
 
 // src/core/tasks.ts
-var TASKS_SUBDIR = import_node_path6.default.join(".claude", "maestro-tasks");
+var TASKS_SUBDIR = import_node_path7.default.join(".claude", "maestro-tasks");
 var STATUS_FILE = "status.json";
 function tasksDirFor(projectRoot) {
-  return import_node_path6.default.join(mainCheckoutRoot(projectRoot), TASKS_SUBDIR);
+  return import_node_path7.default.join(mainCheckoutRoot(projectRoot), TASKS_SUBDIR);
 }
 function sectionOf(content, headingPattern) {
   const start = content.search(headingPattern);
@@ -274,34 +649,34 @@ function parseBlockedBy(content) {
 }
 function readStatusMap(dir) {
   try {
-    const data = JSON.parse(import_node_fs8.default.readFileSync(import_node_path6.default.join(dir, STATUS_FILE), "utf8"));
+    const data = JSON.parse(import_node_fs9.default.readFileSync(import_node_path7.default.join(dir, STATUS_FILE), "utf8"));
     return data && typeof data === "object" ? data : {};
   } catch {
     return {};
   }
 }
 function writeStatusMap(dir, statusMap) {
-  import_node_fs8.default.mkdirSync(dir, { recursive: true });
+  import_node_fs9.default.mkdirSync(dir, { recursive: true });
   const ordered = {};
   for (const k of Object.keys(statusMap).sort((a, b) => a.localeCompare(b))) {
     ordered[k] = statusMap[k];
   }
-  const target = import_node_path6.default.join(dir, STATUS_FILE);
+  const target = import_node_path7.default.join(dir, STATUS_FILE);
   const tmp = `${target}.${process.pid}.tmp`;
-  import_node_fs8.default.writeFileSync(tmp, `${JSON.stringify(ordered, null, 2)}
+  import_node_fs9.default.writeFileSync(tmp, `${JSON.stringify(ordered, null, 2)}
 `);
-  import_node_fs8.default.renameSync(tmp, target);
+  import_node_fs9.default.renameSync(tmp, target);
 }
 function listTaskFiles(dir) {
   try {
-    return import_node_fs8.default.readdirSync(dir).filter((f) => f.endsWith(".md") && !/\.review(-\d+)?\.md$/.test(f)).sort((a, b) => a.localeCompare(b));
+    return import_node_fs9.default.readdirSync(dir).filter((f) => f.endsWith(".md") && !/\.review(-\d+)?\.md$/.test(f)).sort((a, b) => a.localeCompare(b));
   } catch {
     return [];
   }
 }
 function readFileSafe(dir, filename) {
   try {
-    return import_node_fs8.default.readFileSync(import_node_path6.default.join(dir, filename), "utf8");
+    return import_node_fs9.default.readFileSync(import_node_path7.default.join(dir, filename), "utf8");
   } catch {
     return "";
   }
@@ -337,7 +712,7 @@ function setTaskEpic(projectRoot, filenames, epic) {
   const changed = [];
   const missing = [];
   for (const raw of filenames) {
-    const name = import_node_path6.default.basename(raw);
+    const name = import_node_path7.default.basename(raw);
     if (!files.has(name)) {
       missing.push(name);
       continue;
@@ -366,10 +741,10 @@ function readTaskTracker(projectRoot) {
 }
 
 // src/core/config.ts
-var import_node_fs9 = __toESM(require("node:fs"), 1);
-var import_node_path7 = __toESM(require("node:path"), 1);
+var import_node_fs10 = __toESM(require("node:fs"), 1);
+var import_node_path8 = __toESM(require("node:path"), 1);
 function maestroJsonPath(projectRoot) {
-  return import_node_path7.default.join(projectRoot, ".claude", "maestro.json");
+  return import_node_path8.default.join(projectRoot, ".claude", "maestro.json");
 }
 function blankConfig() {
   return {
@@ -383,14 +758,14 @@ function blankConfig() {
 }
 function readJsonSafe(p) {
   try {
-    return JSON.parse(import_node_fs9.default.readFileSync(p, "utf8"));
+    return JSON.parse(import_node_fs10.default.readFileSync(p, "utf8"));
   } catch {
     return null;
   }
 }
 function readConfig(projectRoot) {
   const p = maestroJsonPath(projectRoot);
-  if (!import_node_fs9.default.existsSync(p)) return null;
+  if (!import_node_fs10.default.existsSync(p)) return null;
   const parsed = readJsonSafe(p);
   if (!parsed) return blankConfig();
   return parsed.version === 3 ? parsed : blankConfig();
@@ -403,14 +778,48 @@ function resolveWorkerModel(cfg) {
   return t === "" ? void 0 : t;
 }
 
+// src/core/worker-runtime.ts
+var import_node_fs11 = __toESM(require("node:fs"), 1);
+var import_node_path9 = __toESM(require("node:path"), 1);
+var WORKER_RUNTIME_ENV = "MAESTRO_WORKER_RUNTIME";
+var WORKER_RUNTIME_SCRIPT = ".claude/scripts/maestro-worker-runtime.cjs";
+var WORKER_TOKEN_REL = import_node_path9.default.join(".config", "maestro", "worker-token");
+var CONTAINER_HOME = "/home/worker";
+var CONTAINER_APPROVALS_DIR = `${CONTAINER_HOME}/${APPROVALS_REL.split(import_node_path9.default.sep).join("/")}`;
+function isContainerWorker(env = process.env) {
+  return env[WORKER_RUNTIME_ENV]?.trim().toLowerCase() === "docker";
+}
+function refreshRuntimeWords(env = process.env) {
+  return isContainerWorker(env) ? "run `pnpm refresh:runtime` on the HOST, not in this container: `.claude/scripts` and `.claude/settings.json` are read-only here by design. Ask the user to run exactly `pnpm refresh:runtime` in their own terminal in this repository (the container's repo is the same folder), then continue" : "run `pnpm refresh:runtime` (a sandboxed agent hands the user `! pnpm refresh:runtime`)";
+}
+function shellQuote(value) {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+function resolveWorkerRuntime(cfg) {
+  if (!cfg || cfg.version !== 3) return "host";
+  const v = cfg.worker_runtime;
+  return typeof v === "string" && v.trim().toLowerCase() === "docker" ? "docker" : "host";
+}
+function dockerLaunchCommandFor(name, filename, model) {
+  const rel = import_node_path9.default.posix.join(".claude", "maestro-tasks", import_node_path9.default.basename(filename));
+  const flag = model?.trim() ? ` --model ${shellQuote(model.trim())}` : "";
+  return `node ${WORKER_RUNTIME_SCRIPT} run --name ${shellQuote(name)}${flag} ${shellQuote(rel)}`;
+}
+var SCAN_MAX_BYTES = 8 * 1024 * 1024;
+
 // src/core/epics.ts
-var EPICS_DIR = import_node_path8.default.join(".claude", "epics");
+var EPICS_DIR = import_node_path10.default.join(".claude", "epics");
 var EPIC_FILE = "EPIC.md";
 var STATE_FILE = "state.json";
 var INBOX_DIR = "inbox";
 var LOCK_DIR = ".lock";
 var LOCK_WAIT_MS = 5e3;
 var LOCK_STALE_MS = 15e3;
+var MANAGER_MESSAGE_MARKER = "[manager message]";
+var PANE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+function isValidPaneId(pane) {
+  return PANE_ID.test(pane);
+}
 var REVIEW_VERDICTS = ["on-track", "redirect", "escalate"];
 var MANAGER_REDIRECT_CAP = 1;
 var SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -419,7 +828,7 @@ function isValidEpicSlug(slug) {
 }
 function epicDirFor(projectRoot, slug) {
   if (!isValidEpicSlug(slug)) return null;
-  return import_node_path8.default.join(mainCheckoutRoot(projectRoot), EPICS_DIR, slug);
+  return import_node_path10.default.join(mainCheckoutRoot(projectRoot), EPICS_DIR, slug);
 }
 function now() {
   return (/* @__PURE__ */ new Date()).toISOString();
@@ -428,16 +837,19 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 function withLock(dir, fn) {
-  const lock = import_node_path8.default.join(dir, LOCK_DIR);
+  const lock = import_node_path10.default.join(dir, LOCK_DIR);
+  const owner = import_node_path10.default.join(lock, "owner");
+  const token = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const start = Date.now();
   for (; ; ) {
     try {
-      import_node_fs10.default.mkdirSync(lock);
+      import_node_fs12.default.mkdirSync(lock);
+      import_node_fs12.default.writeFileSync(owner, token);
       break;
     } catch (err) {
       if (err.code !== "EEXIST") throw err;
       try {
-        if (Date.now() - import_node_fs10.default.statSync(lock).mtimeMs > LOCK_STALE_MS) import_node_fs10.default.rmSync(lock, { recursive: true, force: true });
+        if (Date.now() - import_node_fs12.default.statSync(lock).mtimeMs > LOCK_STALE_MS) import_node_fs12.default.rmSync(lock, { recursive: true, force: true });
       } catch {
       }
       if (Date.now() - start > LOCK_WAIT_MS) throw new Error(`epic is locked by another writer (${lock})`);
@@ -447,14 +859,19 @@ function withLock(dir, fn) {
   try {
     return fn();
   } finally {
-    import_node_fs10.default.rmSync(lock, { recursive: true, force: true });
+    let mine = false;
+    try {
+      mine = import_node_fs12.default.readFileSync(owner, "utf8") === token;
+    } catch {
+    }
+    if (mine) import_node_fs12.default.rmSync(lock, { recursive: true, force: true });
   }
 }
 function readEpicState(projectRoot, slug) {
   const dir = epicDirFor(projectRoot, slug);
   if (!dir) return null;
   try {
-    const data = JSON.parse(import_node_fs10.default.readFileSync(import_node_path8.default.join(dir, STATE_FILE), "utf8"));
+    const data = JSON.parse(import_node_fs12.default.readFileSync(import_node_path10.default.join(dir, STATE_FILE), "utf8"));
     if (!data || typeof data !== "object") return null;
     const s = data;
     return {
@@ -462,22 +879,23 @@ function readEpicState(projectRoot, slug) {
       created_at: typeof s.created_at === "string" ? s.created_at : "",
       manager: s.manager && typeof s.manager.name === "string" ? s.manager : null,
       workers: Array.isArray(s.workers) ? s.workers : [],
-      log: Array.isArray(s.log) ? s.log : []
+      log: Array.isArray(s.log) ? s.log : [],
+      ...s.boundaries && typeof s.boundaries === "object" ? { boundaries: s.boundaries } : {}
     };
   } catch {
     return null;
   }
 }
 function writeEpicState(dir, state) {
-  const target = import_node_path8.default.join(dir, STATE_FILE);
+  const target = import_node_path10.default.join(dir, STATE_FILE);
   const tmp = `${target}.${process.pid}.tmp`;
-  import_node_fs10.default.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
+  import_node_fs12.default.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
 `);
-  import_node_fs10.default.renameSync(tmp, target);
+  import_node_fs12.default.renameSync(tmp, target);
 }
 function updateState(projectRoot, slug, fn) {
   const dir = epicDirFor(projectRoot, slug);
-  if (!dir || !import_node_fs10.default.existsSync(import_node_path8.default.join(dir, STATE_FILE))) throw new Error(`no epic "${slug}"`);
+  if (!dir || !import_node_fs12.default.existsSync(import_node_path10.default.join(dir, STATE_FILE))) throw new Error(`no epic "${slug}"`);
   return withLock(dir, () => {
     const state = readEpicState(projectRoot, slug);
     if (!state) throw new Error(`epic "${slug}" has an unreadable ${STATE_FILE}`);
@@ -492,12 +910,12 @@ function createEpic(projectRoot, slug, options = {}) {
     throw new Error(
       `"${slug}" is not a valid epic name (lowercase letters, digits and dashes, starting with a letter or digit)`
     );
-  if (import_node_fs10.default.existsSync(import_node_path8.default.join(dir, STATE_FILE))) throw new Error(`epic "${slug}" already exists`);
-  import_node_fs10.default.mkdirSync(import_node_path8.default.join(dir, INBOX_DIR), { recursive: true });
+  if (import_node_fs12.default.existsSync(import_node_path10.default.join(dir, STATE_FILE))) throw new Error(`epic "${slug}" already exists`);
+  import_node_fs12.default.mkdirSync(import_node_path10.default.join(dir, INBOX_DIR), { recursive: true });
   const goal = options.goal?.trim() || "_State the goal of this epic._";
-  const epicMd = import_node_path8.default.join(dir, EPIC_FILE);
-  if (!import_node_fs10.default.existsSync(epicMd)) {
-    import_node_fs10.default.writeFileSync(
+  const epicMd = import_node_path10.default.join(dir, EPIC_FILE);
+  if (!import_node_fs12.default.existsSync(epicMd)) {
+    import_node_fs12.default.writeFileSync(
       epicMd,
       `# Epic: ${slug}
 
@@ -527,8 +945,8 @@ _Record decisions here as the manager makes them._
 }
 function listEpics(projectRoot) {
   try {
-    const root = import_node_path8.default.join(mainCheckoutRoot(projectRoot), EPICS_DIR);
-    return import_node_fs10.default.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory() && import_node_fs10.default.existsSync(import_node_path8.default.join(root, e.name, STATE_FILE))).map((e) => e.name).sort();
+    const root = import_node_path10.default.join(mainCheckoutRoot(projectRoot), EPICS_DIR);
+    return import_node_fs12.default.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory() && import_node_fs12.default.existsSync(import_node_path10.default.join(root, e.name, STATE_FILE))).map((e) => e.name).sort();
   } catch {
     return [];
   }
@@ -537,7 +955,13 @@ function listEpicSummaries(projectRoot) {
   return listEpics(projectRoot).flatMap((slug) => {
     const state = readEpicState(projectRoot, slug);
     if (!state) return [];
-    return [{ slug, manager: state.manager?.name ?? null, unacknowledged: unacknowledgedReports(state).length }];
+    return [
+      {
+        slug,
+        manager: state.manager?.name ?? null,
+        unacknowledged: unacknowledgedReports(state, epicDirFor(projectRoot, slug)).length
+      }
+    ];
   });
 }
 function setManager(projectRoot, slug, name) {
@@ -545,14 +969,59 @@ function setManager(projectRoot, slug, name) {
     s.manager = { name, set_at: now() };
   });
 }
-function addWorker(projectRoot, slug, name, task) {
+function currentLaunchSettings(projectRoot) {
+  const config = readConfig(mainCheckoutRoot(projectRoot));
+  return { runtime: resolveWorkerRuntime(config), manager_approval: resolveManagerApproval(config) };
+}
+function addWorker(projectRoot, slug, name, task, pane, settings) {
+  const paneId = pane?.trim() || void 0;
+  if (paneId && !isValidPaneId(paneId)) throw new Error(`"${paneId}" is not a herdr pane id`);
+  const launch = settings ?? currentLaunchSettings(projectRoot);
   updateState(projectRoot, slug, (s) => {
     const existing = s.workers.find((w) => w.name === name);
     if (existing) {
       if (task) existing.task = task;
+      if (paneId) existing.pane = paneId;
+      existing.runtime ??= launch.runtime;
+      existing.manager_approval ??= launch.manager_approval;
     } else {
-      s.workers.push({ name, ...task ? { task } : {}, added_at: now() });
+      s.workers.push({
+        name,
+        ...task ? { task } : {},
+        ...paneId ? { pane: paneId } : {},
+        added_at: now(),
+        runtime: launch.runtime,
+        manager_approval: launch.manager_approval
+      });
     }
+  });
+}
+function recordedManagerApproval(projectRoot, task) {
+  const slug = epicOfTask(projectRoot, task);
+  if (!slug) return null;
+  const state = readEpicState(projectRoot, slug);
+  if (!state) return null;
+  const base = import_node_path10.default.basename(task);
+  const mine = state.workers.filter((w) => w.task && import_node_path10.default.basename(w.task) === base);
+  const pick = [...mine].reverse().find((w) => !w.finished_at) ?? mine[mine.length - 1];
+  return typeof pick?.manager_approval === "boolean" ? pick.manager_approval : null;
+}
+function managerApprovalForTask(projectRoot, task, cfg, containerWorker) {
+  return gateManagerApproval({
+    containerWorker,
+    recorded: recordedManagerApproval(projectRoot, task),
+    live: resolveManagerApproval(cfg)
+  });
+}
+function finishWorker(projectRoot, slug, name) {
+  const state = readEpicState(projectRoot, slug);
+  if (!state) throw new Error(`no epic "${slug}"`);
+  if (!state.workers.some((w) => w.name === name)) throw new Error(`epic "${slug}" has no worker "${name}"`);
+  updateState(projectRoot, slug, (s) => {
+    const w = s.workers.find((x) => x.name === name);
+    if (!w) return;
+    delete w.pane;
+    w.finished_at ??= now();
   });
 }
 function removeWorker(projectRoot, slug, name) {
@@ -568,18 +1037,34 @@ function unlinkTasks(projectRoot, tasks) {
   return setTaskEpic(projectRoot, tasks, null);
 }
 function taskClaimName(projectRoot, task) {
-  return claimSessionName(tasksDirFor(mainCheckoutRoot(projectRoot)), import_node_path8.default.basename(task));
+  return claimSessionName(tasksDirFor(mainCheckoutRoot(projectRoot)), import_node_path10.default.basename(task));
 }
 function epicOfTask(projectRoot, filename) {
-  return readTaskTracker(projectRoot)[import_node_path8.default.basename(filename)]?.epic ?? null;
+  return readTaskTracker(projectRoot)[import_node_path10.default.basename(filename)]?.epic ?? null;
+}
+function taskStatusOf(projectRoot, filename) {
+  return readTaskTracker(projectRoot)[import_node_path10.default.basename(filename)]?.status ?? null;
 }
 var INBOX_PREFIX = { report: "r", note: "n", review: "m" };
-function nextInboxId(state, kind) {
+function nextInboxId(state, kind, inboxDir) {
+  const prefix = INBOX_PREFIX[kind];
   const used = state.log.filter((e) => e.kind === kind).map((e) => Number(e.id.slice(1)) || 0);
-  return `${INBOX_PREFIX[kind]}${String((used.length ? Math.max(...used) : 0) + 1).padStart(3, "0")}`;
+  if (inboxDir) {
+    const file = new RegExp(`^${prefix}(\\d+)-`);
+    let names = [];
+    try {
+      names = import_node_fs12.default.readdirSync(inboxDir);
+    } catch {
+    }
+    for (const name of names) {
+      const m = file.exec(name);
+      if (m) used.push(Number(m[1]));
+    }
+  }
+  return `${prefix}${String((used.length ? Math.max(...used) : 0) + 1).padStart(3, "0")}`;
 }
 function writeReport(projectRoot, task, body, sender) {
-  const base = import_node_path8.default.basename(task);
+  const base = import_node_path10.default.basename(task);
   const slug = epicOfTask(projectRoot, base);
   if (!slug) return null;
   const root = mainCheckoutRoot(projectRoot);
@@ -588,8 +1073,8 @@ function writeReport(projectRoot, task, body, sender) {
   if (!dir || !readEpicState(projectRoot, slug))
     throw new Error(`task "${base}" names epic "${slug}", which does not exist`);
   return updateState(projectRoot, slug, (s) => {
-    const id = nextInboxId(s, "report");
-    const rel = import_node_path8.default.posix.join(INBOX_DIR, `${id}-${base.replace(/\.md$/, "")}.md`);
+    const id = nextInboxId(s, "report", import_node_path10.default.join(dir, INBOX_DIR));
+    const rel = import_node_path10.default.posix.join(INBOX_DIR, `${id}-${base.replace(/\.md$/, "")}.md`);
     const at = now();
     const header = `# Report ${id}: ${base}
 
@@ -598,15 +1083,15 @@ function writeReport(projectRoot, task, body, sender) {
 ${from ? `- From session: ${from}
 ` : ""}
 `;
-    import_node_fs10.default.mkdirSync(import_node_path8.default.join(dir, INBOX_DIR), { recursive: true });
-    import_node_fs10.default.writeFileSync(import_node_path8.default.join(dir, rel), `${header}${body.trim()}
-`);
+    import_node_fs12.default.mkdirSync(import_node_path10.default.join(dir, INBOX_DIR), { recursive: true });
+    import_node_fs12.default.writeFileSync(import_node_path10.default.join(dir, rel), `${header}${body.trim()}
+`, { flag: "wx" });
     s.log.push({ kind: "report", id, task: base, file: rel, at, ...from ? { from } : {} });
-    return { epic: slug, id, file: import_node_path8.default.join(dir, rel), manager: s.manager?.name ?? null };
+    return { epic: slug, id, file: import_node_path10.default.join(dir, rel), manager: s.manager?.name ?? null };
   });
 }
 function reportCommandFor(projectRoot, task, sessionName) {
-  const base = import_node_path8.default.basename(task);
+  const base = import_node_path10.default.basename(task);
   const slug = epicOfTask(projectRoot, base);
   if (!slug) return null;
   const manager = readEpicState(projectRoot, slug)?.manager?.name;
@@ -628,8 +1113,8 @@ function writeNote(projectRoot, toSlug, body, options) {
   if (!dir) throw new Error(`no epic "${toSlug}" to send a note to`);
   if (!body.trim()) throw new Error("the note is empty");
   return updateState(projectRoot, toSlug, (s) => {
-    const id = nextInboxId(s, "note");
-    const rel = import_node_path8.default.posix.join(INBOX_DIR, `${id}-from-${fromEpic}.md`);
+    const id = nextInboxId(s, "note", import_node_path10.default.join(dir, INBOX_DIR));
+    const rel = import_node_path10.default.posix.join(INBOX_DIR, `${id}-from-${fromEpic}.md`);
     const at = now();
     const header = `# Note ${id} from epic ${fromEpic}
 
@@ -639,9 +1124,9 @@ ${from ? `- From session: ${from}
 ` : ""}- Written: ${at}
 
 `;
-    import_node_fs10.default.mkdirSync(import_node_path8.default.join(dir, INBOX_DIR), { recursive: true });
-    import_node_fs10.default.writeFileSync(import_node_path8.default.join(dir, rel), `${header}${body.trim()}
-`);
+    import_node_fs12.default.mkdirSync(import_node_path10.default.join(dir, INBOX_DIR), { recursive: true });
+    import_node_fs12.default.writeFileSync(import_node_path10.default.join(dir, rel), `${header}${body.trim()}
+`, { flag: "wx" });
     s.log.push({
       kind: "note",
       id,
@@ -651,38 +1136,130 @@ ${from ? `- From session: ${from}
       file: rel,
       at
     });
-    return { epic: toSlug, id, file: import_node_path8.default.join(dir, rel), manager: s.manager?.name ?? null };
+    return { epic: toSlug, id, file: import_node_path10.default.join(dir, rel), manager: s.manager?.name ?? null };
   });
 }
 function isInboxEntry(e) {
   return e.kind === "report" || e.kind === "note" || e.kind === "review";
 }
+function entryStem(entry) {
+  return import_node_path10.default.posix.basename(entry.file).replace(/\.md$/, "");
+}
+function ackedEntries(state) {
+  const acked = /* @__PURE__ */ new Set();
+  const seen = [];
+  for (const e of state.log) {
+    if (e.kind === "report" || e.kind === "note") seen.push(e);
+    if (e.kind !== "ack") continue;
+    const target = e.file ? seen.find((x) => x.id === e.id && x.file === e.file) : [...seen].reverse().find((x) => x.id === e.id);
+    if (target) acked.add(target);
+  }
+  return acked;
+}
+function matchInboxEntries(log, selector) {
+  const wanted = import_node_path10.default.posix.basename(selector.trim()).replace(/\.md$/, "");
+  return log.filter((e) => {
+    if (!isInboxEntry(e)) return false;
+    if (e.id === wanted) return true;
+    if (e.kind === "review") return false;
+    const stem = entryStem(e);
+    return wanted.startsWith(`${e.id}-`) && (stem === wanted || stem.startsWith(`${wanted}-`));
+  });
+}
+function orphanInboxEntries(state, epicDir) {
+  let names;
+  try {
+    names = import_node_fs12.default.readdirSync(import_node_path10.default.join(epicDir, INBOX_DIR));
+  } catch {
+    return [];
+  }
+  const named = new Set(state.log.filter(isInboxEntry).map((e) => e.file));
+  const out = [];
+  for (const name of names.sort()) {
+    const m = /^([rn])(\d+)-(.+)\.md$/.exec(name);
+    if (!m) continue;
+    const file = import_node_path10.default.posix.join(INBOX_DIR, name);
+    if (named.has(file)) continue;
+    let text = "";
+    try {
+      text = import_node_fs12.default.readFileSync(import_node_path10.default.join(epicDir, INBOX_DIR, name), "utf8");
+    } catch {
+      continue;
+    }
+    const header = (label) => new RegExp(`^- ${label}: (.+)$`, "m").exec(text)?.[1]?.trim();
+    const id = `${m[1]}${m[2]}`;
+    const at = header("Written") ?? "";
+    const from = header("From session");
+    const rest = m[3];
+    if (m[1] === "r") out.push({ kind: "report", id, task: `${rest}.md`, file, at, ...from ? { from } : {} });
+    else
+      out.push({
+        kind: "note",
+        id,
+        from_epic: header("From epic") ?? rest.replace(/^from-/, ""),
+        file,
+        at,
+        ...from ? { from } : {}
+      });
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+function inboxLog(state, epicDir) {
+  return epicDir ? [...state.log, ...orphanInboxEntries(state, epicDir)] : state.log;
+}
 function acknowledgeReport(projectRoot, slug, id, by) {
+  const dir = epicDirFor(projectRoot, slug);
   return updateState(projectRoot, slug, (s) => {
-    const entry = s.log.find((e) => isInboxEntry(e) && e.id === id);
-    if (!entry) throw new Error(`epic "${slug}" has no report or note "${id}"`);
+    const log = inboxLog(s, dir);
+    const matches = matchInboxEntries(log, id);
+    if (matches.length === 0) throw new Error(`epic "${slug}" has no report or note "${id}"`);
+    if (matches.length > 1) {
+      const inbox = log.filter(isInboxEntry);
+      throw new Error(
+        `"${id}" names ${matches.length} entries in epic "${slug}": ack one of them by its handle (${matches.map((m) => inboxHandle(m, inbox)).join(", ")})`
+      );
+    }
+    const entry = matches[0];
     if (entry.kind === "review")
       throw new Error(
         `"${id}" is a manager review request: answer it with \`review-verdict --task ${entry.task} <on-track|redirect|escalate>\`, not ack`
       );
-    if (s.log.some((e) => e.kind === "ack" && e.id === id)) return "already";
-    s.log.push({ kind: "ack", id, at: now(), ...by ? { by } : {} });
+    if (ackedEntries(s).has(entry)) return "already";
+    if (!s.log.includes(entry)) s.log.push(entry);
+    s.log.push({ kind: "ack", id: entry.id, file: entry.file, at: now(), ...by ? { by } : {} });
     return "acknowledged";
   });
 }
-function unacknowledgedReports(state) {
-  const acked = new Set(state.log.filter((e) => e.kind === "ack").map((e) => e.id));
+function inboxHandle(entry, inbox) {
+  if (entry.kind === "review" || inbox.filter((e) => e.id === entry.id).length < 2) return entry.id;
+  const stem = entryStem(entry);
+  const parts = stem.split("-");
+  for (let n = 2; n < parts.length; n++) {
+    const handle = parts.slice(0, n).join("-");
+    const named = inbox.filter(
+      (e) => e.kind !== "review" && e.id === entry.id && (entryStem(e) === handle || entryStem(e).startsWith(`${handle}-`))
+    );
+    if (named.length === 1) return handle;
+  }
+  return stem;
+}
+function unacknowledgedReports(state, epicDir) {
+  const acked = ackedEntries(state);
   const decided = new Set(state.log.filter((e) => e.kind === "verdict").map((e) => e.id));
   const latest = /* @__PURE__ */ new Map();
   for (const e of state.log) if (e.kind === "review") latest.set(e.task, e.id);
-  return state.log.filter((e) => {
+  return inboxLog(state, epicDir).filter((e) => {
     if (!isInboxEntry(e)) return false;
     if (e.kind === "review") return !decided.has(e.id) && latest.get(e.task) === e.id;
-    return !acked.has(e.id);
+    return !acked.has(e);
   });
 }
+function unacknowledgedHandles(state, epicDir) {
+  const inbox = inboxLog(state, epicDir).filter(isInboxEntry);
+  return unacknowledgedReports(state, epicDir).filter((e) => e.kind !== "review").map((e) => inboxHandle(e, inbox));
+}
 function reviewHistory(state, task) {
-  const base = import_node_path8.default.basename(task);
+  const base = import_node_path10.default.basename(task);
   const requests = state.log.filter((e) => e.kind === "review" && e.task === base);
   const verdicts = state.log.filter((e) => e.kind === "verdict" && e.task === base);
   const latest = requests.at(-1) ?? null;
@@ -694,33 +1271,48 @@ function reviewHistory(state, task) {
   };
 }
 function reviewFilePath(root, file) {
-  return import_node_path8.default.isAbsolute(file) ? file : import_node_path8.default.join(root, file);
+  return import_node_path10.default.isAbsolute(file) ? file : import_node_path10.default.join(root, file);
 }
 function writeReviewRequest(projectRoot, task, file, sender) {
-  const base = import_node_path8.default.basename(task);
+  const base = import_node_path10.default.basename(task);
   const slug = epicOfTask(projectRoot, base);
   if (!slug) return null;
   if (!readEpicState(projectRoot, slug)) throw new Error(`task "${base}" names epic "${slug}", which does not exist`);
   const root = mainCheckoutRoot(projectRoot);
-  const abs = import_node_path8.default.resolve(projectRoot, file);
-  const name = import_node_path8.default.basename(abs);
+  const abs = import_node_path10.default.resolve(projectRoot, file);
+  const name = import_node_path10.default.basename(abs);
   if (!isReviewFile(name) || !name.startsWith(`${base.replace(/\.md$/, "")}.review`))
     throw new Error(
       `"${file}" is not a review file of "${base}" (expected ${base.replace(/\.md$/, "")}.review[-N].md)`
     );
-  if (!import_node_fs10.default.existsSync(abs)) throw new Error(`review file ${abs} does not exist: write the direction brief first`);
-  const rel = import_node_path8.default.relative(root, abs);
-  const stored = rel.startsWith("..") || import_node_path8.default.isAbsolute(rel) ? abs : rel.split(import_node_path8.default.sep).join("/");
+  if (!import_node_fs12.default.existsSync(abs)) throw new Error(`review file ${abs} does not exist: write the direction brief first`);
+  const rel = import_node_path10.default.relative(root, abs);
+  const stored = rel.startsWith("..") || import_node_path10.default.isAbsolute(rel) ? abs : rel.split(import_node_path10.default.sep).join("/");
   const from = sender?.trim() || claimSessionName(tasksDirFor(root), base) || void 0;
+  const inbox = import_node_path10.default.join(epicDirFor(projectRoot, slug), INBOX_DIR);
   return updateState(projectRoot, slug, (s) => {
     const history = reviewHistory(s, base);
     const manager = s.manager?.name ?? null;
     const common = { epic: slug, task: base, manager, redirects: history.redirects, cap: MANAGER_REDIRECT_CAP };
     if (history.open && history.open.file === stored)
       return { ...common, id: history.open.id, round: history.open.round, file: abs, already: true };
-    const id = nextInboxId(s, "review");
+    const id = nextInboxId(s, "review", inbox);
     const round = history.requests.length + 1;
-    s.log.push({ kind: "review", id, task: base, round, file: stored, at: now(), ...from ? { from } : {} });
+    const at = now();
+    import_node_fs12.default.mkdirSync(inbox, { recursive: true });
+    import_node_fs12.default.writeFileSync(
+      import_node_path10.default.join(inbox, `${id}-${base.replace(/\.md$/, "")}.md`),
+      `# Manager review request ${id}: ${base}
+
+- Task: ${base}
+- Round: ${round}
+- Review file: ${stored}
+- Written: ${at}
+${from ? `- From session: ${from}
+` : ""}`,
+      { flag: "wx" }
+    );
+    s.log.push({ kind: "review", id, task: base, round, file: stored, at, ...from ? { from } : {} });
     return { ...common, id, round, file: abs, already: false };
   });
 }
@@ -730,7 +1322,7 @@ function isReviewVerdict(value) {
 function recordReviewVerdict(projectRoot, task, verdict, by) {
   if (!isReviewVerdict(verdict))
     throw new Error(`"${String(verdict)}" is not a verdict (one of ${REVIEW_VERDICTS.join(", ")})`);
-  const base = import_node_path8.default.basename(task);
+  const base = import_node_path10.default.basename(task);
   const slug = epicOfTask(projectRoot, base);
   if (!slug) throw new Error(`task "${base}" belongs to no epic, so it has no manager review`);
   return updateState(projectRoot, slug, (s) => {
@@ -805,27 +1397,79 @@ function showEpic(projectRoot, slug) {
   return {
     slug,
     dir,
-    goalFile: import_node_path8.default.join(dir, EPIC_FILE),
+    goalFile: import_node_path10.default.join(dir, EPIC_FILE),
     manager: state.manager?.name ?? null,
-    workers: state.workers,
+    workers: state.workers.filter((w) => !w.finished_at),
+    finishedWorkers: state.workers.filter((w) => w.finished_at),
     tasks,
-    unacknowledged: unacknowledgedReports(state).map(
-      (r) => r.kind === "review" ? { ...r, path: reviewFilePath(root, r.file), redirects: reviewHistory(state, r.task).redirects } : { ...r, path: import_node_path8.default.join(dir, r.file) }
-    ),
+    unacknowledged: pendingInboxViews(state, dir, root),
     crossEpic: crossEpicEdges(tracker, slug)
   };
 }
+function pendingInboxViews(state, dir, root) {
+  return unacknowledgedReports(state, dir).map(
+    (r) => r.kind === "review" ? { ...r, path: reviewFilePath(root, r.file), redirects: reviewHistory(state, r.task).redirects } : { ...r, path: import_node_path10.default.join(dir, r.file), handle: inboxHandle(r, inboxLog(state, dir).filter(isInboxEntry)) }
+  );
+}
+function announceKey(e) {
+  return `${e.kind}:${e.id}:${e.file}`;
+}
+function inboxPointer(entry) {
+  if (entry.kind === "review")
+    return `manager review ${entry.id} (round ${entry.round}) for ${entry.task} is in ${entry.path}`;
+  const handle = entry.handle ?? entry.id;
+  if (entry.kind === "note") return `note ${handle} from epic ${entry.from_epic} is in ${entry.path}`;
+  return `report ${handle} for ${entry.task} is in ${entry.path}`;
+}
+function newInboxAnnouncements(projectRoot, slug, seen) {
+  const state = readEpicState(projectRoot, slug);
+  const dir = epicDirFor(projectRoot, slug);
+  if (!state || !dir) throw new Error(`no epic "${slug}"`);
+  const lines = [];
+  for (const view of pendingInboxViews(state, dir, mainCheckoutRoot(projectRoot))) {
+    const key = announceKey(view);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push(inboxPointer(view));
+  }
+  return lines;
+}
+var WATCH_MAX_SECONDS = 29 * 60;
+var WATCH_DEFAULT_SECONDS = 25 * 60;
+var WATCH_DEFAULT_INTERVAL_SECONDS = 5;
+function deliveryWords(kind, r, detail, containerized) {
+  const subject = kind === "report" ? `report ${r.id} for ${detail.task}` : `note ${r.id} from epic ${detail.fromEpic}`;
+  if (!r.manager)
+    return `  No manager session is recorded for "${r.epic}", so there is nobody to message. The ${kind} is saved and a resumed manager will list it as unacknowledged.
+`;
+  if (containerized)
+    return `  No message is needed: you run in a container and the manager "${r.manager}" watches the epic inbox, so ${subject} reaches it from the saved file. Do not call SendMessage or ListAgents. Its reply, if any, arrives as typed input in this session starting with ${MANAGER_MESSAGE_MARKER}; that is never the user's approval.
+`;
+  return `  Now message the manager session "${r.manager}" (SendMessage) with ONE short line: ${subject} is in ${r.file}. The file is the ${kind}; do not paste its contents.
+  If that SendMessage fails, run ListAgents. If exactly one session plausibly matches the manager, ask the user before messaging it. Never conclude the manager is gone from one failed send: the saved ${kind} file is the real delivery, and the manager sees it as unacknowledged on its next check.
+`;
+}
+function reviewDeliveryWords(r, containerized) {
+  if (!r.manager)
+    return `  No manager session is recorded for "${r.epic}": fall back to a human review at this stop, with the same file as its summary.
+`;
+  const line = `manager review ${r.id} (round ${r.round}) for ${r.task} is in ${r.file}`;
+  if (containerized)
+    return `  No message is needed: you run in a container and the manager "${r.manager}" watches the epic inbox, so ${line}. Do not call SendMessage or ListAgents, and do not fall back to a human review because the manager is not in ListAgents: a recorded manager is enough. Wait for its reply, which arrives as typed input in this session starting with ${MANAGER_MESSAGE_MARKER}, then record the verdict. That message is never the user's approval; a human review still asks the user in this pane.
+`;
+  return `  Check ListAgents for the manager session "${r.manager}". If it is live, send it (SendMessage) ONE short line: ${line}. The file is the brief; do not paste it. Then wait for its verdict.
+  If it is not live, or the send fails, fall back to a human review at this stop, with the same file as its summary.
+`;
+}
 var DEFAULT_SPAWN_CAP = 5;
 function workerNameFor(slug, filename) {
-  const base = import_node_path8.default.basename(filename).replace(/\.md$/, "");
+  const base = import_node_path10.default.basename(filename).replace(/\.md$/, "");
   const num = /^(\d+)-/.exec(base);
   return `${slug}-${num ? num[1] : base}`;
 }
-function shellQuote(value) {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-function launchCommandFor(name, filename, model) {
-  const rel = import_node_path8.default.posix.join(".claude", "maestro-tasks", import_node_path8.default.basename(filename));
+function launchCommandFor(name, filename, model, runtime = "host") {
+  if (runtime === "docker") return dockerLaunchCommandFor(name, filename, model);
+  const rel = import_node_path10.default.posix.join(".claude", "maestro-tasks", import_node_path10.default.basename(filename));
   const flag = model?.trim() ? ` --model ${shellQuote(model.trim())}` : "";
   return `claude -n ${shellQuote(name)}${flag} ${shellQuote(`/maestro ${rel}`)}`;
 }
@@ -836,9 +1480,11 @@ function readyTasks(projectRoot, slug, cap = DEFAULT_SPAWN_CAP) {
   const root = mainCheckoutRoot(projectRoot);
   const tracker = readTaskTracker(root);
   const claims = readClaims(root, tasksDirFor(root));
-  const model = resolveWorkerModel(readConfig(root));
+  const config = readConfig(root);
+  const model = resolveWorkerModel(config);
+  const runtime = resolveWorkerRuntime(config);
   const workerOf = /* @__PURE__ */ new Map();
-  for (const w of state.workers) if (w.task) workerOf.set(import_node_path8.default.basename(w.task), w.name);
+  for (const w of state.workers) if (w.task && !w.finished_at) workerOf.set(import_node_path10.default.basename(w.task), w.name);
   const view = {
     slug,
     cwd: root,
@@ -872,9 +1518,9 @@ function readyTasks(projectRoot, slug, cap = DEFAULT_SPAWN_CAP) {
     const name = workerNameFor(slug, filename);
     view.ready.push({
       filename,
-      relativePath: import_node_path8.default.posix.join(".claude", "maestro-tasks", filename),
+      relativePath: import_node_path10.default.posix.join(".claude", "maestro-tasks", filename),
       worker: name,
-      command: launchCommandFor(name, filename, model)
+      command: launchCommandFor(name, filename, model, runtime)
     });
   }
   view.slots = Math.max(0, cap - view.running.length - view.pending.length);
@@ -904,9 +1550,10 @@ function formatInboxEntry(entry) {
     const capNote = redirects >= MANAGER_REDIRECT_CAP ? ", a redirect now escalates to human review" : "";
     return `${entry.id}  manager review round ${entry.round} for ${entry.task}${entry.from ? ` (${entry.from})` : ""}  redirects ${redirects}/${MANAGER_REDIRECT_CAP}${capNote}  ${entry.path}`;
   }
+  const handle = entry.handle ?? entry.id;
   if (entry.kind === "note")
-    return `${entry.id}  from epic ${entry.from_epic}${entry.from ? ` (${entry.from})` : ""}  ${entry.path}`;
-  return `${entry.id}  ${entry.task}  ${entry.path}`;
+    return `${handle}  from epic ${entry.from_epic}${entry.from ? ` (${entry.from})` : ""}  ${entry.path}`;
+  return `${handle}  ${entry.task}  ${entry.path}`;
 }
 function formatCrossEpicEdge(edge) {
   const other = edge.otherEpic ? `epic ${edge.otherEpic}` : "no epic";
@@ -917,7 +1564,8 @@ function formatEpic(view) {
     `Epic ${view.slug}`,
     `  goal file: ${view.goalFile}`,
     `  manager:   ${view.manager ?? "(none recorded)"}`,
-    `  workers:   ${view.workers.length ? view.workers.map((w) => w.name).join(", ") : "(none recorded)"}`,
+    `  workers:   ${view.workers.length ? view.workers.map((w) => w.pane ? `${w.name} (pane ${w.pane})` : w.name).join(", ") : "(none recorded)"}`,
+    ...view.finishedWorkers.length ? [`  finished:  ${view.finishedWorkers.map((w) => w.name).join(", ")} (session stopped)`] : [],
     `  tasks (${view.tasks.length}):`
   ];
   for (const t of view.tasks) {
@@ -930,36 +1578,345 @@ function formatEpic(view) {
   for (const e of view.crossEpic) lines.push(`    ${formatCrossEpicEdge(e)}`);
   return lines.join("\n");
 }
+
+// src/core/epic-boundary.ts
+var import_node_child_process = require("node:child_process");
+var import_node_fs13 = __toESM(require("node:fs"), 1);
+var import_node_path11 = __toESM(require("node:path"), 1);
+
+// src/core/skill-lists.ts
+function isPlainObject(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function ids(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const item of v) {
+    if (typeof item !== "string") continue;
+    const id = item.trim();
+    if (id && !/\s/.test(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+function resolveSkillLists(cfg) {
+  if (!isPlainObject(cfg) || cfg.version !== 3) {
+    return { maestroStart: [], toMaestroTasksStart: [], maestroEnd: [], managerStart: [], managerEnd: [] };
+  }
+  const start = isPlainObject(cfg.start_skills) ? cfg.start_skills : {};
+  const end = isPlainObject(cfg.end_skills) ? cfg.end_skills : {};
+  return {
+    maestroStart: ids(start.maestro),
+    toMaestroTasksStart: ids(start.to_maestro_tasks),
+    maestroEnd: ids(end.maestro),
+    managerStart: ids(start.maestro_manager),
+    managerEnd: ids(end.maestro_manager)
+  };
+}
+
+// src/core/epic-boundary.ts
+var BOUNDARY_DIR = "boundary";
+var SCOPE_FILE = "scope.txt";
+var GIT_TIMEOUT_MS = 1e4;
+function git(root, args) {
+  try {
+    return (0, import_node_child_process.execFileSync)("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: GIT_TIMEOUT_MS
+    });
+  } catch {
+    return null;
+  }
+}
+function scopeBase(root) {
+  const real = import_node_fs13.default.realpathSync(root);
+  const base = git(root, ["rev-parse", "--show-toplevel"])?.trim() || real;
+  return { base, prefix: import_node_path11.default.relative(base, real).split(import_node_path11.default.sep).join("/") };
+}
+function changedSince(root, base) {
+  if (!/^[0-9a-f]{7,64}$/.test(base)) return null;
+  const out = git(root, ["-c", "diff.relative=false", "diff", "--name-only", "-z", base, "HEAD", "--", "."]);
+  return out === null ? null : out.split("\0").filter(Boolean);
+}
+function surfacePath(line) {
+  const entry = line.trim().replace(/^[-*+]\s+/, "").replace(/^`([^`]*)`$/, "$1");
+  if (!entry || /[\s`*?{}]/.test(entry) || entry.startsWith("~") || import_node_path11.default.isAbsolute(entry)) return null;
+  if (entry.split("/").includes("..")) return null;
+  return import_node_path11.default.posix.normalize(entry);
+}
+function touchedSurfaces(root, tasks) {
+  const dir = tasksDirFor(root);
+  return tasks.flatMap((task) => {
+    let content;
+    try {
+      content = import_node_fs13.default.readFileSync(import_node_path11.default.join(dir, task), "utf8");
+    } catch {
+      return [];
+    }
+    const section = sectionOf(content, /^##\s+Touched surfaces\s*$/m) ?? "";
+    return section.split("\n").slice(1).flatMap((line) => surfacePath(line) ?? []);
+  });
+}
+function isFile(file) {
+  try {
+    return import_node_fs13.default.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+function scopeEntries(base, paths) {
+  return [...new Set(paths)].filter((p) => isFile(import_node_path11.default.join(base, p))).sort();
+}
+function startBlocker(root, state, tasks, tracker) {
+  if (!tasks.length) return "the epic has no tasks yet";
+  if (state.workers.length) return "the epic already has workers";
+  const claims = readClaims(root, tasksDirFor(root));
+  const running = tasks.filter((t) => claims.get(t)?.live);
+  if (running.length) return `already running: ${running.join(", ")}`;
+  const done = tasks.filter((t) => tracker[t].status === "done");
+  return done.length ? `already done: ${done.join(", ")}` : null;
+}
+function endBlocker(state, epicDir, tasks, tracker) {
+  if (!tasks.length) return "the epic has no tasks";
+  const open = tasks.filter((t) => tracker[t].status !== "done");
+  if (open.length) return `not done: ${open.join(", ")}`;
+  const unmerged = tasks.filter((t) => tracker[t].unmerged);
+  if (unmerged.length) return `not merged: ${unmerged.join(", ")}`;
+  const waiting = unacknowledgedHandles(state, epicDir);
+  return waiting.length ? `not acknowledged: ${waiting.join(", ")}` : null;
+}
+function nextRunDir(epicDir, phase) {
+  const parent = import_node_path11.default.join(epicDir, BOUNDARY_DIR);
+  const pattern = new RegExp(`^${phase}-(\\d+)$`);
+  let used = [];
+  try {
+    used = import_node_fs13.default.readdirSync(parent).map((name) => Number(pattern.exec(name)?.[1] ?? 0));
+  } catch {
+  }
+  return import_node_path11.default.join(parent, `${phase}-${Math.max(0, ...used) + 1}`);
+}
+function buildScope(root, phase, commit, tasks) {
+  const { base, prefix } = scopeBase(root);
+  const changed = phase === "end" && commit ? changedSince(root, commit) : null;
+  const surfaces = () => touchedSurfaces(root, tasks).map((p) => isFile(import_node_path11.default.join(root, p)) ? import_node_path11.default.posix.join(prefix, p) : p);
+  return scopeEntries(base, changed ?? surfaces());
+}
+function runEpicBoundary(projectRoot, slug, phase, options = {}) {
+  if (phase !== "start" && phase !== "end") throw new Error(`"${String(phase)}" is not a boundary (start or end)`);
+  const absoluteRoot = import_node_path11.default.resolve(projectRoot);
+  const dir = epicDirFor(absoluteRoot, slug);
+  if (!dir || !readEpicState(absoluteRoot, slug)) throw new Error(`no epic "${slug}"`);
+  const root = mainCheckoutRoot(absoluteRoot);
+  const { managerStart, managerEnd } = resolveSkillLists(readConfig(root));
+  const skills = phase === "start" ? managerStart : managerEnd;
+  if (!skills.length && (phase === "end" || !managerEnd.length)) return { outcome: "none" };
+  return updateState(absoluteRoot, slug, (state) => {
+    const claimed = skills.length ? state.boundaries?.[phase] : void 0;
+    if (claimed && !options.force) return { outcome: "already-ran", at: claimed.at };
+    const tracker = readTaskTracker(root);
+    const tasks = Object.keys(tracker).filter((t) => tracker[t].epic === slug).sort();
+    const boundaries = state.boundaries ??= {};
+    if (!claimed) {
+      const reason = phase === "start" ? startBlocker(root, state, tasks, tracker) : endBlocker(state, dir, tasks, tracker);
+      if (reason) return skills.length ? { outcome: "not-due", reason } : { outcome: "none" };
+      if (phase === "start" && !boundaries.base) {
+        const head = git(root, ["rev-parse", "HEAD"])?.trim();
+        if (head) boundaries.base = head;
+      }
+    }
+    if (!skills.length) return { outcome: "none" };
+    const entries = buildScope(root, phase, boundaries.base, tasks);
+    const runDir = nextRunDir(dir, phase);
+    import_node_fs13.default.mkdirSync(runDir, { recursive: true });
+    const scopeFile = import_node_path11.default.join(runDir, SCOPE_FILE);
+    import_node_fs13.default.writeFileSync(scopeFile, entries.length ? `${entries.join("\n")}
+` : "");
+    boundaries[phase] = { at: (/* @__PURE__ */ new Date()).toISOString() };
+    return { outcome: "run", skills, scopeFile, paths: entries.length };
+  });
+}
+function formatBoundary(result) {
+  switch (result.outcome) {
+    case "none":
+      return "Maestro epic: boundary has nothing to run";
+    case "not-due":
+      return `Maestro epic: boundary not due: ${result.reason}`;
+    case "already-ran":
+      return `Maestro epic: boundary already ran at ${result.at}`;
+    case "run":
+      return `Maestro epic: boundary due: run ${result.skills.join(", ")} with scope file ${result.scopeFile} (${result.paths} paths)`;
+  }
+}
+
+// src/core/landing-guards.ts
+var import_node_fs14 = __toESM(require("node:fs"), 1);
+var import_node_path12 = __toESM(require("node:path"), 1);
+function defaultBranch(git2, root) {
+  const remote = git2(root, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
+  if (remote.ok && remote.out.trim()) {
+    const name = remote.out.trim().replace(/^origin\//, "");
+    if (name) return name;
+  }
+  return null;
+}
+function originHeadUnsetMessage(root) {
+  return `origin/HEAD is not set in ${root}, so the default branch cannot be determined (Maestro never guesses main or master). Set it with \`git remote set-head origin --auto\`, or \`git remote set-head origin <branch>\` when your team integrates into a branch other than the remote's default`;
+}
+var SHA_CANDIDATE = /(?<![0-9A-Za-z_])[0-9a-fA-F]{7,40}(?![0-9A-Za-z_])/g;
+function shaCandidates(body) {
+  return [...new Set((body.match(SHA_CANDIDATE) ?? []).map((c) => c.toLowerCase()))];
+}
+var DONE_LINE = /^[\s>*_#-]*(?:outcome|status)[\s*_]*:[\s*_]*(?:done|complete|completed|finished)\b/im;
+function declaresDone(body) {
+  return DONE_LINE.test(body);
+}
+function isAncestor(git2, root, a, b) {
+  return git2(root, ["merge-base", "--is-ancestor", a, b]).ok;
+}
+function commitsBeyond(git2, root, base, branch) {
+  const r = git2(root, ["rev-list", "--count", `${base}..${branch}`]);
+  const n = r.ok ? Number.parseInt(r.out.trim(), 10) : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+function namesTask(git2, root, sha, branch, file) {
+  const r = git2(root, ["log", "-1", "--format=%B", sha]);
+  if (!r.ok) return false;
+  if (r.out.includes(file)) return true;
+  return branch !== null && new RegExp(`(?<![0-9A-Za-z_-])${branch}(?![0-9A-Za-z_])`).test(r.out);
+}
+function branchExists(git2, root, branch) {
+  return git2(root, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]).ok;
+}
+function checkReportCommit(git2, root, input) {
+  const base = import_node_path12.default.basename(input.task);
+  if (!input.trackerDone && !declaresDone(input.body)) return { ok: true, checked: false };
+  const refuse = (missing, why) => ({
+    ok: false,
+    missing,
+    message: `report REFUSED \u2014 "${base}" is done, but ${why}. A done report must name the commit holding the task's work. Commit it on the task branch first (the user approves the commit), put that commit's SHA in the report, then run this again. Nothing was written.`
+  });
+  const candidates = shaCandidates(input.body);
+  if (candidates.length === 0) return refuse("no-sha", "the report names no commit SHA");
+  const resolved = [];
+  for (const c of candidates) {
+    const r = git2(root, ["rev-parse", "--verify", "--quiet", `${c}^{commit}`]);
+    if (r.ok && r.out.trim()) resolved.push({ short: c, sha: r.out.trim() });
+  }
+  if (resolved.length === 0) {
+    const shown = candidates.slice(0, 3).join(", ");
+    return refuse("no-such-commit", `no commit named in it exists in this repository (checked: ${shown})`);
+  }
+  const branch = worktreeBranchFor(base);
+  const def = defaultBranch(git2, root);
+  const hasBranch = branch !== null && branchExists(git2, root, branch);
+  const ownCommits = hasBranch && def !== null && commitsBeyond(git2, root, def, branch) > 0;
+  let onDefaultOnly = null;
+  for (const { short, sha } of resolved) {
+    if (ownCommits) {
+      if (!isAncestor(git2, root, sha, branch)) continue;
+      if (def !== null && isAncestor(git2, root, sha, def)) {
+        onDefaultOnly = onDefaultOnly ?? short;
+        continue;
+      }
+      return { ok: true, checked: true, sha, on: branch };
+    }
+    if (def !== null && isAncestor(git2, root, sha, def) && namesTask(git2, root, sha, branch, base))
+      return { ok: true, checked: true, sha, on: def };
+  }
+  const named = resolved.map((r) => r.short).join(", ");
+  if (onDefaultOnly)
+    return refuse(
+      "not-on-branch",
+      `commit ${onDefaultOnly} is already on ${def} (origin/HEAD), so it is what ${branch} started from, not a commit with the task's work`
+    );
+  if (ownCommits) return refuse("not-on-branch", `commit ${named} is not on the task branch ${branch}`);
+  if (def === null)
+    return refuse(
+      "not-on-branch",
+      hasBranch ? `the task branch ${branch} exists, but there is no default branch to measure it against: ${originHeadUnsetMessage(root)}` : `there is no task branch ${branch ?? "(the task has no number)"} and no default branch to look on: ${originHeadUnsetMessage(root)}`
+    );
+  const where = hasBranch ? `the task branch ${branch} has no commits of its own beyond ${def} (origin/HEAD)` : `there is no task branch ${branch ?? "(the task has no number)"}`;
+  const proof = branch ? `the \`Merge ${branch}\` commit or a commit whose message names ${branch} or ${base}` : `a commit whose message names ${base}`;
+  return refuse(
+    "not-on-branch",
+    `${where}, and commit ${named} is not ${proof} on ${def} (origin/HEAD; it could be the commit the task started from)`
+  );
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  APPROVAL_STOPS,
   DEFAULT_SPAWN_CAP,
   EPICS_DIR,
+  ESCALATION_REASONS,
+  ESCALATION_TEXT,
+  MANAGER_MESSAGE_MARKER,
   MANAGER_REDIRECT_CAP,
   REVIEW_VERDICTS,
+  WATCH_DEFAULT_INTERVAL_SECONDS,
+  WATCH_DEFAULT_SECONDS,
+  WATCH_MAX_SECONDS,
   acknowledgeReport,
   addWorker,
+  approvalFile,
+  approvalGuidance,
+  approvalsDir,
+  approveStop,
+  checkApproval,
   checkNoteRoute,
+  checkReportCommit,
+  classifyEscalation,
+  classifyGitOperation,
   createEpic,
+  currentLaunchSettings,
+  declaresDone,
+  deliveryWords,
   epicDirFor,
   epicOfTask,
+  escalateStop,
+  escalationMarker,
+  findApproval,
+  finishWorker,
+  formatBoundary,
   formatEpic,
   formatInboxEntry,
   formatReady,
+  gateManagerApproval,
+  inboxPointer,
+  isConfigSurface,
+  isContainerWorker,
+  isEscalationReason,
   isReviewVerdict,
   isValidEpicSlug,
+  isValidPaneId,
   launchCommandFor,
   linkTasks,
   listEpicSummaries,
   listEpics,
+  managerApprovalApplies,
+  managerApprovalForTask,
+  newInboxAnnouncements,
+  normalizeStop,
+  parseEscalationAnswer,
+  projectKeyFor,
   readEpicState,
+  readPendingEscalation,
   readyTasks,
   recordReviewVerdict,
+  recordUserAnswer,
+  recordedManagerApproval,
+  refreshRuntimeWords,
   removeWorker,
   reportCommandFor,
+  resolveManagerApproval,
+  reviewDeliveryWords,
   reviewHistory,
+  runEpicBoundary,
+  sameCommit,
   setManager,
+  shaCandidates,
   showEpic,
   taskClaimName,
+  taskStatusOf,
   unacknowledgedReports,
   unlinkTasks,
   workerNameFor,

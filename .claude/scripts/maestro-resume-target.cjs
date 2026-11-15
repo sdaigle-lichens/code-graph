@@ -24,6 +24,7 @@
 // `088` adds two kinds of line AFTER the id, each `<kind>: <project-relative file>`:
 //
 //   deliver: .claude/channels/task-144/backend/reviewer.1.md
+//       (in a worktree session, `163`, the ABSOLUTE main-checkout path: <main_root>/.claude/channels/...)
 //       Resume only. In THIS session's channel scope (`144`), never another session's. A current-run file waiting in the target's lane. A resume never receives
 //       SubagentStart's additionalContext, so the orchestrator names this path in its SendMessage
 //       and the agent Reads it. Recorded in session.json `resume_deliveries[<agent_id>]`; the
@@ -34,6 +35,10 @@
 //       handoff issue, so `maestro-task-status.cjs handoff-issues` reports it too. A pending
 //       `missing_payload` whose files are now in the lane is dropped on the next call, so a
 //       payload the sender wrote after the warning isn't reported as missing.
+//
+// `159`: before either check, a payload this run delivered to a target run that never finished (cut
+// off by a restart the session resumed from) is moved back from `.consumed/` into the lane
+// (`restoreInterruptedDeliveries`), so it is a `deliver:` line, or a cold start's inline, again.
 //
 // So "no agent_id" means the first line is not a bare id: output empty, or starting `missing:`.
 //
@@ -54,6 +59,7 @@ const {
   routesFrom,
   payloadRoutes,
   pendingResumeDeliveries,
+  restoreInterruptedDeliveries,
   recordResumeDeliveries,
   latestWorkflowHandoff,
   expectedLoopbackPayloads,
@@ -62,6 +68,7 @@ const {
   channelFileMtime,
   appendHandoffIssue,
   channelScopeOf,
+  channelPathFor,
   resolveSessionId,
   readGlobalHandoff,
 } = require("./lib/maestro-session.cjs");
@@ -94,6 +101,9 @@ try {
         let changed = false;
         // `144`: this session's own channel scope — another session's lane is never delivered.
         const scope = channelScopeOf(projectDir, resolveSessionId());
+        // `159`: a payload delivered to a run a restart cut off goes back into the lane first, so it
+        // is delivered again below and never reported missing.
+        restoreInterruptedDeliveries(projectDir, scope, agentType, runId, lines);
         const deliveries = pendingResumeDeliveries(projectDir, scope, agentType, runId);
         // A `missing_payload` the sender has since fixed would send the orchestrator after a file
         // that is already there: drop it before checking again.
@@ -105,7 +115,9 @@ try {
           changed = true;
         }
         if (id) {
-          for (const d of deliveries) out.push(`deliver: ${d.file}`);
+          // `163`: in a worktree session the line names the absolute main-checkout path (the agent would
+          // otherwise resolve a relative one against its worktree). Stored identity stays relative.
+          for (const d of deliveries) out.push(`deliver: ${channelPathFor(d.file, state.worktree)}`);
           state = recordResumeDeliveries(state, id, deliveries);
           changed = true;
         }
@@ -122,7 +134,8 @@ try {
           const issue = missingLoopbackPayload(latest, expected, deliveries);
           if (issue) {
             for (const r of expected) {
-              if (issue.files.includes(r.channelFile)) out.push(`missing: ${r.channelFile} (from ${r.sender})`);
+              if (issue.files.includes(r.channelFile))
+                out.push(`missing: ${channelPathFor(r.channelFile, state.worktree)} (from ${r.sender})`);
             }
             state = { ...state, handoff_issues: appendHandoffIssue(state.handoff_issues, issue) };
             changed = true;

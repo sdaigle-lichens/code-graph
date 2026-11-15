@@ -43,11 +43,17 @@ function ids(v) {
 }
 function resolveSkillLists(cfg) {
   if (!isPlainObject(cfg) || cfg.version !== 3) {
-    return { maestroStart: [], toMaestroTasksStart: [], maestroEnd: [] };
+    return { maestroStart: [], toMaestroTasksStart: [], maestroEnd: [], managerStart: [], managerEnd: [] };
   }
-  const maestroEnd = isPlainObject(cfg.end_skills) ? ids(cfg.end_skills.maestro) : [];
   const start = isPlainObject(cfg.start_skills) ? cfg.start_skills : {};
-  return { maestroStart: ids(start.maestro), toMaestroTasksStart: ids(start.to_maestro_tasks), maestroEnd };
+  const end = isPlainObject(cfg.end_skills) ? cfg.end_skills : {};
+  return {
+    maestroStart: ids(start.maestro),
+    toMaestroTasksStart: ids(start.to_maestro_tasks),
+    maestroEnd: ids(end.maestro),
+    managerStart: ids(start.maestro_manager),
+    managerEnd: ids(end.maestro_manager)
+  };
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

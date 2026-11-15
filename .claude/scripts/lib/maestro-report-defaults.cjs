@@ -36,7 +36,8 @@ __export(maestro_report_defaults_exports, {
   DEFAULT_REPORT_DEFAULTS_DB_PATH: () => DEFAULT_REPORT_DEFAULTS_DB_PATH,
   priorReportSeeds: () => priorReportSeeds,
   readAgentReportDefault: () => readAgentReportDefault,
-  readAllAgentReportDefaults: () => readAllAgentReportDefaults
+  readAllAgentReportDefaults: () => readAllAgentReportDefaults,
+  seededReportDefault: () => seededReportDefault
 });
 module.exports = __toCommonJS(maestro_report_defaults_exports);
 
@@ -72,8 +73,12 @@ function backendLikeV6(subagent) {
   return backendLikeReport(subagent);
 }
 var BACKEND_TEST_TARGETS_NOTE = "## Test targets (mandatory)\n\nThe report feeds the backend -> test handoff, so the `testTargets` section is required, never omitted. For each behavior you changed, name the failure mode to test (empty or closed input, missing file, stale generated copy, edge input) and the files the tests must touch. List every pre-handoff check you ran, copied verbatim with its result, and mark one `n/a` only when it does not apply to your change. You must run the project's own static check yourself before handing off; do not leave it to the test agent.";
-function backendReport() {
+function backendReportV7() {
   return 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "backend",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "description": "<summary of what was implemented>",\n  "testTargets": {\n    "behaviors": [\n      {\n        "behavior": "<behavior you changed>",\n        "failureModes": ["<empty/closed input | missing file | stale generated copy | edge input | ...>"],\n        "files": ["<files the tests must touch>"]\n      }\n    ],\n    "preHandoffChecks": [\n      { "command": "<exact command run>", "result": "pass | fail | n/a" }\n    ]\n  }\n}\n```\n\n' + BACKEND_TEST_TARGETS_NOTE + "\n\n" + skillGapsChannelNote("backend") + "\n\n" + VERDICT_HANDOFF_NOTE;
+}
+var BACKEND_TEST_HINTS_NOTE = "## Test hints\n\nTest hints never go in this report. When your injected context names a channel file for `test` (a direct route, or test hints because @test runs later in this workflow), write your hints there in the shape it gives and name that path in `testHints`; otherwise `testHints` is `none: no later @test step`. They are hints, not @test's scope: do not try to list everything @test should cover, and do list in `notHandled` every case you deliberately left open.\n\nList every pre-handoff check you ran in `preHandoffChecks`, copied verbatim with its result, and mark one `n/a` only when it does not apply to your change. Run the project's own static check yourself before handing off, through the project's own recipe or script rather than the raw tool under it; do not leave it to the test agent.";
+function backendReport() {
+  return 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "backend",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "description": "<summary of what was implemented>",\n  "preHandoffChecks": [{ "command": "<exact command run>", "result": "pass | fail | n/a" }],\n  "testHints": "<channel file you wrote your test hints to, or \'none: no later @test step\'>"\n}\n```\n\n' + BACKEND_TEST_HINTS_NOTE + "\n\n" + skillGapsChannelNote("backend") + "\n\n" + VERDICT_HANDOFF_NOTE;
 }
 function backendLikeBody(subagent, gapsNote) {
   return `Always return a JSON report at the end of your work. Output it as a fenced \`json\` code block:
@@ -107,7 +112,16 @@ var TEST_REPORT_V3 = testReportBody(conceptGapsChannelNote("test"));
 var TEST_REPORT_V4 = TEST_REPORT_V3 + "\n\n" + VERDICT_HANDOFF_NOTE;
 var TEST_REPORT_V5 = testReportBody(skillGapsChannelNoteUnscoped("test")) + "\n\n" + VERDICT_HANDOFF_NOTE;
 var TEST_REPORT_V6 = testReportBody(skillGapsChannelNote("test")) + "\n\n" + VERDICT_HANDOFF_NOTE;
-var TEST_REPORT = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>",\n  "gates": [{ "command": "<exact command run>", "result": "<exit code, N passed / N failed>" }],\n  "gatesSkipped": [{ "command": "<command not run>", "reason": "<why>" }],\n  "notCaught": ["<one line per new test: what this test would NOT catch>"]\n}\n```\n\n`gates` lists the exact verify commands you ran, copied verbatim with their result: the project test suite, lint, static check or typecheck, and any parity or generated-artifact check the change touches. Any of those you did not run goes in `gatesSkipped` with a reason. A verdict of SUCCESS is invalid if any of them was skipped without a stated reason.\n\nThe implementing agent\'s "Test targets" are the minimum, not the scope: cover every one, then add your own adversarial cases that it did not name, and list in `notCaught` what neither side covered.\n\nFor each new test you write, add one line to `notCaught` saying what that test would NOT catch, for example closed or empty input, a copy of a file that no test compares, or a missing feature rather than a wrong one.\n\n' + skillGapsChannelNote("test") + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT_V7 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>",\n  "gates": [{ "command": "<exact command run>", "result": "<exit code, N passed / N failed>" }],\n  "gatesSkipped": [{ "command": "<command not run>", "reason": "<why>" }],\n  "notCaught": ["<one line per new test: what this test would NOT catch>"]\n}\n```\n\n`gates` lists the exact verify commands you ran, copied verbatim with their result: the project test suite, lint, static check or typecheck, and any parity or generated-artifact check the change touches. Any of those you did not run goes in `gatesSkipped` with a reason. A verdict of SUCCESS is invalid if any of them was skipped without a stated reason.\n\nThe implementing agent\'s "Test targets" are the minimum, not the scope: cover every one, then add your own adversarial cases that it did not name, and list in `notCaught` what neither side covered.\n\nFor each new test you write, add one line to `notCaught` saying what that test would NOT catch, for example closed or empty input, a copy of a file that no test compares, or a missing feature rather than a wrong one.\n\n' + skillGapsChannelNote("test") + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT_V8 = 'Always return a JSON report at the end of your work. Output it as a fenced `json` code block:\n\n```json\n{\n  "subagent": "test",\n  "verdict": "SUCCESS | FAIL",\n  "skillsTriage": { "loaded": ["<skill-id>"], "skipped": [{ "id": "<skill-id>", "reason": "<why skipped>" }] },\n  "testResult": "<N passed, N failed>",\n  "description": "<summary of what was tested>",\n  "gates": [{ "command": "<exact command run>", "result": "<exit code, N passed / N failed>" }],\n  "gatesSkipped": [{ "command": "<command not run>", "reason": "<why>" }],\n  "acceptanceCoverage": [{ "criterion": "<ticket acceptance criterion>", "tests": ["<test name>"], "reason": "<required when tests is empty>" }],\n  "testOrigin": {\n    "fromHints": ["<test name>"],\n    "independent": [{ "test": "<test name>", "source": "<acceptance criterion | file:line code path | failure mode not in hints>" }]\n  },\n  "hintsSkipped": [{ "hint": "<implementer hint>", "reason": "<one line>" }],\n  "notCaught": ["<one line per new test: what this test would NOT catch>"]\n}\n```\n\n`gates` lists the exact verify commands you ran, copied verbatim with their result: the project test suite, lint, static check or typecheck, and any parity or generated-artifact check the change touches. Any of those you did not run goes in `gatesSkipped` with a reason. A verdict of SUCCESS is invalid if any of them was skipped without a stated reason.\n\nBuild your test plan from the ticket\'s acceptance criteria and the code (the diff and the modules it touches) before you read any implementer hints in your channel. The hints are neither the minimum nor the scope, and they never narrow your plan. Then compare: add a hint that names a real behavior, failure mode or `notHandled` case your plan missed; drop one you judge wrong or redundant and list it in `hintsSkipped` with the reason. Run tests through the project\'s own recipe or script (the hints\' `howToRun` names it), never the raw tool under it.\n\nA hint never makes you add a test framework, runner, config, folder structure or kind of test the project does not have yet. Work within the test setup that exists; a hint that only an absent setup could cover goes in `hintsSkipped` with that reason, so the user can decide whether to add one.\n\n`acceptanceCoverage` maps every acceptance criterion to its tests, or gives the reason it has none. `testOrigin` splits your tests between those a hint suggested and those you found yourself, each with its source. Write the same three facts into the reviewer\'s handoff (`acceptance_coverage`, `test_origin`, `hints_skipped`).\n\nFor each new test you write, add one line to `notCaught` saying what that test would NOT catch, for example closed or empty input, a copy of a file that no test compares, or a missing feature rather than a wrong one.\n\n' + skillGapsChannelNote("test") + "\n\n" + VERDICT_HANDOFF_NOTE;
+var TEST_REPORT = TEST_REPORT_V8.replace(
+  '  "notCaught": [',
+  `  "knownGaps": [{ "issue": "<what is not right yet>", "owner": "<later step, e.g. @scribe, or 'after commit'>", "reason": "<why it is not a failure of this step>" }],
+  "notCaught": [`
+).replace(
+  "\n\nFor each new test you write",
+  "\n\nFAIL only for a defect in the code or tests this task changed. Two things are never a FAIL, and go in `knownGaps` instead: work a LATER step on the workflow's success path owns (outdated README, CLAUDE.md or docs when @scribe runs after you; a review finding when @reviewer does), and a check that can only pass once the work is committed (for example a generated-file check that diffs against HEAD: compare the regenerated files to the working tree instead, and record the result). Write the same list into the reviewer's handoff as `known_gaps`.\n\nFor each new test you write"
+);
 var SEED_REPORTS = {
   backend: backendReport(),
   frontend: backendLikeReport("frontend"),
@@ -152,7 +166,8 @@ var PRIOR_SEEDS = (() => {
       backendLikeV3("backend"),
       backendLikeV4("backend"),
       backendLikeV5("backend"),
-      backendLikeV6("backend")
+      backendLikeV6("backend"),
+      backendReportV7()
     ],
     frontend: [
       backendLikeV1("frontend"),
@@ -170,7 +185,16 @@ var PRIOR_SEEDS = (() => {
     ],
     infra: [backendLikeV3("infra"), backendLikeV4("infra"), backendLikeV5("infra")],
     scribe: [SCRIBE_REPORT_V2, SCRIBE_REPORT_V1, SCRIBE_REPORT_V3, SCRIBE_REPORT_V4],
-    test: [testV1, testV2, TEST_REPORT_V3, TEST_REPORT_V4, TEST_REPORT_V5, TEST_REPORT_V6]
+    test: [
+      testV1,
+      testV2,
+      TEST_REPORT_V3,
+      TEST_REPORT_V4,
+      TEST_REPORT_V5,
+      TEST_REPORT_V6,
+      TEST_REPORT_V7,
+      TEST_REPORT_V8
+    ]
   };
 })();
 function openDb(dbPath) {
@@ -232,6 +256,9 @@ function seedIfEmpty(db) {
 function priorReportSeeds(agentName) {
   return PRIOR_SEEDS[agentName] ?? [];
 }
+function seededReportDefault(agentName) {
+  return Object.hasOwn(SEED_REPORTS, agentName) ? SEED_REPORTS[agentName] : null;
+}
 function readAgentReportDefault(agentName, dbPath = DEFAULT_REPORT_DEFAULTS_DB_PATH) {
   const db = openDb(dbPath);
   try {
@@ -264,5 +291,6 @@ function readAllAgentReportDefaults(dbPath = DEFAULT_REPORT_DEFAULTS_DB_PATH) {
   DEFAULT_REPORT_DEFAULTS_DB_PATH,
   priorReportSeeds,
   readAgentReportDefault,
-  readAllAgentReportDefaults
+  readAllAgentReportDefaults,
+  seededReportDefault
 });

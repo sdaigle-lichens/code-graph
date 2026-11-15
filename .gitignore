@@ -23,3 +23,4 @@ plugin/evals/**/scribe-output/graph.db*
 **/.claude/maestro_sessions/
 **/.claude/maestro-tasks/claims/
 **/.claude/maestro-metrics/
+**/.claude/maestro-tasks/views/

@@ -33,6 +33,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/core/plugin-entries/maestro-session.ts
 var maestro_session_exports = {};
 __export(maestro_session_exports, {
+  BLOCKED_LABEL: () => BLOCKED_LABEL,
   CHANNEL_AGE_CAP_MS: () => CHANNEL_AGE_CAP_MS,
   CHANNEL_ONLY_AGENTS: () => CHANNEL_ONLY_AGENTS,
   CLAIM_IDLE_CAP_MS: () => CLAIM_IDLE_CAP_MS,
@@ -44,7 +45,9 @@ __export(maestro_session_exports, {
   HEARTBEAT_INTERVAL_MS: () => HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_STALE_MS: () => HEARTBEAT_STALE_MS,
   HUMAN_REVIEW_LABEL: () => HUMAN_REVIEW_LABEL,
+  INTERIM_SETTLED_KIND: () => INTERIM_SETTLED_KIND,
   LEGACY_SESSION_FILES: () => LEGACY_SESSION_FILES,
+  MAESTRO_STATE_DIRS: () => MAESTRO_STATE_DIRS,
   MAIN_CHECKOUT_SHARED_DIRS: () => MAIN_CHECKOUT_SHARED_DIRS,
   MANAGER_REVIEW_LABEL: () => MANAGER_REVIEW_LABEL,
   MEETING_DIR_NAME: () => MEETING_DIR_NAME,
@@ -67,6 +70,7 @@ __export(maestro_session_exports, {
   SESSION_TASKS_NAME: () => SESSION_TASKS_NAME,
   SESSION_WORKTREE_NAME: () => SESSION_WORKTREE_NAME,
   acknowledgeGaps: () => acknowledgeGaps,
+  agentRunStartedAt: () => agentRunStartedAt,
   agentRunsFromLog: () => agentRunsFromLog,
   appendHandoffIssue: () => appendHandoffIssue,
   appendSessionLog: () => appendSessionLog,
@@ -75,6 +79,7 @@ __export(maestro_session_exports, {
   buildRunRecord: () => buildRunRecord,
   channelDir: () => channelDir,
   channelFileMtime: () => channelFileMtime,
+  channelPathFor: () => channelPathFor,
   channelRelPath: () => channelRelPath,
   channelScopeFromState: () => channelScopeFromState,
   channelScopeOf: () => channelScopeOf,
@@ -83,17 +88,23 @@ __export(maestro_session_exports, {
   checkHumanReview: () => checkHumanReview,
   checkPayload: () => checkPayload,
   checkRoute: () => checkRoute,
+  checkTargetCheckout: () => checkTargetCheckout,
   checkWorktreeWrite: () => checkWorktreeWrite,
+  clearInterimStop: () => clearInterimStop,
   closeMeeting: () => closeMeeting,
   closeOwnerRuns: () => closeOwnerRuns,
   collectAgentSkills: () => collectAgentSkills,
   compactMetrics: () => compact,
   compareRuntimeVersions: () => compareRuntimeVersions,
+  compareWithBranch: () => compareWithBranch,
   consumedDir: () => consumedDir,
+  currentBranch: () => currentBranch,
   currentReviewRound: () => currentReviewRound,
   currentReviewStop: () => currentReviewStop,
+  defaultBranch: () => defaultBranch,
   dependencyStatus: () => dependencyStatus,
   detectPackageManager: () => detectPackageManager,
+  dirtyTrackedPaths: () => dirtyTrackedPaths,
   dropResolvedMissingPayloads: () => dropResolvedMissingPayloads,
   duplicateAgentTypes: () => duplicateAgentTypes,
   endMeeting: () => endMeeting,
@@ -105,9 +116,14 @@ __export(maestro_session_exports, {
   entranceRoleFor: () => entranceRoleFor,
   expectedLoopbackPayloads: () => expectedLoopbackPayloads,
   foldRun: () => foldRun,
+  formatExcludedProvision: () => formatExcludedProvision,
+  formatIgnoredNotice: () => formatIgnoredNotice,
+  formatOverwriteRefusal: () => formatOverwriteRefusal,
   formatStampedContent: () => formatStampedContent,
+  formatVerifyResult: () => formatVerifyResult,
   freeformBranchFor: () => freeformBranchFor,
   freeformWorktreePathFor: () => freeformWorktreePathFor,
+  gitTopLevel: () => gitTopLevel,
   handbackHandoff: () => handbackHandoff,
   handoffId: () => handoffId,
   handoffPairs: () => handoffPairs,
@@ -118,12 +134,16 @@ __export(maestro_session_exports, {
   heartbeatTargets: () => heartbeatTargets,
   heartbeatTick: () => heartbeatTick,
   heartbeatVerdict: () => heartbeatVerdict,
+  ignoredOnlyInWorktree: () => ignoredOnlyInWorktree,
   installCommand: () => installCommand,
+  interimSettleEntry: () => interimSettleEntry,
   isChannelOnlyAgent: () => isChannelOnlyAgent,
   isChannelScope: () => isChannelScope,
   isFreeformBranch: () => isFreeformBranch,
   isGapReport: () => isGapReport,
+  isInterimStop: () => isInterimStop,
   isLinkedWorktree: () => isLinkedWorktree,
+  isMaestroStatePath: () => isMaestroStatePath,
   isProcessAlive: () => isProcessAlive,
   isResumableEnd: () => isResumableEnd,
   isReviewFile: () => isReviewFile,
@@ -131,28 +151,40 @@ __export(maestro_session_exports, {
   isSeededHandoff: () => isSeededHandoff,
   isValidHandoffId: () => isValidHandoffId,
   isValidSessionId: () => isValidSessionId,
+  landedHandback: () => landedHandback,
   laneFor: () => laneFor,
+  lastFinishedRunAt: () => lastFinishedRunAt,
   lastHandoffLabel: () => lastHandoffLabel,
+  lastResumableEndAt: () => lastResumableEndAt,
+  laterSuccessSteps: () => laterSuccessSteps,
   latestWorkflowHandoff: () => latestWorkflowHandoff,
   listSessionIds: () => listSessionIds,
+  locallyModifiedPaths: () => locallyModifiedPaths,
   mainCheckoutRoot: () => mainCheckoutRoot,
   meetingDirFor: () => meetingDirFor,
   meetingFor: () => meetingFor,
   meetingLeftovers: () => meetingLeftovers,
   meetingNotice: () => meetingNotice,
+  mergeTaskTrackers: () => mergeTaskTrackers,
   metricsDirFor: () => metricsDirFor,
   metricsFileFor: () => metricsFileFor,
   missingDependenciesNotice: () => missingDependenciesNotice,
   missingLoopbackPayload: () => missingLoopbackPayload,
   nodeLabel: () => nodeLabel,
+  noteDispatch: () => noteDispatch,
   noteEntrance: () => noteEntrance,
+  originHeadUnsetMessage: () => originHeadUnsetMessage,
+  overwrittenByMerge: () => overwrittenByMerge,
   ownerRunFor: () => ownerRunFor,
   ownerRunLeftovers: () => ownerRunLeftovers,
   ownerRunNotice: () => ownerRunNotice,
   parentProbe: () => parentProbe,
   parseGapsHandled: () => parseGapsHandled,
+  parseOverwriteError: () => parseOverwriteError,
   parsePsLine: () => parsePsLine,
   parseStampedContent: () => parseStampedContent,
+  parseTracker: () => parseTracker,
+  pathsChangedBetween: () => pathsChangedBetween,
   payloadRequirement: () => payloadRequirement,
   payloadRoutes: () => payloadRoutes,
   payloadWrittenSince: () => payloadWrittenSince,
@@ -161,6 +193,8 @@ __export(maestro_session_exports, {
   processInfo: () => processInfo,
   projectOwnsHook: () => projectOwnsHook,
   promptEntranceRole: () => promptEntranceRole,
+  provisionExcludedDirs: () => provisionExcludedDirs,
+  readConsumed: () => readConsumed,
   readGlobalHandoff: () => readGlobalHandoff,
   readJson: () => readJson,
   readLane: () => readLane,
@@ -174,6 +208,7 @@ __export(maestro_session_exports, {
   readWorktreePointer: () => readWorktreePointer,
   recentRunsLimit: () => recentRunsLimit,
   recordActiveTask: () => recordActiveTask,
+  recordInterimStop: () => recordInterimStop,
   recordResumeDeliveries: () => recordResumeDeliveries,
   recordRun: () => recordRun,
   recordSessionRun: () => recordSessionRun,
@@ -186,7 +221,9 @@ __export(maestro_session_exports, {
   resolveSearchList: () => resolveSearchList,
   resolveSessionId: () => resolveSessionId,
   resolveSessionPaths: () => resolveSessionPaths,
+  resolveVerifyCommand: () => resolveVerifyCommand,
   resolveWorkflowName: () => resolveWorkflowName,
+  restoreInterruptedDeliveries: () => restoreInterruptedDeliveries,
   resumeTarget: () => resumeTarget,
   retire: () => retire,
   retireResumeDeliveries: () => retireResumeDeliveries,
@@ -202,6 +239,7 @@ __export(maestro_session_exports, {
   sessionNameFor: () => sessionNameFor,
   sessionPathsFor: () => sessionPathsFor,
   sessionsRoot: () => sessionsRoot,
+  settleInterimStops: () => settleInterimStops,
   splitHandoffId: () => splitHandoffId,
   startMeeting: () => startMeeting,
   startOwnerRuns: () => startOwnerRuns,
@@ -209,9 +247,17 @@ __export(maestro_session_exports, {
   storedSessionName: () => storedSessionName,
   successPathSteps: () => successPathSteps,
   sweep: () => sweep,
+  switchCommandFor: () => switchCommandFor,
   taskNumber: () => taskNumber,
+  testHintRequirement: () => testHintRequirement,
+  testHintRoutes: () => testHintRoutes,
   titleFor: () => titleFor,
+  trackerMarksDone: () => trackerMarksDone,
+  trackerRelPath: () => trackerRelPath,
+  unretire: () => unretire,
   unstampedFilesOf: () => unstampedFilesOf,
+  untrackedPaths: () => untrackedPaths,
+  unwritablePaths: () => unwritablePaths,
   validateConfig: () => validateConfig,
   walkProjectSkillIds: () => walkProjectSkillIds,
   watchedPid: () => watchedPid,
@@ -559,10 +605,27 @@ var RESUMABLE_END_REASONS = ["prompt_input_exit", "other", "resume"];
 function isResumableEnd(reason) {
   return typeof reason === "string" && RESUMABLE_END_REASONS.includes(reason);
 }
-function endSessionState(claudeDir, sessionId, reason) {
-  if (isResumableEnd(reason)) return [];
+function endSessionState(claudeDir, sessionId, reason, now = /* @__PURE__ */ new Date()) {
+  if (isResumableEnd(reason)) {
+    const paths = sessionPathsFor(claudeDir, sessionId);
+    try {
+      if (paths && import_node_fs3.default.existsSync(paths.dir)) {
+        const entry = {
+          ts: now.toISOString(),
+          origin: "main_session",
+          kind: SESSION_END_LOG_KIND,
+          reason,
+          log: `session end (${String(reason)}, resumable)`
+        };
+        import_node_fs3.default.appendFileSync(paths.log, JSON.stringify(entry) + "\n");
+      }
+    } catch {
+    }
+    return [];
+  }
   return removeSessionState(claudeDir, sessionId);
 }
+var SESSION_END_LOG_KIND = "session_end";
 
 // src/core/session-runtime.ts
 function readStdin() {
@@ -676,6 +739,11 @@ function consumedDir(projectDir, scope, receiver) {
 }
 function channelRelPath(scope, receiver, fileName) {
   return `.claude/${CHANNELS_DIR_NAME}/${scope}/${receiver}/${fileName}`;
+}
+function channelPathFor(rel, worktree) {
+  const root = worktree && typeof worktree.main_root === "string" ? worktree.main_root : "";
+  if (!root) return rel;
+  return `${root.replace(/[\\/]+$/, "")}/${rel}`;
 }
 function laneFor(projectDir, scope, sender, receiver) {
   return import_node_path3.default.join(channelDir(projectDir, scope, receiver), `${sender}.1.md`);
@@ -837,6 +905,17 @@ function readLane(projectDir, scope, receiver, now = Date.now()) {
   if (!isChannelScope(scope)) return [];
   return readDirEntries(channelDir(projectDir, scope, receiver), now);
 }
+function readConsumed(projectDir, scope, receiver, now = Date.now()) {
+  if (!isChannelScope(scope)) return [];
+  return readDirEntries(consumedDir(projectDir, scope, receiver), now);
+}
+function unretire(projectDir, scope, receiver, entry) {
+  const dest = import_node_path3.default.join(channelDir(projectDir, scope, receiver), entry.fileName);
+  if (import_node_fs5.default.existsSync(dest)) return false;
+  import_node_fs5.default.mkdirSync(import_node_path3.default.dirname(dest), { recursive: true });
+  import_node_fs5.default.renameSync(entry.path, dest);
+  return true;
+}
 function retire(projectDir, scope, receiver, entry) {
   const dest = consumedDir(projectDir, scope, receiver);
   import_node_fs5.default.mkdirSync(dest, { recursive: true });
@@ -883,7 +962,7 @@ function sweep(projectDir, opts = {}) {
   const ageCapMs = opts.ageCapMs ?? CHANNEL_AGE_CAP_MS;
   const removed = [];
   const root = channelsRoot(projectDir);
-  const own = isChannelScope(opts.scope) ? opts.scope : null;
+  const own = isChannelScope(opts.scope) && !isResumableEnd(opts.reason) ? opts.scope : null;
   for (const name of listDirs(root)) {
     const dir = import_node_path3.default.join(root, name);
     if (isChannelScope(name)) {
@@ -1133,6 +1212,80 @@ function handoffRoutes(workflows, instances) {
   }
   return out;
 }
+var TEST_HINT_SENDERS = ["backend", "frontend", "mobile"];
+var TEST_HINT_RECEIVER = "test";
+function testHintRoutes(workflows, instances) {
+  const instList = instances ?? [];
+  const agentOf = (node) => {
+    if (!node || node.type !== "agent") return null;
+    const inst = instList.find((i) => i.name === node.instance);
+    return inst ? bareAgentName(inst.agent) : null;
+  };
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const direct = new Set(
+    handoffRoutes(workflows, instances).filter((r) => r.label === "success" && r.receiver === TEST_HINT_RECEIVER).map((r) => r.sender)
+  );
+  for (const wf of workflows ?? []) {
+    const nodes = wf.nodes ?? [];
+    const edges = wf.edges ?? [];
+    const nodeById = (id) => nodes.find((n) => n.id === id);
+    const testLater = (fromId, visited) => {
+      for (const edge of edges) {
+        if (edge.from !== fromId || edge.kind !== "success" || visited.has(edge.to)) continue;
+        visited.add(edge.to);
+        if (agentOf(nodeById(edge.to)) === TEST_HINT_RECEIVER) return true;
+        if (testLater(edge.to, visited)) return true;
+      }
+      return false;
+    };
+    for (const node of nodes) {
+      const sender = agentOf(node);
+      if (!sender || !TEST_HINT_SENDERS.includes(sender) || direct.has(sender) || seen.has(sender)) continue;
+      if (!testLater(node.id, /* @__PURE__ */ new Set([node.id]))) continue;
+      seen.add(sender);
+      out.push({ sender, receiver: TEST_HINT_RECEIVER, label: "success" });
+    }
+  }
+  return out;
+}
+function laterSuccessSteps(workflows, instances, agent) {
+  const bare = bareAgentName(agent);
+  const instList = instances ?? [];
+  const label = (node) => {
+    if (node.type === "agent") {
+      const inst = instList.find((i) => i.name === node.instance);
+      return `@${inst ? bareAgentName(inst.agent) : node.instance}`;
+    }
+    if (node.type === "skill") return `skill:${node.skill ?? node.id}`;
+    return node.type;
+  };
+  const out = [];
+  for (const wf of workflows ?? []) {
+    const nodes = wf.nodes ?? [];
+    const edges = wf.edges ?? [];
+    const start = nodes.find((n) => n.type === "agent" && label(n) === `@${bare}`);
+    if (!start) continue;
+    const visited = /* @__PURE__ */ new Set([start.id]);
+    let frontier = [start.id];
+    while (frontier.length) {
+      const next = [];
+      for (const id of frontier) {
+        for (const e of edges) {
+          if (e.from !== id || e.kind !== "success" || visited.has(e.to)) continue;
+          visited.add(e.to);
+          const node = nodes.find((n) => n.id === e.to);
+          if (!node) continue;
+          const name = label(node);
+          if (name !== `@${bare}` && !out.includes(name)) out.push(name);
+          next.push(e.to);
+        }
+      }
+      frontier = next;
+    }
+  }
+  return out;
+}
 function routesFrom(routes, agent) {
   const bare = bareAgentName(agent);
   return routes.filter((r) => r.sender === bare);
@@ -1180,13 +1333,44 @@ var BACKEND_TO_FRONTEND = '```json\n{\n  "files_added_removed_renamed": ["<list,
 var BACKEND_TO_MOBILE = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "api_contracts": ["<endpoint \u2014 request/response shape the app consumes>"],\n  "integration_notes": ["<how the mobile app should wire it up, or \'none\'>"],\n  "edge_cases": ["<edge case the app must handle, or \'none\'>"]\n}\n```';
 var BACKEND_TO_REVIEWER = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "what_changed": ["<file:area \u2014 summary of the change>"],\n  "design_decisions": ["<decision and rationale, or \'none\'>"],\n  "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n}\n```';
 var INFRA_TO_REVIEWER = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "what_changed": ["<file:area \u2014 summary of the change>"],\n  "verification_output": ["<format/validate/lint/plan-diff command \u2014 result summary>"],\n  "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n}\n```';
-var BACKEND_TO_TEST = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "behaviors_to_test": ["<endpoint/function \u2014 expected behavior>"],\n  "how_to_run": ["<command to exercise the new code, or \'none\'>"],\n  "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n}\n```';
+var TEST_HINTS_ONLY = "Implementer hints, not the test scope. Derive your test plan from the ticket's acceptance criteria and the code first, then check these hints against it. They never narrow what you test: this list is biased toward what the implementer already handled, and the gaps are what it did not think of.";
+function testHints(behavior, failureModes) {
+  return `\`\`\`json
+{
+  "hintsOnly": "${TEST_HINTS_ONLY}",
+  "filesChanged": ["<added|removed|renamed|modified> <path>, or 'none'"],
+  "behaviors": [
+    {
+      "behavior": "<${behavior} \u2014 expected behavior>",
+      "failureModes": ["<${failureModes} | ...>"],
+      "files": ["<source files the behavior lives in>"]
+    }
+  ],
+  "notHandled": ["<case the implementation deliberately does not handle or left as an open decision, or 'none'>"],
+  "howToRun": ["<the project's own recipe or script that runs the relevant tests with their environment, never the raw tool under it; or 'none: no tests for this part yet' \u2014 never a test framework, runner or structure to create>"],
+  "preHandoffChecks": [{ "command": "<exact command run>", "result": "pass | fail | n/a" }]
+}
+\`\`\``;
+}
+var BACKEND_TO_TEST_V2 = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "behaviors_to_test": ["<endpoint/function \u2014 expected behavior>"],\n  "how_to_run": ["<command to exercise the new code, or \'none\'>"],\n  "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n}\n```';
+var BACKEND_TO_TEST = testHints(
+  "function/endpoint/store method",
+  "empty/closed input | missing row | conflict | stale generated copy | edge input"
+);
 var FRONTEND_TO_MOBILE = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "component_or_screen": "<the web feature being ported>",\n  "business_logic_to_reuse": ["<shared logic/hook/util the mobile version should reuse, or \'none\'>"],\n  "platform_differences_to_handle": ["<web-only API, layout, or interaction that needs a native equivalent, or \'none\'>"]\n}\n```';
 var FRONTEND_TO_REVIEWER = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "what_changed": ["<file:area \u2014 summary of the change>"],\n  "design_decisions": ["<decision and rationale, or \'none\'>"],\n  "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n}\n```';
-var FRONTEND_TO_TEST = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "behaviors_to_test": ["<component/page \u2014 expected behavior>"],\n  "how_to_run": ["<command to exercise the new UI, or \'none\'>"],\n  "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n}\n```';
+var FRONTEND_TO_TEST_V2 = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "behaviors_to_test": ["<component/page \u2014 expected behavior>"],\n  "how_to_run": ["<command to exercise the new UI, or \'none\'>"],\n  "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n}\n```';
+var FRONTEND_TO_TEST = testHints(
+  "component/page",
+  "empty/loading/error state | invalid input | missing data | edge input"
+);
 var MOBILE_TO_FRONTEND = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "component_or_screen": "<the mobile feature being ported>",\n  "business_logic_to_reuse": ["<shared logic/hook/util the web version should reuse, or \'none\'>"],\n  "platform_differences_to_handle": ["<native-only API, gesture, or interaction that needs a web equivalent, or \'none\'>"]\n}\n```';
 var MOBILE_TO_REVIEWER = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "what_changed": ["<file:area \u2014 summary of the change>"],\n  "design_decisions": ["<decision and rationale, or \'none\'>"],\n  "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n}\n```';
-var MOBILE_TO_TEST = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "behaviors_to_test": ["<screen/component \u2014 expected behavior>"],\n  "how_to_run": ["<command to exercise the new UI, or \'none\'>"],\n  "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n}\n```';
+var MOBILE_TO_TEST_V2 = '```json\n{\n  "files_added_removed_renamed": ["<list, or \'none\'>"],\n  "behaviors_to_test": ["<screen/component \u2014 expected behavior>"],\n  "how_to_run": ["<command to exercise the new UI, or \'none\'>"],\n  "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n}\n```';
+var MOBILE_TO_TEST = testHints(
+  "screen/component",
+  "empty/loading/error state | offline | invalid input | edge input"
+);
 var REFACTOR_TO_BACKEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REFACTOR_TO_FRONTEND = '```json\n{\n  "issues": ["<file:line \u2014 description of the problem>"]\n}\n```';
 var REFACTOR_TO_REVIEWER = '```json\n{\n  "summary": "<brief summary of what was delegated, for re-review>"\n}\n```';
@@ -1219,7 +1403,7 @@ var REVIEWER_TO_SCRIBE = `\`\`\`json
 var REVIEWER_TO_TEST = '```json\n{\n  "failing_tests": ["<test name \u2014 failure reason>"],\n  "missing_coverage": ["<endpoint or behavior that lacks a test>"]\n}\n```';
 var TEST_TO_BACKEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<endpoint/function the backend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
 var TEST_TO_FRONTEND = '```json\n{\n  "failing_tests": ["<test name \u2014 behavior it expects>"],\n  "test_files_added": ["<list, or \'none\'>"],\n  "implementation_targets": ["<component/page the frontend must implement>"],\n  "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n}\n```';
-var TEST_TO_REVIEWER = `\`\`\`json
+var TEST_TO_REVIEWER_V2 = `\`\`\`json
 {
   "tests_added": ["<test name \u2014 what it verifies>"],
   "results": ["<pass/fail summary>"],
@@ -1227,6 +1411,60 @@ var TEST_TO_REVIEWER = `\`\`\`json
   "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
   "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
   "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "files_touched": ["<list, or 'none'>"]
+}
+\`\`\``;
+var TEST_TO_REVIEWER_V3 = `\`\`\`json
+{
+  "tests_added": ["<test name \u2014 what it verifies>"],
+  "test_origin": {
+    "from_hints": ["<test name>"],
+    "independent": ["<test name> - <source: acceptance criterion | file:line code path | failure mode not in hints>"]
+  },
+  "acceptance_coverage": ["<acceptance criterion> => <test names, or 'untested: <reason>'>"],
+  "hints_skipped": ["<implementer hint> - <reason>, or 'none'"],
+  "results": ["<pass/fail summary>"],
+  "commands_run": ["<exact command> => <exit code, N passed / N failed>"],
+  "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
+  "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
+  "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "files_touched": ["<list, or 'none'>"]
+}
+\`\`\``;
+var TEST_TO_REVIEWER_V4 = `\`\`\`json
+{
+  "tests_added": ["<test name \u2014 what it verifies>"],
+  "test_origin": {
+    "from_hints": ["<test name>"],
+    "independent": ["<test name> - <source: acceptance criterion | file:line code path | failure mode not in hints>"]
+  },
+  "acceptance_coverage": ["<acceptance criterion> => <test names, or 'untested: <reason>'>"],
+  "hints_skipped": ["<implementer hint> - <reason>, or 'none'"],
+  "results": ["<pass/fail summary>"],
+  "commands_run": ["<exact command> => <exit code, N passed / N failed>"],
+  "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
+  "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
+  "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "known_gaps": ["<issue> - <owner: a later step such as @scribe, or 'after commit'> - <why it is not a failure now>, or 'none'"],
+  "files_touched": ["<list, or 'none'>"]
+}
+\`\`\``;
+var TEST_TO_REVIEWER = `\`\`\`json
+{
+  "tests_added": ["<test name \u2014 what it verifies>"],
+  "test_origin": {
+    "from_hints": ["<test name>"],
+    "independent": ["<test name> - <source: acceptance criterion | file:line code path | failure mode not in hints>"]
+  },
+  "acceptance_coverage": ["<acceptance criterion> => <test names, or 'untested: <reason>'>"],
+  "hints_skipped": ["<implementer hint> - <reason>, or 'none'"],
+  "results": ["<pass/fail summary>"],
+  "commands_run": ["<exact command> => <exit code, N passed / N failed>; include the project's own format, lint and type checks and the tests you report, every one run AFTER your last edit \u2014 re-run them if you edited anything since, never report an earlier run>"],
+  "verified_tree": "<the tree those commands ran against: the commit, or the working tree state (e.g. uncommitted changes on top of a commit) \u2014 and confirm no file was edited after the runs>",
+  "negative_control": ["<new test> - <how it was shown to fail without the fix or against the broken behaviour, or 'not demonstrated'>"],
+  "real_path_exercised": ["<what ran for real: process, window, filesystem, CLI; or 'unit only'>"],
+  "coverage_gaps": ["<behavior still untested, or 'none'>"],
+  "known_gaps": ["<issue> - <owner: a later step such as @scribe, or 'after commit'> - <why it is not a failure now>, or 'none'"],
   "files_touched": ["<list, or 'none'>"]
 }
 \`\`\``;
@@ -1267,6 +1505,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "files_added_removed_renamed": ["<list, or \'none\'>"],\n    "what_changed": ["<file:area \u2014 summary of the change>"],\n    "design_decisions": ["<decision and rationale, or \'none\'>"],\n    "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n  }\n}\n```'
   ],
   "backend/test": [
+    BACKEND_TO_TEST_V2,
     '```json\n{\n  "handoff_details": {\n    "files_added_removed_renamed": ["<list, or \'none\'>"],\n    "behaviors_to_test": ["<endpoint/function \u2014 expected behavior>"],\n    "how_to_run": ["<command to exercise the new code, or \'none\'>"],\n    "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n  }\n}\n```'
   ],
   "frontend/mobile": [
@@ -1276,6 +1515,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "files_added_removed_renamed": ["<list, or \'none\'>"],\n    "what_changed": ["<file:area \u2014 summary of the change>"],\n    "design_decisions": ["<decision and rationale, or \'none\'>"],\n    "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n  }\n}\n```'
   ],
   "frontend/test": [
+    FRONTEND_TO_TEST_V2,
     '```json\n{\n  "handoff_details": {\n    "files_added_removed_renamed": ["<list, or \'none\'>"],\n    "behaviors_to_test": ["<component/page \u2014 expected behavior>"],\n    "how_to_run": ["<command to exercise the new UI, or \'none\'>"],\n    "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n  }\n}\n```'
   ],
   "mobile/frontend": [
@@ -1285,6 +1525,7 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "files_added_removed_renamed": ["<list, or \'none\'>"],\n    "what_changed": ["<file:area \u2014 summary of the change>"],\n    "design_decisions": ["<decision and rationale, or \'none\'>"],\n    "areas_of_concern": ["<spot the reviewer should scrutinize, or \'none\'>"]\n  }\n}\n```'
   ],
   "mobile/test": [
+    MOBILE_TO_TEST_V2,
     '```json\n{\n  "handoff_details": {\n    "files_added_removed_renamed": ["<list, or \'none\'>"],\n    "behaviors_to_test": ["<screen/component \u2014 expected behavior>"],\n    "how_to_run": ["<command to exercise the new UI, or \'none\'>"],\n    "edge_cases": ["<edge case the implementation handles, or \'none\'>"]\n  }\n}\n```'
   ],
   "refactor/backend": [
@@ -1337,6 +1578,9 @@ var PRIOR_SEEDS = {
     '```json\n{\n  "handoff_details": {\n    "failing_tests": ["<test name \u2014 behavior it expects>"],\n    "test_files_added": ["<list, or \'none\'>"],\n    "implementation_targets": ["<component/page the frontend must implement>"],\n    "how_to_run": ["<command to run the failing tests, or \'none\'>"]\n  }\n}\n```'
   ],
   "test/reviewer": [
+    TEST_TO_REVIEWER_V4,
+    TEST_TO_REVIEWER_V3,
+    TEST_TO_REVIEWER_V2,
     // `148`: the flat body before commands_run, negative_control and real_path_exercised.
     '```json\n{\n  "tests_added": ["<test name \u2014 what it verifies>"],\n  "results": ["<pass/fail summary>"],\n  "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n  "files_touched": ["<list, or \'none\'>"]\n}\n```',
     '```json\n{\n  "handoff_details": {\n    "tests_added": ["<test name \u2014 what it verifies>"],\n    "results": ["<pass/fail summary>"],\n    "coverage_gaps": ["<behavior still untested, or \'none\'>"],\n    "files_touched": ["<list, or \'none\'>"]\n  }\n}\n```'
@@ -1683,7 +1927,7 @@ function deny(target, scope) {
   };
 }
 function checkChannelWrite(input) {
-  const { cwd, agentType, toolName, toolInput, meetingDir, channelScope } = input;
+  const { cwd, agentType, toolName, toolInput, meetingDir, channelScope, worktreeMainRoot } = input;
   const key = toolName ? WRITE_TOOL_PATH_KEYS[toolName] : void 0;
   if (meetingDir) {
     if (!key) return { allow: true };
@@ -1702,15 +1946,19 @@ function checkChannelWrite(input) {
   if (!cwd || !isChannelScope(channelScope)) return deny(raw, channelScope);
   if (raw.split(/[\\/]+/).includes("..")) return deny(raw, channelScope);
   const target = realResolve(import_node_path9.default.resolve(cwd, raw));
-  const realCwd = realResolve(cwd);
-  const lane = realResolve(import_node_path9.default.join(cwd, ".claude", "channels"));
-  const scoped = realResolve(import_node_path9.default.join(cwd, ".claude", "channels", channelScope));
-  if (!target || !realCwd || !lane || !scoped) return deny(raw, channelScope);
-  if (lane !== import_node_path9.default.join(realCwd, ".claude", "channels") && !lane.startsWith(realCwd + import_node_path9.default.sep)) {
-    return deny(raw, channelScope);
-  }
-  if (scoped !== import_node_path9.default.join(lane, channelScope)) return deny(raw, channelScope);
-  return target.startsWith(scoped + import_node_path9.default.sep) ? { allow: true } : deny(raw, channelScope);
+  if (!target) return deny(raw, channelScope);
+  const bases = [cwd];
+  if (worktreeMainRoot && import_node_path9.default.resolve(worktreeMainRoot) !== import_node_path9.default.resolve(cwd)) bases.push(worktreeMainRoot);
+  return bases.some((base) => inOwnScope(target, base, channelScope)) ? { allow: true } : deny(raw, channelScope);
+}
+function inOwnScope(target, base, scope) {
+  const realBase = realResolve(base);
+  const lane = realResolve(import_node_path9.default.join(base, ".claude", "channels"));
+  const scoped = realResolve(import_node_path9.default.join(base, ".claude", "channels", scope));
+  if (!realBase || !lane || !scoped) return false;
+  if (lane !== import_node_path9.default.join(realBase, ".claude", "channels") && !lane.startsWith(realBase + import_node_path9.default.sep)) return false;
+  if (scoped !== import_node_path9.default.join(lane, scope)) return false;
+  return target.startsWith(scoped + import_node_path9.default.sep);
 }
 
 // src/core/human-review-gate.ts
@@ -1761,7 +2009,13 @@ function checkHumanReview(input) {
   const { round } = stop;
   const name = reviewFileName(state.active_task, round);
   const file = `${input.tasksDir.replace(/[\\/]+$/, "")}/${name}`;
-  if (input.exists(file)) return { allow: true };
+  const reviewFileExists = input.exists(file);
+  if (reviewFileExists && input.toolName === "AskUserQuestion" && stop.label === HUMAN_REVIEW_LABEL && input.managerApproval?.active)
+    return {
+      allow: false,
+      reason: `Human review round ${stop.round}: manager approval is on. ${input.managerApproval.message}`
+    };
+  if (reviewFileExists) return { allow: true };
   if (stop.label === MANAGER_REVIEW_LABEL) {
     return {
       allow: false,
@@ -1775,7 +2029,7 @@ function checkHumanReview(input) {
 }
 
 // src/core/handoff-label.ts
-var HANDOFF_RE = /[`*]*HANDOFF:\s*([^\n`*]+)[`*]*/gi;
+var HANDOFF_RE = /[`*]*HANDOFF:[ \t]*([^\n`*]+)[`*]*/gi;
 var HANDBACK_TOOLS = ["SubagentHandback", "SendMessage"];
 function lastHandoffLabel(msg) {
   if (typeof msg !== "string") return null;
@@ -1791,6 +2045,19 @@ function messageText(input) {
     if (typeof o[k] === "string" && lastHandoffLabel(o[k])) return o[k];
   }
   return "";
+}
+var MALFORMED_HANDOFF_LINE_RE = /^[ \t`*]*HANDOFF[: \t]+[A-Za-z_][\w-]*[ \t`*.,;!]*$/m;
+var UPPER_HANDOFF_LABEL_RE = /^[ \t`*]*HANDOFF:[ \t]*[^\s`*]/m;
+function carriesMalformedHandoff(input) {
+  if (typeof input === "string") return MALFORMED_HANDOFF_LINE_RE.test(input);
+  if (!input || typeof input !== "object") return false;
+  return Object.values(input).some(
+    (v) => typeof v === "string" && MALFORMED_HANDOFF_LINE_RE.test(v)
+  );
+}
+function landedHandback(transcript, sinceMs = null) {
+  const scan = scanRun(transcript, sinceMs);
+  return scan.sawCall ? { message: scan.text } : null;
 }
 function handbackHandoff(transcript, sinceMs = null) {
   return scanHandbacks(transcript, sinceMs).text;
@@ -1821,6 +2088,9 @@ var EDIT_TOOLS = ["Write", "Edit", "MultiEdit", "NotebookEdit"];
 function runProfile(transcript, sinceMs = null) {
   const { resumed, wroteFiles } = scanRun(transcript, sinceMs);
   return { resumed, wroteFiles };
+}
+function isInterimStop(transcript, sinceMs = null) {
+  return !scanRun(transcript, sinceMs).sawCall;
 }
 function scanRun(transcript, sinceMs) {
   let found = null;
@@ -1864,8 +2134,10 @@ function scanRun(transcript, sinceMs) {
           resumed = true;
           continue;
         }
-        sawCall = true;
         const text = messageText(block.input);
+        if (block.name === "SendMessage" && !UPPER_HANDOFF_LABEL_RE.test(text) && !carriesMalformedHandoff(block.input))
+          continue;
+        sawCall = true;
         if (text) found = text;
       }
     }
@@ -1888,6 +2160,7 @@ async function awaitHandback(read, sleep, waitMs = HANDBACK_WAIT_MS, pollMs = HA
 var sendMessageHandoff = handbackHandoff;
 
 // src/core/handoff-check.ts
+var BLOCKED_LABEL = "blocked";
 var VERDICT_RE = /verdict["'*]*\s*[:=]\s*["'*]*\s*(SUCCESS|FAIL(?:URE|ED)?|PASS(?:ED)?)\b(?!\s*\|)/gi;
 function reportVerdict(msg) {
   if (typeof msg !== "string") return null;
@@ -1922,6 +2195,14 @@ function checkRoute(msg, routes, workflow) {
   if (label === null || label.toLowerCase() === "success") return null;
   const want = label.toLowerCase();
   if (routes.some((r) => r.label.toLowerCase() === want)) return null;
+  if (want === BLOCKED_LABEL) {
+    return {
+      kind: "blocked",
+      verdict: reportVerdict(msg),
+      label,
+      message: "The subagent stopped on something only the user can fix (setup or environment), not a code defect. Stop: tell the user exactly what it says they must do. Once they confirm it is done, resume the same agent (SendMessage to its agent_id). Do not route to a fix loop and do not dispatch another agent."
+    };
+  }
   const known = routes.filter((r) => r.label.toLowerCase() !== "success").map((r) => r.label);
   return {
     kind: "unrouted",
@@ -1960,7 +2241,7 @@ function readProjectHandoff(projectDir, handoffId2) {
     return null;
   }
 }
-function payloadRoutes(projectDir, scope, routes, readGlobal) {
+function payloadRoutes(projectDir, scope, routes, readGlobal, worktree) {
   const out = [];
   for (const r of routes) {
     if (!r.receiver) continue;
@@ -1973,23 +2254,29 @@ function payloadRoutes(projectDir, scope, routes, readGlobal) {
     }
     const resolved = resolveHandoff(id, readProjectHandoff(projectDir, id), global);
     if (!resolved.content) continue;
+    const channelFile = channelRelPath(scope, r.receiver, `${r.sender}.1.md`);
+    const presented = channelPathFor(channelFile, worktree);
     out.push({
       label: r.label,
       sender: r.sender,
       receiver: r.receiver,
       scope,
-      channelFile: channelRelPath(scope, r.receiver, `${r.sender}.1.md`),
+      channelFile,
+      ...presented !== channelFile ? { presentedFile: presented } : {},
       protocol: resolved.content
     });
   }
   return out;
+}
+function shown(r) {
+  return r.presentedFile ?? r.channelFile;
 }
 function payloadRequirement(routes, opts) {
   if (routes.length === 0) return null;
   const head = "REQUIRED before your HANDOFF line: write the payload for the route you take to that route's channel file. This is a step of the handoff, not a recommendation \u2014 the receiving agent starts from that file, and the stop hook checks it was written during THIS run. A missing payload is not skipped: the orchestrator resumes you to write it before the next agent is dispatched. When nothing applies, still write the file, containing an empty JSON object (`{}`). Create the file with the Write tool, which creates the folder too; do not run mkdir in Bash.";
   if (opts.withShapes) {
     const blocks = routes.map(
-      (r) => `Route \`HANDOFF: ${r.label}\` \u2192 \`${r.receiver}\` \u2014 write this to \`${r.channelFile}\`:
+      (r) => `Route \`HANDOFF: ${r.label}\` \u2192 \`${r.receiver}\` \u2014 write this to \`${shown(r)}\`:
 
 ${r.protocol}`
     );
@@ -1997,10 +2284,30 @@ ${r.protocol}`
 
 ${blocks.join("\n\n")}`;
   }
-  const lines = routes.map((r) => `- \`HANDOFF: ${r.label}\` \u2192 write \`${r.channelFile}\` (for \`${r.receiver}\`)`);
+  const lines = routes.map((r) => `- \`HANDOFF: ${r.label}\` \u2192 write \`${shown(r)}\` (for \`${r.receiver}\`)`);
   return `${head}
 ${lines.join("\n")}
 The shape for each route is the one from your first run.`;
+}
+function testHintRequirement(routes, opts) {
+  if (routes.length === 0) return null;
+  const head = "REQUIRED with `HANDOFF: success`, whatever agent that route goes to: `@test` runs later in this workflow, so write your test hints for it as well. They are hints, not @test's scope: @test plans from the acceptance criteria and the code first. Keep the `hintsOnly` line verbatim, do not try to list everything @test should cover, and do list in `notHandled` every case you deliberately left open. `howToRun` names the project's own test recipe or script, the one that sets up the environment the tests need, never the raw tool under it. Hint only at tests the project's EXISTING test setup can hold: never suggest a test framework, runner, config, folder structure or kind of test the project does not have yet. When this part of the project has no tests, still write the file, with `howToRun` set to `none: no tests for this part yet`. Create it with the Write tool. The stop hook checks it was written during THIS run.";
+  if (opts.withShapes) {
+    const blocks = routes.map(
+      (r) => `Test hints for \`${r.receiver}\` \u2014 write this to \`${shown(r)}\`:
+
+${r.protocol}`
+    );
+    return `${head}
+
+${blocks.join("\n\n")}`;
+  }
+  const lines = routes.map(
+    (r) => `- with \`HANDOFF: success\` \u2192 also write \`${shown(r)}\` (test hints for \`${r.receiver}\`)`
+  );
+  return `${head}
+${lines.join("\n")}
+The shape is the one from your first run.`;
 }
 function runStartedAt(lines, agentId) {
   if (!agentId) return null;
@@ -2013,6 +2320,17 @@ function runStartedAt(lines, agentId) {
     if (!Number.isNaN(t)) at = t;
   }
   return at;
+}
+function agentRunStartedAt(lines, agentId) {
+  if (!agentId) return null;
+  for (const line of lines ?? []) {
+    if (!line || typeof line !== "object") continue;
+    const e = line;
+    if (e.kind !== "dispatch" || e.agent_id !== agentId || typeof e.ts !== "string") continue;
+    const t = Date.parse(e.ts);
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
 }
 var MTIME_SLACK_MS = 1e3;
 function payloadWrittenSince(projectDir, route, sinceMs) {
@@ -2036,6 +2354,103 @@ function writtenSince(filePath, sinceMs) {
   return stat.mtimeMs >= sinceMs - MTIME_SLACK_MS;
 }
 
+// src/core/interim-stop.ts
+var INTERIM_SETTLED_KIND = "interim_settled";
+function interimSettleEntry(s, nowIso) {
+  const what = s.as === "missing" ? "missing HANDOFF" : `late hand-back${s.label ? ` HANDOFF: ${s.label}` : ""}${s.issue ? ` [${s.issue.kind}]` : ""}`;
+  return {
+    ts: nowIso,
+    origin: "main_session",
+    kind: INTERIM_SETTLED_KIND,
+    agent: s.stop.agent,
+    agent_id: s.stop.agent_id,
+    stop_ts: s.stop.ts,
+    settled_as: s.as,
+    label: s.label,
+    ...s.issue ? {
+      handoff_issue: {
+        kind: s.issue.kind,
+        verdict: s.issue.verdict,
+        label: s.issue.label,
+        message: s.issue.message,
+        ...s.issue.files ? { files: s.issue.files } : {}
+      }
+    } : {},
+    log: `interim stop settled: ${s.stop.agent} ${what}`
+  };
+}
+function recordInterimStop(pending, stop) {
+  const map = { ...pending ?? {} };
+  if (!stop.agent_id) return map;
+  const prior = map[stop.agent_id];
+  map[stop.agent_id] = {
+    ...prior?.moved_on ? { moved_on: true } : {},
+    ...prior?.seen ? { seen: true } : {},
+    ts: stop.ts,
+    agent: stop.agent,
+    agent_id: stop.agent_id,
+    ...stop.cwd ? { cwd: stop.cwd } : {},
+    ...stop.scope ? { scope: stop.scope } : {},
+    ...stop.transcript_path ? { transcript_path: stop.transcript_path } : {},
+    ...typeof stop.run_since === "number" ? { run_since: stop.run_since } : {}
+  };
+  return map;
+}
+function clearInterimStop(pending, agentId) {
+  const map = { ...pending ?? {} };
+  delete map[agentId];
+  return map;
+}
+function noteDispatch(pending, agentId) {
+  const map = {};
+  for (const [id, p] of Object.entries(pending ?? {})) {
+    if (id === agentId) continue;
+    map[id] = { ...p, moved_on: true };
+  }
+  return map;
+}
+function settleInterimStops(pending, nowIso, recheck) {
+  const issues = [];
+  const left = {};
+  const settled = [];
+  for (const [id, p] of Object.entries(pending ?? {})) {
+    const landed = recheck ? recheck(p) : null;
+    if (landed) {
+      const found = landed.issue;
+      settled.push({ stop: p, as: "late_handback", label: lastHandoffLabel(landed.message), issue: found });
+      if (found) {
+        issues.push({
+          ts: nowIso,
+          agent: p.agent,
+          agent_id: p.agent_id,
+          kind: found.kind,
+          verdict: found.verdict,
+          label: found.label,
+          message: found.message,
+          ...found.files ? { files: found.files } : {}
+        });
+      }
+      continue;
+    }
+    if (p.moved_on || p.seen) {
+      const base = checkHandoff(null);
+      settled.push({ stop: p, as: "missing", label: null, issue: base });
+      issues.push({
+        ts: nowIso,
+        agent: p.agent,
+        agent_id: p.agent_id,
+        kind: "missing",
+        verdict: null,
+        label: null,
+        message: `${base.message} It stopped at ${p.ts} and was never resumed, so that stop was its final one.`
+      });
+    } else {
+      left[id] = { ...p, seen: true };
+    }
+  }
+  return { issues, pending: left, settled };
+}
+
 // src/core/resume-delivery.ts
 var import_node_fs13 = __toESM(require("node:fs"), 1);
 var import_node_path11 = __toESM(require("node:path"), 1);
@@ -2043,6 +2458,51 @@ function pendingResumeDeliveries(projectDir, scope, receiver, runId) {
   if (!runId) return [];
   const bare = bareAgentName(receiver);
   return readLane(projectDir, scope, bare).filter((e) => e.runId === runId).map((e) => ({ file: channelRelPath(scope, bare, e.fileName), sender: e.sender, run_id: runId }));
+}
+function latestAt(lines, match) {
+  let latest = null;
+  for (const line of lines ?? []) {
+    if (!line || typeof line !== "object") continue;
+    const e = line;
+    if (typeof e.ts !== "string" || !match(e)) continue;
+    const at = Date.parse(e.ts);
+    if (Number.isFinite(at) && (latest === null || at > latest)) latest = at;
+  }
+  return latest;
+}
+function lastResumableEndAt(lines) {
+  return latestAt(lines, (e) => e.kind === SESSION_END_LOG_KIND);
+}
+function lastFinishedRunAt(lines, receiver) {
+  const bare = bareAgentName(receiver);
+  return latestAt(
+    lines,
+    (e) => e.kind === "handoff" && e.meeting !== true && typeof e.label === "string" && e.label !== "" && typeof e.origin === "string" && bareAgentName(e.origin) === bare
+  );
+}
+function restoreInterruptedDeliveries(projectDir, scope, receiver, runId, lines, now = Date.now()) {
+  if (!runId) return [];
+  const endAt = lastResumableEndAt(lines);
+  if (endAt === null) return [];
+  const bare = bareAgentName(receiver);
+  const finishedAt = lastFinishedRunAt(lines, bare);
+  const restored = [];
+  for (const e of readConsumed(projectDir, scope, bare, now)) {
+    if (e.runId !== runId || isGapReport(e)) continue;
+    const writtenAt = now - e.ageMs;
+    if (writtenAt > endAt) continue;
+    if (finishedAt !== null && writtenAt <= finishedAt) continue;
+    const redelivered = latestAt(
+      lines,
+      (l) => l.kind === "channel_delivery" && l.sender === e.sender && l.receiver === bare
+    );
+    if (redelivered !== null && redelivered > endAt) continue;
+    try {
+      if (unretire(projectDir, scope, bare, e)) restored.push(e);
+    } catch {
+    }
+  }
+  return restored;
 }
 function recordResumeDeliveries(session, agentId, deliveries) {
   const all = { ...session.resume_deliveries ?? {} };
@@ -2240,9 +2700,372 @@ function checkWorktreeWrite(input) {
   };
 }
 
-// src/core/run-metrics.ts
+// src/core/worktree-footprint.ts
 var import_node_fs15 = __toESM(require("node:fs"), 1);
 var import_node_path13 = __toESM(require("node:path"), 1);
+var BOOKKEEPING = [".claude/maestro_sessions", ".claude/channels", ".claude/maestro.json"];
+var isBookkeeping = (rel) => BOOKKEEPING.some((b) => rel === b || rel === `${b}/` || rel.startsWith(`${b}/`));
+function ignoredPaths(git, cwd) {
+  const r = git(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
+  if (!r.ok) return [];
+  return r.out.split("\0").filter((p) => p !== "");
+}
+function ignoredOnlyInWorktree(git, mainRoot, wtPath) {
+  const out = [];
+  for (const rel of ignoredPaths(git, wtPath)) {
+    if (isBookkeeping(rel)) continue;
+    if (import_node_fs15.default.existsSync(import_node_path13.default.join(mainRoot, rel))) continue;
+    out.push(rel);
+  }
+  return out;
+}
+function formatIgnoredNotice(list, wtPath) {
+  if (list.length === 0) return "";
+  const shown2 = list.slice(0, 20).map((p) => `  ${p}`);
+  if (list.length > shown2.length) shown2.push(`  ... and ${list.length - shown2.length} more`);
+  return `Maestro tasks: ${list.length} ignored path(s) exist ONLY in the worktree ${wtPath}. Git ignores them, so the commit does not carry them: whatever depended on them passed here but will not on the merged branch, and they are deleted with the worktree.
+${shown2.join("\n")}
+Pick one for each:
+  1. commit them: \`git add -f <path>\` in the worktree, then commit (the user approves the commit);
+  2. delete them if nothing needs them;
+  3. waive the check with \`merge <task> --accept-ignored\` if losing them is intended.
+`;
+}
+function nestedClaudeEntry(rel) {
+  const parts = rel.replace(/\/$/, "").split("/");
+  return parts.length > 1 && parts.slice(1).includes(".claude");
+}
+function provisionExcludedDirs(git, mainRoot, wtPath) {
+  const copied = [];
+  const warned = [];
+  const candidates = ignoredPaths(git, mainRoot).filter((rel) => nestedClaudeEntry(rel));
+  const done = [];
+  for (const rel of candidates) {
+    const clean = rel.replace(/\/$/, "");
+    const src = import_node_path13.default.join(mainRoot, clean);
+    const dest = import_node_path13.default.join(wtPath, clean);
+    if (done.some((d) => clean === d || clean.startsWith(`${d}/`))) continue;
+    if (import_node_fs15.default.existsSync(dest)) continue;
+    try {
+      import_node_fs15.default.mkdirSync(import_node_path13.default.dirname(dest), { recursive: true });
+      import_node_fs15.default.cpSync(src, dest, { recursive: true, force: false, errorOnExist: false, dereference: false });
+      done.push(clean);
+      copied.push(clean);
+    } catch {
+      warned.push(clean);
+      try {
+        import_node_fs15.default.rmSync(dest, { recursive: true, force: true });
+      } catch {
+      }
+    }
+  }
+  if (copied.length === 0) return { copied, warned };
+  const status = git(wtPath, ["status", "--porcelain", "--untracked-files=all", "-z"]);
+  const untracked = status.ok ? status.out.split("\0").filter((l) => l.startsWith("?? ")).map((l) => l.slice(3)) : [];
+  for (const entry of [...copied]) {
+    if (!untracked.some((u) => u === entry || u.startsWith(`${entry}/`))) continue;
+    try {
+      import_node_fs15.default.rmSync(import_node_path13.default.join(wtPath, entry), { recursive: true, force: true });
+    } catch {
+    }
+    copied.splice(copied.indexOf(entry), 1);
+    warned.push(entry);
+  }
+  return { copied, warned };
+}
+function formatExcludedProvision(r) {
+  const lines = [];
+  if (r.copied.length) {
+    lines.push(
+      `Maestro tasks: copied git-excluded director${r.copied.length === 1 ? "y" : "ies"} from the main checkout into the worktree (ignored there too, so they never reach a commit): ${r.copied.join(", ")}.`
+    );
+  }
+  if (r.warned.length) {
+    lines.push(
+      `Maestro tasks: NOT copied (the copy would show up as untracked in the worktree, or could not be written): ${r.warned.join(", ")}. Agents in the worktree run without them; tell the user.`
+    );
+  }
+  return lines.length ? `${lines.join("\n")}
+` : "";
+}
+
+// src/core/landing-guards.ts
+var import_node_fs16 = __toESM(require("node:fs"), 1);
+var import_node_path14 = __toESM(require("node:path"), 1);
+function defaultBranch(git, root) {
+  const remote = git(root, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
+  if (remote.ok && remote.out.trim()) {
+    const name = remote.out.trim().replace(/^origin\//, "");
+    if (name) return name;
+  }
+  return null;
+}
+function originHeadUnsetMessage(root) {
+  return `origin/HEAD is not set in ${root}, so the default branch cannot be determined (Maestro never guesses main or master). Set it with \`git remote set-head origin --auto\`, or \`git remote set-head origin <branch>\` when your team integrates into a branch other than the remote's default`;
+}
+function currentBranch(git, root) {
+  const r = git(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+  return r.ok && r.out.trim() ? r.out.trim() : null;
+}
+var MAESTRO_STATE_DIRS = [".claude/maestro-tasks/", ".claude/epics/"];
+function isMaestroStatePath(rel, projectPrefix = "") {
+  const p = rel.replace(/\\/g, "/").replace(/^\.\//, "");
+  const prefix = projectPrefix.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/*$/, "");
+  const scoped = prefix ? `${prefix}/` : "";
+  return MAESTRO_STATE_DIRS.some((d) => p.startsWith(`${scoped}${d}`) || `${p}/` === `${scoped}${d}`);
+}
+function projectPrefixFor(git, root) {
+  const r = git(root, ["rev-parse", "--show-prefix"]);
+  return r.ok ? r.out.trim() : "";
+}
+var REPO_DIFF_NAMES = ["-c", "diff.relative=false", "diff", "--name-only", "--no-renames", "-z"];
+function dirtyTrackedPaths(git, root) {
+  const r = git(root, [...REPO_DIFF_NAMES, "HEAD"]);
+  if (!r.ok) return null;
+  const prefix = projectPrefixFor(git, root);
+  return [
+    ...new Set(
+      r.out.split("\0").map((rel) => rel.trim()).filter((rel) => rel !== "")
+    )
+  ].filter((rel) => !isMaestroStatePath(rel, prefix));
+}
+function untrackedPaths(git, root) {
+  const r = git(root, ["ls-files", "--others", "--exclude-standard", "--full-name", "-z"]);
+  if (!r.ok) return [];
+  const prefix = projectPrefixFor(git, root);
+  return r.out.split("\0").filter((rel) => rel !== "" && !isMaestroStatePath(rel, prefix));
+}
+function checkTargetCheckout(git, root) {
+  const branch = currentBranch(git, root);
+  const def = defaultBranch(git, root);
+  const no = (kind, message, paths = []) => ({ ok: false, kind, message, branch, defaultBranch: def, paths });
+  if (!branch)
+    return no("detached", `the main checkout (${root}) is on a detached HEAD \u2014 check out the base branch first`);
+  if (git(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]).ok)
+    return no("mid-merge", `the main checkout (${root}) is in the middle of a merge \u2014 finish or abort it first`);
+  if (!def) return no("no-default", originHeadUnsetMessage(root));
+  if (branch !== def)
+    return no(
+      "not-default",
+      `the main checkout (${root}) is on branch ${branch}, not the default branch ${def} (origin/HEAD) \u2014 a merge here would land in ${branch}`
+    );
+  const dirty = dirtyTrackedPaths(git, root);
+  if (dirty === null) return no("unreadable", `could not read the status of ${root}`);
+  if (dirty.length)
+    return no(
+      "dirty",
+      `the main checkout (${root}) has uncommitted changes to ${dirty.length} tracked path(s) (e.g. ${dirty[0]}) \u2014 commit, stash or discard them first (Maestro's .claude/maestro-tasks/ and .claude/epics/ files do not count)`,
+      dirty
+    );
+  return { ok: true, branch, defaultBranch: def, untracked: untrackedPaths(git, root) };
+}
+function nearestExistingDir(abs) {
+  let dir = import_node_path14.default.dirname(abs);
+  while (!import_node_fs16.default.existsSync(dir)) {
+    const up = import_node_path14.default.dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return dir;
+}
+function writable(abs) {
+  try {
+    import_node_fs16.default.accessSync(abs, import_node_fs16.default.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function unwritablePaths(top, rels) {
+  const out = [];
+  for (const rel of rels) {
+    const abs = import_node_path14.default.join(top, rel);
+    const exists = import_node_fs16.default.existsSync(abs);
+    const dir = exists ? import_node_path14.default.dirname(abs) : nearestExistingDir(abs);
+    if (exists && !writable(abs) || !writable(dir)) out.push(rel);
+  }
+  return out;
+}
+function pathsChangedBetween(git, root, from, to) {
+  const r = git(root, [...REPO_DIFF_NAMES, from, to]);
+  if (!r.ok) return null;
+  return r.out.split("\0").filter((rel) => rel !== "");
+}
+function switchCommandFor(root, branch) {
+  return `! git -C ${shellQuote(root)} switch ${shellQuote(branch)}`;
+}
+function shellQuote(s) {
+  return /^[A-Za-z0-9_./@:=+-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
+}
+function gitTopLevel(git, root) {
+  const r = git(root, ["rev-parse", "--show-toplevel"]);
+  return r.ok && r.out.trim() ? r.out.trim() : root;
+}
+function trackerRelPath(top, projectRoot) {
+  const real = (p) => {
+    try {
+      return import_node_fs16.default.realpathSync(p);
+    } catch {
+      return import_node_path14.default.resolve(p);
+    }
+  };
+  return import_node_path14.default.relative(real(top), import_node_path14.default.join(real(projectRoot), ".claude", "maestro-tasks", "status.json")).split(import_node_path14.default.sep).join("/");
+}
+function locallyModifiedPaths(git, top) {
+  const r = git(top, [...REPO_DIFF_NAMES, "HEAD"]);
+  if (!r.ok) return null;
+  return [...new Set(r.out.split("\0").filter((rel) => rel !== ""))];
+}
+function workingBlob(git, top, rel) {
+  if (!import_node_fs16.default.existsSync(import_node_path14.default.join(top, rel))) return null;
+  const r = git(top, ["hash-object", "--", rel]);
+  return r.ok ? r.out.trim() : null;
+}
+function branchBlob(git, top, branch, rel) {
+  const r = git(top, ["rev-parse", "--verify", "--quiet", `${branch}:${rel}`]);
+  return r.ok && r.out.trim() ? r.out.trim() : null;
+}
+function compareWithBranch(git, top, branch, rels) {
+  return rels.map((rel) => {
+    const mine = workingBlob(git, top, rel);
+    const theirs = branchBlob(git, top, branch, rel);
+    return { rel, matchesBranch: mine === theirs };
+  });
+}
+function overwrittenByMerge(git, top, branch, except = []) {
+  const local = locallyModifiedPaths(git, top);
+  const theirs = git(top, [...REPO_DIFF_NAMES, `HEAD...${branch}`]);
+  if (local === null || !theirs.ok) return null;
+  const onBranch = new Set(theirs.out.split("\0").filter((rel) => rel !== ""));
+  const hits = local.filter((rel) => onBranch.has(rel) && !except.includes(rel)).sort();
+  return compareWithBranch(git, top, branch, hits);
+}
+function parseOverwriteError(text) {
+  const m = /local changes to the following files would be overwritten[^\n]*\n((?:[ \t]+\S[^\n]*\n?)+)/i.exec(text);
+  if (!m) return [];
+  return m[1].split("\n").map((l) => l.trim()).filter(Boolean);
+}
+function formatOverwriteRefusal(top, branch, files) {
+  const lines = files.map(
+    (f) => `  ${f.rel} \u2014 ${f.matchesBranch ? `identical to ${branch}'s copy (restoring it loses nothing)` : `DIFFERENT from ${branch}'s copy (a change of its own)`}`
+  );
+  const matching = files.filter((f) => f.matchesBranch).map((f) => shellQuote(f.rel));
+  const differ = files.filter((f) => !f.matchesBranch).map((f) => shellQuote(f.rel));
+  const at = `git -C ${shellQuote(top)}`;
+  const steps = [];
+  if (matching.length) steps.push(`  ${at} restore --source=HEAD --staged --worktree -- ${matching.join(" ")}`);
+  if (differ.length)
+    steps.push(`  ${at} stash push -m ${shellQuote(`before merging ${branch}`)} -- ${differ.join(" ")}`);
+  const after = differ.length ? `
+Then ask for the merge again, and after it lands re-apply the stashed change with \`${at} stash pop\` (it may need resolving against the merged copy).` : "\nThen ask for the merge again.";
+  return `${lines.join("\n")}
+To resolve (the user approves; nothing was discarded or stashed by this command):
+${steps.join("\n")}` + after;
+}
+function parseTracker(text) {
+  if (!text) return {};
+  try {
+    const data = JSON.parse(text);
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  } catch {
+    return {};
+  }
+}
+var sameEntry = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function mergeTaskTrackers(base, ours, theirs) {
+  const out = {};
+  for (const key of /* @__PURE__ */ new Set([...Object.keys(ours), ...Object.keys(theirs)])) {
+    const o = ours[key];
+    const t = theirs[key];
+    const b = base[key];
+    let entry;
+    if (sameEntry(o, t) || sameEntry(t, b)) entry = o;
+    else if (sameEntry(o, b)) entry = t;
+    else if (!o || !t) entry = o ?? t;
+    else {
+      entry = { ...t, ...o };
+      if (o.status === "done" || t.status === "done") entry.status = "done";
+    }
+    if (entry) out[key] = entry;
+  }
+  return out;
+}
+function trackerMarksDone(git, top, rev, rel, task) {
+  const r = git(top, ["show", `${rev}:${rel}`]);
+  return r.ok && parseTracker(r.out)[task]?.status === "done";
+}
+
+// src/core/verify-command.ts
+var import_node_fs18 = __toESM(require("node:fs"), 1);
+var import_node_path16 = __toESM(require("node:path"), 1);
+
+// src/core/config.ts
+var import_node_fs17 = __toESM(require("node:fs"), 1);
+var import_node_path15 = __toESM(require("node:path"), 1);
+function readJsonSafe(p) {
+  try {
+    return JSON.parse(import_node_fs17.default.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function resolveConfiguredVerifyCommand(cfg) {
+  if (!cfg || cfg.version !== 3 || cfg.verify_command === void 0) return { kind: "absent" };
+  const v = cfg.verify_command;
+  if (typeof v !== "string" || v.trim() === "") return { kind: "invalid" };
+  return { kind: "set", command: v.trim() };
+}
+
+// src/core/verify-command.ts
+var NPM_PLACEHOLDER = /no test specified/i;
+function readScripts(root) {
+  try {
+    const pkg = JSON.parse(import_node_fs18.default.readFileSync(import_node_path16.default.join(root, "package.json"), "utf8"));
+    return pkg && typeof pkg.scripts === "object" && pkg.scripts !== null ? pkg.scripts : {};
+  } catch {
+    return null;
+  }
+}
+function resolveVerifyCommand(root) {
+  const cfg = readJsonSafe(import_node_path16.default.join(root, ".claude", "maestro.json"));
+  const configured = resolveConfiguredVerifyCommand(cfg);
+  if (configured.kind === "set")
+    return { kind: "command", command: configured.command, source: "verify_command in .claude/maestro.json" };
+  if (configured.kind === "invalid")
+    return { kind: "none", reason: "verify_command in .claude/maestro.json is blank or not a string" };
+  const scripts = readScripts(root);
+  if (scripts === null)
+    return {
+      kind: "none",
+      reason: "no verify_command in .claude/maestro.json and no readable package.json to detect one from"
+    };
+  const script = ["verify", "test"].find(
+    (s) => typeof scripts[s] === "string" && !NPM_PLACEHOLDER.test(scripts[s])
+  );
+  if (!script)
+    return {
+      kind: "none",
+      reason: "no verify_command in .claude/maestro.json and no verify or test script in package.json"
+    };
+  const pm = detectPackageManager(root);
+  if (pm.kind === "ambiguous")
+    return {
+      kind: "none",
+      reason: `package.json has a ${script} script but several lockfiles (${pm.lockfiles.join(", ")}) name different package managers; set verify_command in .claude/maestro.json`
+    };
+  const manager = pm.kind === "detected" ? pm.manager : "npm";
+  return { kind: "command", command: `${manager} run ${script}`, source: `the ${script} script in package.json` };
+}
+function formatVerifyResult(verify, exitCode) {
+  if (verify.kind === "none")
+    return `VERIFY NOT CONFIGURED \u2014 the merged result is UNVERIFIED (${verify.reason}). Do not report it as passing.`;
+  if (exitCode === 0) return `VERIFY PASSED \u2014 \`${verify.command}\` (${verify.source}) exited 0 on the merged result.`;
+  return `VERIFY FAILED (exit ${exitCode === null ? "none: the command did not run to completion" : exitCode}) \u2014 \`${verify.command}\` (${verify.source}) on the merged result. The merge is in place; fix the failure and verify again before reporting.`;
+}
+
+// src/core/run-metrics.ts
+var import_node_fs19 = __toESM(require("node:fs"), 1);
+var import_node_path17 = __toESM(require("node:path"), 1);
 var METRICS_DIR_NAME = "maestro-metrics";
 var METRICS_FILE_NAME = "metrics.json";
 var DEFAULT_RECENT_RUNS = 10;
@@ -2252,10 +3075,10 @@ function emptyMetrics() {
   return { version: 1, runs: [], totals: { by_workflow: {}, by_agent: {} } };
 }
 function metricsDirFor(projectRoot) {
-  return import_node_path13.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
+  return import_node_path17.default.join(mainCheckoutRoot(projectRoot), ".claude", METRICS_DIR_NAME);
 }
 function metricsFileFor(projectRoot) {
-  return import_node_path13.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
+  return import_node_path17.default.join(metricsDirFor(projectRoot), METRICS_FILE_NAME);
 }
 function day(ts) {
   return typeof ts === "string" ? ts.slice(0, 10) : "";
@@ -2452,7 +3275,7 @@ function buildRunRecord(entries, session, cfg, sessionId) {
   return {
     id: session?.run_id || sessionId,
     workflow,
-    task: session?.active_task ? import_node_path13.default.basename(session.active_task) : null,
+    task: session?.active_task ? import_node_path17.default.basename(session.active_task) : null,
     started_at,
     ended_at,
     duration_ms,
@@ -2470,20 +3293,20 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 function withLock(dir, fn) {
-  import_node_fs15.default.mkdirSync(dir, { recursive: true });
-  const lock = import_node_path13.default.join(dir, "lock");
+  import_node_fs19.default.mkdirSync(dir, { recursive: true });
+  const lock = import_node_path17.default.join(dir, "lock");
   const deadline = Date.now() + LOCK_WAIT_MS;
   let held = false;
   for (; ; ) {
     try {
-      import_node_fs15.default.mkdirSync(lock);
+      import_node_fs19.default.mkdirSync(lock);
       held = true;
       break;
     } catch (err) {
       if (err.code !== "EEXIST") break;
       try {
-        if (Date.now() - import_node_fs15.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
-          import_node_fs15.default.rmSync(lock, { recursive: true, force: true });
+        if (Date.now() - import_node_fs19.default.statSync(lock).mtimeMs > LOCK_STALE_MS) {
+          import_node_fs19.default.rmSync(lock, { recursive: true, force: true });
           continue;
         }
       } catch {
@@ -2496,12 +3319,12 @@ function withLock(dir, fn) {
   try {
     return fn();
   } finally {
-    if (held) import_node_fs15.default.rmSync(lock, { recursive: true, force: true });
+    if (held) import_node_fs19.default.rmSync(lock, { recursive: true, force: true });
   }
 }
 function readMetrics(projectRoot) {
   try {
-    const v = JSON.parse(import_node_fs15.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
+    const v = JSON.parse(import_node_fs19.default.readFileSync(metricsFileFor(projectRoot), "utf8"));
     if (v && v.version === 1 && Array.isArray(v.runs) && v.totals?.by_workflow && v.totals?.by_agent) return v;
   } catch {
   }
@@ -2514,25 +3337,25 @@ function recentRunsLimit(cfg) {
 function recordRun(projectRoot, run, keep = DEFAULT_RECENT_RUNS) {
   const dir = metricsDirFor(projectRoot);
   withLock(dir, () => {
-    const gi = import_node_path13.default.join(dir, ".gitignore");
-    if (!import_node_fs15.default.existsSync(gi)) import_node_fs15.default.writeFileSync(gi, "*\n");
+    const gi = import_node_path17.default.join(dir, ".gitignore");
+    if (!import_node_fs19.default.existsSync(gi)) import_node_fs19.default.writeFileSync(gi, "*\n");
     const file = readMetrics(projectRoot);
     const runs = file.runs.filter((r) => r.id !== run.id);
     runs.push(run);
     const next = compact({ ...file, runs }, keep);
     const target = metricsFileFor(projectRoot);
     const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-    import_node_fs15.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
-    import_node_fs15.default.renameSync(tmp, target);
+    import_node_fs19.default.writeFileSync(tmp, JSON.stringify(next, null, 2));
+    import_node_fs19.default.renameSync(tmp, target);
   });
 }
 function recordSessionRun(projectRoot, sessionId) {
-  const claudeDir = import_node_path13.default.join(projectRoot, ".claude");
+  const claudeDir = import_node_path17.default.join(projectRoot, ".claude");
   const paths = sessionPathsFor(claudeDir, sessionId);
   if (!paths) return false;
   let raw;
   try {
-    raw = import_node_fs15.default.readFileSync(paths.log, "utf8");
+    raw = import_node_fs19.default.readFileSync(paths.log, "utf8");
   } catch {
     return false;
   }
@@ -2546,12 +3369,12 @@ function recordSessionRun(projectRoot, sessionId) {
   }
   const readJson2 = (p) => {
     try {
-      return JSON.parse(import_node_fs15.default.readFileSync(p, "utf8"));
+      return JSON.parse(import_node_fs19.default.readFileSync(p, "utf8"));
     } catch {
       return null;
     }
   };
-  const cfg = readJson2(import_node_path13.default.join(claudeDir, "maestro.json"));
+  const cfg = readJson2(import_node_path17.default.join(claudeDir, "maestro.json"));
   const run = buildRunRecord(entries, readJson2(paths.state), cfg, paths.id);
   if (!run) return false;
   recordRun(projectRoot, run, recentRunsLimit(cfg));
@@ -2599,15 +3422,15 @@ function renderMetricsDigest(file) {
 }
 
 // src/core/session-name.ts
-var import_node_fs17 = __toESM(require("node:fs"), 1);
-var import_node_path15 = __toESM(require("node:path"), 1);
+var import_node_fs21 = __toESM(require("node:fs"), 1);
+var import_node_path19 = __toESM(require("node:path"), 1);
 
 // src/core/claims.ts
-var import_node_fs16 = __toESM(require("node:fs"), 1);
-var import_node_path14 = __toESM(require("node:path"), 1);
+var import_node_fs20 = __toESM(require("node:fs"), 1);
+var import_node_path18 = __toESM(require("node:path"), 1);
 var CLAIMS_DIR_NAME = "claims";
 function claimsDirFor(tasksDir) {
-  return import_node_path14.default.join(tasksDir, CLAIMS_DIR_NAME);
+  return import_node_path18.default.join(tasksDir, CLAIMS_DIR_NAME);
 }
 
 // src/core/session-name.ts
@@ -2632,7 +3455,7 @@ function promptEntranceRole(prompt) {
 }
 function hasMaestroConfig(claudeDir) {
   try {
-    return import_node_fs17.default.statSync(import_node_path15.default.join(claudeDir, "maestro.json")).isFile();
+    return import_node_fs21.default.statSync(import_node_path19.default.join(claudeDir, "maestro.json")).isFile();
   } catch {
     return false;
   }
@@ -2672,14 +3495,14 @@ function noteEntrance(claudeDir, sessionId, role) {
 }
 function listJson(dir) {
   try {
-    return import_node_fs17.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    return import_node_fs21.default.readdirSync(dir).filter((f) => f.endsWith(".json"));
   } catch {
     return [];
   }
 }
 function listDirs2(dir) {
   try {
-    return import_node_fs17.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    return import_node_fs21.default.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   } catch {
     return [];
   }
@@ -2689,10 +3512,10 @@ function roleOfName(name) {
 }
 function rederiveSessionName(claudeDir, sessionId) {
   if (!isValidSessionId(sessionId)) return null;
-  const root = mainCheckoutRoot(import_node_path15.default.dirname(claudeDir));
-  const claims = claimsDirFor(import_node_path15.default.join(root, ".claude", "maestro-tasks"));
+  const root = mainCheckoutRoot(import_node_path19.default.dirname(claudeDir));
+  const claims = claimsDirFor(import_node_path19.default.join(root, ".claude", "maestro-tasks"));
   for (const file of listJson(claims)) {
-    const claim = readJson(import_node_path15.default.join(claims, file));
+    const claim = readJson(import_node_path19.default.join(claims, file));
     if (!claim || claim.session_id !== sessionId) continue;
     if (typeof claim.session_name === "string" && claim.session_name.trim()) {
       const name = claim.session_name.trim();
@@ -2701,11 +3524,11 @@ function rederiveSessionName(claudeDir, sessionId) {
   }
   const manager = sessionNameFor(sessionId, "manager");
   const worker = sessionNameFor(sessionId, "worker");
-  const epicsRoot = import_node_path15.default.join(root, ".claude", "epics");
+  const epicsRoot = import_node_path19.default.join(root, ".claude", "epics");
   let asWorker = null;
   for (const slug of listDirs2(epicsRoot)) {
     const state = readJson(
-      import_node_path15.default.join(epicsRoot, slug, "state.json")
+      import_node_path19.default.join(epicsRoot, slug, "state.json")
     );
     if (!state) continue;
     if (manager && state.manager?.name === manager) return { name: manager, role: "manager" };
@@ -2759,13 +3582,13 @@ function titleFor(claudeDir, payload) {
 }
 
 // src/core/meeting-mode.ts
-var import_node_fs18 = __toESM(require("node:fs"), 1);
-var import_node_path16 = __toESM(require("node:path"), 1);
+var import_node_fs22 = __toESM(require("node:fs"), 1);
+var import_node_path20 = __toESM(require("node:path"), 1);
 var MEETING_DIR_NAME = "meeting";
 var MEETING_LEFTOVERS_KEY = "meeting_leftovers";
 var MEETING_MODES = ["review", "post-mortem"];
 function meetingDirFor(sessionDir) {
-  return import_node_path16.default.join(sessionDir, MEETING_DIR_NAME);
+  return import_node_path20.default.join(sessionDir, MEETING_DIR_NAME);
 }
 function readMeeting(session) {
   if (!session || typeof session !== "object") return null;
@@ -2797,22 +3620,22 @@ function withoutMeeting(session) {
 }
 function readRawState(statePath) {
   try {
-    const parsed = JSON.parse(import_node_fs18.default.readFileSync(statePath, "utf8"));
+    const parsed = JSON.parse(import_node_fs22.default.readFileSync(statePath, "utf8"));
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 function writeRawState(statePath, state) {
-  import_node_fs18.default.mkdirSync(import_node_path16.default.dirname(statePath), { recursive: true });
+  import_node_fs22.default.mkdirSync(import_node_path20.default.dirname(statePath), { recursive: true });
   const tmp = statePath + ".tmp";
-  import_node_fs18.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
-  import_node_fs18.default.renameSync(tmp, statePath);
+  import_node_fs22.default.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  import_node_fs22.default.renameSync(tmp, statePath);
 }
 function startMeeting(statePath, sessionDir, opts) {
   const now = opts.now ?? /* @__PURE__ */ new Date();
   const dir = meetingDirFor(sessionDir);
-  import_node_fs18.default.mkdirSync(dir, { recursive: true });
+  import_node_fs22.default.mkdirSync(dir, { recursive: true });
   const meeting = {
     id: `m-${now.getTime()}`,
     mode: opts.mode,
@@ -2843,13 +3666,13 @@ function closeMeeting(session, projectDir, scope) {
   return { state, ended: true };
 }
 function projectDirOfState(statePath) {
-  return import_node_path16.default.resolve(statePath, "..", "..", "..", "..");
+  return import_node_path20.default.resolve(statePath, "..", "..", "..", "..");
 }
 function scopeOfState(statePath, state) {
-  return channelScopeFromState(state, import_node_path16.default.basename(import_node_path16.default.dirname(statePath)));
+  return channelScopeFromState(state, import_node_path20.default.basename(import_node_path20.default.dirname(statePath)));
 }
 function endMeeting(statePath, projectDir = projectDirOfState(statePath)) {
-  if (!import_node_fs18.default.existsSync(statePath)) return false;
+  if (!import_node_fs22.default.existsSync(statePath)) return false;
   const raw = readRawState(statePath);
   const { state, ended } = closeMeeting(raw, projectDir, scopeOfState(statePath, raw));
   if (ended) writeRawState(statePath, state);
@@ -2905,7 +3728,7 @@ function closeOwnerRuns(session, projectDir, scope) {
   return { state, ended: true };
 }
 function endOwnerRuns(statePath, projectDir = projectDirOfState(statePath)) {
-  if (!import_node_fs18.default.existsSync(statePath)) return false;
+  if (!import_node_fs22.default.existsSync(statePath)) return false;
   const raw = readRawState(statePath);
   const { state, ended } = closeOwnerRuns(raw, projectDir, scopeOfState(statePath, raw));
   if (ended) writeRawState(statePath, state);
@@ -2928,6 +3751,7 @@ function meetingNotice(meeting, agentType) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  BLOCKED_LABEL,
   CHANNEL_AGE_CAP_MS,
   CHANNEL_ONLY_AGENTS,
   CLAIM_IDLE_CAP_MS,
@@ -2939,7 +3763,9 @@ function meetingNotice(meeting, agentType) {
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_STALE_MS,
   HUMAN_REVIEW_LABEL,
+  INTERIM_SETTLED_KIND,
   LEGACY_SESSION_FILES,
+  MAESTRO_STATE_DIRS,
   MAIN_CHECKOUT_SHARED_DIRS,
   MANAGER_REVIEW_LABEL,
   MEETING_DIR_NAME,
@@ -2962,6 +3788,7 @@ function meetingNotice(meeting, agentType) {
   SESSION_TASKS_NAME,
   SESSION_WORKTREE_NAME,
   acknowledgeGaps,
+  agentRunStartedAt,
   agentRunsFromLog,
   appendHandoffIssue,
   appendSessionLog,
@@ -2970,6 +3797,7 @@ function meetingNotice(meeting, agentType) {
   buildRunRecord,
   channelDir,
   channelFileMtime,
+  channelPathFor,
   channelRelPath,
   channelScopeFromState,
   channelScopeOf,
@@ -2978,17 +3806,23 @@ function meetingNotice(meeting, agentType) {
   checkHumanReview,
   checkPayload,
   checkRoute,
+  checkTargetCheckout,
   checkWorktreeWrite,
+  clearInterimStop,
   closeMeeting,
   closeOwnerRuns,
   collectAgentSkills,
   compactMetrics,
   compareRuntimeVersions,
+  compareWithBranch,
   consumedDir,
+  currentBranch,
   currentReviewRound,
   currentReviewStop,
+  defaultBranch,
   dependencyStatus,
   detectPackageManager,
+  dirtyTrackedPaths,
   dropResolvedMissingPayloads,
   duplicateAgentTypes,
   endMeeting,
@@ -3000,9 +3834,14 @@ function meetingNotice(meeting, agentType) {
   entranceRoleFor,
   expectedLoopbackPayloads,
   foldRun,
+  formatExcludedProvision,
+  formatIgnoredNotice,
+  formatOverwriteRefusal,
   formatStampedContent,
+  formatVerifyResult,
   freeformBranchFor,
   freeformWorktreePathFor,
+  gitTopLevel,
   handbackHandoff,
   handoffId,
   handoffPairs,
@@ -3013,12 +3852,16 @@ function meetingNotice(meeting, agentType) {
   heartbeatTargets,
   heartbeatTick,
   heartbeatVerdict,
+  ignoredOnlyInWorktree,
   installCommand,
+  interimSettleEntry,
   isChannelOnlyAgent,
   isChannelScope,
   isFreeformBranch,
   isGapReport,
+  isInterimStop,
   isLinkedWorktree,
+  isMaestroStatePath,
   isProcessAlive,
   isResumableEnd,
   isReviewFile,
@@ -3026,28 +3869,40 @@ function meetingNotice(meeting, agentType) {
   isSeededHandoff,
   isValidHandoffId,
   isValidSessionId,
+  landedHandback,
   laneFor,
+  lastFinishedRunAt,
   lastHandoffLabel,
+  lastResumableEndAt,
+  laterSuccessSteps,
   latestWorkflowHandoff,
   listSessionIds,
+  locallyModifiedPaths,
   mainCheckoutRoot,
   meetingDirFor,
   meetingFor,
   meetingLeftovers,
   meetingNotice,
+  mergeTaskTrackers,
   metricsDirFor,
   metricsFileFor,
   missingDependenciesNotice,
   missingLoopbackPayload,
   nodeLabel,
+  noteDispatch,
   noteEntrance,
+  originHeadUnsetMessage,
+  overwrittenByMerge,
   ownerRunFor,
   ownerRunLeftovers,
   ownerRunNotice,
   parentProbe,
   parseGapsHandled,
+  parseOverwriteError,
   parsePsLine,
   parseStampedContent,
+  parseTracker,
+  pathsChangedBetween,
   payloadRequirement,
   payloadRoutes,
   payloadWrittenSince,
@@ -3056,6 +3911,8 @@ function meetingNotice(meeting, agentType) {
   processInfo,
   projectOwnsHook,
   promptEntranceRole,
+  provisionExcludedDirs,
+  readConsumed,
   readGlobalHandoff,
   readJson,
   readLane,
@@ -3069,6 +3926,7 @@ function meetingNotice(meeting, agentType) {
   readWorktreePointer,
   recentRunsLimit,
   recordActiveTask,
+  recordInterimStop,
   recordResumeDeliveries,
   recordRun,
   recordSessionRun,
@@ -3081,7 +3939,9 @@ function meetingNotice(meeting, agentType) {
   resolveSearchList,
   resolveSessionId,
   resolveSessionPaths,
+  resolveVerifyCommand,
   resolveWorkflowName,
+  restoreInterruptedDeliveries,
   resumeTarget,
   retire,
   retireResumeDeliveries,
@@ -3097,6 +3957,7 @@ function meetingNotice(meeting, agentType) {
   sessionNameFor,
   sessionPathsFor,
   sessionsRoot,
+  settleInterimStops,
   splitHandoffId,
   startMeeting,
   startOwnerRuns,
@@ -3104,9 +3965,17 @@ function meetingNotice(meeting, agentType) {
   storedSessionName,
   successPathSteps,
   sweep,
+  switchCommandFor,
   taskNumber,
+  testHintRequirement,
+  testHintRoutes,
   titleFor,
+  trackerMarksDone,
+  trackerRelPath,
+  unretire,
   unstampedFilesOf,
+  untrackedPaths,
+  unwritablePaths,
   validateConfig,
   walkProjectSkillIds,
   watchedPid,

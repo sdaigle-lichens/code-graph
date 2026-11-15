@@ -15,7 +15,8 @@
 //
 // Then (`036`) it SWEEPS `.claude/channels/` — retiring THIS session's own scope's `.consumed/`
 // outright (`144`: never another session's; the scope is resolved BEFORE the state that names its
-// task is deleted) and aging out anything past the cap in every scope and in the legacy unscoped
+// task is deleted) — but only on a FINAL end: on a resumable one (`159`) it is aged out like every
+// other scope, since the resumed session keeps that scope and may re-deliver from it — and aging out anything past the cap in every scope and in the legacy unscoped
 // layout, via `sweep()` in
 // apps/maestro/src/core/handoff-channels.ts (re-exported through lib/maestro-session.cjs, so this
 // script and the delivery hook cannot disagree about what "too old" means). A channel file is
@@ -74,7 +75,8 @@ async function main() {
     // A session file we cannot delete is not worth failing the session's exit over.
   }
   try {
-    sweep(cwd, { scope });
+    // `159`: the same `reason` — a resumable end keeps the own scope's `.consumed/` (aged out only).
+    sweep(cwd, { scope, reason: payload.reason });
   } catch {
     // Same discipline as the deletions above — not worth failing the session's exit over.
   }

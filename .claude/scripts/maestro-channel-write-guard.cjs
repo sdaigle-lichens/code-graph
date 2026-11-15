@@ -65,10 +65,15 @@ const {
     // A session running its task in a git worktree may not write into the main checkout (`082`).
     // Applies to every agent AND the main session. Fails open: it only ever narrows.
     let worktreeVerdict = { allow: true };
+    // `163`: a worktree session's routes name the main checkout's channel directory by absolute path,
+    // so a confined agent's own check accepts that base too (same scope confinement).
+    let worktreeMainRoot = null;
     try {
       if (p.cwd) {
         const sess = resolveSessionPaths(path.join(p.cwd, ".claude"), p);
         const state = sess ? readJson(sess.state) : null;
+        const mr = state && state.worktree && state.worktree.main_root;
+        if (typeof mr === "string" && mr) worktreeMainRoot = mr;
         worktreeVerdict = checkWorktreeWrite({
           cwd: p.cwd,
           toolName: p.tool_name,
@@ -87,6 +92,7 @@ const {
       toolName: p.tool_name,
       toolInput: p.tool_input,
       meetingDir,
+      worktreeMainRoot,
       // Only a confined agent needs it; resolved lazily so nobody else pays for the session read.
       channelScope: p.cwd && isChannelOnlyAgent(p.agent_type) ? channelScopeOf(p.cwd, resolveSessionId(p)) : null,
     });

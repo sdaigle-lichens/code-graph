@@ -26,7 +26,12 @@
 //       worker is recorded for the task with add-worker but has not claimed it yet), which are never
 //       listed as ready, and how many slots the cap (default 5) leaves free.
 //   node maestro-epic.cjs set-manager <slug> [<session name>]
-//   node maestro-epic.cjs add-worker <slug> <session name> [--task <NNN-task.md>]
+//   node maestro-epic.cjs add-worker <slug> <session name> [--task <NNN-task.md>] [--pane <herdr pane id>]
+//       `176`: --pane records the worker's herdr pane id; `show` lists it. A containerized worker
+//       cannot be reached with SendMessage: the manager replies with `herdr pane run <pane> "<text>"`.
+//       Output wording: with MAESTRO_WORKER_RUNTIME=docker set (a containerized worker), `report`, `note`
+//       and `review-request` say no SendMessage or ListAgents is needed (the manager watches the inbox)
+//       and a recorded manager is enough for a manager review.
 //       `113`: every name the caller records about ITSELF (create --manager, set-manager,
 //       report --from, note --from, ack --by) is filled in from the name the session-name hook
 //       stored for this session (`maestro-<id8>`, `maestro-mgr-<id8>`, or the user's custom title),
@@ -34,6 +39,9 @@
 //       manager runs FOR a worker, prefers the name recorded on the --task claim instead (and the
 //       caller's own stored name only when the caller is a worker that is not the epic's manager).
 //   node maestro-epic.cjs remove-worker <slug> <session name>
+//   node maestro-epic.cjs finish-worker <slug> <session name>
+//       `180`: run after the USER confirmed the worker's session was stopped. Marks the worker
+//       finished and drops its pane id, so `show` no longer lists it or its pane as active.
 //   node maestro-epic.cjs of <NNN-task.md>
 //       Prints the slug of the epic the task belongs to, or nothing (exit 0) when it belongs to none.
 //       The orchestrator runs it once, when it builds the task list, to word the last node.
@@ -44,6 +52,11 @@
 //       omitted) into the inbox of the epic the task belongs to and logs it. Prints the report file
 //       path and, when the epic has a manager recorded, the name to message. A task that belongs
 //       to no epic prints a single line and exits 0: nothing else happens.
+//       `170`: a report for a task that is done (tracker status `done`, or an `Outcome: done` /
+//       `Status: done` line in the body) is REFUSED, exit 1 and nothing written, unless it names a
+//       commit SHA that exists and is on the task branch task-NNN (and not already on the default
+//       branch while task-NNN is unmerged) or, with no task-NNN branch, on the default branch.
+//       The refusal names what is missing: no SHA, no such commit, or not on the branch.
 //   node maestro-epic.cjs note <to-slug> --from-epic <slug> [--from "<session name>"] [--subject "<text>"] --file <path>|-
 //       A manager's cross-epic note (`085`). Writes the body (a file, or stdin for "-") into the
 //       OTHER epic's inbox as nNNN-from-<slug>.md and logs it, both before printing. Prints the
@@ -63,17 +76,54 @@
 //       recorded (`150`), a second redirect is recorded and printed as escalate.
 //   node maestro-epic.cjs reports <slug>
 //       the unacknowledged reports and notes, and the review requests waiting for a verdict, oldest first
+//   node maestro-epic.cjs watch <slug> [--for <seconds>] [--interval <seconds>]
+//       `176`: the manager's inbox watcher, meant to run under Monitor. Prints one line per unacknowledged
+//       report, note and unanswered review request, in the words of a worker's SendMessage line
+//       ("report r003 for 087-x.md is in <file>"): those already waiting when it starts, then each new
+//       arrival, each once per run. It reads the ack and verdict state and writes nothing, so an acked
+//       entry is never announced and a restarted watcher loses nothing. Exits 0 after --for seconds
+//       (default 1500, capped at 1740, below Monitor's 30-minute limit): the manager re-arms it.
 //   node maestro-epic.cjs ack <slug> <id>... [--by "<session name>"]
 //       Record that the manager received a report (rNNN) or a note (nNNN). Cross-session messages
 //       have no delivery receipt, so the acknowledgement lives in the epic's state.
+//       `171`: each ack addresses exactly one entry. An id two entries share (an inbox written
+//       before `171`) is refused with each entry's handle (`r009-167`); `reports` prints that handle
+//       in place of the id, and `ack` takes it, or the report's file name, like an id.
+//   node maestro-epic.cjs approve --task <NNN-task.md> --stop "<human review|commit|merge>" --commit <sha> --decision <approved|rejected>
+//                          [--note "<text>"] [--suite <green|red|partial>] [--escalation <reason,...>] [--op "<git command>"] [--paths <a,b>]
+//       `177`: the manager's own decision on a containerized worker's stop, written to the approvals
+//       directory (~/.config/maestro/approvals, outside the repo, mounted read-only into workers).
+//       Needs `manager_approval: true` in maestro.json. An approval is REFUSED when the suite is not
+//       green or any escalation reason applies (scope change, decision conflict, a push or other
+//       outward/destructive git operation, a change to agents/skills/workflows/rules/settings, a
+//       security finding, a second redirect), or while an escalation awaits the user. A rejection is
+//       always recorded (with --note). Refused inside a worker container.
+//   node maestro-epic.cjs approval-escalate --task <NNN-task.md> --stop "<stop>" --commit <sha> --reason <reason>
+//       `177`: marks the stop as needing the user and prints the AskUserQuestion to ask in THIS
+//       (manager) session. The user's answer is recorded by the AskUserQuestion hook, never by the
+//       manager.
+//   node maestro-epic.cjs approval-check --task <NNN-task.md> --stop "<stop>" [--commit <sha>]
+//       `177`: a containerized worker's gate. Exit 0 and `APPROVED` only when a record exists for
+//       exactly this task, stop and commit (default: HEAD); otherwise the reason and exit 2, or
+//       `NOT-APPLICABLE` (exit 4) when manager approval is off or this is a host worker (ask the user).
+//   node maestro-epic.cjs boundary <slug> start|end [--force]
+//       Decides whether the epic's start or end step is due, claims it and writes its scope, then
+//       prints one line: nothing configured, not due with the reason, already ran, or the skills to
+//       run (start_skills.maestro_manager / end_skills.maestro_manager) with the absolute path of
+//       the scope file, whose lines are relative to the git root, and its path count. The run is
+//       claimed when the line is printed, so a boundary runs at most once; --force re-runs a claimed
+//       boundary (never one that was not due) and keeps the recorded base commit. Exit 1 on an
+//       unknown epic or a bad phase, otherwise 0.
 //
 // Every write reads the file immediately before writing and changes only its own entries, so the
 // manager and the workers can write at the same time without losing each other's work.
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const epics = require("./lib/maestro-epic.cjs");
-const { resolveSessionId, storedSessionName } = require("./lib/maestro-session.cjs");
+const os = require("os");
+const { resolveSessionId, storedSessionName, mainCheckoutRoot } = require("./lib/maestro-session.cjs");
 
 const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
@@ -104,6 +154,7 @@ function parse(args) {
   const flags = {};
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === "--json") flags.json = true;
+    else if (args[i] === "--force") flags.force = true;
     else if (args[i].startsWith("--") && i + 1 < args.length) {
       flags[args[i].slice(2)] = args[i + 1];
       i += 1;
@@ -122,17 +173,31 @@ function need(value, usage) {
   return value;
 }
 
-// What to do when the SendMessage to the recorded manager fails. The saved file is the delivery.
-function sendFailedHint(kind) {
-  return (
-    `  If that SendMessage fails, run ListAgents. If exactly one session plausibly matches the manager, ask the user before messaging it. ` +
-    `Never conclude the manager is gone from one failed send: the saved ${kind} file is the real delivery, and the manager sees it as unacknowledged on its next check.\n`
-  );
+// `170`: the git runner the report guard is given (a core module never spawns git itself).
+function gitRunner(cwd, args) {
+  try {
+    const out = execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return { ok: true, out: out.trim() };
+  } catch (err) {
+    return { ok: false, out: String((err && err.stdout) || "").trim() };
+  }
 }
 
 function readBody(file) {
   if (file && file !== "-") return fs.readFileSync(path.resolve(file), "utf8");
   return fs.readFileSync(0, "utf8");
+}
+
+// `177`: the project's maestro.json (a worker in a worktree falls back to the main checkout's), or null.
+function readProjectConfig() {
+  for (const dir of [projectDir, mainCheckoutRoot(projectDir)]) {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(dir, ".claude", "maestro.json"), "utf8"));
+    } catch {
+      /* try the next */
+    }
+  }
+  return null;
 }
 
 const { positional, flags } = parse(argv.slice(1));
@@ -218,12 +283,21 @@ try {
           typed,
         "add-worker <slug> <name> [--task <task.md>]"
       );
-      epics.addWorker(projectDir, slug, name, flags.task);
+      epics.addWorker(projectDir, slug, name, flags.task, flags.pane);
       process.stdout.write(
         `Maestro epic: recorded worker "${name}" on "${slug}"` +
+          (flags.pane ? ` (herdr pane ${flags.pane.trim()})` : "") +
           (typed && typed !== name ? ` (the session's recorded name, not "${typed}")` : "") +
           "\n"
       );
+      break;
+    }
+    case "finish-worker": {
+      // `180`: the user confirmed this worker's session was stopped; its pane is no longer active.
+      const slug = need(positional[0], "finish-worker <slug> <name>");
+      const name = need(positional[1], "finish-worker <slug> <name>");
+      epics.finishWorker(projectDir, slug, name);
+      process.stdout.write(`Maestro epic: worker "${name}" on "${slug}" is finished; its pane is no longer active\n`);
       break;
     }
     case "remove-worker": {
@@ -247,14 +321,19 @@ try {
         process.stdout.write(`Maestro epic: "${path.basename(task)}" belongs to no epic — no report written\n`);
         break;
       }
+      const body = readBody(flags.file);
+      // `170`: a report for a done task must name a commit that exists and holds the task's work.
+      const guard = epics.checkReportCommit(gitRunner, projectDir, {
+        task,
+        body,
+        trackerDone: epics.taskStatusOf(projectDir, task) === "done",
+      });
+      if (!guard.ok) fail(guard.message);
       // The reporting session's stored name wins over --from (`113`).
-      const r = epics.writeReport(projectDir, task, readBody(flags.file), preferOwn(flags.from));
+      const r = epics.writeReport(projectDir, task, body, preferOwn(flags.from));
       process.stdout.write(
         `Maestro epic: report ${r.id} for "${path.basename(task)}" written to ${r.file}\n` +
-          (r.manager
-            ? `  Now message the manager session "${r.manager}" (SendMessage) with ONE short line: report ${r.id} for ${path.basename(task)} is in ${r.file}. The file is the report; do not paste its contents.\n` +
-              sendFailedHint("report")
-            : `  No manager session is recorded for "${r.epic}", so there is nobody to message. The report is saved and a resumed manager will list it as unacknowledged.\n`)
+          epics.deliveryWords("report", r, { task: path.basename(task) }, epics.isContainerWorker())
       );
       break;
     }
@@ -272,10 +351,7 @@ try {
       });
       process.stdout.write(
         `Maestro epic: note ${r.id} from "${fromEpic}" to "${r.epic}" written to ${r.file}\n` +
-          (r.manager
-            ? `  Now message the manager session "${r.manager}" (SendMessage) with ONE short line: note ${r.id} from epic ${fromEpic} is in ${r.file}. The file is the note; do not paste its contents.\n` +
-              sendFailedHint("note")
-            : `  No manager session is recorded for "${r.epic}", so there is nobody to message. The note is saved and a resumed manager will list it as unacknowledged.\n`)
+          epics.deliveryWords("note", r, { fromEpic }, epics.isContainerWorker())
       );
       break;
     }
@@ -295,14 +371,10 @@ try {
         r.redirects >= r.cap
           ? `  The cap is reached (${r.redirects} redirects of ${r.cap}): if the manager's verdict on this round is redirect, it escalates to human review.\n`
           : `  Manager redirects on this ticket so far: ${r.redirects} of ${r.cap}.\n`;
-      const line = `manager review ${r.id} (round ${r.round}) for ${base} is in ${r.file}`;
       process.stdout.write(
         `Maestro epic: ${r.already ? "review request already recorded, still waiting for a verdict" : "review request recorded"}: ${r.id}, round ${r.round}, "${base}", epic "${r.epic}"\n` +
           capLine +
-          (r.manager
-            ? `  Check ListAgents for the manager session "${r.manager}". If it is live, send it (SendMessage) ONE short line: ${line}. The file is the brief; do not paste it. Then wait for its verdict.\n` +
-              `  If it is not live, or the send fails, fall back to a human review at this stop, with the same file as its summary.\n`
-            : `  No manager session is recorded for "${r.epic}": fall back to a human review at this stop, with the same file as its summary.\n`)
+          epics.reviewDeliveryWords(r, epics.isContainerWorker())
       );
       break;
     }
@@ -345,13 +417,140 @@ try {
       }
       break;
     }
+    case "watch": {
+      // `176`: meant to run under Monitor. One stdout line per inbox entry the manager has not yet
+      // acknowledged or answered, the ones already waiting included, then one per new arrival. Reads
+      // the ack/verdict state; moves and writes nothing. Ends after a bounded time so it can be re-armed.
+      const usage = "watch <slug> [--for <seconds>] [--interval <seconds>]";
+      const slug = need(positional[0], usage);
+      const seconds = (flag, fallback, max) => {
+        if (flags[flag] === undefined) return fallback;
+        const n = Number(flags[flag]);
+        if (!(n > 0)) fail(`--${flag} must be a positive number of seconds, not "${flags[flag]}". Usage: ${usage}`);
+        return Math.min(n, max);
+      };
+      const forSeconds = seconds("for", epics.WATCH_DEFAULT_SECONDS, epics.WATCH_MAX_SECONDS);
+      const everySeconds = seconds("interval", epics.WATCH_DEFAULT_INTERVAL_SECONDS, forSeconds);
+      const seen = new Set();
+      const poll = () => {
+        try {
+          for (const line of epics.newInboxAnnouncements(projectDir, slug, seen)) process.stdout.write(`${line}\n`);
+        } catch (err) {
+          fail(err.message);
+        }
+      };
+      poll(); // an unknown epic fails here, before anything waits
+      const timer = setInterval(poll, everySeconds * 1000);
+      setTimeout(() => {
+        clearInterval(timer);
+        process.exit(0);
+      }, forSeconds * 1000);
+      break;
+    }
+    case "approve":
+    case "approval-escalate":
+    case "approval-check": {
+      const usage = `${command} --task <NNN-task.md> --stop "<human review|commit|merge>" --commit <sha>${command === "approve" ? " --decision <approved|rejected>" : command === "approval-escalate" ? " --reason <reason>" : ""}`;
+      const task = need(flags.task, usage);
+      const stop = need(flags.stop, usage);
+      const cfg = readProjectConfig();
+      const epic = epics.epicOfTask(projectDir, task);
+      const project = epics.projectKeyFor(projectDir);
+      const root = epics.approvalsDir(os.homedir());
+      if (command === "approval-check") {
+        // `181`: the value recorded for this worker at launch decides, not the live maestro.json.
+        if (!epic || !epics.managerApprovalForTask(projectDir, task, cfg, epics.isContainerWorker())) {
+          process.stdout.write(
+            `NOT-APPLICABLE: ${!epic ? "this task belongs to no epic" : "manager approval is off, or this is not a containerized worker"}; ask the user as before.\n`
+          );
+          process.exitCode = 4;
+          break;
+        }
+        const normalized = epics.normalizeStop(stop);
+        if (!normalized) fail(`"${stop}" is not a stop (one of ${epics.APPROVAL_STOPS.join(", ")})`);
+        const head = flags.commit || gitRunner(projectDir, ["rev-parse", "HEAD"]).out || null;
+        const verdict = epics.findApproval(root, { project, epic, task, stop: normalized }, head);
+        const words = epics.approvalGuidance(verdict, task, normalized);
+        process.stdout.write(verdict.ok ? `APPROVED: ${words}\n` : `NOT APPROVED (${verdict.code}): ${words}\n`);
+        process.exitCode = verdict.ok ? 0 : 2;
+        break;
+      }
+      // approve / approval-escalate write: the manager's session on the host, never a worker container.
+      if (epics.isContainerWorker())
+        fail("approval records are written by the manager on the host, never from a worker container");
+      if (!epics.managerApprovalForTask(projectDir, task, cfg, true))
+        fail(
+          "manager_approval is not enabled for this task's worker (the value in .claude/maestro.json when the worker was launched): the user approves these stops"
+        );
+      if (!epic) fail(`"${path.basename(task)}" belongs to no epic: there is no manager to approve it`);
+      if (command === "approval-escalate") {
+        const r = epics.escalateStop(root, { project, epic, task, stop, commit: flags.commit, reason: flags.reason });
+        if (!r.ok) fail(r.message);
+        process.stdout.write(
+          `Maestro epic: escalation recorded for the user (${r.file}).\n` +
+            `Ask the user with AskUserQuestion, options "Approve" and "Reject" (their reason through the free-text option), keeping this marker in the question text:\n  ${r.question}\n` +
+            "The user's answer is recorded by a hook; never record it yourself.\n"
+        );
+        break;
+      }
+      const decision = need(flags.decision, usage);
+      if (decision !== "approved" && decision !== "rejected")
+        fail(`--decision must be approved or rejected, not "${decision}"`);
+      const csv = (v) =>
+        typeof v === "string"
+          ? v
+              .split(",")
+              .map((x) => x.trim())
+              .filter(Boolean)
+          : [];
+      const flagged = csv(flags.escalation);
+      const bad = flagged.filter((r) => !epics.isEscalationReason(r));
+      if (bad.length)
+        fail(`unknown escalation reason: ${bad.join(", ")} (one of ${epics.ESCALATION_REASONS.join(", ")})`);
+      const r = epics.approveStop(root, {
+        project,
+        epic,
+        task,
+        stop,
+        commit: flags.commit,
+        decision,
+        note: flags.note,
+        facts: {
+          suite: flags.suite,
+          operations: flags.op ? [flags.op] : [],
+          changedPaths: csv(flags.paths),
+          scopeChange: flagged.includes("scope-change"),
+          decisionConflict: flagged.includes("decision-conflict"),
+          securityFinding: flagged.includes("security-finding"),
+          redirects: flagged.includes("second-redirect") ? 2 : 0,
+        },
+      });
+      if (!r.ok) fail(r.message);
+      process.stdout.write(
+        `Maestro epic: ${decision} recorded for ${path.basename(task)} / ${r.record.stop} at ${r.record.commit} (${r.file})\n`
+      );
+      break;
+    }
+    case "boundary": {
+      const usage = "boundary <slug> start|end [--force]";
+      const slug = need(positional[0], usage);
+      const phase = need(positional[1], usage);
+      if (phase !== "start" && phase !== "end") fail(`"${phase}" is not a boundary. Usage: ${usage}`);
+      const result = epics.runEpicBoundary(projectDir, slug, phase, { force: flags.force === true });
+      process.stdout.write(`${epics.formatBoundary(result)}\n`);
+      break;
+    }
     default:
       fail(
         "unknown command. Usage:\n  create <slug>\n  list [--json]\n  link <slug> <task.md>...\n  unlink <task.md>...\n  show <slug> [--json]\n  ready <slug> [--cap <n>] [--json]\n" +
-          "  set-manager <slug> <name>\n  add-worker <slug> <name>\n  remove-worker <slug> <name>\n  report --task <task.md> [--file <path>|-]\n" +
+          "  set-manager <slug> <name>\n  add-worker <slug> <name>\n  remove-worker <slug> <name>\n  finish-worker <slug> <name>\n  report --task <task.md> [--file <path>|-]\n" +
           "  note <to-slug> --from-epic <slug> [--from <name>] [--subject <text>] --file <path>|-\n" +
           "  review-request --task <task.md> --file <review file> [--from <name>]\n" +
-          "  review-verdict --task <task.md> <on-track|redirect|escalate> [--by <name>]\n  reports <slug>\n  ack <slug> <id>..."
+          "  review-verdict --task <task.md> <on-track|redirect|escalate> [--by <name>]\n  reports <slug>\n  watch <slug> [--for <seconds>] [--interval <seconds>]\n  ack <slug> <id>...\n" +
+          "  approve --task <task.md> --stop <stop> --commit <sha> --decision <approved|rejected>\n" +
+          "  approval-escalate --task <task.md> --stop <stop> --commit <sha> --reason <reason>\n" +
+          "  approval-check --task <task.md> --stop <stop> [--commit <sha>]\n" +
+          "  boundary <slug> start|end [--force]"
       );
   }
 } catch (err) {

@@ -47,10 +47,16 @@ const {
   checkRoute,
   checkPayload,
   handoffRoutes,
+  testHintRoutes,
   routesFrom,
   payloadRoutes,
   payloadWrittenSince,
   runStartedAt,
+  agentRunStartedAt,
+  isInterimStop,
+  recordInterimStop,
+  clearInterimStop,
+  noteDispatch,
   runProfile,
   writeSession,
   ownerRunFor,
@@ -92,7 +98,9 @@ function agentPayloadRoutes(cwd, scope, claudeDir, agentType, sessionStatePath) 
   if (!cfg || cfg.version !== 3) return [];
   const { searchList } = resolveSearchList(cfg, readSession(sessionStatePath));
   const routes = routesFrom(handoffRoutes(searchList, cfg.workflow_instances || []), agentType);
-  return payloadRoutes(cwd, scope, routes, readGlobalHandoff);
+  // `155`: test hints for a later `@test` step, written with `HANDOFF: success` (label "success").
+  const hints = routesFrom(testHintRoutes(searchList, cfg.workflow_instances || []), agentType);
+  return payloadRoutes(cwd, scope, [...routes, ...hints], readGlobalHandoff);
 }
 
 // `108`: this agent's routes in the workflow the orchestrator recorded, or null when none was
@@ -168,6 +176,28 @@ function parseHandoff(msg) {
 
   try {
     if (event === "SubagentStart") {
+      // `160`: this agent id's pending interim stop is over (it was resumed); every other pending
+      // one is marked "moved on", the orchestrator has dispatched another WORKFLOW agent since. A
+      // generic helper (Explore, general-purpose), a meeting or an owner-run agent maps to no workflow
+      // instance and is never the orchestrator moving on, so it only clears its own marker (if any).
+      // Limit: a workflow agent started inside another agent's run cannot be told from the
+      // orchestrator's own dispatch, so it counts as moving on.
+      if (agentType && !inMeeting && !inOwnerRun) {
+        try {
+          const st = readSession(sess.state);
+          if (st.pending_interim && Object.keys(st.pending_interim).length > 0) {
+            const workflowAgent = !!offeredSkills(claudeDir, agentType, sess.state);
+            writeSession(sess.state, {
+              ...st,
+              pending_interim: workflowAgent
+                ? noteDispatch(st.pending_interim, agentId)
+                : clearInterimStop(st.pending_interim, agentId),
+            });
+          }
+        } catch {
+          // Best-effort.
+        }
+      }
       const offered = offeredSkills(claudeDir, agentType, sess.state);
       appendSessionLog(
         claudeDir,
@@ -214,11 +244,22 @@ function parseHandoff(msg) {
         // `153`: this run's dispatch time, so a hand-back older than it (an earlier run's, seen
         // before the resume prompt reached the transcript) is never taken for this run's.
         let runSince = null;
+        // `160`: when the WHOLE run started (first dispatch), for the payload check across resumes.
+        let wholeRunSince = null;
         try {
-          runSince = runStartedAt(readLogLines(sess.log), agentId);
+          const logLines = readLogLines(sess.log);
+          runSince = runStartedAt(logLines, agentId);
+          wholeRunSince = agentRunStartedAt(logLines, agentId);
         } catch {
           runSince = null;
         }
+        // `160`: a stop with no hand-back call (the agent may be waiting on background work, to be
+        // resumed, or may have ended in plain text) cannot be told from a final one by the stop input,
+        // so it is not judged now: logged `interim: true` with no issue, and recorded in
+        // session.json's `pending_interim`. A resume clears it; `handoff-issues` promotes it to a
+        // `missing` issue once nothing resumed it. Set below when the readable transcript shows no
+        // hand-back call in this run (a workflow agent only).
+        let interim = false;
         if (!inMeeting && !inOwnerRun && status === "unknown" && p.agent_transcript_path) {
           try {
             const viaSend = await awaitHandback(
@@ -237,6 +278,11 @@ function parseHandoff(msg) {
             if (viaSend) {
               handoffMsg = viaSend;
               ({ status, label } = parseHandoff(viaSend));
+            } else {
+              // No labelled hand-back. A labelless call is a real `missing` (the final stop); no call
+              // at all, in a readable transcript, is an interim stop. Unreadable: cannot tell, judge.
+              const text = fs.readFileSync(p.agent_transcript_path, "utf8");
+              interim = isInterimStop(text, runSince) && !!offeredSkills(claudeDir, agentType, sess.state);
             }
           } catch {
             // No readable transcript — keep the unknown entry.
@@ -248,7 +294,7 @@ function parseHandoff(msg) {
         // (`maestro-task-status.cjs handoff-issues`). Only agents that map to a workflow instance
         // are judged: a generic Explore/general-purpose subagent never carries a HANDOFF line.
         let issue = null;
-        if (!inMeeting && !inOwnerRun && offeredSkills(claudeDir, agentType, sess.state)) {
+        if (!inMeeting && !inOwnerRun && !interim && offeredSkills(claudeDir, agentType, sess.state)) {
           issue = checkHandoff(handoffMsg);
           // `108`: a condition label the active workflow has no edge for — stop and ask, never improvise.
           if (!issue) {
@@ -260,7 +306,8 @@ function parseHandoff(msg) {
           // file left from an earlier pass (or a loop-back's first run) does not count.
           if (!issue) {
             try {
-              const since = runSince;
+              // `160`: from the start of the whole run, so a payload written before a resume counts.
+              const since = wholeRunSince;
               // `153`: a resumed run that changed no file only re-verified; it has no payload to write.
               let reverifyOnly = false;
               if (p.agent_transcript_path) {
@@ -359,6 +406,9 @@ function parseHandoff(msg) {
             status,
             label,
             output: handoffMsg,
+            // `169`: `settles_in_log` says `handoff-issues` will log an `interim_settled` line when it
+            // settles this stop, so a reader (the post-mortem digest) treats "no line yet" as pending.
+            ...(interim ? { interim: true, settles_in_log: true } : {}),
             ...meetingMark,
             ...(issue
               ? {
@@ -375,11 +425,39 @@ function parseHandoff(msg) {
               ? "meeting turn"
               : inOwnerRun
                 ? "owner run"
-                : (label ? `HANDOFF: ${label}` : "HANDOFF: (none)") + (issue ? ` [${issue.kind}]` : ""),
+                : interim
+                  ? "interim stop (no hand-back yet)"
+                  : (label ? `HANDOFF: ${label}` : "HANDOFF: (none)") + (issue ? ` [${issue.kind}]` : ""),
           },
           p
         );
         if (inMeeting || inOwnerRun) process.exit(0);
+
+        // `160`: an interim stop is recorded as pending (no issue yet); any other stop of this agent id
+        // is a judged one, which settles whatever interim stop preceded it.
+        if (agentId) {
+          try {
+            const st = readSession(sess.state);
+            if (interim) {
+              writeSession(sess.state, {
+                ...st,
+                pending_interim: recordInterimStop(st.pending_interim, {
+                  ts: new Date().toISOString(),
+                  agent: agentType,
+                  agent_id: agentId,
+                  transcript_path: p.agent_transcript_path,
+                  run_since: runSince,
+                  cwd,
+                  scope,
+                }),
+              });
+            } else if (st.pending_interim && st.pending_interim[agentId]) {
+              writeSession(sess.state, { ...st, pending_interim: clearInterimStop(st.pending_interim, agentId) });
+            }
+          } catch {
+            // Best-effort — the log entry above still carries `interim: true`.
+          }
+        }
 
         if (issue) {
           try {
@@ -402,7 +480,10 @@ function parseHandoff(msg) {
           // Also visible to the person watching; the orchestrator reads it from session.json.
           process.stdout.write(
             JSON.stringify({
-              systemMessage: `Maestro: ${agentType} handoff problem (${issue.kind}). ${issue.message}`,
+              systemMessage:
+                issue.kind === "blocked"
+                  ? `Maestro: ${agentType} is blocked on you. ${issue.message}`
+                  : `Maestro: ${agentType} handoff problem (${issue.kind}). ${issue.message}`,
             }) + "\n"
           );
         }
@@ -420,13 +501,19 @@ function parseHandoff(msg) {
         // ends, and stays unstamped while unchanged — the run_id lasts the whole session, so
         // otherwise this sender's next workflow run would adopt it as its own payload. No meeting
         // ever held = nothing skipped, the pre-meeting behaviour.
-        try {
-          const runId = ensureSessionRunId(sess.state);
-          writeStamp(cwd, scope, bareAgentName(agentType), runId, {
-            skip: [...meetingLeftovers(sessionState), ...ownerRunLeftovers(sessionState)],
-          });
-        } catch {
-          // Best-effort — never fail the agent on a stamping error.
+        //
+        // `160`: not at an interim stop. The run is not over, and the stamp rewrites each file, which
+        // refreshes its mtime, so a stale file left from an earlier run would then pass the payload
+        // check at the final stop. The final stop stamps everything the whole run wrote.
+        if (!interim) {
+          try {
+            const runId = ensureSessionRunId(sess.state);
+            writeStamp(cwd, scope, bareAgentName(agentType), runId, {
+              skip: [...meetingLeftovers(sessionState), ...ownerRunLeftovers(sessionState)],
+            });
+          } catch {
+            // Best-effort — never fail the agent on a stamping error.
+          }
         }
       }
     }
