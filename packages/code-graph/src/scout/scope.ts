@@ -50,6 +50,8 @@ function lineProblem(path: string, repoRoot: string, configRoot: string): string
  * the caller can name it. Blank lines mean nothing.
  */
 export function readScope(scopePath: string, repoRoot: string, configRoot: string = repoRoot): Scope {
+  // An empty path resolves to the working directory, which would read as an EISDIR on "scope file ".
+  if (scopePath.trim() === "") throw new ScopeFileError("no scope file given (empty path)");
   let text: string;
   try {
     text = readFileSync(resolve(scopePath), "utf8");
