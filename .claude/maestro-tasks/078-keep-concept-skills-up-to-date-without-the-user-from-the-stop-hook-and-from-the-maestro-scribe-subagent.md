@@ -45,3 +45,36 @@ Known limit, to state in the skill: Haiku's quality on a concept-list reconcile 
 ## Blocked by
 
 None — can start immediately
+
+## Manager direction
+
+- Round 1 (redirect):
+  - An ambiguous rename does not block its concept. Ambiguous entries are kept as orphans and reported on every run.
+  - The headless allowlist allows only the bundled CLI and read-only git.
+  - Run the real claude -p path end to end once on a fixture.
+- Round 2 (on-track):
+  - Keep staging plus the runner install.
+  - Limit the headless session's writes to the staging directory if the permission rules allow it; otherwise say so in the report.
+  - An EPERM, EROFS or EACCES error in the runner ends the run INCOMPLETE, and the report names the refused path.
+  - The report and docs/usage.md give the default model and the off switch (CODE_GRAPH_AUTO_UPDATE=0).
+
+## Notes
+
+## Post-Mortem
+
+- **Problem:** Round 1 of @backend handed back with no tests and a design that blocked a whole concept on one ambiguous rename. The manager redirected; the ticket did not say whether "not applied" meant the rename or the concept.
+  **Fix:** none
+- **Problem:** The real headless `claude -p` path failed on its first two runs. The sandbox refused writes under `.claude/` in every permission mode, and the session could not read `CODE_GRAPH_UNATTENDED` under the allowlist, so it tried to claim its own lock. Simulated sessions had not caught either; only a user-run e2e did, after which the design changed to staging plus a runner install.
+  **Fix:** none
+- **Problem:** The e2e fixture and driver lived in `/tmp` and were lost on a reboot; they were rebuilt as `packages/code-graph/scripts/e2e-update-run.mjs`.
+  **Fix:** none
+- **Problem:** @test round 1 found two implementation defects: a read-only run dir crashed the runner, and an automatic add was always INCOMPLETE because the config was loaded before claude ran. @reviewer round 1 then failed the change on stale `--help` text and found a `git diff|log|show --output` write hole in the allowlist. The backend workflow has no test-defect edge, so the user had to route it.
+  **Fix:** none
+- **Problem:** The orchestrator's SubagentStop parser read `HANDOFF: success"` (a trailing JSON quote) as an unrouted label.
+  **Fix:** none
+- **Problem:** @scribe could not widen the pin test (test files are outside its role) or run the toolchain, so the orchestrator ran build/check/test/eval itself; the pin widening is left as a follow-up.
+  **Fix:** none
+
+## Notes (continued)
+
+- **Open assumption carried forward:** a runner started by the real Stop/SubagentStop hook runs outside the Claude Code sandbox (hooks are not sandboxed; Bash tool calls are), so it can install and stamp files under `.claude/skills`. The e2e runs were started from a plain terminal, so they do not prove this. Read the first real hook-started run in a consumer as the confirmation. If the runner was sandboxed, that run ends INCOMPLETE and its report names the refused path.

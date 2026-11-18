@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
+import { recordPendingRenames } from "./pending-renames.js";
 import { loadConfig } from "../config.js";
 import { reportAndThrow as fail } from "../concept-batch.js";
 import { resolveDbPath } from "./db.js";
@@ -206,7 +207,20 @@ export type DriftJson = NeverAppliedDrift | Record<string, unknown>;
  */
 export async function apply(
   concept: string,
-  opts: { dryRun: boolean; approveDrift: boolean; json?: boolean; deferRenames?: boolean; collect?: boolean }
+  opts: {
+    dryRun: boolean;
+    approveDrift: boolean;
+    json?: boolean;
+    deferRenames?: boolean;
+    /**
+     * Non-interactive: approve every unambiguous rename candidate (see `isAmbiguous` below) and re-key
+     * its `.enriched.json` entry; leave each ambiguous one unapplied (its entry kept as an orphan,
+     * recorded in `pending-renames.ts` for the update report). The concept is applied either way, exit 0.
+     * The unattended update-concept-skills run uses it.
+     */
+    approveUnambiguousRenames?: boolean;
+    collect?: boolean;
+  }
 ): Promise<DriftJson | void> {
   const config = loadConfig();
   const { configRoot } = config;
@@ -271,8 +285,12 @@ export async function apply(
       enrichedDoc = applyRemap(enrichedDoc, orphans.remapped);
       if (!opts.dryRun) writeEnrichedDoc(enrichedPath, enrichedDoc);
     }
-    const line = orphanSummary(concept, orphans, opts.dryRun);
-    if (line) process.stderr.write(`${line}\n`);
+    // With approveUnambiguousRenames the line waits for the rename step: an entry it re-keys onto the
+    // renamed vertex is no orphan, and a note naming it would point at `enrich prune`.
+    if (!opts.approveUnambiguousRenames) {
+      const line = orphanSummary(concept, orphans, opts.dryRun);
+      if (line) process.stderr.write(`${line}\n`);
+    }
   }
 
   // Entries still unknown to ast.json (ambiguous or unmatched) stay in the file and are not applied.
@@ -359,6 +377,21 @@ export async function apply(
     }
   }
 
+  // A kept pair is unambiguous only when neither side had another candidate (score >= 0.8): the greedy
+  // pick above then had no choice to make. A new key that already has its own enriched entry is a
+  // conflict (re-keying the old entry would overwrite it), so it counts as ambiguous too.
+  const oldCandidates = new Map<string, number>();
+  const newCandidates = new Map<string, number>();
+  for (const c of renameCandidates) {
+    oldCandidates.set(c.oldKey, (oldCandidates.get(c.oldKey) ?? 0) + 1);
+    newCandidates.set(c.newKey, (newCandidates.get(c.newKey) ?? 0) + 1);
+  }
+  const enrichedKeys = new Set((enrichedDoc?.vertices ?? []).map((ev) => ev._key));
+  const isAmbiguous = (r: RenameCandidate): boolean =>
+    oldCandidates.get(r.oldKey)! > 1 ||
+    newCandidates.get(r.newKey)! > 1 ||
+    (enrichedKeys.has(r.oldKey) && enrichedKeys.has(r.newKey));
+
   const renamedOldKeys = new Set(uniqueRenames.map((r) => r.oldKey));
   const renamedNewKeys = new Set(uniqueRenames.map((r) => r.newKey));
   const toArchiveKeys = missingKeys.filter((k) => !renamedOldKeys.has(k));
@@ -403,6 +436,8 @@ export async function apply(
         from: ref(dbMap.get(r.oldKey)!),
         to: ref(astVertexMap.get(r.newKey)!),
         score: Number(r.score.toFixed(2)),
+        // false: `apply --approve-unambiguous-renames` applies it; true: it leaves it for a person.
+        ambiguous: isAmbiguous(r),
       })),
       doc: { bodyHashChanged: docHashDisplay === "changed" },
       // Enriched entries not in ast.json: counts only (the stderr line names the next step).
@@ -446,7 +481,7 @@ export async function apply(
     for (const r of uniqueRenames) {
       const oldV = dbMap.get(r.oldKey)!;
       const newV = astVertexMap.get(r.newKey)!;
-      console.log(`  ${oldV.name} → ${newV.name} (score: ${r.score.toFixed(2)})`);
+      console.log(`  ${oldV.name} → ${newV.name} (score: ${r.score.toFixed(2)})${isAmbiguous(r) ? " ambiguous" : ""}`);
     }
   }
 
@@ -472,11 +507,77 @@ export async function apply(
     return;
   }
 
+  // Unattended: the concept is applied. Unambiguous renames are approved and carry their enriched
+  // entry to the new key; ambiguous ones are not applied (old key archived, new key inserted as new),
+  // their old enriched entry stays in the file as an orphan (nothing deleted) and is recorded in
+  // PENDING_RENAMES_FILE, which every update run's report lists until a person settles it.
+  const ambiguousRenames = opts.approveUnambiguousRenames ? uniqueRenames.filter(isAmbiguous) : [];
+  if (opts.approveUnambiguousRenames) {
+    if (ambiguousRenames.length > 0) {
+      const at = now;
+      recordPendingRenames(
+        dirname(resolveDbPath(config)),
+        ambiguousRenames.map((r) => {
+          const oldV = dbMap.get(r.oldKey)!;
+          const newV = astVertexMap.get(r.newKey)!;
+          return {
+            concept,
+            oldKey: r.oldKey,
+            oldName: oldV.name,
+            newKey: r.newKey,
+            newName: newV.name,
+            filepath: newV.filepath,
+            score: Number(r.score.toFixed(2)),
+            recordedAt: at,
+            oldEnriched: enrichedKeys.has(r.oldKey),
+            newEnriched: enrichedKeys.has(r.newKey),
+          };
+        })
+      );
+      console.log(
+        `\nNot applied: ${ambiguousRenames.length} ambiguous rename candidate(s); their enriched entries stay ` +
+          `in scribe-output/${concept}.enriched.json as orphans and are listed in every update-skills report until settled.`
+      );
+      for (const r of ambiguousRenames) {
+        const oldV = dbMap.get(r.oldKey)!;
+        const newV = astVertexMap.get(r.newKey)!;
+        console.log(`  ambiguous: ${oldV.name} → ${newV.name} (${newV.filepath}, score: ${r.score.toFixed(2)})`);
+      }
+      console.log(`  settle: code-graph enrich prune ${concept} (dry run, then --yes), or re-enrich the new vertex`);
+    }
+    const rekey = uniqueRenames
+      .filter((r) => !isAmbiguous(r) && enrichedKeys.has(r.oldKey))
+      .map((r) => ({ from: r.oldKey, to: r.newKey }));
+    if (enrichedDoc && rekey.length > 0) {
+      enrichedDoc = applyRemap(enrichedDoc, rekey);
+      writeEnrichedDoc(enrichedPath, enrichedDoc);
+      for (const { to } of rekey) {
+        const ev = enrichedDoc.vertices.find((e) => e._key === to);
+        if (ev) enrichedVertexMap.set(to, ev);
+      }
+      console.log(
+        `\nRenamed: ${rekey.length} enriched entr${rekey.length === 1 ? "y" : "ies"} re-keyed in scribe-output/${concept}.enriched.json.`
+      );
+    }
+    if (orphans) {
+      const rekeyed = new Set(rekey.map((r) => r.from));
+      const left: OrphanPlan = {
+        remapped: orphans.remapped,
+        ambiguous: orphans.ambiguous.filter((k) => !rekeyed.has(k)),
+        unmatched: orphans.unmatched.filter((k) => !rekeyed.has(k)),
+      };
+      const line = orphanSummary(concept, left, false);
+      if (line) process.stderr.write(`${line}\n`);
+    }
+  }
+
   // Interactive rename prompts
   const approvedRenames: RenameCandidate[] = [];
   if (uniqueRenames.length > 0) {
     if (opts.approveDrift) {
       approvedRenames.push(...uniqueRenames);
+    } else if (opts.approveUnambiguousRenames) {
+      approvedRenames.push(...uniqueRenames.filter((r) => !isAmbiguous(r)));
     } else {
       let skipAll = false;
       for (const r of uniqueRenames) {

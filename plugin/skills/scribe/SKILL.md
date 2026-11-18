@@ -74,8 +74,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/code-graph.cjs" apply <concept>
 Run each alone in its own Bash call. `apply` reports drift; enrichment (`enrichment.md`) is a separate,
 token-spending step, run only when asked or called for by `update-concept-skills`.
 
-A Stop/SubagentStop hook also runs both at each stop; if its message names a concept left unapplied,
-Read `${CLAUDE_PLUGIN_ROOT}/skills/scribe/refresh-hook.md`.
+A Stop/SubagentStop hook also runs both at each stop; if its message names a concept left unapplied or
+an update run, Read `${CLAUDE_PLUGIN_ROOT}/skills/scribe/refresh-hook.md`.
 
 **No tsconfig, or no `concepts` in `scribe.config.json`** (Terraform, docs-only repos): there is no
 graph to feed. Skip extract + apply, and say so. Writing the SKILL.md and stamping it
@@ -99,15 +99,15 @@ deepening, you run the flows yourself:
 2. **Pass on what you were given.** A caller's code-change report lets the update flow skip
    rediscovering what already changed; a gap delivered on your channel lane names the skill and the
    gap outright.
-3. **Expect a proposal step to end your turn.** `create-concept-skills` and `update-concept-skills`
-   settle their concept list with the user before writing, and no subagent has `AskUserQuestion`.
-   There, report the numbered proposal and stop without writing any file; the caller settles it and
-   invokes you again with the approved list. That is a completed turn, not a failure.
-4. **Confirm.** Report which flow ran, which concept skills changed, and their new versions.
+3. **Only the first list asks.** `create-concept-skills` proposes it and stops (report it; you are
+   re-invoked with it approved). `update-concept-skills` runs unattended to the end.
+4. **At a task's end**, if `skills status --summary` shows concepts the task touched behind HEAD, run
+   `update-concept-skills` unattended for **those only** (see `refresh-hook.md`).
+5. **Confirm.** Report which flow ran, which concept skills changed, and their new versions.
 
 These flows call `code-graph.cjs` with `Bash` and read widely with `Agent`. Your `Bash` is for that
 script and read-only `git` (`diff`, `log`, `show`, `rev-parse`) only; never a build, test run, install
-or a write outside `.claude/` and `docs/`.
+or a write outside `.claude/`, `docs/` and `scribe.config.json`; never a commit.
 
 Never hand-edit a concept skill's `metadata.version` or `metadata.last-update`; `skills stamp` writes
 them. A stamp-only needs `skills status <skill>` read first and `--reviewed` only after comparing (see

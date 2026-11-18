@@ -3,8 +3,8 @@ name: scribe-pipeline
 description: How the code-graph write path works — extract a concept to an .ast.json, apply it into the SQLite store with drift detection, and ingest the concept's SKILL.md as a doc vertex. Read before changing packages/code-graph/src/scribe.
 metadata:
   type: concept-skill
-  version: "1.5"
-  last-update: ad3696951015be5669d0762eacaa3fcf9028fd35
+  version: "1.6"
+  last-update: 6c9cc3374ba5445aeff4a83d399218350425f18f
 ---
 
 # Scribe pipeline
@@ -20,16 +20,20 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `concept-batch.ts` | batch forms of `extract`/`apply`/`drift` (`<concept>...` or `--all`): `resolveConceptArgs`, `runConceptBatch`, `batchFailureSummary`, `ReportedError`, `reportAndThrow`; loaded statically by `cli.ts`, so it imports nothing that touches the store or ts-morph |
 | `scribe/extract.ts` | ts-morph walk of the concept's globs; emits vertices and edges, never touches the store; caches one `Project` per tsconfig path per process, so a batch extract parses the tsconfig once |
 | `scribe/ast-output.ts` | reads the concept's SKILL.md, writes the `.ast.json`; `extractDocsOnly` for concepts with no code |
-| `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants) |
-| `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `HOOK_TIMEOUT_SECONDS` (120), `takeLock`/`releaseLock`, and re-exports `EXIT_RENAMES_DEFERRED` (10, defined in `scribe/exit-codes.ts`). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
-| `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10); `apply.ts` reads it from here so the write path never imports the hook module |
+| `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants), `--approve-unambiguous-renames` (see Invariants) |
+| `scribe/update-run.ts` | the unattended update-concept-skills run (task 078): the trigger `maybeStartUpdate` (`refresh-skills --hook` calls it after its refresh; one detached runner per start), the runner `runUpdate` (`refresh-skills --run-update <token>`), the claim/finish pair `claimUpdateRun` / `finishUpdateRun` / `finishSessionRun` (`refresh-skills --claim-update`, `--finish-update`), the state `.update-skills.json` and `.update-skills.head`, the report `update-skills-report.md`, the dontAsk allowlist `unattendedAllowedTools` and `READ_ONLY_GIT`, and the prompt line `CLAIMED_BY_RUNNER`. Imports no store, ts-morph or typescript |
+| `scribe/update-staging.ts` | staged install: the session writes SKILL.md files and `manifest.json` under `scribe-output/update-staging/`; `installStaged` copies them into place, stamps them (`--bump minor`, `initial` for a created one, `--reviewed` for stamp-only), re-applies their docs, and advances the repo-level record only when every entry succeeded. `refusedWriteIn` reads an EPERM/EROFS/EACCES path out of a child's output; a refused write makes the run INCOMPLETE |
+| `scribe/pending-renames.ts` | the ambiguous renames `apply --approve-unambiguous-renames` left unapplied, in `scribe-output/ambiguous-renames.json`; `pendingRenamesSection` lists them in each update report until settled |
+| `scribe/read-only-git.ts` | `code-graph git diff\|log\|show [args...]`: runs git with no shell and refuses `--output` / `--output=` (exit 1, nothing written); the only history read the headless run is allowed |
+| `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `HOOK_TIMEOUT_SECONDS` (120), `takeLock`/`releaseLock`, exports `LOCK_FILE` (the lock the update run shares), and re-exports `EXIT_RENAMES_DEFERRED` (10, defined in `scribe/exit-codes.ts`). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
+| `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10), `EXIT_UPDATE_NOT_CLAIMED` (14: `--claim-update` refused, not an error); `apply.ts` reads it from here so the write path never imports the hook module |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`); the newer-store refusal: `assertStoreNotNewer` / `NewerStoreError`, and `openStoreOrExit` (exit 3), which every store command opens through (see Gotchas) |
-| `scribe/db.ts` | `resolveDbPath` (`dbPath` override), cached store handles |
+| `scribe/db.ts` | `resolveDbPath` (`dbPath` override; delegates to `dbPathFor(cfg)` in `config.ts`, the sqlite-free store-path rule that hook-path code calls directly), cached store handles |
 | `scribe/enrich.ts` | `enrich targets` (what needs enriching; lazy, see Invariants; `--all` lists every never-enriched vertex, `--core` is a no-op, `--vertex` narrows to the named vertices with full details, `--summary` is the compact form with no edge arrays, plus `applied`; `--summary [--json] [--all]` with no concept is the cross-concept roll-up `enrichTargetsRollup`: `{ total, neverApplied[], notExtracted[], concepts[] }`, same selection rules, no target lines) and `enrich merge` (upsert a partial into `.enriched.json`, stamping `sig_seen`/`hash_seen`) and `enrich prune` (orphans `apply` cannot remap; dry run unless `--yes`); orphan planning and remap live here too (`planOrphans`, `applyRemap`); `enrichmentIsCurrent` is the staleness rule `apply` uses; `isConceptApplied` (a live vertex OR a docs row) is the one definition of "applied" (`enrich targets`, `apply`'s first-apply check, never-applied `drift`, `refresh-skills`) |
 | `scribe/core.ts` | a concept's core (vertices named in its SKILL.md plus in-concept hubs); shared by `enrich targets` (core-first by default) and `gaps`; `isThinCore` / `thinCoreMessage` flag a big concept whose skill names little |
 | `scribe/freshness.ts` | per-concept graph freshness surfaced by `skills status` (a newer store exits 3 here, the one read error it does not swallow) |
 | `scribe/unextracted.ts` | rescans a concept's globs, sha256s code files and diffs against `.ast.json` `meta.files` (`unextractedChanges`); layer-1 safe, used by `skills status` and `drift` |
-| `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs |
+| `scribe/delete-concept.ts` | archive a concept and report dangling cross-concept refs; `--yes` deletes its `.ast.json` and `.enriched.json`, `--keep-enriched` moves the enriched file to `scribe-output/deleted/` instead (the unattended run's removal) |
 | `scribe/rows.ts` | row shaping and `toMatchExpr`, which quotes and ORs `queryTokens` (query stopwords are stripped in JS; `search` also reads `queryTokens` for its whole-name boost) |
 
 ## Invariants
@@ -115,6 +119,26 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 - The concept SKILL.md becomes a `docs/<concept>::skill` vertex with `documented-by` edges to every
   live vertex. A docs-only concept (no code vertices) still gets the doc vertex, which is what makes
   `search` find skills in repos with no tsconfig.
+- **Update run (task 078).** A Stop/SubagentStop hook start and a session claim both go through `claimUpdateRun`, which takes
+  `LOCK_FILE` and refuses (`EXIT_UPDATE_NOT_CLAIMED`, 14) while the lock is held, while an unfinished run is younger than
+  `MAX_UPDATE_RUN_MINUTES` (120), or within the interval (`DEFAULT_UPDATE_INTERVAL_MINUTES`, 60; `CODE_GRAPH_UPDATE_INTERVAL_MINUTES`
+  or `--update-interval`). The hook-started runner heartbeats the lock every 30 s (`HEARTBEAT_MS`), so a long `claude -p` is not
+  taken over at `HOOK_TIMEOUT_SECONDS`; a session claim releases the lock at once. The runner sets `CODE_GRAPH_UNATTENDED=1`, so a stop
+  inside it starts nothing. `CODE_GRAPH_AUTO_UPDATE=0` turns the trigger off.
+- `finishSessionRun` (`--finish-update`) finishes only a state with `by === 'session'`; a hook-started run is finished only by its
+  runner (`runUpdate`). A stray `--finish-update` cannot end a hook run or overwrite its report.
+- The headless session has no Bash rule for `git diff|log|show` (their `--output=<file>` writes any file). It reads history through
+  `code-graph git diff|log|show`, which refuses `--output`. `READ_ONLY_GIT` keeps only `status`, `rev-parse`, `rev-list`, `ls-files`.
+- Staged install: the session never writes `.claude/skills`. It writes `scribe-output/update-staging/<concept>/SKILL.md` and a
+  `manifest.json`; `installStaged` copies, stamps and re-applies only when every entry succeeded. A missing manifest, a non-zero
+  `claude` exit, or a refused write (EPERM, EROFS, EACCES, named by `refusedWriteIn`) ends the run INCOMPLETE: the repo-level record
+  is not advanced and the report names the refused path.
+- `apply --approve-unambiguous-renames` applies the concept (exit 0). A candidate is ambiguous when its old or new key appears in
+  more than one raw candidate, or when both keys are already in `.enriched.json`. Unambiguous ones are re-keyed. An ambiguous one is
+  not applied: its old key is archived and the new key inserted as new, its old enriched entry stays as an orphan (nothing deleted),
+  and it is recorded in `scribe-output/ambiguous-renames.json`. Combining it with `--approve-drift`, `--defer-renames` or `--dry-run`
+  exits 1. The drift JSON marks each candidate `renameCandidates[].ambiguous`.
+- `delete-concept --keep-enriched` never deletes `<concept>.enriched.json` (it is unrecoverable): it moves it to `scribe-output/deleted/`.
 
 ## Traps
 
@@ -147,6 +171,11 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   `NewerStoreError` for a newer store; the store commands open through `openStoreOrExit` (exit 3, store left
   unchanged), while `skills status` (`graphFreshness`) and `refresh-skills` call `assertStoreNotNewer` directly. A version
   check placed after bootstrap would never fire. Guarded by `scribe/schema-version.test.ts`.
+- Hook-path code that must not load `node:sqlite` takes the store path from `dbPathFor(cfg)` (`config.ts`), never `resolveDbPath`
+  (`scribe/db.ts`, which imports `node:sqlite` directly). `update-run.ts`, `update-staging.ts`,
+  `pending-renames.ts` and `read-only-git.ts` import no store module for this reason.
+- Exit 14 from `refresh-skills --claim-update` means the run was not claimed (lock, unfinished run, or interval). It is not a failure:
+  the caller reports the reason it printed and stops.
 
 ## Relationships
 

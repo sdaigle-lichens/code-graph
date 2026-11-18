@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { loadConfig } from "../config.js";
@@ -170,7 +170,20 @@ export function archiveConcept(
   });
 }
 
-export async function deleteConcept(conceptName: string, opts: { yes?: boolean }): Promise<void> {
+/** Moves `<concept>.enriched.json` to `scribe-output/deleted/` (never over an earlier copy); returns the new relative path. */
+function keepAside(configRoot: string, conceptName: string, path: string): string {
+  const dir = join(configRoot, "scribe-output", "deleted");
+  mkdirSync(dir, { recursive: true });
+  let name = `${conceptName}.enriched.json`;
+  if (existsSync(join(dir, name))) name = `${conceptName}.${Date.now()}.enriched.json`;
+  renameSync(path, join(dir, name));
+  return `scribe-output/deleted/${name}`;
+}
+
+export async function deleteConcept(
+  conceptName: string,
+  opts: { yes?: boolean; keepEnriched?: boolean }
+): Promise<void> {
   const config = loadConfig();
   const { configRoot } = config;
 
@@ -246,13 +259,19 @@ export async function deleteConcept(conceptName: string, opts: { yes?: boolean }
   writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2) + "\n", "utf-8");
 
   // ── 7. Remove scribe-output artifacts ─────────────────────────────────────
+  // The enriched file is gitignored and unrecoverable: with `keepEnriched` (the unattended
+  // update-concept-skills removal) it is moved to scribe-output/deleted/ instead of deleted.
   const removedArtifacts: string[] = [];
+  let keptEnriched: string | null = null;
   for (const suffix of ["ast.json", "enriched.json"]) {
     const p = join(configRoot, "scribe-output", `${conceptName}.${suffix}`);
-    if (existsSync(p)) {
-      rmSync(p);
-      removedArtifacts.push(`scribe-output/${conceptName}.${suffix}`);
+    if (!existsSync(p)) continue;
+    if (suffix === "enriched.json" && opts.keepEnriched) {
+      keptEnriched = keepAside(configRoot, conceptName, p);
+      continue;
     }
+    rmSync(p);
+    removedArtifacts.push(`scribe-output/${conceptName}.${suffix}`);
   }
 
   // ── 8. Print summary ──────────────────────────────────────────────────────
@@ -262,6 +281,9 @@ export async function deleteConcept(conceptName: string, opts: { yes?: boolean }
   console.log(`  config:   removed from scribe.config.json`);
   if (removedArtifacts.length > 0) {
     console.log(`  removed:  ${removedArtifacts.join(", ")}`);
+  }
+  if (keptEnriched) {
+    console.log(`  kept:     scribe-output/${conceptName}.enriched.json moved to ${keptEnriched}`);
   }
 
   if (danglingRefs.length > 0) {

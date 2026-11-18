@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { chooseStartDir } from "./skills/state.js";
 
@@ -27,6 +27,16 @@ const ConfigSchema = z.object({
 export type ScribeConfig = z.infer<typeof ConfigSchema> & {
   configRoot: string;
 };
+
+/**
+ * The graph store's path (`dbPath` override, else `scribe-output/graph.db`). Lives here, not in
+ * `scribe/db.ts`, so callers that must not load `node:sqlite` (the refresh-skills hook's update
+ * trigger) share the rule; `resolveDbPath` in `db.ts` delegates to it.
+ */
+export function dbPathFor(cfg: ScribeConfig): string {
+  if (cfg.dbPath) return resolve(cfg.configRoot, cfg.dbPath);
+  return join(cfg.configRoot, "scribe-output", "graph.db");
+}
 
 export function loadConfig(cwd: string = process.cwd()): ScribeConfig {
   let dir = cwd;

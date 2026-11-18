@@ -262,10 +262,23 @@ program
     "--defer-renames",
     "non-interactive: never prompt; a concept with rename candidates is left unwritten and the command exits 10"
   )
+  .option(
+    "--approve-unambiguous-renames",
+    "non-interactive: approve every unambiguous rename candidate (re-keying its enrichment); an ambiguous " +
+      "one is left unapplied, its enriched entry kept as an orphan and recorded in " +
+      "scribe-output/ambiguous-renames.json; the concept is applied, exit 0"
+  )
   .action(
     async (
       concepts: string[] | undefined,
-      opts: { all?: boolean; dryRun?: boolean; approveDrift?: boolean; json?: boolean; deferRenames?: boolean }
+      opts: {
+        all?: boolean;
+        dryRun?: boolean;
+        approveDrift?: boolean;
+        json?: boolean;
+        deferRenames?: boolean;
+        approveUnambiguousRenames?: boolean;
+      }
     ) => {
       if (opts.json && !opts.dryRun) {
         console.error("apply failed: --json needs --dry-run");
@@ -273,6 +286,12 @@ program
       }
       if (opts.deferRenames && opts.approveDrift) {
         console.error("apply failed: --defer-renames and --approve-drift are mutually exclusive");
+        process.exit(1);
+      }
+      if (opts.approveUnambiguousRenames && (opts.approveDrift || opts.deferRenames || opts.dryRun)) {
+        console.error(
+          "apply failed: --approve-unambiguous-renames cannot be combined with --approve-drift, --defer-renames or --dry-run"
+        );
         process.exit(1);
       }
       let first = true;
@@ -286,6 +305,7 @@ program
           approveDrift: opts.approveDrift ?? false,
           json: opts.json ?? false,
           deferRenames: opts.deferRenames ?? false,
+          approveUnambiguousRenames: opts.approveUnambiguousRenames ?? false,
           collect,
         });
       });
@@ -299,38 +319,121 @@ program
   .description(
     "extract + apply every concept whose SKILL.md changed since its last apply; renames are deferred, never decided"
   )
-  .option("--hook", "Claude Code hook mode: read the hook payload on stdin, print only a systemMessage JSON, exit 0")
+  .option(
+    "--hook",
+    "Claude Code hook mode: read the hook payload on stdin, refresh, start an unattended update-concept-skills " +
+      "run when concept skills are behind HEAD, print only a systemMessage JSON, exit 0"
+  )
   .option("--json", "print the report as JSON")
-  .action(async (opts: { hook?: boolean; json?: boolean }) => {
-    const { refreshSkills, hookMessage, hookCwd, readHookStdin, EXIT_RENAMES_DEFERRED } =
-      await import("./scribe/skill-refresh.js");
-    if (opts.hook) {
-      // A hook never fails the stop: every outcome, errors included, is a message or silence.
+  .option(
+    "--claim-update",
+    "claim the update-concept-skills run for this session (shares the hook's lock and interval); exit 14 when not claimed"
+  )
+  .option("--finish-update", "mark the claimed update-concept-skills run finished")
+  .option("--run-update <token>", "internal: the detached runner the hook starts (holds the lock with <token>)")
+  .option("--concepts <list>", "with --claim-update / --run-update: comma-separated concepts the run covers")
+  .option("--update-interval <minutes>", "minimum minutes between update runs (default 60)", Number)
+  .action(
+    async (opts: {
+      hook?: boolean;
+      json?: boolean;
+      claimUpdate?: boolean;
+      finishUpdate?: boolean;
+      runUpdate?: string;
+      concepts?: string;
+      updateInterval?: number;
+    }) => {
+      const { refreshSkills, hookMessage, hookCwd, readHookStdin, EXIT_RENAMES_DEFERRED } =
+        await import("./scribe/skill-refresh.js");
+      const concepts = (opts.concepts ?? "")
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (opts.runUpdate) {
+        const { runUpdate } = await import("./scribe/update-run.js");
+        try {
+          const code = await runUpdate(process.cwd(), opts.runUpdate, concepts);
+          if (code !== 0) process.exitCode = 1;
+        } catch (err) {
+          // runUpdate ends its own failures INCOMPLETE; this is the last net for a detached runner.
+          process.stderr.write(`code-graph refresh-skills --run-update: INCOMPLETE; ${(err as Error).message}\n`);
+          process.exitCode = 1;
+        }
+        return;
+      }
+      if (opts.claimUpdate || opts.finishUpdate) {
+        const { claimUpdateRun, finishSessionRun, intervalMs, updateStateDir } = await import("./scribe/update-run.js");
+        const { EXIT_UPDATE_NOT_CLAIMED } = await import("./scribe/exit-codes.js");
+        const stateDir = updateStateDir(process.cwd());
+        if (!stateDir) {
+          console.error("refresh-skills failed: no scribe.config.json");
+          process.exit(5);
+        }
+        if (opts.finishUpdate) {
+          const done = finishSessionRun(process.cwd());
+          if (opts.json) console.log(JSON.stringify({ finished: done.finished, pendingRenames: done.pending }));
+          else {
+            console.log(done.finished ? "update run finished" : "no unfinished session run");
+            if (done.pending.length > 0) console.log(["", ...done.pending].join("\n"));
+          }
+          return;
+        }
+        const claim = claimUpdateRun(stateDir, {
+          by: "session",
+          concepts,
+          now: Date.now(),
+          interval: intervalMs(opts.updateInterval),
+          keepLock: false,
+        });
+        if (opts.json) {
+          console.log(JSON.stringify(claim.claimed ? { claimed: true } : { claimed: false, reason: claim.reason }));
+        } else if (claim.claimed) {
+          console.log(`update run claimed${concepts.length ? ` for ${concepts.join(", ")}` : ""}`);
+        } else {
+          console.log(`update run not claimed: ${claim.reason}`);
+        }
+        if (!claim.claimed) process.exitCode = EXIT_UPDATE_NOT_CLAIMED;
+        return;
+      }
+      if (opts.hook) {
+        // A hook never fails the stop: every outcome, errors included, is a message or silence.
+        const cwd = hookCwd(readHookStdin());
+        const lines: string[] = [];
+        try {
+          const message = hookMessage(await refreshSkills(cwd));
+          if (message) lines.push(message);
+        } catch (err) {
+          lines.push(`code-graph: refresh-skills failed: ${(err as Error).message}`);
+        }
+        // After the refresh, so the lock it took is released; the trigger never blocks the stop.
+        try {
+          const { maybeStartUpdate, updateHookMessage } = await import("./scribe/update-run.js");
+          const message = updateHookMessage(await maybeStartUpdate(cwd, { intervalMinutes: opts.updateInterval }));
+          if (message) lines.push(message);
+        } catch (err) {
+          lines.push(`code-graph: update-concept-skills trigger failed: ${(err as Error).message}`);
+        }
+        if (lines.length > 0) console.log(JSON.stringify({ systemMessage: lines.join("\n") }));
+        return;
+      }
       try {
-        const message = hookMessage(await refreshSkills(hookCwd(readHookStdin())));
-        if (message) console.log(JSON.stringify({ systemMessage: message }));
+        const report = await refreshSkills(process.cwd());
+        if (opts.json) console.log(JSON.stringify(report));
+        else if (report.skipped) console.log(`refresh-skills: skipped (${report.skipped})`);
+        else if (report.changed.length === 0) console.log("refresh-skills: no SKILL.md changed since the last apply");
+        else console.log(hookMessage(report) ?? "refresh-skills: nothing to report");
+        if (report.results.some((r) => r.status === "failed")) process.exitCode = 1;
+        else if (report.results.some((r) => r.status === "deferred")) process.exitCode = EXIT_RENAMES_DEFERRED;
       } catch (err) {
-        console.log(JSON.stringify({ systemMessage: `code-graph: refresh-skills failed: ${(err as Error).message}` }));
+        if ((err as Error).name === "NewerStoreError") {
+          console.error((err as Error).message);
+          process.exit(3);
+        }
+        console.error("refresh-skills failed:", (err as Error).message);
+        process.exit(1);
       }
-      return;
     }
-    try {
-      const report = await refreshSkills(process.cwd());
-      if (opts.json) console.log(JSON.stringify(report));
-      else if (report.skipped) console.log(`refresh-skills: skipped (${report.skipped})`);
-      else if (report.changed.length === 0) console.log("refresh-skills: no SKILL.md changed since the last apply");
-      else console.log(hookMessage(report) ?? "refresh-skills: nothing to report");
-      if (report.results.some((r) => r.status === "failed")) process.exitCode = 1;
-      else if (report.results.some((r) => r.status === "deferred")) process.exitCode = EXIT_RENAMES_DEFERRED;
-    } catch (err) {
-      if ((err as Error).name === "NewerStoreError") {
-        console.error((err as Error).message);
-        process.exit(3);
-      }
-      console.error("refresh-skills failed:", (err as Error).message);
-      process.exit(1);
-    }
-  });
+  );
 
 const enrich = program.command("enrich").description("incremental enrichment: list targets, merge partial results");
 
@@ -736,9 +839,27 @@ program
   .command("delete-concept <name>")
   .description("archive a concept: marks vertices/edges archived, removes from config + artifacts")
   .option("--yes", "skip interactive confirmation")
-  .action(async (name: string, opts: { yes?: boolean }) => {
+  .option(
+    "--keep-enriched",
+    "move scribe-output/<name>.enriched.json to scribe-output/deleted/ instead of deleting it (it is unrecoverable)"
+  )
+  .action(async (name: string, opts: { yes?: boolean; keepEnriched?: boolean }) => {
     const { deleteConcept } = await import("./scribe/delete-concept.js");
-    await deleteConcept(name, { yes: opts.yes ?? false });
+    await deleteConcept(name, { yes: opts.yes ?? false, keepEnriched: opts.keepEnriched ?? false });
+  });
+
+program
+  .command("git <subcommand> [args...]")
+  .description(
+    "read-only git diff|log|show for the unattended update run: refuses --output (it writes a file), " +
+      "then runs git with the arguments as given (put --root before git)"
+  )
+  .allowUnknownOption()
+  .allowExcessArguments()
+  .helpOption(false)
+  .action(async (subcommand: string, args: string[]) => {
+    const { runReadOnlyGit } = await import("./scribe/read-only-git.js");
+    process.exitCode = runReadOnlyGit(subcommand, args ?? [], process.cwd());
   });
 
 const deps = program.command("deps").description("manage the plugin-owned ts-morph install used by graph commands");

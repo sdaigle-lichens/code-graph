@@ -7,3 +7,9 @@
  * decision (`apply <concept>` at a terminal), and recording it any other way loses enrichment.
  */
 export const EXIT_RENAMES_DEFERRED = 10;
+
+/**
+ * `refresh-skills --claim-update` did not claim the update-concept-skills run: the refresh-skills lock is
+ * held, another update run has not finished, or one started within the minimum interval.
+ */
+export const EXIT_UPDATE_NOT_CLAIMED = 14;

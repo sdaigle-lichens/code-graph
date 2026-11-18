@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { loadConfig, type ScribeConfig } from "../config.js";
+import { dirname } from "node:path";
+import { dbPathFor, loadConfig, type ScribeConfig } from "../config.js";
 
 /**
  * The graph lives beside the other per-project artifacts that `extract` and
@@ -9,9 +9,7 @@ import { loadConfig, type ScribeConfig } from "../config.js";
  * needs no server-side database naming.
  */
 export function resolveDbPath(config?: ScribeConfig): string {
-  const cfg = config ?? loadConfig();
-  if (cfg.dbPath) return resolve(cfg.configRoot, cfg.dbPath);
-  return join(cfg.configRoot, "scribe-output", "graph.db");
+  return dbPathFor(config ?? loadConfig());
 }
 
 const _stores = new Map<string, DatabaseSync>();

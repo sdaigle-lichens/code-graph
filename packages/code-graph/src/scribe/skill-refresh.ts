@@ -29,7 +29,8 @@ export { EXIT_RENAMES_DEFERRED };
  */
 export const HOOK_TIMEOUT_SECONDS = 120;
 
-const LOCK_FILE = ".refresh-skills.lock";
+/** The per-store lock, next to graph.db; shared with the update-concept-skills trigger (`update-run.ts`). */
+export const LOCK_FILE = ".refresh-skills.lock";
 
 export type ChangedSkill = { concept: string; skillPath: string };
 

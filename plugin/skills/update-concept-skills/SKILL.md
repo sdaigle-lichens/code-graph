@@ -31,6 +31,82 @@ caller settled it. Step 5 is done: apply it in step 6 without re-proposing, and 
 | An agent was added or removed | **Agent-scoped** | Only `agents/` subdirectories and the `agents` list are in scope. Skip step 4.1–4.3. |
 | Neither | **Full** | Derive the changes from the reports in step 3. |
 
+Any of those can also run **unattended**: `$ARGUMENTS` says `unattended` (the code-graph Stop hook's
+background run says so), or you have no `AskUserQuestion` (a subagent, such as the Maestro scribe).
+Read the next section first in that case.
+
+## Unattended mode
+
+Nobody answers questions in this mode, and nobody relays a proposal to a main session: the run goes to
+the end and reports. Only **step 1's NO LIST stop** remains. Installing the plugin and writing the first
+concept list (`create-concept-skills`) always ask the user; this mode never creates a first list.
+
+- **Claim the run first** so a session and the hook never do the same work twice. They share the
+  refresh-skills lock and a minimum interval between runs (60 minutes by default):
+
+  ```bash
+  cg refresh-skills --claim-update --concepts <concept>,<concept>
+  ```
+
+  Exit 14 = not claimed (another update is running, holds the lock, or started within the interval):
+  stop and report the reason it printed. After the report, run `cg refresh-skills --finish-update`.
+  **Exception, the hook's run:** when `$ARGUMENTS` names `claimed: by the runner`, the runner
+  already holds the claim and the lock (a claim would exit 14). Run neither `--claim-update` nor
+  `--finish-update`, and do not check an environment variable or the state file to decide. Without that
+  line (a session-started run, such as the Maestro scribe), claim and finish as above.
+- **Scope**: the concepts you were given (the hook passes the ones behind HEAD; the scribe passes the
+  ones its task touched). Do not widen it to the whole list; the Stop hook catches the rest.
+- **Step 5 is not a stop.** Revisions, additions and removals are applied in step 6 without asking:
+  - **Add** a concept for a directory of core code that no glob covers (a new top-level directory under
+    a source root, not a single stray file): new `concepts.<key>` with `globs` and `skill`, a lean
+    SKILL.md, `--bump initial`, and the first-time graph build of step 6 (no enrichment).
+  - **Remove** a concept only when its globs match no file at all now **and** git shows its files were
+    deleted, not moved: `cg delete-concept <name> --yes --keep-enriched` (the enrichment is moved to
+    `scribe-output/deleted/`, never deleted).
+  - **Moved files** (`cg git diff --name-status -M <lastUpdate>..HEAD` shows `R` lines out of a concept's
+    globs) are a **glob revision** of that concept, never a remove plus an add: the files keep their
+    concept, so `apply` re-keys their enrichment.
+  - The `agents` list (step 4.5) stays a proposal: write it in the report, do not run `agents-set`.
+- **Renames**: run `cg apply <concept>... --approve-unambiguous-renames`, never `--approve-drift`. A
+  rename with exactly one candidate on each side is applied and its enriched entries are re-keyed. An
+  ambiguous candidate does not block its concept: `apply` still applies the concept (exit 0), leaves
+  that rename unapplied, keeps its enriched entry in `scribe-output/<concept>.enriched.json` as an
+  orphan and prints `Not applied: N ambiguous rename candidate(s)` with one `ambiguous:` line each. It
+  also records them in `scribe-output/ambiguous-renames.json`, and every update report lists them until a
+  person settles each with `code-graph enrich prune <concept>` or a re-enrich. Copy the lines into the
+  report under "ambiguous renames left for a person"; settle none of them yourself.
+- **Staging (the hook's run).** When `$ARGUMENTS` names `staging: <dir>`, a headless session cannot
+  write under the project's `.claude/` (the sandbox and Claude Code's own protection refuse it, whatever
+  the permission mode). So never Edit or Write a concept's SKILL.md there and never run `skills stamp`
+  (per skill or repo-level). Write each revised or created SKILL.md **in full** to
+  `<dir>/<concept>/SKILL.md`. Then, as the last step before the report, write `<dir>/manifest.json`:
+  `{"concepts":[{"id":"<concept>","action":"revised|created|stamp-only|untouched|failed","reason":"..."}]}`,
+  one entry per concept in scope and per concept added (`stamp-only` = reviewed, prose still holds;
+  `failed` = you could not produce it). Everything else runs as usual: `scribe.config.json`, extract,
+  apply, enrichment. Enrichment partials go to `<dir>/partials/<concept>.partial.<n>.json` instead of
+  `$TMPDIR` (give that path as `outPath` to any enrichment subagent too): the session cannot read its
+  environment, and a path outside the project would need a permission prompt. Use only the tools and
+  commands this skill names (`cg …`, read-only `git status|rev-parse|rev-list|ls-files`, Read, Glob,
+  Grep); anything else is denied. Read history with `cg git diff|log|show <args>` wherever this skill
+  says `git diff`, `git log` or `git show`: those three are denied directly (their `--output` writes a
+  file, which `cg git` refuses). Edit and Write work only under `<dir>/` and on
+  `scribe.config.json`: an edit to any other file is denied, so never retry one; write it to staging or
+  report it. After the session the runner installs the files, stamps them, re-applies their
+  docs, and advances the repo-level record only when every entry succeeded. A missing manifest makes
+  the run incomplete.
+- **Never advance the record over a failure.** When any in-scope concept's revision or stamp was not
+  written (a blocked edit, a stamp exit 9 you could not apply, a failed command), stamp nothing for that
+  concept, skip the repo-level `cg skills stamp --bump minor`, and start the report with
+  `incomplete:` naming each one and why. The concept stays visibly behind, and the next run retries it.
+- **Never orphan an enrichment entry.** `apply` prints a `note:` line for entries it could not remap:
+  copy it into the report. Never run `enrich prune`, and never delete a `scribe-output/*.enriched.json`.
+- **Leave everything uncommitted.** No `git add`, no `git commit`: the user reviews `git diff`.
+- Enrichment sizing (step 6) does not ask: incremental concepts only, within the 20-target cap; list
+  first-time builds and the rest under "left to enrich".
+- **Known limit**: the quality of a concept-list reconcile run by Haiku (the scribe subagent's model) is
+  unmeasured. Scoping each run to the touched concepts keeps it small, and the Stop hook's run catches
+  what a scoped run left behind; review the `git diff` before committing.
+
 ## Workflow
 
 Create a task per step with `TaskCreate`, wired with `TaskUpdate addBlockedBy`.
@@ -98,8 +174,13 @@ For each concept with `commits > 0` or a non-zero `unextracted` count:
    delete+add — revise file maps rather than treating them as new code; `doc.bodyHashChanged` says
    the SKILL.md itself was edited since the last `apply`.
 3. **Without a graph** (no tsconfig, or the concept was never extracted): skip `drift`, and read the
-   window instead — `git diff --stat <lastUpdate>..HEAD -- <globs>` and the file list from
-   `cg skills status --json` (full form; read it for that concept only). For a large diff delegate to a subagent and ask only *which concepts are implicated*.
+   window instead — `cg git diff --stat <lastUpdate>..HEAD -- <globs>` and the file list from
+   `cg skills status --json` (full form; read it for that concept only). For a large diff, **with the
+   Agent tool**, delegate to a subagent and ask only *which concepts are implicated*. **Without it**
+   (a subagent), do it inline and scoped: only the concepts in scope, `cg git diff --stat` first, then read
+   the diff of **up to 20** files, most-committed first (`cg skills status <concept-id>` gives the
+   counts). List the files left unread in the report; never skip the inline part because the diff is
+   long.
 
 ### 4. Decide what changes
 
@@ -129,16 +210,22 @@ the code.
 **With `AskUserQuestion`** (main session): ask with real labelled options, as in `create-concept-skills`
 step 5.
 
-**Without it** (subagent): do step 6 for the **revisions only**, then report the proposed additions
-and deletions as a numbered list with reasons, marked unconfirmed. Re-invoking with the approved list
-applies it. Never create or delete a concept skill on your own judgement.
+**Unattended** (no `AskUserQuestion`, or `unattended` in `$ARGUMENTS`): no stop and no proposal; apply
+the additions and removals under the rules of "Unattended mode" above, which are the only judgement
+this skill allows itself. Outside that mode, never create or delete a concept skill on your own
+judgement.
 
 ### 6. Write, stamp, refresh the graph
 
 Apply the changes, keeping each file lean — this pass reconciles, it does not expand. A skill needing
 more says so in the report and is left for `update-single-concept-skill`. Declare a new concept in
 `scribe.config.json` (`concepts.<key>.globs` and `skill`) preserving every other key; remove a
-deleted one with `cg delete-concept <name>` (when a graph exists).
+deleted one with `cg delete-concept <name> --yes --keep-enriched` (when a graph exists; it also removes
+the concept from `scribe.config.json`), which moves its enrichment to `scribe-output/deleted/` instead
+of deleting it.
+
+Unattended, every `apply` in this step is `cg apply <concept>... --approve-unambiguous-renames` (see
+"Unattended mode"); it applies every concept, and its ambiguous renames go into the report.
 
 **Before stamping, warn the user** when any skill to stamp lives under the project's own
 `.claude/skills`: the sandbox often blocks writes there, so those stamps may come back unwritten
@@ -157,8 +244,11 @@ under `N stamp(s) computed, not written; apply these lines by hand with Edit:` e
 with its lines, and exits 9. Offer to apply them all with Edit (`--json`: `{ stamped[], blocked[{ path,
 heading, lines }], failed[] }`). A skill you did not touch is **not** stamped: its
 `last-update` states when it was last checked against code, and moving it forward for free makes a
-stale skill invisible. Then the repo-level record — always minor, even when concepts were added or
-deleted (a major is a wholesale re-derivation, `create-concept-skills`' job):
+stale skill invisible. Then the repo-level record, but only once every skill you meant to revise is
+written and stamped (a revision or stamp still missing means no repo-level stamp; say so in the
+report). It is always minor, even when concepts were added or deleted (a major is a wholesale
+re-derivation, `create-concept-skills`' job). With `staging:` in `$ARGUMENTS` (see "Unattended mode")
+skip both stamps: the runner does them.
 
 ```bash
 cg skills stamp --bump minor
@@ -205,7 +295,7 @@ its `core.leftOut` beside it (from that concept's `concepts[]` entry in the re-r
 `first-time build: <concept> — total T, core.leftOut L`. A first-time build's `total` is its core only,
 and a total of 0 can still hide its real size: a never-applied concept whose SKILL.md names no vertices
 shows total 0 while `core.leftOut` holds what a full first pass would add. Never read a 0 total as
-nothing to do. Then ask whether to go ahead —
+nothing to do. Then ask whether to go ahead (unattended: do not ask, take the subagent path) —
 **with `AskUserQuestion`**: enrich the incremental concepts only, leaving first-time builds for later
 (recommended); include the first-time builds too; or stop after the graph refresh. Nothing is
 enriched before the answer. **Without it** (subagent): enrich only the incremental concepts, within
@@ -250,3 +340,11 @@ skill that needs a deep pass (including any thin core); the "left to enrich" lis
 had more than 20 targets; "core grew from N to M with this run's skill edit" when a SKILL.md revised
 in this run grew a concept's core (`core.size` before and after the edit); and what the repo-level
 version moved to.
+
+Unattended, add: the concepts in scope and whether the run was claimed (or why not); the concepts
+added and removed with the reason for each (and where `--keep-enriched` moved the enrichment); "ambiguous
+renames left for a person" (each `ambiguous:` line, with `enrich prune <concept>` or a re-enrich to
+settle it; `--finish-update` prints every unsettled one, from this run or an earlier one); every `note:`
+line about enrichment entries `apply` could not remap; the files the inline large-diff read left
+unread; the proposed `agents` list changes; and the line "changes left uncommitted; review with
+`git diff`".

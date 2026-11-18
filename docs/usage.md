@@ -138,6 +138,19 @@ drift, leaves the store unwritten and exits 10, so a later `apply <concept>` at 
 cannot be combined with `--approve-drift` (exit 1). In a batch a deferred concept does not stop the
 others; the batch exits 10 when any was deferred and none failed (a failure exits 1).
 
+`apply --approve-unambiguous-renames` (the unattended `update-concept-skills` run) never prompts either.
+A candidate is **ambiguous** when its old vertex pairs with more than one new one (or the reverse), or
+when both keys already carry an entry in `<concept>.enriched.json`. Every unambiguous rename is approved
+and its enriched entries are re-keyed onto the new keys (`Renamed: N enriched entries re-keyed ...`). An
+ambiguous candidate does not hold back its concept: the concept is applied (exit 0) without that rename
+(the old vertex is archived, the new one inserted), and its enriched entry stays in
+`<concept>.enriched.json` as an orphan; nothing is deleted. `apply` prints `Not applied: N ambiguous
+rename candidate(s) ...`, one `ambiguous: old → new (file, score: x)` line each and a `settle:` line, and
+records each in `scribe-output/ambiguous-renames.json` (next to `graph.db`). Every update report lists
+them until a person settles each one with `code-graph enrich prune <concept>` or by re-enriching the new
+vertex. `drift --json` marks each candidate `ambiguous: true|false`. It cannot be combined with `--approve-drift`, `--defer-renames` or `--dry-run`
+(exit 1).
+
 A concept **never applied** (no live vertex and no doc row in the store) is reported in one line
 instead of every vertex listed as new: text
 `Concept: <c>  never applied, <n> vertices to insert — run: code-graph apply <c>`, JSON
@@ -171,6 +184,93 @@ no `node:sqlite`, or no changed SKILL.md. A deferred concept is named with the c
 (`code-graph apply <concept>` in a terminal, never `--approve-drift`) and is reported again at every
 stop until applied by hand. Measured on a copy of a 16-concept repo (0.3.30): 0.07 s with no change,
 about 15 s to refresh 11 concepts (about 1.4 s per concept).
+
+**Unattended update trigger (0.3.46).** After the refresh, the hook checks whether concept skills are
+behind HEAD (`skills status`: commits since a skill's `last-update`). If any are, it starts **one**
+detached background run (`claude -p "/code-graph:update-concept-skills unattended ..."`,
+`--permission-mode dontAsk`: any tool call the allowlist does not approve is denied) for those
+concepts. Its `--allowedTools` are `Read`, `Glob`, `Grep`, `Skill`, `Agent`, the task tools, read-only
+git (`status`, `rev-parse`, `rev-list`, `ls-files`), `Bash(node <cli>:*)` for
+the bundled CLI only (no `node -e`), and two absolute `Edit(//...)` rules, which also cover `Write`:
+`Edit(//<staging dir>/**)` and `Edit(//<config root>/scribe.config.json)`. So the session can edit
+no other project file. Paths are resolved when the run starts, each as given and as its real path.
+`git diff`, `log` and `show` are not allowed directly: they take `--output=<file>`, which writes any
+file, and a prefix rule cannot refuse it. The session reads history with `code-graph git diff|log|show
+[args...]`, which refuses `--output` (exit 1, nothing written) and otherwise runs git with the arguments
+as given, with no shell (put a global `--root` before `git`).
+The hook returns at once; the message says so.
+
+**It spends tokens.** Once concept skills are behind HEAD, a stop in any session in the project can
+start one, at most one per interval. The model is the `claude` CLI's default (your configured model)
+unless `CODE_GRAPH_UPDATE_MODEL` names one (e.g. `haiku`); the hook message and the report header give
+it. Turn the trigger off with `CODE_GRAPH_AUTO_UPDATE=0` in the environment Claude Code starts from.
+The report header repeats both.
+
+The run leaves its changes uncommitted and writes its report to `scribe-output/update-skills-report.md` (next to
+`graph.db`); the next stop after it ends announces it once. No run starts when:
+
+- the refresh-skills lock is held (the background run holds it, with a heartbeat, until it ends);
+- another update run, hook- or session-started, has not finished (an unfinished run older than 2 h is
+  treated as dead);
+- the last run started less than the minimum interval ago (60 min; `CODE_GRAPH_UPDATE_INTERVAL_MINUTES`
+  or `refresh-skills --hook --update-interval <minutes>`);
+- HEAD is the one already checked, the repo is not a git repository, or `claude` is not on `PATH`;
+- `CODE_GRAPH_AUTO_UPDATE=0` (also `false`, `off`, `no`), or the hook runs inside an unattended run
+  (`CODE_GRAPH_UNATTENDED=1`).
+
+A headless session cannot write under the project's `.claude/` (the sandbox and Claude Code's own
+protection refuse it in every permission mode), so the hook's run writes no SKILL.md itself. The
+prompt names a staging directory, `scribe-output/update-staging/` (emptied before each run). The session
+writes each revised or created SKILL.md there as `<concept>/SKILL.md`, plus a `manifest.json` with one
+`{ id, action: revised|created|stamp-only|untouched|failed, reason? }` entry per concept. After
+`claude` exits 0, the runner (a plain node process) does the rest:
+
+- copies the staged files into place;
+- stamps them (`--bump minor`; `--bump initial` for a created one; `stamp-only` with `--reviewed`);
+- runs `extract` + `apply --approve-unambiguous-renames` on them when a store exists;
+- runs the repo-level `skills stamp --bump minor` only when nothing failed.
+
+The prompt also carries `claimed: by the runner; do not run --claim-update or --finish-update`. The
+runner holds the claim and the lock, and the allowlist gives the session no way to read its
+environment, so the session learns this from the prompt. A session-started run has no such line and
+claims and finishes itself.
+
+A missing manifest, a missing in-scope entry, a `failed` entry or a failed command makes the run
+**incomplete**: the repo-level record is not advanced, the staging directory is kept, and the report
+(section "Installed by the runner", line `result: INCOMPLETE`) and the next stop's message say so.
+The runner is meant to run outside the sandbox (Claude Code sandboxes Bash tool commands, not hooks).
+If any of its own writes is refused with `EPERM`, `EROFS` or `EACCES` (resetting the staging directory,
+copying a SKILL.md, a stamp's exit 9, `extract`/`apply`, or a read-only `graph.db`), the run is
+incomplete, the report header has a `sandboxed:` line naming each refused path, and nothing more is
+advanced. When the staging directory itself is refused, `claude` is not started. When the report
+itself cannot be written, the refused path goes to the state file (`refused`) and the runner's stderr,
+and the run still ends incomplete. A failed `extract` or `apply` after the install puts each installed
+SKILL.md back as it was, so no concept keeps a fresh stamp over a failed refresh. The runner reloads
+`scribe.config.json` after the session, so a concept the session added is installed like the others.
+
+`CODE_GRAPH_UPDATE_MODEL` sets the run's `--model`; `CODE_GRAPH_UPDATE_PLUGIN_DIR` passes
+`--plugin-dir` (to run a plugin checkout instead of the installed version). The state lives in
+`.update-skills.json` and `.update-skills.head` beside the lock. The report ends with a section
+"Ambiguous renames left for a person" while `ambiguous-renames.json` holds an unsettled one; a record
+settled is dropped from the file (one settled before any report listed it is shown once as "already
+settled").
+
+A session's own update claims the same lock and interval, so a scribe run followed by its SubagentStop
+does not repeat the work:
+
+```sh
+code-graph refresh-skills --claim-update [--concepts a,b] [--update-interval <minutes>] [--json]
+code-graph refresh-skills --finish-update [--json]
+```
+
+`--claim-update` prints `update run claimed` (exit 0) or `update run not claimed: <reason>` (exit 14);
+`--json` prints `{ claimed, reason? }`. `--finish-update` marks the run finished, writes
+`update-skills-report.md` (a short session header plus the ambiguous-renames section) and prints that
+section (`{ finished, pendingRenames }`).
+`--run-update <token>` is the background runner's own entry point, not for direct use.
+
+`delete-concept <name> --keep-enriched` moves `scribe-output/<name>.enriched.json` to
+`scribe-output/deleted/` instead of deleting it (the unattended removal uses it).
 
 A **docs-only** concept (no `tsconfig`, or globs that name no TypeScript files) needs no compiler:
 `extract` writes zero vertices plus its skill block, `apply` stores the doc so the SKILL.md body is
@@ -291,6 +391,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph scout <scope-file>`       | `code-graph scout .claude/epics/my-epic/scope.txt`                   | Prepare the refactor scout's Haiku session prompts for a list of files; calls no model |
 | `code-graph scout --proposals [file]` | `code-graph scout --proposals scribe-output/scout/answers.md`        | Print one `PROPOSALS:` block with git-root-relative paths from the sessions' sections in the answers file (stdin without one) |
 | `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
+| `code-graph git <diff\|log\|show> [args...]` | `code-graph git diff --stat HEAD~3..HEAD -- src` | Read-only git for the unattended update run: refuses `--output` (exit 1), else runs git with the arguments as given |
 | `code-graph eval [--tasks <path>] [--store <stripped\|as-is>]` | `code-graph eval --store as-is`                      | Run layer-A eval harness; `stripped` (default) measures a temp copy without purposes/tags |
 
 ### Choosing the project (`--root`, `$CLAUDE_PROJECT_DIR`)
@@ -550,6 +651,7 @@ the repo's history.
 | 11        | `scout`: no scope file  | The scope file is missing or unreadable. One stderr line names it. Nothing is written |
 | 12        | `scout`: no primer      | No `tsconfig` key in `scribe.config.json`, a declared tsconfig missing on disk, no index (no store, or one with no live vertex), or the catalog failed (`ts-morph` missing, broken tsconfig). One stderr line starting `refactor-scout not run: `, no proposals. The key comes first and nothing auto-detects a tsconfig for it: without the key `extract` makes every concept docs-only, so add it, then run `extract` + `apply`. For no index, run `extract` + `apply`; otherwise fix the tsconfig. The scout does not run without its primer, because the bench never measured that form |
 | 13        | `scout --proposals`: no section | Stdin held no `PROPOSALS:` line, so no session answered. One stderr line, nothing on stdout. Pass the sessions' returned sections; when every session failed the skill prints its `nothing scanned:` line instead |
+| 14        | Update run not claimed  | `refresh-skills --claim-update`: the refresh-skills lock is held, another update run has not finished, or one started within the minimum interval. One line `update run not claimed: <reason>` (`{ claimed: false, reason }` with `--json`). Skip the update; the next stop or task retries |
 
 ## Zed editor LSP
 
