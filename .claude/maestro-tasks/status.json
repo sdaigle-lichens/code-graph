@@ -471,5 +471,9 @@
   "078-keep-concept-skills-up-to-date-without-the-user-from-the-stop-hook-and-from-the-maestro-scribe-subagent.md": {
     "status": "done",
     "blockedBy": []
+  },
+  "079-harden-the-unattended-concept-skill-update-run.md": {
+    "status": "ready",
+    "blockedBy": []
   }
 }
