@@ -466,14 +466,17 @@
   },
   "077-let-a-maestro-project-run-refactor-scout-at-epic-boundaries-by-configuration-alone.md": {
     "status": "done",
-    "blockedBy": []
+    "blockedBy": [],
+    "epic": "concept-skills-auto-update"
   },
   "078-keep-concept-skills-up-to-date-without-the-user-from-the-stop-hook-and-from-the-maestro-scribe-subagent.md": {
     "status": "done",
-    "blockedBy": []
+    "blockedBy": [],
+    "epic": "concept-skills-auto-update"
   },
   "079-harden-the-unattended-concept-skill-update-run.md": {
-    "status": "ready",
-    "blockedBy": []
+    "status": "done",
+    "blockedBy": [],
+    "epic": "concept-skills-auto-update"
   }
 }
