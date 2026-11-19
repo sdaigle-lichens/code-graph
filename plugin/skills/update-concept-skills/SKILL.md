@@ -87,9 +87,8 @@ concept list (`create-concept-skills`) always ask the user; this mode never crea
   `$TMPDIR` (give that path as `outPath` to any enrichment subagent too): the session cannot read its
   environment, and a path outside the project would need a permission prompt. Use only the tools and
   commands this skill names (`cg …`, read-only `git status|rev-parse|rev-list|ls-files`, Read, Glob,
-  Grep); anything else is denied. Read history with `cg git diff|log|show <args>` wherever this skill
-  says `git diff`, `git log` or `git show`: those three are denied directly (their `--output` writes a
-  file, which `cg git` refuses). Edit and Write work only under `<dir>/` and on
+  Grep); anything else is denied. Read history with `cg git diff|log|show <args>`: the plain
+  forms are denied directly (their `--output` writes a file, which `cg git` refuses). Edit and Write work only under `<dir>/` and on
   `scribe.config.json`: an edit to any other file is denied, so never retry one; write it to staging or
   report it. After the session the runner installs the files, stamps them, re-applies their
   docs, and advances the repo-level record only when every entry succeeded. A missing manifest makes
@@ -100,12 +99,12 @@ concept list (`create-concept-skills`) always ask the user; this mode never crea
   `incomplete:` naming each one and why. The concept stays visibly behind, and the next run retries it.
 - **Never orphan an enrichment entry.** `apply` prints a `note:` line for entries it could not remap:
   copy it into the report. Never run `enrich prune`, and never delete a `scribe-output/*.enriched.json`.
-- **Leave everything uncommitted.** No `git add`, no `git commit`: the user reviews `git diff`.
+- **Leave everything uncommitted.** No `git add`, no `git commit`: the user reviews the working-tree diff.
 - Enrichment sizing (step 6) does not ask: incremental concepts only, within the 20-target cap; list
   first-time builds and the rest under "left to enrich".
 - **Known limit**: the quality of a concept-list reconcile run by Haiku (the scribe subagent's model) is
   unmeasured. Scoping each run to the touched concepts keeps it small, and the Stop hook's run catches
-  what a scoped run left behind; review the `git diff` before committing.
+  what a scoped run left behind; review the working-tree diff before committing.
 
 ## Workflow
 
@@ -346,5 +345,5 @@ added and removed with the reason for each (and where `--keep-enriched` moved th
 renames left for a person" (each `ambiguous:` line, with `enrich prune <concept>` or a re-enrich to
 settle it; `--finish-update` prints every unsettled one, from this run or an earlier one); every `note:`
 line about enrichment entries `apply` could not remap; the files the inline large-diff read left
-unread; the proposed `agents` list changes; and the line "changes left uncommitted; review with
-`git diff`".
+unread; the proposed `agents` list changes; and the line "changes left uncommitted; review the
+working-tree diff".

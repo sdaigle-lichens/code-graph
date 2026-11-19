@@ -114,6 +114,8 @@ export async function installStaged(o: {
   dbPath: string;
   inScope: string[];
   cli: CliRun;
+  /** scribe.config.json as the run found it and the concepts it declared; a concept the run created is rolled back when the run fails. */
+  configBefore?: { text: string; concepts: string[] };
 }): Promise<InstallResult> {
   const root = o.config.configRoot;
   const problems: string[] = [];
@@ -176,9 +178,11 @@ export async function installStaged(o: {
     notes.push(`${e.id}: ${e.action}, installed ${rel}`);
   }
 
+  const restored = new Set<string>();
   const restoreInstalled = (id: string) => {
     const prior = before.get(id);
-    if (!prior) return;
+    if (!prior || restored.has(id)) return;
+    restored.add(id);
     const dest = join(root, prior.rel);
     try {
       if (prior.bytes) writeFileSync(dest, prior.bytes);
@@ -234,6 +238,30 @@ export async function installStaged(o: {
   const complete =
     problems.length === 0 && (await step("skills stamp --bump minor", ["skills", "stamp", "--bump", "minor"]));
   if (complete) rmSync(o.stagingDir, { recursive: true, force: true });
+  else if (o.configBefore) {
+    // A failed run leaves the config as it found it: a concept it created is undeclared, its SKILL.md put back.
+    const known = new Set(o.configBefore.concepts);
+    const undeclare = created.filter((id) => !known.has(id));
+    for (const id of undeclare) restoreInstalled(id);
+    if (undeclare.length > 0) {
+      const path = join(root, "scribe.config.json");
+      try {
+        const cur = JSON.parse(readFileSync(path, "utf-8")) as { concepts?: Record<string, unknown> };
+        for (const id of undeclare) delete cur.concepts?.[id];
+        const original = JSON.parse(o.configBefore.text) as unknown;
+        // Byte-identical to the pre-run file when removing the concepts gives back the same JSON.
+        const text =
+          JSON.stringify(cur) === JSON.stringify(original) ? o.configBefore.text : `${JSON.stringify(cur, null, 2)}\n`;
+        writeFileSync(path, text);
+        notes.push(
+          `${undeclare.join(", ")}: removed from scribe.config.json (the run failed; the revision is kept in staging)`
+        );
+      } catch (err) {
+        if (isWriteBlocked(err)) refused.push({ code: err.code ?? "EPERM", path });
+        problems.push(`could not roll back scribe.config.json: ${(err as Error).message}`);
+      }
+    }
+  }
   const lines = [
     "## Installed by the runner",
     "",

@@ -21,6 +21,7 @@ export function cleanEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     "CLAUDE_PROJECT_DIR",
     "NODE_OPTIONS",
     "CODE_GRAPH_UNATTENDED",
+    "CODE_GRAPH_UNATTENDED_ROOT",
     "CODE_GRAPH_AUTO_UPDATE",
     "CODE_GRAPH_UPDATE_INTERVAL_MINUTES",
     "CODE_GRAPH_UPDATE_MODEL",

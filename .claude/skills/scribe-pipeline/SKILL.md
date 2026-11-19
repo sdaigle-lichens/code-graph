@@ -3,8 +3,8 @@ name: scribe-pipeline
 description: How the code-graph write path works — extract a concept to an .ast.json, apply it into the SQLite store with drift detection, and ingest the concept's SKILL.md as a doc vertex. Read before changing packages/code-graph/src/scribe.
 metadata:
   type: concept-skill
-  version: "1.7"
-  last-update: 2931c148b43b43cf360dd595ce8e9bfb4c1790d7
+  version: "1.8"
+  last-update: 8d477dc6351b3552e831354ed039070a1d4f931c
 ---
 
 # Scribe pipeline
@@ -21,11 +21,12 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 | `scribe/extract.ts` | ts-morph walk of the concept's globs; emits vertices and edges, never touches the store; caches one `Project` per tsconfig path per process, so a batch extract parses the tsconfig once |
 | `scribe/ast-output.ts` | reads the concept's SKILL.md, writes the `.ast.json`; `extractDocsOnly` for concepts with no code |
 | `scribe/apply.ts` | upserts vertices/edges, runs drift detection, archives vertices that vanished, rebuilds FTS; modes: interactive rename prompt (`y`/`n`/skip-all), `--approve-drift`, `--dry-run` (exit 0, `--json`), `--defer-renames` (see Invariants), `--approve-unambiguous-renames` (see Invariants) |
-| `scribe/update-run.ts` | the unattended update-concept-skills run (task 078): the trigger `maybeStartUpdate` (`refresh-skills --hook` calls it after its refresh; one detached runner per start), the runner `runUpdate` (`refresh-skills --run-update <token>`), the claim/finish pair `claimUpdateRun` / `finishUpdateRun` / `finishSessionRun` (`refresh-skills --claim-update`, `--finish-update`), the state `.update-skills.json` and `.update-skills.head`, the report `update-skills-report.md`, the dontAsk allowlist `unattendedAllowedTools` and `READ_ONLY_GIT`, and the prompt line `CLAIMED_BY_RUNNER`. `CODE_GRAPH_UPDATE_MODEL` / `CODE_GRAPH_UPDATE_PLUGIN_DIR` pass `--model` / `--plugin-dir` to `claude -p`. Imports no store, ts-morph or typescript |
-| `scribe/update-staging.ts` | staged install: the session writes SKILL.md files and `manifest.json` under `scribe-output/update-staging/`; `installStaged` copies them into place, stamps them (`--bump minor`, `initial` for a created one, `--reviewed` for stamp-only), re-applies their docs, and advances the repo-level record only when every entry succeeded. `refusedWriteIn` reads an EPERM/EROFS/EACCES path out of a child's output; a refused write makes the run INCOMPLETE |
+| `scribe/update-run.ts` | the unattended update-concept-skills run (task 078): the trigger `maybeStartUpdate` (`refresh-skills --hook` calls it after its refresh; one detached runner per start), the runner `runUpdate` (`refresh-skills --run-update <token>`), the claim/finish pair `claimUpdateRun` / `finishUpdateRun` / `finishSessionRun` (`refresh-skills --claim-update`, `--finish-update`), the state `.update-skills.json` and `.update-skills.head`, the report `update-skills-report.md`, the dontAsk allowlist `unattendedAllowedTools` and `READ_ONLY_GIT`, and the prompt line `CLAIMED_BY_RUNNER`. `CODE_GRAPH_UPDATE_MODEL` / `CODE_GRAPH_UPDATE_PLUGIN_DIR` pass `--model` / `--plugin-dir` to `claude -p`. The runner sets `CODE_GRAPH_UNATTENDED_ROOT` (the project) beside `CODE_GRAPH_UNATTENDED`. Imports no store, ts-morph or typescript |
+| `scribe/unattended-guard.ts` | the CLI refusals under `CODE_GRAPH_UNATTENDED` (task 079): `unattendedRefusal` for `enrich prune --yes`, `delete-concept --yes` without `--keep-enriched`, and a `--root` outside `CODE_GRAPH_UNATTENDED_ROOT` (else `$CLAUDE_PROJECT_DIR`, else cwd); `refuseUnattended` prints one stderr line and exits 1. The `cli.ts` `preAction` hook runs them before any command. Imports only node:fs and node:path |
+| `scribe/update-staging.ts` | staged install: the session writes SKILL.md files and `manifest.json` under `scribe-output/update-staging/`; `installStaged` copies them into place, stamps them (`--bump minor`, `initial` for a created one, `--reviewed` for stamp-only), re-applies their docs, and advances the repo-level record only when every entry succeeded. When the install does not complete it also undeclares a concept the run created (`configBefore`). `refusedWriteIn` reads an EPERM/EROFS/EACCES path out of a child's output; a refused write makes the run INCOMPLETE |
 | `scribe/update-fixture.ts` | test-only helpers for the update-run tests (`update-run`, `update-staging`, `update-probes` `.test.ts`): `buildBehindProject` (a throwaway git project whose concepts are behind HEAD), `fakeClaudeOnPath`, `stageSkill`/`writeManifest`, `cleanEnv` (drops the `CODE_GRAPH_*` update variables). Runs the built `dist/cli.js` (`assertDist`) |
 | `scribe/pending-renames.ts` | the ambiguous renames `apply --approve-unambiguous-renames` left unapplied, in `scribe-output/ambiguous-renames.json`; `pendingRenamesSection` lists them in each update report until settled |
-| `scribe/read-only-git.ts` | `code-graph git diff\|log\|show [args...]`: runs git with no shell and refuses `--output` / `--output=` (exit 1, nothing written); the only history read the headless run is allowed |
+| `scribe/read-only-git.ts` | `code-graph git diff\|log\|show [args...]`: runs git with no shell and refuses `--output` / `--output=` (exit 1, nothing written); `gitSafeEnv` removes the program-running `GIT_*` variables (`GIT_EXTERNAL_DIFF`, `GIT_PAGER`, `GIT_CONFIG_*`, `GIT_SSH*`, ...) first; the only history read the headless run is allowed |
 | `scribe/skill-refresh.ts` | `refresh-skills [--hook] [--json]`: finds applied concepts whose SKILL.md changed, runs `extract` + `apply --defer-renames` per concept as child CLI processes under a lock, builds the hook's `systemMessage`; owns `HOOK_TIMEOUT_SECONDS` (120), `takeLock`/`releaseLock`, exports `LOCK_FILE` (the lock the update run shares), and re-exports `EXIT_RENAMES_DEFERRED` (10, defined in `scribe/exit-codes.ts`). Run by `plugin/hooks/hooks.json` on Stop/SubagentStop |
 | `scribe/exit-codes.ts` | shared exit codes with no imports: `EXIT_RENAMES_DEFERRED` (10), `EXIT_UPDATE_NOT_CLAIMED` (14: `--claim-update` refused, not an error); `apply.ts` reads it from here so the write path never imports the hook module |
 | `scribe/bootstrap.ts` | schema (`SCHEMA_VERSION`), the single `search_fts` table, `rebuildSearchIndex` (stamps `meta.fts_format` = `FTS_FORMAT`), `ensureSearchIndexFormat` (one-time reindex used by `search`); the newer-store refusal: `assertStoreNotNewer` / `NewerStoreError`, and `openStoreOrExit` (exit 3), which every store command opens through (see Gotchas) |
@@ -41,7 +42,7 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
 
 - Vertex `_key` includes the filepath, so moving a file orphans its enrichment. `apply` remaps an unambiguous orphan itself
   (`planOrphansInStore`, persisted except in a dry run) and prints one `note:` line for the rest; only
-  `enrich prune <concept> [--yes]` deletes (dry run by default). Back up the gitignored `.enriched.json` first.
+  `enrich prune <concept> [--yes]` deletes (dry run by default; `--yes` is refused under `CODE_GRAPH_UNATTENDED`). Back up the gitignored `.enriched.json` first.
 - Agent fields come only from enrichment and survive re-extracts; a body change sets `agent.stale`
   on every changed vertex, never-enriched ones included.
 - `enrich targets` is lazy: a never-enriched vertex is `new` only when core, touched since the
@@ -125,11 +126,15 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   `MAX_UPDATE_RUN_MINUTES` (120), or within the interval (`DEFAULT_UPDATE_INTERVAL_MINUTES`, 60; `CODE_GRAPH_UPDATE_INTERVAL_MINUTES`
   or `--update-interval`). The hook-started runner heartbeats the lock every 30 s (`HEARTBEAT_MS`), so a long `claude -p` is not
   taken over at `HOOK_TIMEOUT_SECONDS`; a session claim releases the lock at once. The runner sets `CODE_GRAPH_UNATTENDED=1`, so a stop
-  inside it starts nothing. `CODE_GRAPH_AUTO_UPDATE=0` turns the trigger off.
+  inside it starts nothing, and `CODE_GRAPH_UNATTENDED_ROOT` to the project. `CODE_GRAPH_AUTO_UPDATE=0` turns the trigger off.
+- **Unattended refusals (task 079).** With `CODE_GRAPH_UNATTENDED` set, `enrich prune --yes`, `delete-concept --yes` without
+  `--keep-enriched`, and a `--root` outside `CODE_GRAPH_UNATTENDED_ROOT` exit 1 before the command runs: one stderr line, nothing
+  written (`unattended-guard.ts`). The same commands work in a normal session. Skill text still says never to run them; the CLI is the enforcement.
 - `finishSessionRun` (`--finish-update`) finishes only a state with `by === 'session'`; a hook-started run is finished only by its
   runner (`runUpdate`). A stray `--finish-update` cannot end a hook run or overwrite its report.
 - The headless session has no Bash rule for `git diff|log|show` (their `--output=<file>` writes any file). It reads history through
-  `code-graph git diff|log|show`, which refuses `--output`. `READ_ONLY_GIT` keeps only `status`, `rev-parse`, `rev-list`, `ls-files`.
+  `code-graph git diff|log|show`, which refuses `--output` and runs git without the `GIT_*` program-running variables (`gitSafeEnv`).
+  `READ_ONLY_GIT` keeps only `status`, `rev-parse`, `rev-list`, `ls-files`.
 - Staged install: the session never writes `.claude/skills`. It writes `scribe-output/update-staging/<concept>/SKILL.md` and a
   `manifest.json`. `installStaged` installs and stamps each `revised`/`created` entry it can (a bad entry is a problem, not a stop),
   stamps the `stamp-only` ones with `--reviewed`, then runs one `extract` + `apply --approve-unambiguous-renames` over the installed
@@ -138,13 +143,16 @@ The read path (`src/query/`) is the `code-graph-search` skill's concern.
   over a failed refresh. The repo-level `skills stamp --bump minor` runs only with no problem at all; the staging directory is
   removed then and kept otherwise. A missing manifest, an in-scope concept missing from it, a `failed` entry, a non-zero `claude`
   exit, or a refused write (EPERM, EROFS, EACCES named by `refusedWriteIn`; `SQLITE_READONLY` for `graph.db`) ends the run
-  INCOMPLETE and the report names the refused path.
+  INCOMPLETE and the report names the refused path. When the install does not complete, a concept the run created is also
+  removed from `scribe.config.json` (`configBefore` from the run's start; its staged SKILL.md stays in staging), so a failed run
+  leaves the config as it found it.
 - `apply --approve-unambiguous-renames` applies the concept (exit 0). A candidate is ambiguous when its old or new key appears in
   more than one raw candidate, or when both keys are already in `.enriched.json`. Unambiguous ones are re-keyed. An ambiguous one is
   not applied: its old key is archived and the new key inserted as new, its old enriched entry stays as an orphan (nothing deleted),
   and it is recorded in `scribe-output/ambiguous-renames.json`. Combining it with `--approve-drift`, `--defer-renames` or `--dry-run`
   exits 1. The drift JSON marks each candidate `renameCandidates[].ambiguous`.
 - `delete-concept --keep-enriched` never deletes `<concept>.enriched.json` (it is unrecoverable): it moves it to `scribe-output/deleted/`.
+  Under `CODE_GRAPH_UNATTENDED`, `delete-concept --yes` without `--keep-enriched` is refused.
 
 ## Traps
 

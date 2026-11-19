@@ -363,6 +363,74 @@ describe("automatic adds, removals and renames keep their enriched data", () => 
     assert.ok(fs.existsSync(path.join(root, "scribe-output", "gamma.ast.json")), "gamma was extracted");
   });
 
+  it("a run that adds a concept and then fails leaves scribe.config.json and the SKILL.md as it found them", async () => {
+    const configPath = path.join(root, "scribe.config.json");
+    const configBefore = fs.readFileSync(configPath, "utf8");
+    const cfg = JSON.parse(configBefore) as { concepts: Record<string, unknown> };
+    writeRel(
+      root,
+      "src/gamma/g.ts",
+      "/** Doubles. */\nexport function doubled(n: number): number {\n  return n * 2;\n}\n"
+    );
+    const real = nodeCli(DIST, root);
+    const failingApply: CliRun = async (args) =>
+      args[0] === "apply" ? { code: 1, stdout: "", stderr: "error: boom" } : real(args);
+    const r = await runOnce(
+      session((s) => {
+        cfg.concepts.gamma = { globs: ["src/gamma/**"], skill: ".claude/skills/gamma/SKILL.md" };
+        fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n");
+        stageSkill(s, "gamma", "---\nname: gamma\ndescription: Doubling (gamma).\n---\n\n# gamma\n\n`doubled`.\n");
+        writeManifest(s, [
+          { id: "alpha", action: "untouched" },
+          { id: "gamma", action: "created" },
+        ]);
+      }),
+      { cli: failingApply }
+    );
+    assert.equal(r.state?.complete, false);
+    assert.equal(fs.readFileSync(configPath, "utf8"), configBefore, "config as the run found it");
+    assert.equal(fs.existsSync(path.join(root, ".claude/skills/gamma/SKILL.md")), false, "no SKILL.md left");
+    assert.match(r.report, /gamma: removed from scribe\.config\.json/);
+  });
+
+  // The same rollback at the other two points a run can fail after it declared a concept: its extract, and
+  // its install stamp (the SKILL.md stamp that runs before the refresh).
+  const failurePoints: [string, (args: string[]) => boolean][] = [
+    ["extract", (args) => args[0] === "extract"],
+    ["the install stamp", (args) => args[0] === "skills" && args.includes("initial")],
+  ];
+  for (const [stage, fails] of failurePoints) {
+    it(`a run that adds a concept and fails at ${stage} leaves scribe.config.json and the SKILL.md as it found them`, async () => {
+      const configPath = path.join(root, "scribe.config.json");
+      const configBefore = fs.readFileSync(configPath, "utf8");
+      const cfg = JSON.parse(configBefore) as { concepts: Record<string, unknown> };
+      writeRel(
+        root,
+        "src/gamma/g.ts",
+        "/** Doubles. */\nexport function doubled(n: number): number {\n  return n * 2;\n}\n"
+      );
+      const real = nodeCli(DIST, root);
+      const failing: CliRun = async (args) =>
+        fails(args) ? { code: 1, stdout: "", stderr: "error: boom" } : real(args);
+      const r = await runOnce(
+        session((s) => {
+          cfg.concepts.gamma = { globs: ["src/gamma/**"], skill: ".claude/skills/gamma/SKILL.md" };
+          fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + "\n");
+          stageSkill(s, "gamma", "---\nname: gamma\ndescription: Doubling (gamma).\n---\n\n# gamma\n\n`doubled`.\n");
+          writeManifest(s, [
+            { id: "alpha", action: "untouched" },
+            { id: "gamma", action: "created" },
+          ]);
+        }),
+        { cli: failing }
+      );
+      assert.equal(r.state?.complete, false);
+      assert.match(r.report, /failed: .*exited 1/, "the report names the failed step");
+      assert.equal(fs.readFileSync(configPath, "utf8"), configBefore, "config as the run found it");
+      assert.equal(fs.existsSync(path.join(root, ".claude/skills/gamma/SKILL.md")), false, "no SKILL.md left");
+    });
+  }
+
   it("a removed concept keeps its enriched entries: delete-concept --keep-enriched moves them, none lost", () => {
     // Build beta's graph and enrich one of its vertices, then remove beta the way the skill does.
     const betaKeysBefore = (() => {

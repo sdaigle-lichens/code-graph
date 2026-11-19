@@ -573,6 +573,23 @@ describe("skill and doc pins for the unattended run", () => {
     assert.match(docs("docs/usage.md"), /`code-graph git diff\|log\|show\s+\[args\.\.\.\]`, which refuses `--output`/);
   });
 
+  it("no plain git diff|log|show instruction is left on the unattended path (skills and prompts it reads)", () => {
+    const plain = /(?<!\bcg )(?<!\bcode-graph )\bgit (diff|log|show)\b/;
+    const files = [
+      "skills/update-concept-skills/SKILL.md",
+      "skills/scribe/SKILL.md",
+      "skills/scribe/refresh-hook.md",
+      "skills/load-concept-skills/SKILL.md",
+    ];
+    for (const rel of files) {
+      for (const [i, line] of plugin(rel).split("\n").entries()) {
+        assert.doesNotMatch(line, plain, `${rel}:${i + 1} has a plain git diff|log|show: ${line}`);
+      }
+    }
+    assert.doesNotMatch(unattendedPrompt(["alpha"], "/x/staging"), plain);
+    assert.match(plugin("skills/update-concept-skills/SKILL.md"), /cg git diff/);
+  });
+
   it("docs/usage.md names dontAsk, the default model and the CODE_GRAPH_AUTO_UPDATE=0 off switch", () => {
     const usage = docs("docs/usage.md");
     assert.ok(usage.includes("dontAsk"));

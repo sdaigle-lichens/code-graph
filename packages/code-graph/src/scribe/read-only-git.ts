@@ -21,6 +21,36 @@ export function refusedGitCall(subcommand: string, args: string[]): string | nul
   return null;
 }
 
+/**
+ * The environment git runs under: every variable that can make a read-only git command run another program
+ * (GIT_EXTERNAL_DIFF, GIT_PAGER, a configured `core.pager`/`diff.external` injected through GIT_CONFIG_*) is
+ * removed. Locations (GIT_DIR, GIT_WORK_TREE) are left alone.
+ */
+export function gitSafeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (
+      k === "GIT_EXTERNAL_DIFF" ||
+      k === "GIT_PAGER" ||
+      k === "GIT_CONFIG_COUNT" ||
+      k === "GIT_CONFIG_PARAMETERS" ||
+      k === "GIT_CONFIG_GLOBAL" ||
+      k === "GIT_CONFIG_SYSTEM" ||
+      k === "GIT_CONFIG" ||
+      k === "GIT_ASKPASS" ||
+      k === "GIT_SSH" ||
+      k === "GIT_SSH_COMMAND" ||
+      k === "GIT_PROXY_COMMAND" ||
+      k === "GIT_EDITOR" ||
+      /^GIT_CONFIG_(KEY|VALUE)_\d+$/.test(k)
+    ) {
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
 /** Runs `git <subcommand> <args>` in `cwd` with inherited stdio; returns the exit code (1 when refused). */
 export function runReadOnlyGit(subcommand: string, args: string[], cwd: string): number {
   const refused = refusedGitCall(subcommand, args);
@@ -28,7 +58,11 @@ export function runReadOnlyGit(subcommand: string, args: string[], cwd: string):
     process.stderr.write(`error: ${refused}\n`);
     return 1;
   }
-  const r = spawnSync("git", [subcommand, ...args], { cwd, stdio: "inherit" });
+  const r = spawnSync("git", [subcommand, ...args], {
+    cwd,
+    stdio: "inherit",
+    env: gitSafeEnv(process.env),
+  });
   if (r.error) {
     process.stderr.write(`error: ${r.error.message}\n`);
     return 1;

@@ -6,8 +6,9 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { refusedGitCall } from "./read-only-git.js";
-import { assertDist, buildBehindProject, cg, git, makeBase } from "./update-fixture.js";
+import { spawnSync } from "node:child_process";
+import { gitSafeEnv, refusedGitCall } from "./read-only-git.js";
+import { assertDist, buildBehindProject, cg, cleanEnv, git, makeBase } from "./update-fixture.js";
 
 let base: string;
 let root: string;
@@ -67,6 +68,51 @@ describe("code-graph git refuses --output", () => {
     const r = cg(root, ["git", "-c", "core.pager=sh", "log", "-1"]);
     assert.equal(r.code, 1, r.stderr);
     assert.match(r.stderr, /is not one of diff, log, show/);
+  });
+});
+
+describe("code-graph git strips the GIT_* configuration environment", () => {
+  it("gitSafeEnv drops the program-running variables and keeps the rest", () => {
+    const env = gitSafeEnv({
+      GIT_EXTERNAL_DIFF: "x",
+      GIT_PAGER: "x",
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "core.pager",
+      GIT_CONFIG_VALUE_0: "x",
+      GIT_CONFIG_PARAMETERS: "'core.pager=x'",
+      GIT_CONFIG_GLOBAL: "/x",
+      GIT_CONFIG_SYSTEM: "/x",
+      GIT_DIR: "/keep",
+      PATH: "/bin",
+    });
+    assert.deepEqual(env, { GIT_DIR: "/keep", PATH: "/bin" });
+  });
+
+  it("GIT_EXTERNAL_DIFF is not run by code-graph git diff (but is by plain git, so the test is real)", () => {
+    const marker = path.join(base, "ext-diff-ran.txt");
+    const script = path.join(base, "ext-diff.sh");
+    fs.writeFileSync(script, `#!/bin/sh\necho ran > '${marker}'\n`, { mode: 0o755 });
+    const env = cleanEnv({ GIT_EXTERNAL_DIFF: script });
+    spawnSync("git", ["diff", "HEAD~1..HEAD"], { cwd: root, env, encoding: "utf8" });
+    assert.equal(fs.existsSync(marker), true, "plain git runs the external diff");
+    fs.rmSync(marker);
+    const r = cg(root, ["git", "diff", "HEAD~1..HEAD"], env);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(fs.existsSync(marker), false, "code-graph git did not run it");
+    assert.match(r.stdout, /^diff --git /m, "the builtin diff printed");
+  });
+
+  it("a GIT_CONFIG_* core.pager / diff.external is not honoured either", () => {
+    const marker = path.join(base, "cfg-ran.txt");
+    const script = path.join(base, "cfg.sh");
+    fs.writeFileSync(script, `#!/bin/sh\necho ran > '${marker}'\n`, { mode: 0o755 });
+    const env = cleanEnv({ GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "diff.external", GIT_CONFIG_VALUE_0: script });
+    spawnSync("git", ["diff", "HEAD~1..HEAD"], { cwd: root, env, encoding: "utf8" });
+    assert.equal(fs.existsSync(marker), true, "plain git honours the injected diff.external (the test is real)");
+    fs.rmSync(marker);
+    const r = cg(root, ["git", "diff", "HEAD~1..HEAD"], env);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(fs.existsSync(marker), false);
   });
 });
 

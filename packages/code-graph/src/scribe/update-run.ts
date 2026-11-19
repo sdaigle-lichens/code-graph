@@ -29,6 +29,7 @@ import {
   SANDBOXED_RUNNER,
   stagingDirFor,
 } from "./update-staging.js";
+import { UNATTENDED_ROOT_ENV } from "./unattended-guard.js";
 import { HOOK_TIMEOUT_SECONDS, LOCK_FILE, releaseLock, takeLock } from "./skill-refresh.js";
 
 /** Run state next to graph.db: the last claimed run (start, who, concepts, finish). */
@@ -345,7 +346,7 @@ export function spawnDetachedRunner(launch: UpdateLaunch): void {
     cwd: launch.root,
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, [UNATTENDED_ENV]: "1" },
+    env: { ...process.env, [UNATTENDED_ENV]: "1", [UNATTENDED_ROOT_ENV]: launch.root },
   });
   child.on("error", () => {}); // the runner records its own failure; a spawn error must not reach the hook
   child.unref();
@@ -539,13 +540,24 @@ export async function runUpdate(
   // A runner that cannot even reset its staging dir is sandboxed (or on a read-only tree): claude is
   // not started (no tokens spent on a run whose files could not be installed).
   let refusedStaging: RefusedWrite | null = null;
+  let configBefore: { text: string; concepts: string[] } | undefined;
+  try {
+    const text = readFileSync(join(configRoot, "scribe.config.json"), "utf-8");
+    configBefore = { text, concepts: Object.keys(config?.concepts ?? {}) };
+  } catch {
+    // no readable config: nothing to roll back to
+  }
   try {
     resetStaging(stagingDir);
   } catch (err) {
     if (isWriteBlocked(err)) refusedStaging = { code: err.code ?? "EPERM", path: stagingDir };
     // any other failure shows up below as a missing manifest
   }
-  const env: NodeJS.ProcessEnv = { ...(o.env ?? process.env), [UNATTENDED_ENV]: "1" };
+  const env: NodeJS.ProcessEnv = {
+    ...(o.env ?? process.env),
+    [UNATTENDED_ENV]: "1",
+    [UNATTENDED_ROOT_ENV]: configRoot,
+  };
   const heartbeat = setInterval(() => {
     try {
       if (readFileSync(lockPath, "utf-8") === lockToken) {
@@ -620,6 +632,7 @@ export async function runUpdate(
           dbPath: dbPathFor(installConfig),
           inScope: concepts,
           cli: o.cli ?? nodeCli(cliScript, configRoot),
+          ...(configBefore ? { configBefore } : {}),
         });
       } catch (err) {
         install = {

@@ -197,7 +197,11 @@ no other project file. Paths are resolved when the run starts, each as given and
 `git diff`, `log` and `show` are not allowed directly: they take `--output=<file>`, which writes any
 file, and a prefix rule cannot refuse it. The session reads history with `code-graph git diff|log|show
 [args...]`, which refuses `--output` (exit 1, nothing written) and otherwise runs git with the arguments
-as given, with no shell (put a global `--root` before `git`).
+as given, with no shell (put a global `--root` before `git`). It runs git without the program-running `GIT_*`
+variables (`GIT_EXTERNAL_DIFF`, `GIT_PAGER`, `GIT_CONFIG_*`, `GIT_SSH*`, `GIT_ASKPASS`, `GIT_EDITOR`).
+The runner sets `CODE_GRAPH_UNATTENDED=1` and `CODE_GRAPH_UNATTENDED_ROOT` (the project). Under that marker,
+`enrich prune --yes`, `delete-concept --yes` (without `--keep-enriched`) and a `--root` outside that project exit 1
+with one stderr line and change no file; the same commands work in a normal session.
 The hook returns at once; the message says so.
 
 **It spends tokens.** Once concept skills are behind HEAD, a stop in any session in the project can
@@ -245,7 +249,9 @@ incomplete, the report header has a `sandboxed:` line naming each refused path, 
 advanced. When the staging directory itself is refused, `claude` is not started. When the report
 itself cannot be written, the refused path goes to the state file (`refused`) and the runner's stderr,
 and the run still ends incomplete. A failed `extract` or `apply` after the install puts each installed
-SKILL.md back as it was, so no concept keeps a fresh stamp over a failed refresh. The runner reloads
+SKILL.md back as it was, so no concept keeps a fresh stamp over a failed refresh. When the install does not
+complete, a concept the run created is also removed from `scribe.config.json` (its staged SKILL.md stays in
+staging), so the config ends as it started. The runner reloads
 `scribe.config.json` after the session, so a concept the session added is installed like the others.
 
 `CODE_GRAPH_UPDATE_MODEL` sets the run's `--model`; `CODE_GRAPH_UPDATE_PLUGIN_DIR` passes
@@ -379,7 +385,7 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph refresh-skills`           | `code-graph refresh-skills --json`                                   | Extract + apply every applied concept whose SKILL.md changed; renames deferred (exit 10) |
 | `code-graph enrich targets <concept>` | `code-graph enrich targets workorder-store --summary --json`         | List vertices that need enrichment (lazy; `--all`: every) |
 | `code-graph enrich merge <c> <file>`  | `code-graph enrich merge workorder-store partial.json`               | Merge a partial enrichment into `<c>.enriched.json`       |
-| `code-graph enrich prune <c> [--yes]` | `code-graph enrich prune workorder-store`                            | List (dry run) or drop orphaned entries `apply` cannot remap |
+| `code-graph enrich prune <c> [--yes]` | `code-graph enrich prune workorder-store`                            | List (dry run) or drop orphaned entries `apply` cannot remap; `--yes` is refused in an unattended run |
 | `code-graph search "<query>"`         | `code-graph search "sync sends stale ops"`                           | Hybrid BM25 + multi-hop search                            |
 | `code-graph query concept <name>`     | `code-graph query concept workorder-store`                           | Query a concept subgraph                                  |
 | `code-graph query impact <symbol>`    | `code-graph query impact setWorkorderIndex`                          | Query impact of a symbol                                  |
@@ -390,8 +396,8 @@ Everything a user can invoke from the plugin. `/graph` is the only slash command
 | `code-graph deps install`             | `code-graph deps install`                                            | Install pinned ts-morph into the plugin deps directory (`deps status` shows what resolves) |
 | `code-graph scout <scope-file>`       | `code-graph scout .claude/epics/my-epic/scope.txt`                   | Prepare the refactor scout's Haiku session prompts for a list of files; calls no model |
 | `code-graph scout --proposals [file]` | `code-graph scout --proposals scribe-output/scout/answers.md`        | Print one `PROPOSALS:` block with git-root-relative paths from the sessions' sections in the answers file (stdin without one) |
-| `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts |
-| `code-graph git <diff\|log\|show> [args...]` | `code-graph git diff --stat HEAD~3..HEAD -- src` | Read-only git for the unattended update run: refuses `--output` (exit 1), else runs git with the arguments as given |
+| `code-graph delete-concept <name>`    | `code-graph delete-concept workorder-store --yes`                    | Archive a concept's vertices/edges, remove it from config and artifacts; `--yes` without `--keep-enriched` is refused in an unattended run |
+| `code-graph git <diff\|log\|show> [args...]` | `code-graph git diff --stat HEAD~3..HEAD -- src` | Read-only git for the unattended update run: refuses `--output` (exit 1), else runs git with the arguments as given and without the `GIT_*` program-running variables |
 | `code-graph eval [--tasks <path>] [--store <stripped\|as-is>]` | `code-graph eval --store as-is`                      | Run layer-A eval harness; `stripped` (default) measures a temp copy without purposes/tags |
 
 ### Choosing the project (`--root`, `$CLAUDE_PROJECT_DIR`)

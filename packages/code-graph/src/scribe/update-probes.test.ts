@@ -208,9 +208,9 @@ describe("probe: a created SKILL.md is removed when the graph refresh fails", ()
       "no repo-level stamp"
     );
     assert.equal((stateOf(root) as Record<string, unknown>).complete, false);
-    // Observed, not asserted as the spec: scribe.config.json still declares gamma after the restore.
+    // Task 079: the failed run rolls the declaration back too.
     const after = JSON.parse(fs.readFileSync(configPath, "utf8")) as { concepts: Record<string, unknown> };
-    assert.ok("gamma" in after.concepts, "config keeps gamma (not reverted by the restore)");
+    assert.ok(!("gamma" in after.concepts), "config no longer declares gamma (rolled back)");
     const status = cg(root, ["skills", "status", "--summary"]);
     assert.equal(
       status.code,

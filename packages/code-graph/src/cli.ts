@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { batchFailureSummary, ReportedError, resolveConceptArgs, runConceptBatch } from "./concept-batch.js";
 import { resolveStartDir, tryLoadConfig } from "./config.js";
+import { refuseUnattended, unattendedRefusal } from "./scribe/unattended-guard.js";
 import { registerSkillsCommands } from "./skills/commands.js";
 import { ensureSqlite, STORE_COMMANDS } from "./sqlite-guard.js";
 import { packageRoot, packageVersion } from "./version.js";
@@ -68,8 +69,12 @@ program.option(
 
 // Every command resolves its config, store and git from process.cwd(), so the chosen root is applied
 // once, here, before any action runs. `skills` reads $CLAUDE_PROJECT_DIR itself, so --root is mirrored there.
-program.hook("preAction", (thisCommand) => {
+program.hook("preAction", (thisCommand, action) => {
   const root = (thisCommand.opts() as { root?: string }).root;
+  refuseUnattended(unattendedRefusal("root", { root }));
+  const o = action.opts() as { yes?: boolean; keepEnriched?: boolean };
+  const name = action.name() === "prune" && action.parent?.name() === "enrich" ? "enrich prune" : action.name();
+  if (name === "enrich prune" || name === "delete-concept") refuseUnattended(unattendedRefusal(name, o));
   try {
     const start = resolveStartDir(root);
     if (start !== process.cwd()) process.chdir(start);
